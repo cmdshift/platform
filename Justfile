@@ -3,6 +3,7 @@ default:
   @just --list --unsorted --list-heading '' --list-prefix ''
 
 init *args:
+  packer init cluster/cloud/image
   terraform -chdir=cluster/local init {{args}}
 
 apply *args:
@@ -10,3 +11,6 @@ apply *args:
 
 destroy *args:
   terraform -chdir=cluster/local destroy {{args}}
+
+image:
+  packer build cluster/cloud/image
