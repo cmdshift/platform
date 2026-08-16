@@ -2,6 +2,7 @@
     "recommendations": [
         "hashicorp.hcl",
         "hashicorp.terraform",
+        "ms-azuretools.vscode-containers",
         "nefrob.vscode-just-syntax",
         "redhat.vscode-yaml"
     ]

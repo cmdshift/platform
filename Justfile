@@ -6,6 +6,9 @@ init *args:
   packer init cluster/cloud/image
   terraform -chdir=cluster/local init {{args}}
 
+plan *args:
+  terraform -chdir=cluster/local plan {{args}}
+
 apply *args:
   terraform -chdir=cluster/local apply {{args}}
 

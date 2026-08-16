@@ -2,10 +2,6 @@ variable "name" {
   type = string
 }
 
-variable "image" {
-  type = string
-}
-
 variable "net" {
   type = object({
     private_network_id = string

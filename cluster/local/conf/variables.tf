@@ -23,11 +23,6 @@ variable "haproxy_version" {
   default = "3.2.22"
 }
 
-variable "rustfs_version" {
-  type    = string
-  default = "1.0.0-rc.1"
-}
-
 variable "ctrl_nodes" {
   type    = number
   default = 1
@@ -36,4 +31,14 @@ variable "ctrl_nodes" {
 variable "work_nodes" {
   type    = number
   default = 1
+}
+
+variable "storage_access_key_id" {
+  type    = string
+  default = "rustfsadmin"
+}
+
+variable "storage_secret_access_key" {
+  type    = string
+  default = "rustfsadmin"
 }

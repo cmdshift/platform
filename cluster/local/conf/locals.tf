@@ -14,3 +14,17 @@ locals {
   pod_cidr     = "10.244.0.0/16"
   service_cidr = "10.96.0.0/12"
 }
+
+locals {
+  server_images = {
+    coredns = docker_image.coredns.image_id
+    talos   = docker_image.talos.image_id
+    haproxy = docker_image.haproxy.image_id
+  }
+}
+
+locals {
+  storage_buckets = {
+    flux = "flux"
+  }
+}
