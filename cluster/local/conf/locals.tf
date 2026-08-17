@@ -1,7 +1,7 @@
 locals {
-  cloud_name   = replace(var.cloud_hostname, ".", "-")
-  local_name   = replace(var.local_hostname, ".", "-")
-  cluster_name = replace(var.local_hostname, ".", "-")
+  external_name = replace(var.external_hostname, ".", "-")
+  internal_name = replace(var.internal_hostname, ".", "-")
+  cluster_name  = replace(var.internal_hostname, ".", "-")
 }
 
 locals {
@@ -16,15 +16,13 @@ locals {
 }
 
 locals {
-  server_images = {
-    coredns = docker_image.coredns.image_id
-    talos   = docker_image.talos.image_id
-    haproxy = docker_image.haproxy.image_id
+  storage_buckets = {
+    flux = "flux"
   }
 }
 
 locals {
-  storage_buckets = {
-    flux = "flux"
-  }
+  local_ca_cert = "${path.root}/.tmp/tls.crt"
+  local_ca_key  = "${path.root}/.tmp/tls.key"
+  local_ca_pem  = "${path.root}/.tmp/tls.pem"
 }

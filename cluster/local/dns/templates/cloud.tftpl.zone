@@ -1,0 +1,12 @@
+$ORIGIN ${external_hostname}.
+
+@ IN SOA ${hostname}. dns@${external_hostname} (
+  1
+  3600
+  600
+  604800
+  86400
+)
+
+@ 300 IN A ${external_ip_address}
+* 300 IN A ${external_ip_address}

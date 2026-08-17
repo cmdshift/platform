@@ -1,0 +1,8 @@
+${external_hostname} {
+  root /etc/coredns/zones
+  file cloud.zone
+}
+
+.:53 {
+  forward . /etc/resolv.conf
+}
