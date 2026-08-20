@@ -1,0 +1,21 @@
+machine:
+  features:
+    hostDNS:
+      enabled: true
+      forwardKubeDNSToHost: true
+  certSANs:
+    - ${cmd_hostname}
+    - ${cmd_private_ip}
+  kubelet:
+    nodeIP:
+      validSubnets:
+        - ${ctrl_cidr}
+        - ${work_cidr}
+  network:
+    nameservers:
+      - ${dns_private_ip}
+  time:
+    servers:
+      - time.cloudflare.com
+      - ntp1.net.berkeley.edu
+      - pool.ntp.org

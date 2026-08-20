@@ -11,8 +11,21 @@ locals {
   work_cidr    = "10.0.32.0/24"
   local_cidr   = "10.0.64.0/24"
   cloud_cidr   = "10.0.128.0/24"
-  pod_cidr     = "10.244.0.0/16"
-  service_cidr = "10.96.0.0/12"
+}
+
+locals {
+  ctrl_nodes = {
+    for n in range(var.ctrl_nodes) :
+    cidrhost(local.ctrl_cidr, n + 1) => {
+      name = join("-", ["ctrl", local.internal_name])
+    }
+  }
+  work_nodes = {
+    for n in range(var.work_nodes) :
+    cidrhost(local.work_cidr, n + 1) => {
+      name = join("-", ["work", local.internal_name])
+    }
+  }
 }
 
 locals {

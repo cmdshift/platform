@@ -6,7 +6,7 @@ module "net" {
   source       = "./net"
   network_cidr = module.conf.net.network_cidr
   cluster = {
-    name = module.conf.internal_name
+    name = module.conf.cluster_name
   }
 }
 
@@ -22,6 +22,10 @@ module "dns" {
     internal_ip_address = module.conf.internal.private_ip
     bridge_network_id   = module.net.bridge_network_id
     private_network_id  = module.net.private_network_id
+  }
+  cmd = {
+    hostname   = module.conf.nodes.cmd.hostname
+    private_ip = module.conf.nodes.cmd.private_ip
   }
 }
 
@@ -71,6 +75,30 @@ module "flux" {
   }
 }
 
+module "nodes" {
+  source = "./nodes"
+  cluster = {
+    name          = module.conf.cluster_name
+    k8s_version   = module.conf.k8s_version
+    talos_version = module.conf.talos_version
+  }
+  net = {
+    bridge_network_id  = module.net.bridge_network_id
+    private_network_id = module.net.private_network_id
+    ctrl_cidr          = module.conf.net.ctrl_cidr
+    work_cidr          = module.conf.net.work_cidr
+  }
+  dns = {
+    private_ip = module.dns.private_ip
+  }
+  cmd = {
+    hostname   = module.conf.nodes.cmd.hostname
+    private_ip = module.conf.nodes.cmd.private_ip
+  }
+  ctrl = module.conf.nodes.ctrl
+  work = module.conf.nodes.work
+}
+
 module "internal" {
   source   = "./internal"
   name     = module.conf.internal.name
@@ -80,5 +108,5 @@ module "internal" {
     private_network_id = module.net.private_network_id
     private_ip         = module.conf.internal.private_ip
   }
-  nodes = []
+  servers = module.nodes.servers
 }

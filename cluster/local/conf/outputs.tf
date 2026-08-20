@@ -1,3 +1,11 @@
+output "k8s_version" {
+  value = var.k8s_version
+}
+
+output "talos_version" {
+  value = var.talos_version
+}
+
 output "external_name" {
   value = local.external_name
 }
@@ -24,8 +32,6 @@ output "net" {
     cmd_cidr     = local.cmd_cidr
     ctrl_cidr    = local.ctrl_cidr
     work_cidr    = local.work_cidr
-    pod_cidr     = local.pod_cidr
-    service_cidr = local.service_cidr
   }
 }
 
@@ -73,6 +79,17 @@ output "flux" {
     private_ip = cidrhost(local.cloud_cidr, 4)
     name       = join("-", ["flux", local.external_name])
     bucket     = local.storage_buckets.flux
+  }
+}
+
+output "nodes" {
+  value = {
+    cmd = {
+      private_ip = cidrhost(local.cmd_cidr, 1)
+      hostname   = join(".", ["cmd", var.internal_hostname])
+    }
+    ctrl = local.ctrl_nodes
+    work = local.work_nodes
   }
 }
 

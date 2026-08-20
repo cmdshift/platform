@@ -3,6 +3,11 @@ ${external_hostname} {
   file cloud.zone
 }
 
+${internal_hostname} {
+  root /etc/coredns/zones
+  file local.zone
+}
+
 .:53 {
   forward . /etc/resolv.conf
 }

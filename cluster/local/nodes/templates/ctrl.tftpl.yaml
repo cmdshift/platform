@@ -1,0 +1,10 @@
+machine:
+  nodeLabels:
+    k8s-role/ctrl: ""
+  features:
+    kubernetesTalosAPIAccess:
+      enabled: true
+      allowedRoles:
+        - os:reader
+      allowedKubernetesNamespaces:
+        - kube-system

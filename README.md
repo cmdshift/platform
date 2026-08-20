@@ -23,6 +23,8 @@ On macOS, enable additional loopback address `127.0.10.1` to support `cloud.test
 sudo ifconfig lo0 alias 127.0.10.1 up
 ```
 
+To verify the address is active, use `ifconfig lo0` and confirm that 127.0.10.1 appears in the output.
+
 Configure `dnsmasq` to resolve `.test` and `.cloud.test` to separate loopback addresses.
 
 ```conf

@@ -29,7 +29,7 @@ resource "docker_container" "local" {
   upload {
     file = "/usr/local/etc/haproxy/haproxy.cfg"
     content = templatefile("${path.module}/templates/haproxy.tftpl.cfg", {
-      nodes = var.nodes
+      servers = var.servers
     })
   }
 }

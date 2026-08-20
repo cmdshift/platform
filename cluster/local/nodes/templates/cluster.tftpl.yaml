@@ -1,0 +1,21 @@
+cluster:
+  controlPlane:
+    endpoint: ${public_endpoint}
+  discovery:
+    registries:
+      kubernetes:
+        disabled: false
+      service:
+        disabled: true
+  apiServer:
+    certSANs:
+      - ${cmd_hostname}
+      - ${cmd_private_ip}
+  network:
+    cni:
+      name: custom
+  proxy:
+    disabled: true
+  etcd:
+    advertisedSubnets:
+      - ${ctrl_cidr}

@@ -14,7 +14,7 @@ variable "net" {
   })
 }
 
-variable "nodes" {
+variable "servers" {
   type = list(object({
     name = string
     ipv4 = string

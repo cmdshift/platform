@@ -1,0 +1,13 @@
+$ORIGIN ${internal_hostname}.
+
+@ IN SOA ${hostname}. dns@${internal_hostname} (
+  1
+  3600
+  600
+  604800
+  86400
+)
+
+${cmd_subdomain} IN A ${cmd_private_ip}
+@ 300 IN A ${internal_ip_address}
+* 300 IN A ${internal_ip_address}
