@@ -70,3 +70,15 @@ module "flux" {
     secret_access_key = module.conf.storage.secret_access_key
   }
 }
+
+module "internal" {
+  source   = "./internal"
+  name     = module.conf.internal.name
+  hostname = module.conf.internal.hostname
+  net = {
+    bridge_network_id  = module.net.bridge_network_id
+    private_network_id = module.net.private_network_id
+    private_ip         = module.conf.internal.private_ip
+  }
+  nodes = []
+}
