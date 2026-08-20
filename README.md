@@ -1,3 +1,12 @@
+## Required Binaries
+
+- `just`
+- `mkcert`
+- `terraform` (`brew tap hashicorp/tap`)
+- `packer` (`brew tap hashicorp/tap`)
+- `dnsmasq`
+- `doppler`
+
 ## Trusted Local Certificate
 
 Use the `mkcert` CLI to create and install a custom CA.
@@ -21,7 +30,27 @@ Configure `dnsmasq` to resolve `.test` and `.cloud.test` to separate loopback ad
 
 address=/.test/127.0.0.1
 address=/.cloud.test/127.0.10.1
+
+# include fallback servers so your normal DNS works
+server=1.1.1.1 # cloudflare
+server=8.8.8.8 # google
+# additional servers
 ```
+
+On macOS, `dnsmasq` needs to be started as root.
+
+```shell
+sudo brew services start dnsmasq
+```
+
+On macOS, we need to point our DNS resolution to `localhost` to start running lookups through `dnsmasq`.
+
+- Open System Preferences
+- Network
+- Choose your active internet connection (WiFi)
+- Click Details...
+- Select DNS
+- Add 127.0.0.1 to the DNS servers and remove the others
 
 ## Initialize the Local Environment
 
