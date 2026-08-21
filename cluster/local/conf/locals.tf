@@ -33,9 +33,3 @@ locals {
     flux = "flux"
   }
 }
-
-locals {
-  local_ca_cert = "${path.root}/.tmp/step/tls.crt"
-  local_ca_key  = "${path.root}/.tmp/step/tls.key"
-  local_ca_pem  = "${path.root}/.tmp/step/tls.pem"
-}

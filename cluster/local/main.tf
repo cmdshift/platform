@@ -56,19 +56,19 @@ module "external" {
   }
 }
 
-module "flux" {
+module "sync" {
   depends_on = [
     module.storage,
     module.external
   ]
-  source = "./flux"
-  name   = module.conf.flux.name
+  source = "./sync"
+  name   = module.conf.sync.name
   net = {
     private_network_id = module.net.private_network_id
-    private_ip         = module.conf.flux.private_ip
+    private_ip         = module.conf.sync.private_ip
   }
   s3 = {
-    bucket            = module.conf.flux.bucket
+    bucket            = module.conf.sync.bucket
     endpoint          = module.storage.endpoint
     access_key_id     = module.conf.storage.access_key_id
     secret_access_key = module.conf.storage.secret_access_key

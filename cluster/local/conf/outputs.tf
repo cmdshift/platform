@@ -18,14 +18,6 @@ output "cluster_name" {
   value = local.cluster_name
 }
 
-output "ca" {
-  value = {
-    cert = local.local_ca_cert
-    key  = local.local_ca_key
-    pem  = local.local_ca_pem
-  }
-}
-
 output "net" {
   value = {
     network_cidr = local.network_cidr
@@ -74,10 +66,10 @@ output "storage" {
   }
 }
 
-output "flux" {
+output "sync" {
   value = {
     private_ip = cidrhost(local.cloud_cidr, 4)
-    name       = join("-", ["flux", local.external_name])
+    name       = join("-", ["sync", local.external_name])
     bucket     = local.storage_buckets.flux
   }
 }

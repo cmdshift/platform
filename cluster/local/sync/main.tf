@@ -1,4 +1,4 @@
-resource "docker_image" "flux" {
+resource "docker_image" "sync" {
   name = var.name
   build {
     context = path.module
@@ -9,9 +9,9 @@ resource "docker_image" "flux" {
   keep_locally = true
 }
 
-resource "docker_container" "flux" {
+resource "docker_container" "sync" {
   name  = var.name
-  image = docker_image.flux.name
+  image = docker_image.sync.name
   env = [
     "AWS_ACCESS_KEY_ID=${var.s3.access_key_id}",
     "AWS_SECRET_ACCESS_KEY=${var.s3.secret_access_key}",

@@ -11,7 +11,7 @@ certs:
     --no-password \
     --insecure
   
-  step certificate create "cloud-test" $STEPPATH/tls.crt $STEPPATH/tls.key \
+  step certificate create "cloud-test" $STEPPATH/cloud.crt $STEPPATH/cloud.key \
     --profile leaf \
     --ca $STEPPATH/intermediate_ca.crt \
     --ca-key $STEPPATH/intermediate_ca.key \
@@ -21,7 +21,7 @@ certs:
     --no-password \
     --insecure
 
-  cat $STEPPATH/tls.crt $STEPPATH/intermediate_ca.crt $STEPPATH/tls.key > $STEPPATH/tls.pem
+  cat $STEPPATH/cloud.crt $STEPPATH/intermediate_ca.crt $STEPPATH/cloud.key > $STEPPATH/cloud.pem
 
 init *args:
   packer init cluster/cloud/image
