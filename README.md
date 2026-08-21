@@ -1,7 +1,8 @@
 ## Required Binaries
 
 - `just`
-- `mkcert`
+- `direnv`
+- `step`
 - `terraform` (`brew tap hashicorp/tap`)
 - `packer` (`brew tap hashicorp/tap`)
 - `dnsmasq`
@@ -9,10 +10,18 @@
 
 ## Trusted Local Certificate
 
-Use the `mkcert` CLI to create and install a custom CA.
+Use the `step` CLI to create and install a custom CA.
 
 ```shell
-mkcert -install
+step certificate create "platform" $STEPPATH/root_ca.crt $STEPPATH/root_ca.key \
+  --profile root-ca \
+  --not-after 8760h \
+  --kty RSA \
+  --size 4096 \
+  --no-password \
+  --insecure
+
+step certificate install --all $STEPPATH/root_ca.crt
 ```
 
 ## Cloud Service Emulation

@@ -65,7 +65,7 @@ resource "docker_container" "cloud" {
   }
   volumes {
     read_only      = true
-    host_path      = abspath("${path.module}/../.tmp/tls.pem")
+    host_path      = abspath("${path.module}/../.tmp/step/tls.pem")
     container_path = "/usr/local/etc/ssl/certs/tls.pem"
   }
 }

@@ -35,7 +35,7 @@ locals {
 }
 
 locals {
-  local_ca_cert = "${path.root}/.tmp/tls.crt"
-  local_ca_key  = "${path.root}/.tmp/tls.key"
-  local_ca_pem  = "${path.root}/.tmp/tls.pem"
+  local_ca_cert = "${path.root}/.tmp/step/tls.crt"
+  local_ca_key  = "${path.root}/.tmp/step/tls.key"
+  local_ca_pem  = "${path.root}/.tmp/step/tls.pem"
 }
