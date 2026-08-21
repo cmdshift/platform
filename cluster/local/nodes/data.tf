@@ -41,7 +41,6 @@ data "talos_machine_configuration" "work" {
   cluster_endpoint   = local.public_endpoint
   machine_secrets    = talos_machine_secrets.main.machine_secrets
   config_patches = [
-    local.cluster_machine_patch,
     local.base_machine_patch,
     local.work_machine_patch
   ]

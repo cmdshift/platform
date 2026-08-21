@@ -1,12 +1,6 @@
 cluster:
   controlPlane:
     endpoint: ${public_endpoint}
-  discovery:
-    registries:
-      kubernetes:
-        disabled: false
-      service:
-        disabled: true
   apiServer:
     certSANs:
       - ${cmd_hostname}
