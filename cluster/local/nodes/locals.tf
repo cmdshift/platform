@@ -31,22 +31,6 @@ locals {
 
   })
 
-  mounts = {
-    tmpfs = toset(["/run", "/system", "/tmp"])
-    volume = toset(concat(
-      ["/etc/cni", "/etc/kubernetes", "/usr/libexec/kubernetes", "/opt"], # overlays
-      ["/var", "/system/state"],                                          # ephemeral
-      ["/run/cilium"],
-      ["/sys/fs/bpf"]
-    ))
-  }
-
-  boot_node = flatten([
-    for node in values(docker_container.ctrl) : [
-      for n in node.networks_advanced : n.ipv4_address if n.name == var.net.private_network_id
-    ]
-  ])[0]
-
   cilium_machine_patch = yamlencode({
     cluster = {
       inlineManifests = [
@@ -57,4 +41,20 @@ locals {
       ]
     }
   })
+
+  mounts = {
+    tmpfs = ["/run", "/system", "/tmp"]
+    volume = concat(
+      ["/etc/cni", "/etc/kubernetes", "/usr/libexec/kubernetes", "/opt"], # overlays
+      ["/var", "/system/state"],                                          # ephemeral
+      ["/run/cilium"],
+      ["/sys/fs/bpf"]
+    )
+  }
+
+  boot_node = flatten([
+    for node in values(docker_container.ctrl) : [
+      for n in node.networks_advanced : n.ipv4_address if n.name == var.net.private_network_id
+    ]
+  ])[0]
 }

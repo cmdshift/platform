@@ -29,7 +29,8 @@ data "talos_machine_configuration" "ctrl" {
   config_patches = [
     local.cluster_machine_patch,
     local.base_machine_patch,
-    local.ctrl_machine_patch
+    local.ctrl_machine_patch,
+    local.cilium_machine_patch
   ]
 }
 

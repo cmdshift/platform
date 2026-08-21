@@ -32,6 +32,7 @@ resource "docker_container" "ctrl" {
   ]
   privileged = true
   security_opts = [
+    "label=disable",
     "seccomp:unconfined"
   ]
   read_only = true
@@ -49,20 +50,12 @@ resource "docker_container" "ctrl" {
       type   = "volume"
     }
   }
-}
-
-resource "talos_machine_configuration_apply" "ctrl" {
-  for_each = docker_container.ctrl
-  depends_on = [
-    docker_container.cmd
-  ]
-  client_configuration        = talos_machine_secrets.main.client_configuration
-  machine_configuration_input = data.talos_machine_configuration.ctrl.machine_configuration
-  node                        = each.key
-  endpoint                    = docker_container.cmd.hostname
-  config_patches = [
-    local.cilium_machine_patch
-  ]
+  lifecycle {
+    ignore_changes = [
+      env,
+      mounts
+    ]
+  }
 }
 
 resource "docker_image" "haproxy" {
@@ -133,6 +126,7 @@ resource "docker_container" "work" {
   ]
   privileged = true
   security_opts = [
+    "label=disable",
     "seccomp:unconfined"
   ]
   read_only = true
@@ -150,28 +144,23 @@ resource "docker_container" "work" {
       type   = "volume"
     }
   }
+  lifecycle {
+    ignore_changes = [
+      env,
+      mounts
+    ]
+  }
 }
 
 resource "talos_machine_bootstrap" "main" {
   depends_on = [
     docker_container.cmd,
-    talos_machine_configuration_apply.ctrl,
+    docker_container.ctrl
   ]
   client_configuration = talos_machine_secrets.main.client_configuration
   node                 = local.boot_node
   endpoint             = docker_container.cmd.hostname
 }
-
-# resource "talos_machine_configuration_apply" "work" {
-#   for_each = docker_container.work
-#   depends_on = [
-#     talos_machine_bootstrap.main,
-#   ]
-#   client_configuration        = talos_machine_secrets.main.client_configuration
-#   machine_configuration_input = data.talos_machine_configuration.work.machine_configuration
-#   node                        = each.key
-#   endpoint                    = docker_container.cmd.hostname
-# }
 
 resource "talos_cluster_kubeconfig" "main" {
   depends_on = [

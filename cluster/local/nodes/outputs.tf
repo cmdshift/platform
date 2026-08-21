@@ -26,3 +26,7 @@ output "boot_node" {
 output "kubeconfig" {
   value = talos_cluster_kubeconfig.main.kubeconfig_raw
 }
+
+output "talosconfig" {
+  value = replace(data.talos_client_configuration.main.talos_config, var.cmd.private_ip, var.cmd.hostname)
+}
