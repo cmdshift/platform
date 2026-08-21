@@ -13,7 +13,7 @@ cluster:
       - ${cmd_private_ip}
   network:
     cni:
-      name: custom
+      name: none
   proxy:
     disabled: true
   etcd:

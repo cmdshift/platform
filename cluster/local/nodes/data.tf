@@ -54,6 +54,47 @@ data "helm_template" "cilium" {
   chart        = "cilium"
   version      = "1.20.1"
   kube_version = var.cluster.k8s_version
+  set = [
+    {
+      name  = "ipam.mode"
+      value = "kubernetes"
+    },
+    {
+      name  = "kubeProxyReplacement"
+      value = "true"
+    },
+    {
+      name  = "k8sServiceHost"
+      value = "localhost"
+    },
+    {
+      name  = "k8sServicePort"
+      value = "7445"
+    },
+    {
+      name  = "cgroup.autoMount.enabled"
+      value = "false"
+    },
+    {
+      name  = "cgroup.hostRoot"
+      value = "/sys/fs/cgroup"
+    },
+    {
+      name  = "l2announcements.enabled"
+      value = "true"
+    }
+  ]
+
+  values = [
+    yamlencode({
+      securityContext = {
+        capabilities = {
+          ciliumAgent      = ["CHOWN", "KILL", "NET_ADMIN", "NET_RAW", "IPC_LOCK", "SYS_ADMIN", "SYS_RESOURCE", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID"]
+          cleanCiliumState = ["NET_ADMIN", "SYS_ADMIN", "SYS_RESOURCE"]
+        }
+      }
+    })
+  ]
 }
 
 data "http" "kubernetes_endpoint" {
