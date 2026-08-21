@@ -110,3 +110,13 @@ module "internal" {
   }
   servers = module.nodes.servers
 }
+
+resource "local_sensitive_file" "kubeconfig" {
+  content  = module.nodes.kubeconfig
+  filename = "${path.module}/.tmp/kubeconfig"
+}
+
+resource "local_sensitive_file" "talosconfig" {
+  content  = module.nodes.talosconfig
+  filename = "${path.module}/.tmp/talosconfig"
+}
