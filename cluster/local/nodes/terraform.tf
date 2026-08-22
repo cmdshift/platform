@@ -6,9 +6,6 @@ terraform {
     helm = {
       source = "hashicorp/helm"
     }
-    http = {
-      source = "hashicorp/http"
-    }
     random = {
       source = "hashicorp/random"
     }

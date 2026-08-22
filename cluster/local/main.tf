@@ -10,6 +10,21 @@ module "net" {
   }
 }
 
+module "external" {
+  source   = "./external"
+  name     = module.conf.external.name
+  hostname = module.conf.external.hostname
+  net = {
+    bridge_network_id  = module.net.bridge_network_id
+    private_network_id = module.net.private_network_id
+    private_ip         = module.conf.external.private_ip
+  }
+  aliases = {
+    "${module.conf.storage.name}"  = module.conf.storage.services
+    "${module.conf.registry.name}" = module.conf.registry.services
+  }
+}
+
 module "dns" {
   source   = "./dns"
   name     = module.conf.dns.name
@@ -42,17 +57,14 @@ module "storage" {
   buckets           = module.conf.storage.buckets
 }
 
-module "external" {
-  source   = "./external"
-  name     = module.conf.external.name
-  hostname = module.conf.external.hostname
+module "registry" {
+  source   = "./registry"
+  name     = module.conf.registry.name
+  hostname = module.conf.registry.services.main.hostname
   net = {
-    bridge_network_id  = module.net.bridge_network_id
+    private_ip         = module.conf.registry.private_ip
     private_network_id = module.net.private_network_id
-    private_ip         = module.conf.external.private_ip
-  }
-  aliases = {
-    "${module.conf.storage.name}" = module.conf.storage.services
+    bridge_network_id  = module.net.bridge_network_id
   }
 }
 
@@ -77,6 +89,9 @@ module "sync" {
 
 module "nodes" {
   source = "./nodes"
+  depends_on = [
+    module.registry
+  ]
   cluster = {
     name          = module.conf.cluster_name
     k8s_version   = module.conf.k8s_version
@@ -97,6 +112,10 @@ module "nodes" {
   }
   ctrl = module.conf.nodes.ctrl
   work = module.conf.nodes.work
+  registry = {
+    hostname  = module.conf.registry.services.main.hostname
+    upstreams = module.registry.upstreams
+  }
 }
 
 module "internal" {

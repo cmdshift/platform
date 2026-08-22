@@ -31,6 +31,16 @@ locals {
 
   })
 
+  registry_mirror_config_patch = templatefile("${path.module}/templates/registry-mirror-config.tftpl.yaml", {
+    registry_hostname = var.registry.hostname
+    upstreams         = var.registry.upstreams
+  })
+
+  registry_tls_config_patch = templatefile("${path.module}/templates/registry-tls-config.tftpl.yaml", {
+    registry_hostname = var.registry.hostname
+    ca_bundle_content = "\n${file("${path.root}/.tmp/tls/cloud.bundle")}"
+  })
+
   cilium_machine_patch = yamlencode({
     cluster = {
       inlineManifests = [

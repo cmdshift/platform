@@ -66,9 +66,22 @@ output "storage" {
   }
 }
 
-output "sync" {
+output "registry" {
   value = {
     private_ip = cidrhost(local.cloud_cidr, 4)
+    name       = join("-", ["registry", local.external_name])
+    services = {
+      main = {
+        hostname = join(".", ["registry", var.external_hostname])
+        port     = 8000
+      }
+    }
+  }
+}
+
+output "sync" {
+  value = {
+    private_ip = cidrhost(local.cloud_cidr, 5)
     name       = join("-", ["sync", local.external_name])
     bucket     = local.storage_buckets.flux
   }
