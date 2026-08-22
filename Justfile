@@ -10,6 +10,8 @@ certs:
     --not-after 8760h \
     --no-password \
     --insecure
+
+  cat $STEPPATH/intermediate_ca.crt $STEPPATH/root_ca.crt > $STEPPATH/cloud.bundle 
   
   step certificate create "cloud-test" $STEPPATH/cloud.crt $STEPPATH/cloud.key \
     --profile leaf \

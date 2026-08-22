@@ -1,0 +1,16 @@
+[server]
+bind_address = "0.0.0.0"
+
+[ui]
+enabled = true
+
+[blob_store.fs]
+root_dir = "/data"
+
+[global.access_policy]
+default = "allow"
+
+%{ for path, registry in registries ~}
+[[repository."${path}".upstream]]
+url = "${registry.remote}"
+%{ endfor ~}

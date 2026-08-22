@@ -39,3 +39,13 @@ variable "work" {
     name = string
   }))
 }
+
+variable "registry" {
+  type = object({
+    hostname = string
+    upstreams = map(object({
+      name   = string
+      remote = string
+    }))
+  })
+}

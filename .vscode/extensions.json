@@ -5,6 +5,7 @@
         "mkhl.direnv",
         "ms-azuretools.vscode-containers",
         "nefrob.vscode-just-syntax",
-        "redhat.vscode-yaml"
+        "redhat.vscode-yaml",
+        "tamasfe.even-better-toml"
     ]
 }

@@ -1,0 +1,10 @@
+%{~for path, registry in upstreams}
+---
+apiVersion: v1alpha1
+kind: RegistryMirrorConfig
+name: ${registry.name}
+endpoints:
+  - url: "https://${registry_hostname}/v2/${path}"
+    overridePath: true
+skipFallback: true
+%{~endfor}

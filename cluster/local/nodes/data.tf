@@ -30,7 +30,9 @@ data "talos_machine_configuration" "ctrl" {
     local.cluster_machine_patch,
     local.base_machine_patch,
     local.ctrl_machine_patch,
-    local.cilium_machine_patch
+    local.cilium_machine_patch,
+    local.registry_mirror_config_patch,
+    local.registry_tls_config_patch
   ]
 }
 
@@ -42,7 +44,9 @@ data "talos_machine_configuration" "work" {
   machine_secrets    = talos_machine_secrets.main.machine_secrets
   config_patches = [
     local.base_machine_patch,
-    local.work_machine_patch
+    local.work_machine_patch,
+    local.registry_mirror_config_patch,
+    local.registry_tls_config_patch
   ]
 }
 
@@ -94,23 +98,4 @@ data "helm_template" "cilium" {
       }
     })
   ]
-}
-
-data "http" "kubernetes_endpoint" {
-  depends_on = [
-    talos_machine_bootstrap.main
-  ]
-  method      = "GET"
-  url         = local.public_endpoint
-  ca_cert_pem = base64decode(talos_machine_secrets.main.machine_secrets.certs.k8s.cert)
-  retry {
-    attempts     = 30
-    min_delay_ms = 5000
-  }
-  lifecycle {
-    postcondition {
-      condition     = self.status_code == 401
-      error_message = "unexpected status code"
-    }
-  }
 }
