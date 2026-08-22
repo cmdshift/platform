@@ -20,12 +20,12 @@ variable "internal_hostname" {
 
 variable "ctrl_nodes" {
   type    = number
-  default = 1
+  default = 3
 }
 
 variable "work_nodes" {
   type    = number
-  default = 1
+  default = 3
 }
 
 variable "storage_access_key_id" {
