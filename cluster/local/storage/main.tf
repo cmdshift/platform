@@ -32,7 +32,6 @@ resource "docker_container" "storage" {
     content    = file("${path.module}/scripts/healthcheck.sh")
     executable = true
   }
-  network_mode = "bridge"
   networks_advanced {
     name         = var.net.private_network_id
     ipv4_address = var.net.private_ip

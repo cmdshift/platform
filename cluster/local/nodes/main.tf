@@ -18,7 +18,6 @@ resource "docker_container" "ctrl" {
   name         = join("-", compact([each.value.name, random_id.ctrl[each.key].hex]))
   hostname     = join("-", compact([each.value.name, random_id.ctrl[each.key].hex]))
   image        = docker_image.talos.name
-  network_mode = "bridge"
   networks_advanced {
     name = var.net.bridge_network_id
   }
@@ -31,11 +30,6 @@ resource "docker_container" "ctrl" {
     "USERDATA=${base64encode(data.talos_machine_configuration.ctrl.machine_configuration)}"
   ]
   privileged = true
-  security_opts = [
-    "label=disable",
-    "seccomp:unconfined"
-  ]
-  read_only = true
   dynamic "mounts" {
     for_each = local.mounts.tmpfs
     content {
@@ -52,8 +46,7 @@ resource "docker_container" "ctrl" {
   }
   lifecycle {
     ignore_changes = [
-      env,
-      mounts
+      env
     ]
   }
 }
@@ -68,7 +61,6 @@ resource "docker_container" "cmd" {
   name         = replace(var.cmd.hostname, ".", "-")
   hostname     = var.cmd.hostname
   image        = docker_image.haproxy.name
-  network_mode = "bridge"
   networks_advanced {
     name = var.net.bridge_network_id
   }
@@ -112,7 +104,6 @@ resource "docker_container" "work" {
   name         = join("-", compact([each.value.name, random_id.work[each.key].hex]))
   hostname     = join("-", compact([each.value.name, random_id.work[each.key].hex]))
   image        = docker_image.talos.name
-  network_mode = "bridge"
   networks_advanced {
     name = var.net.bridge_network_id
   }
@@ -125,11 +116,6 @@ resource "docker_container" "work" {
     "USERDATA=${base64encode(data.talos_machine_configuration.work.machine_configuration)}"
   ]
   privileged = true
-  security_opts = [
-    "label=disable",
-    "seccomp:unconfined"
-  ]
-  read_only = true
   dynamic "mounts" {
     for_each = local.mounts.tmpfs
     content {
@@ -146,8 +132,7 @@ resource "docker_container" "work" {
   }
   lifecycle {
     ignore_changes = [
-      env,
-      mounts
+      env
     ]
   }
 }

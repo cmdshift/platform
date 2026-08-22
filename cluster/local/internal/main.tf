@@ -8,7 +8,6 @@ resource "docker_container" "local" {
   name         = var.name
   image        = docker_image.haproxy.name
   hostname     = var.hostname
-  network_mode = "bridge"
   networks_advanced {
     name = var.net.bridge_network_id
   }

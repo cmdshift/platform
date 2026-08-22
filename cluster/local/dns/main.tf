@@ -12,7 +12,6 @@ resource "docker_container" "dns" {
     "-conf",
     "/etc/coredns/Corefile"
   ]
-  network_mode = "bridge"
   networks_advanced {
     name = var.net.bridge_network_id
   }

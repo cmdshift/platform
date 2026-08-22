@@ -18,7 +18,6 @@ resource "docker_container" "sync" {
     "RUSTFS_BUCKET=${var.s3.bucket}",
     "RUSTFS_ENDPOINT=${var.s3.endpoint}"
   ]
-  network_mode = "bridge"
   networks_advanced {
     name         = var.net.private_network_id
     ipv4_address = var.net.private_ip

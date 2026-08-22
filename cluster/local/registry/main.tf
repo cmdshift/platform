@@ -16,7 +16,6 @@ resource "null_resource" "registry_volume" {
 resource "docker_container" "registry" {
   name         = var.name
   image        = docker_image.angos.name
-  network_mode = "bridge"
   networks_advanced {
     name = var.net.bridge_network_id
   }
