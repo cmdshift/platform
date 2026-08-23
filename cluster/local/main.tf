@@ -146,7 +146,7 @@ output "bootstrap" {
     k8s_client_config = module.nodes.k8s_client_config
     bucket = {
       name       = module.conf.sync.bucket
-      endpoint   = module.storage.endpoint
+      endpoint   = module.conf.storage.services.s3.hostname
       access_key = module.conf.storage.access_key_id
       secret_key = module.conf.storage.secret_access_key
     }

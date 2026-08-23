@@ -27,8 +27,8 @@ resource "helm_release" "flux" {
             namespace = "flux-system"
           }
           data = {
-            access_key = base64encode(local.bucket.access_key)
-            secret_key = base64encode(local.bucket.secret_key)
+            accesskey = base64encode(local.bucket.access_key)
+            secretkey = base64encode(local.bucket.secret_key)
           }
           type = "opaque"
         },
@@ -64,6 +64,27 @@ resource "helm_release" "flux" {
             certSecretRef = {
               name = "flux-ca"
             }
+          }
+        },
+        {
+          apiVersion = "kustomize.toolkit.fluxcd.io/v1"
+          kind       = "Kustomization"
+          metadata = {
+            name      = "local"
+            namespace = "flux-system"
+            annotations = {
+              "helm.sh/hook" = "post-install"
+            }
+          }
+          spec = {
+            interval = "5s"
+            sourceRef = {
+              kind = "Bucket"
+              name = "flux-bucket"
+            }
+            path    = "./manifests/local"
+            prune   = true
+            timeout = "1m"
           }
         }
       ]
