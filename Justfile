@@ -28,6 +28,7 @@ certs:
 init *args:
   packer init cluster/cloud/image
   terraform -chdir=cluster/local init {{args}}
+  terraform -chdir=cluster/local/bootstrap init {{args}}
 
 plan *args:
   terraform -chdir=cluster/local plan {{args}}
@@ -37,6 +38,9 @@ apply *args:
 
 destroy *args:
   terraform -chdir=cluster/local destroy {{args}}
+
+bootstrap:
+  terraform -chdir=cluster/local/bootstrap apply -auto-approve
 
 image:
   packer build cluster/cloud/image

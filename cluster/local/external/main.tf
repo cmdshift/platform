@@ -5,9 +5,9 @@ resource "docker_image" "haproxy" {
 }
 
 resource "docker_container" "cloud" {
-  name         = var.name
-  image        = docker_image.haproxy.name
-  hostname     = var.hostname
+  name     = var.name
+  image    = docker_image.haproxy.name
+  hostname = var.hostname
   networks_advanced {
     name = var.net.bridge_network_id
   }

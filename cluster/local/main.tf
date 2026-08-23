@@ -139,3 +139,18 @@ resource "local_sensitive_file" "talosconfig" {
   content  = module.nodes.talosconfig
   filename = "${path.module}/.tmp/talosconfig"
 }
+
+output "bootstrap" {
+  sensitive = true
+  value = {
+    k8s_client_config = module.nodes.k8s_client_config
+    bucket = {
+      name       = module.conf.sync.bucket
+      endpoint   = module.storage.endpoint
+      access_key = module.conf.storage.access_key_id
+      secret_key = module.conf.storage.secret_access_key
+    }
+    ca_cert_path = abspath("${path.root}/.tmp/tls/cloud.bundle")
+    ca_key_path  = abspath("${path.root}/.tmp/tls/intermediate_ca.key")
+  }
+}

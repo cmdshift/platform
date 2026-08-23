@@ -14,8 +14,8 @@ resource "null_resource" "registry_volume" {
 }
 
 resource "docker_container" "registry" {
-  name         = var.name
-  image        = docker_image.angos.name
+  name  = var.name
+  image = docker_image.angos.name
   networks_advanced {
     name = var.net.bridge_network_id
   }
@@ -28,7 +28,7 @@ resource "docker_container" "registry" {
     volume_name    = null_resource.registry_volume.triggers.volume_name
   }
   upload {
-    file    = "/etc/angos/config.toml"
+    file = "/etc/angos/config.toml"
     content = templatefile("${path.module}/templates/config.tftpl.toml", {
       registries = local.registry_map
     })

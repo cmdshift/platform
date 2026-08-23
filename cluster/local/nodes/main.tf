@@ -14,10 +14,10 @@ resource "random_id" "ctrl" {
 }
 
 resource "docker_container" "ctrl" {
-  for_each     = var.ctrl
-  name         = join("-", compact([each.value.name, random_id.ctrl[each.key].hex]))
-  hostname     = join("-", compact([each.value.name, random_id.ctrl[each.key].hex]))
-  image        = docker_image.talos.name
+  for_each = var.ctrl
+  name     = join("-", compact([each.value.name, random_id.ctrl[each.key].hex]))
+  hostname = join("-", compact([each.value.name, random_id.ctrl[each.key].hex]))
+  image    = docker_image.talos.name
   networks_advanced {
     name = var.net.bridge_network_id
   }
@@ -58,9 +58,9 @@ resource "docker_image" "haproxy" {
 }
 
 resource "docker_container" "cmd" {
-  name         = replace(var.cmd.hostname, ".", "-")
-  hostname     = var.cmd.hostname
-  image        = docker_image.haproxy.name
+  name     = replace(var.cmd.hostname, ".", "-")
+  hostname = var.cmd.hostname
+  image    = docker_image.haproxy.name
   networks_advanced {
     name = var.net.bridge_network_id
   }
@@ -100,10 +100,10 @@ resource "random_id" "work" {
 }
 
 resource "docker_container" "work" {
-  for_each     = var.work
-  name         = join("-", compact([each.value.name, random_id.work[each.key].hex]))
-  hostname     = join("-", compact([each.value.name, random_id.work[each.key].hex]))
-  image        = docker_image.talos.name
+  for_each = var.work
+  name     = join("-", compact([each.value.name, random_id.work[each.key].hex]))
+  hostname = join("-", compact([each.value.name, random_id.work[each.key].hex]))
+  image    = docker_image.talos.name
   networks_advanced {
     name = var.net.bridge_network_id
   }

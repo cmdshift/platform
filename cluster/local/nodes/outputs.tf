@@ -27,6 +27,10 @@ output "kubeconfig" {
   value = talos_cluster_kubeconfig.main.kubeconfig_raw
 }
 
+output "k8s_client_config" {
+  value = talos_cluster_kubeconfig.main.kubernetes_client_configuration
+}
+
 output "talosconfig" {
   value = replace(data.talos_client_configuration.main.talos_config, var.cmd.private_ip, var.cmd.hostname)
 }
