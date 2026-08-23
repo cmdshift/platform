@@ -1,12 +1,22 @@
 ## Required Binaries
 
 - `just`
+- `talosctl`
+- `kubectl`
+- `flux` (`brew tap fluxcd/tap`)
+- `k9s`
 - `direnv`
 - `step`
 - `terraform` (`brew tap hashicorp/tap`)
 - `packer` (`brew tap hashicorp/tap`)
-- `dnsmasq`
+- `dnsmasq` (or other host management)
 - `doppler`
+
+## Ensure that `direnv` is working.
+
+Install the `direnv` editor extension and allow the `platform` repository root.
+
+Run the `env` command to confirm that `.envrc` variables have loaded into your editor shell.
 
 ## Trusted Local Certificate
 
@@ -63,8 +73,28 @@ On macOS, we need to point our DNS resolution to `localhost` to start running lo
 - Select DNS
 - Add 127.0.0.1 to the DNS servers and remove the others
 
+**WARNING**: macOS updates have been known to reset Network settings.
+
 ## Initialize the Local Environment
 
 ```shell
 just init
+```
+
+## Build the Cluster
+
+```shell
+just apply
+```
+
+## Bootstrap Gitops Sync
+
+```shell
+just bootstrap
+```
+
+## Inspect the Cluster
+
+```shell
+k9s
 ```
