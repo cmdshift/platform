@@ -98,3 +98,9 @@ just bootstrap
 ```shell
 k9s
 ```
+
+## Known Issues
+
+### Local Talos Machine Bootstrap
+
+There may be a race condition with node bootup and HAProxy readiness. Report if you run into a hanging machine bootstrap locally.

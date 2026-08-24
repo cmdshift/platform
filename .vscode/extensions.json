@@ -6,6 +6,7 @@
         "ms-azuretools.vscode-containers",
         "nefrob.vscode-just-syntax",
         "redhat.vscode-yaml",
-        "tamasfe.even-better-toml"
+        "tamasfe.even-better-toml",
+        "weaveworks.vscode-gitops-tools"
     ]
 }

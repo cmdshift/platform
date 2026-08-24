@@ -58,6 +58,9 @@ resource "docker_image" "haproxy" {
 }
 
 resource "docker_container" "cmd" {
+  depends_on = [
+    docker_container.ctrl
+  ]
   name     = replace(var.cmd.hostname, ".", "-")
   hostname = var.cmd.hostname
   image    = docker_image.haproxy.name

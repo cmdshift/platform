@@ -1,10 +1,56 @@
+resource "kubernetes_namespace_v1" "flux_system" {
+  depends_on = [
+    kubernetes_namespace_v1.flux_system
+  ]
+  metadata {
+    name = "flux-system"
+  }
+}
+
+# separate secret:
+# adding to extra objects
+# causes deletion during pivot
+resource "kubernetes_secret_v1" "bucket_credentials" {
+  metadata {
+    name      = "bucket-credentials"
+    namespace = "flux-system"
+  }
+  data = {
+    accesskey = local.bucket.access_key
+    secretkey = local.bucket.secret_key
+  }
+  type = "opaque"
+  depends_on = [
+    kubernetes_namespace_v1.flux_system
+  ]
+}
+
+# separate secret:
+# adding to extra objects
+# causes deletion during pivot
+resource "kubernetes_secret_v1" "flux_ca" {
+  depends_on = [
+    kubernetes_namespace_v1.flux_system
+  ]
+  metadata {
+    name      = "flux-ca"
+    namespace = "flux-system"
+  }
+  data = {
+    "ca.crt" = file(data.terraform_remote_state.main.outputs.bootstrap.ca_cert_path)
+  }
+  type = "opaque"
+}
+
 resource "helm_release" "flux" {
+  depends_on = [
+    kubernetes_namespace_v1.flux_system
+  ]
   name             = "flux"
   repository       = "https://fluxcd-community.github.io/helm-charts"
   chart            = "flux2"
   version          = var.flux_chart_version
   namespace        = "flux-system"
-  create_namespace = true
   wait             = true
   wait_for_jobs    = true
   values = [
@@ -12,7 +58,7 @@ resource "helm_release" "flux" {
       imageAutomationController = {
         create = false
       }
-      imageAutomationController = {
+      imageReflectionController = {
         create = false
       }
       notificationController = {
@@ -20,35 +66,10 @@ resource "helm_release" "flux" {
       }
       extraObjects = [
         {
-          apiVersion = "v1"
-          kind       = "Secret"
-          metadata = {
-            name      = "bucket-credentials"
-            namespace = "flux-system"
-          }
-          data = {
-            accesskey = base64encode(local.bucket.access_key)
-            secretkey = base64encode(local.bucket.secret_key)
-          }
-          type = "opaque"
-        },
-        {
-          apiVersion = "v1"
-          kind       = "Secret"
-          metadata = {
-            name      = "flux-ca"
-            namespace = "flux-system"
-          }
-          data = {
-            "ca.crt" = base64encode(file(data.terraform_remote_state.main.outputs.bootstrap.ca_cert_path))
-          }
-          type = "opaque"
-        },
-        {
           apiVersion = "source.toolkit.fluxcd.io/v1"
           kind       = "Bucket"
           metadata = {
-            name      = "flux-bucket"
+            name      = "main"
             namespace = "flux-system"
             annotations = {
               "helm.sh/hook" = "post-install"
@@ -80,7 +101,7 @@ resource "helm_release" "flux" {
             interval = "5s"
             sourceRef = {
               kind = "Bucket"
-              name = "flux-bucket"
+              name = "main"
             }
             path    = "./manifests/local"
             prune   = true

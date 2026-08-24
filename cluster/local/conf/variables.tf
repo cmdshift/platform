@@ -20,7 +20,7 @@ variable "internal_hostname" {
 
 variable "ctrl_nodes" {
   type    = number
-  default = 3
+  default = 1 # leave set to one for now. something up with the cmd lb.
 }
 
 variable "work_nodes" {

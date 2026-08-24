@@ -59,12 +59,16 @@ data "helm_template" "cilium" {
   kube_version = var.cluster.k8s_version
   set = [
     {
-      name  = "ipam.mode"
-      value = "kubernetes"
+      name  = "cgroup.autoMount.enabled"
+      value = "false"
     },
     {
-      name  = "kubeProxyReplacement"
-      value = "true"
+      name  = "cgroup.hostRoot"
+      value = "/sys/fs/cgroup"
+    },
+    {
+      name  = "ipam.mode"
+      value = "kubernetes"
     },
     {
       name  = "k8sServiceHost"
@@ -75,12 +79,8 @@ data "helm_template" "cilium" {
       value = "7445"
     },
     {
-      name  = "cgroup.autoMount.enabled"
-      value = "false"
-    },
-    {
-      name  = "cgroup.hostRoot"
-      value = "/sys/fs/cgroup"
+      name  = "kubeProxyReplacement"
+      value = "true"
     },
     {
       name  = "l2announcements.enabled"
