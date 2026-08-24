@@ -4,3 +4,4 @@ resources:
   - ../../sources/crds/gateway-api.git-repository.yaml
   - ../../sources/cni/cilium.helm-repository.yaml
   - ../../sources/gitops/fluxcd-community.helm-repository.yaml
+  - ../../sources/secrets/external-secrets.helm-repository.yaml

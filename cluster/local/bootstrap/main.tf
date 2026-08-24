@@ -16,8 +16,8 @@ resource "kubernetes_secret_v1" "bucket_credentials" {
     namespace = "flux-system"
   }
   data = {
-    accesskey = local.bucket.access_key
-    secretkey = local.bucket.secret_key
+    accesskey = local.sync_bucket.access_key
+    secretkey = local.sync_bucket.secret_key
   }
   type = "opaque"
   depends_on = [
@@ -37,7 +37,7 @@ resource "kubernetes_secret_v1" "flux_ca" {
     namespace = "flux-system"
   }
   data = {
-    "ca.crt" = file(data.terraform_remote_state.main.outputs.bootstrap.ca_cert_path)
+    "ca.crt" = local.cloud_trust_bundle
   }
   type = "opaque"
 }
@@ -46,13 +46,13 @@ resource "helm_release" "flux" {
   depends_on = [
     kubernetes_namespace_v1.flux_system
   ]
-  name             = "flux"
-  repository       = "https://fluxcd-community.github.io/helm-charts"
-  chart            = "flux2"
-  version          = var.flux_chart_version
-  namespace        = "flux-system"
-  wait             = true
-  wait_for_jobs    = true
+  name          = "flux"
+  repository    = "https://fluxcd-community.github.io/helm-charts"
+  chart         = "flux2"
+  version       = var.flux_chart_version
+  namespace     = "flux-system"
+  wait          = true
+  wait_for_jobs = true
   values = [
     yamlencode({
       imageAutomationController = {
@@ -77,8 +77,8 @@ resource "helm_release" "flux" {
           }
           spec = {
             interval   = "5s"
-            endpoint   = local.bucket.endpoint
-            bucketName = local.bucket.name
+            endpoint   = local.sync_bucket.endpoint
+            bucketName = local.sync_bucket.name
             secretRef = {
               name = "bucket-credentials"
             }
@@ -121,14 +121,13 @@ resource "kubernetes_namespace_v1" "cert_manager" {
 
 resource "kubernetes_secret_v1" "cert_manager_ca" {
   metadata {
-    name      = "cert-manager-ca"
+    name      = "intermediate-ca"
     namespace = "cert-manager"
   }
   data = {
-    "tls.crt" = file(data.terraform_remote_state.main.outputs.bootstrap.ca_cert_path)
-    "tls.key" = file(data.terraform_remote_state.main.outputs.bootstrap.ca_key_path)
+    "tls.crt" = local.intermediate_ca.crt
+    "tls.key" = local.intermediate_ca.key
   }
-  type = "kubernetes.io/tls"
   depends_on = [
     kubernetes_namespace_v1.cert_manager
   ]

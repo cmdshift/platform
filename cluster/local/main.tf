@@ -21,6 +21,7 @@ module "external" {
   }
   aliases = {
     "${module.conf.storage.name}"  = module.conf.storage.services
+    "${module.conf.secrets.name}"  = module.conf.secrets.services
     "${module.conf.registry.name}" = module.conf.registry.services
   }
 }
@@ -44,6 +45,16 @@ module "dns" {
   }
 }
 
+module "secrets" {
+  source   = "./secrets"
+  name     = module.conf.secrets.name
+  hostname = module.conf.secrets.services.main.hostname
+  net = {
+    private_network_id = module.net.private_network_id
+    private_ip         = module.conf.secrets.private_ip
+  }
+}
+
 module "storage" {
   source = "./storage"
   name   = module.conf.storage.name
@@ -51,10 +62,10 @@ module "storage" {
     private_network_id = module.net.private_network_id
     private_ip         = module.conf.storage.private_ip
   }
-  services          = module.conf.storage.services
-  access_key_id     = module.conf.storage.access_key_id
-  secret_access_key = module.conf.storage.secret_access_key
-  buckets           = module.conf.storage.buckets
+  services   = module.conf.storage.services
+  access_key = module.secrets.s3.access_key
+  secret_key = module.secrets.s3.secret_key
+  buckets    = module.conf.storage.buckets
 }
 
 module "registry" {
@@ -80,10 +91,10 @@ module "sync" {
     private_ip         = module.conf.sync.private_ip
   }
   s3 = {
-    bucket            = module.conf.sync.bucket
-    endpoint          = module.storage.endpoint
-    access_key_id     = module.conf.storage.access_key_id
-    secret_access_key = module.conf.storage.secret_access_key
+    bucket     = module.conf.sync.bucket
+    endpoint   = module.storage.endpoint
+    access_key = module.secrets.s3.access_key
+    secret_key = module.secrets.s3.secret_key
   }
 }
 
@@ -144,13 +155,13 @@ output "bootstrap" {
   sensitive = true
   value = {
     k8s_client_config = module.nodes.k8s_client_config
-    bucket = {
+    sync_bucket = {
       name       = module.conf.sync.bucket
       endpoint   = module.conf.storage.services.s3.hostname
-      access_key = module.conf.storage.access_key_id
-      secret_key = module.conf.storage.secret_access_key
+      access_key = module.secrets.s3.access_key
+      secret_key = module.secrets.s3.secret_key
     }
-    ca_cert_path = abspath("${path.root}/.tmp/tls/cloud.bundle")
-    ca_key_path  = abspath("${path.root}/.tmp/tls/intermediate_ca.key")
+    intermediate_ca    = module.secrets.intermediate_ca
+    cloud_trust_bundle = module.secrets.cloud_trust_bundle
   }
 }

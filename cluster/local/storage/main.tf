@@ -19,8 +19,8 @@ resource "docker_container" "storage" {
   wait  = true
   env = [
     "RUSTFS_ENDPOINT=http://localhost:${var.services.s3.port}",
-    "RUSTFS_ACCESS_KEY=${var.access_key_id}",
-    "RUSTFS_SECRET_KEY=${var.secret_access_key}",
+    "RUSTFS_ACCESS_KEY=${var.access_key}",
+    "RUSTFS_SECRET_KEY=${var.secret_key}",
     "RUSTFS_CONSOLE_ENABLE=true"
   ]
   volumes {

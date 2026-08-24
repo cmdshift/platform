@@ -22,11 +22,11 @@ variable "services" {
   })
 }
 
-variable "access_key_id" {
+variable "access_key" {
   type = string
 }
 
-variable "secret_access_key" {
+variable "secret_key" {
   type = string
 }
 

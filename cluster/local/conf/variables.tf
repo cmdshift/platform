@@ -27,13 +27,3 @@ variable "work_nodes" {
   type    = number
   default = 3
 }
-
-variable "storage_access_key_id" {
-  type    = string
-  default = "rustfsadmin"
-}
-
-variable "storage_secret_access_key" {
-  type    = string
-  default = "rustfsadmin"
-}

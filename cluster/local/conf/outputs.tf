@@ -43,13 +43,23 @@ output "dns" {
   }
 }
 
+output "secrets" {
+  value = {
+    private_ip = cidrhost(local.cloud_cidr, 3)
+    name       = join("-", ["secrets", local.external_name])
+    services = {
+      main = {
+        hostname = join(".", ["secrets", var.external_hostname])
+        port     = 80
+      }
+    }
+  }
+}
+
 output "storage" {
   value = {
-    private_ip        = cidrhost(local.cloud_cidr, 3)
-    name              = join("-", ["storage", local.external_name])
-    access_key_id     = var.storage_access_key_id
-    secret_access_key = var.storage_secret_access_key
-    volume_name       = join("-", ["storage", local.external_name])
+    private_ip = cidrhost(local.cloud_cidr, 4)
+    name       = join("-", ["storage", local.external_name])
     buckets = [
       local.storage_buckets.flux
     ]
@@ -68,7 +78,7 @@ output "storage" {
 
 output "registry" {
   value = {
-    private_ip = cidrhost(local.cloud_cidr, 4)
+    private_ip = cidrhost(local.cloud_cidr, 5)
     name       = join("-", ["registry", local.external_name])
     services = {
       main = {
@@ -81,7 +91,7 @@ output "registry" {
 
 output "sync" {
   value = {
-    private_ip = cidrhost(local.cloud_cidr, 5)
+    private_ip = cidrhost(local.cloud_cidr, 6)
     name       = join("-", ["sync", local.external_name])
     bucket     = local.storage_buckets.flux
   }

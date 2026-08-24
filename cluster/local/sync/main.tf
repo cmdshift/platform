@@ -13,8 +13,8 @@ resource "docker_container" "sync" {
   name  = var.name
   image = docker_image.sync.name
   env = [
-    "AWS_ACCESS_KEY_ID=${var.s3.access_key_id}",
-    "AWS_SECRET_ACCESS_KEY=${var.s3.secret_access_key}",
+    "AWS_ACCESS_KEY_ID=${var.s3.access_key}",
+    "AWS_SECRET_ACCESS_KEY=${var.s3.secret_key}",
     "RUSTFS_BUCKET=${var.s3.bucket}",
     "RUSTFS_ENDPOINT=${var.s3.endpoint}"
   ]
