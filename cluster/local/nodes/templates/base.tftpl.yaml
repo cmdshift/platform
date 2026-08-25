@@ -7,6 +7,8 @@ machine:
     - ${cmd_hostname}
     - ${cmd_private_ip}
   kubelet:
+    extraArgs:
+      rotate-server-certificates: "true"
     nodeIP:
       validSubnets:
         - ${ctrl_cidr}

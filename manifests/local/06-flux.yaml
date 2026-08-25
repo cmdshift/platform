@@ -16,3 +16,8 @@ spec:
   prune: true
   wait: true
   timeout: 10m
+  healthChecks:
+    - apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      name: flux
+      namespace: flux-system

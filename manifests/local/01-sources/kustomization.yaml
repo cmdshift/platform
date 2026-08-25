@@ -6,3 +6,5 @@ resources:
   - ../../sources/gitops/fluxcd-community.helm-repository.yaml
   - ../../sources/secrets/external-secrets.helm-repository.yaml
   - ../../sources/certificates/jetstack.helm-repository.yaml
+  - ../../sources/certificates/kubelet-csr-approver.helm-repository.yaml
+  - ../../sources/metrics/metrics-server.helm-repository.yaml

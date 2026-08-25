@@ -1,0 +1,24 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kubelet-csr-approver
+  namespace: kube-system
+spec:
+  interval: 12h
+  releaseName: kubelet-csr-approver
+  chart:
+    spec:
+      chart: kubelet-csr-approver
+      version: "1.2.14"
+      sourceRef:
+        kind: HelmRepository
+        name: kubelet-csr-approver
+        namespace: flux-system
+  values:
+    providerRegex: ".*"
+    providerIpPrefixes:
+      - 10.0.0.0/8
+    bypassDnsResolution: true
+    skipDenyStep: true
+    replicas: 1
+    leaderElection: false
