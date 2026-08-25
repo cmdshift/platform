@@ -85,6 +85,7 @@ resource "docker_container" "cmd" {
   upload {
     file = "/usr/local/etc/haproxy/haproxy.cfg"
     content = templatefile("${path.module}/templates/haproxy.tftpl.cfg", {
+      node_count = length(docker_container.ctrl)
       nodes = [
         for node in docker_container.ctrl : {
           name = node.name

@@ -1,0 +1,38 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cert-manager
+  namespace: cert-manager
+spec:
+  interval: 12h
+  releaseName: cert-manager
+  chart:
+    spec:
+      chart: cert-manager
+      version: "1.21.1"
+      sourceRef:
+        kind: HelmRepository
+        name: jetstack
+        namespace: flux-system
+  install:
+    crds: CreateReplace
+  upgrade:
+    crds: CreateReplace
+  values:
+    crds:
+      enabled: true
+      keep: true
+    config:
+      enableGatewayAPI: true
+    extraObjects:
+      - |
+        apiVersion: cert-manager.io/v1
+        kind: ClusterIssuer
+        metadata:
+          name: intermediate-ca
+          namespace: cert-manager
+          annotations:
+            helm.sh/hook: post-install
+        spec:
+          ca:
+            secretName: intermediate-ca   
