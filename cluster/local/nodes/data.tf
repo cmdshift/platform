@@ -32,7 +32,8 @@ data "talos_machine_configuration" "ctrl" {
     local.ctrl_machine_patch,
     local.cilium_machine_patch,
     local.registry_mirror_config_patch,
-    local.registry_tls_config_patch
+    local.registry_tls_config_patch,
+    local.user_volume_config_patch
   ]
 }
 
@@ -46,7 +47,8 @@ data "talos_machine_configuration" "work" {
     local.base_machine_patch,
     local.work_machine_patch,
     local.registry_mirror_config_patch,
-    local.registry_tls_config_patch
+    local.registry_tls_config_patch,
+    local.user_volume_config_patch
   ]
 }
 

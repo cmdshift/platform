@@ -1,0 +1,60 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: local-path-provisioner
+  namespace: flux-system
+spec:
+  interval: 10s
+  retryInterval: 5s
+  dependsOn:
+    - name: network-policies
+  sourceRef:
+    kind: GitRepository
+    name: local-path-provisioner
+    namespace: flux-system
+  path: ./deploy
+  prune: true
+  wait: true
+  timeout: 5m
+  patches:
+    - patch: |-
+        - op: replace
+          path: /metadata/namespace
+          value: local-path-storage
+      target:
+        kind: Deployment
+    - patch: |-
+        - op: replace
+          path: /metadata/namespace
+          value: local-path-storage
+      target:
+        kind: ServiceAccount
+    - patch: |-
+        - op: replace
+          path: /metadata/namespace
+          value: local-path-storage
+      target:
+        kind: ConfigMap
+    - patch: |-
+        - op: replace
+          path: /data/config.json
+          value: |-
+            {
+              "nodePathMap": [
+                {
+                  "node": "DEFAULT_PATH_FOR_NON_LISTED_NODES",
+                  "paths": ["/var/mnt/local-path-provisioner"]
+                }
+              ]
+            }
+      target:
+        kind: ConfigMap
+        name: local-path-config
+    - patch: |-
+        - op: replace
+          path: /metadata/annotations
+          value:
+            storageclass.kubernetes.io/is-default-class: "true"
+      target:
+        kind: StorageClass
+        name: local-path

@@ -41,6 +41,8 @@ locals {
     ca_bundle_content = "\n${file("${path.root}/.tmp/tls/cloud.bundle")}"
   })
 
+  user_volume_config_patch = file("${path.module}/files/user-volume-config.yaml")
+
   cilium_machine_patch = yamlencode({
     cluster = {
       inlineManifests = [

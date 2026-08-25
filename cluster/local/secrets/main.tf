@@ -12,7 +12,7 @@ resource "docker_container" "secrets" {
     name         = var.net.private_network_id
     ipv4_address = var.net.private_ip
   }
-  entrypoint = ["httpd", "-vv", "-f", "-c", "-h", "/www"]
+  entrypoint = ["httpd", "-vv", "-f", "-h", "/www"]
   upload {
     file       = "/www/cgi-bin/index.cgi"
     executable = true

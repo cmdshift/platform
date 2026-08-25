@@ -8,3 +8,4 @@ resources:
   - ../../sources/certificates/jetstack.helm-repository.yaml
   - ../../sources/certificates/kubelet-csr-approver.helm-repository.yaml
   - ../../sources/metrics/metrics-server.helm-repository.yaml
+  - ../../sources/storage/local-path-provisioner.git-repository.yaml
