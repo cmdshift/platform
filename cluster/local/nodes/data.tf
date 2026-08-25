@@ -69,6 +69,10 @@ data "helm_template" "cilium" {
       value = "/sys/fs/cgroup"
     },
     {
+      name  = "envoy.enabled"
+      value = "false"
+    },
+    {
       name  = "ipam.mode"
       value = "kubernetes"
     },

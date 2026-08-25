@@ -1,0 +1,35 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: monitoring
+  namespace: monitoring
+spec:
+  endpointSelector: {}
+  egress:
+    - toEntities:
+        - kube-apiserver
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+          rules:
+            dns:
+              - matchPattern: "*"
+    # Prometheus scrapes all pods (metrics)
+    - toEntities:
+        - cluster
+      toPorts:
+        - ports:
+            - port: "8080"   # kube-state-metrics
+              protocol: TCP
+            - port: "9090"   # prometheus itself
+              protocol: TCP
+            - port: "8082"   # kubelet (metrics)
+              protocol: TCP

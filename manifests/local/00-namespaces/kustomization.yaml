@@ -7,3 +7,4 @@ resources:
   - cert-manager.namespace.yaml
   - external-secrets.namespace.yaml
   - local-path-storage.namespace.yaml
+  - monitoring.namespace.yaml
