@@ -19,3 +19,7 @@ spec:
       create: false
     imageReflectionController:
       create: false
+    kustomizeController:
+      container:
+        additionalArgs:
+          - --requeue-dependency=5s

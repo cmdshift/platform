@@ -4,7 +4,9 @@ metadata:
   name: sources
   namespace: flux-system
 spec:
-  interval: 10s
+  dependsOn:
+    - name: namespaces
+  interval: 1m
   retryInterval: 5s
   sourceRef:
     kind: Bucket

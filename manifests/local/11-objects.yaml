@@ -1,14 +1,18 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: namespaces
+  name: objects
   namespace: flux-system
 spec:
   interval: 1m
+  retryInterval: 5s
+  dependsOn:
+    - name: namespaces
+    - name: storage
   sourceRef:
     kind: Bucket
     name: main
-  path: ./manifests/local/00-namespaces
-  prune: false
+  path: ./manifests/local/11-objects
+  prune: true
   wait: true
-  timeout: 2m
+  timeout: 10m

@@ -49,8 +49,9 @@ output "secrets" {
     name       = join("-", ["secrets", local.external_name])
     services = {
       main = {
-        hostname = join(".", ["secrets", var.external_hostname])
-        port     = 80
+        hostname   = join(".", ["secrets", var.external_hostname])
+        private_ip = cidrhost(local.cloud_cidr, 3)
+        port       = 80
       }
     }
   }
@@ -65,12 +66,14 @@ output "storage" {
     ]
     services = {
       s3 = {
-        hostname = join(".", ["s3", var.external_hostname])
-        port     = 9000
+        hostname   = join(".", ["s3", var.external_hostname])
+        private_ip = cidrhost(local.cloud_cidr, 4)
+        port       = 9000
       }
       ui = {
-        hostname = join(".", ["storage", var.external_hostname])
-        port     = 9001
+        hostname   = join(".", ["storage", var.external_hostname])
+        private_ip = cidrhost(local.cloud_cidr, 4)
+        port       = 9001
       }
     }
   }
@@ -82,8 +85,9 @@ output "registry" {
     name       = join("-", ["registry", local.external_name])
     services = {
       main = {
-        hostname = join(".", ["registry", var.external_hostname])
-        port     = 8000
+        hostname   = join(".", ["registry", var.external_hostname])
+        private_ip = cidrhost(local.cloud_cidr, 5)
+        port       = 8000
       }
     }
   }

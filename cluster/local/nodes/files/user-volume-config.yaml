@@ -4,5 +4,4 @@ name: local-path-provisioner
 provisioning:
   diskSelector:
     match: system_disk
-  minSize: 10GB
-  maxSize: 10GB
+  maxSize: 50GB

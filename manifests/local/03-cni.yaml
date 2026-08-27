@@ -4,7 +4,7 @@ metadata:
   name: cni
   namespace: flux-system
 spec:
-  interval: 10s
+  interval: 1m
   retryInterval: 5s
   dependsOn:
     - name: crds

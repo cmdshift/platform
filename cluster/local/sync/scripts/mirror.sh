@@ -9,7 +9,7 @@ mirror() {
     --only-show-errors \
     --no-verify-ssl
 
-  inotifywait -m -r -e create,delete,modify,move /tmp/manifests | while read -r directory event file; do
+  inotifywait -m -r -e create,delete,modify,move /tmp/manifests | while read -r _ event file; do
     echo "Detected $event on $file. Syncing..."
     
     aws s3 sync /tmp/manifests "s3://$RUSTFS_BUCKET/manifests" \

@@ -9,7 +9,7 @@ spec:
   chart:
     spec:
       chart: perses
-      version: "0.23.2"
+      version: 0.23.2
       sourceRef:
         kind: HelmRepository
         name: perses

@@ -4,7 +4,7 @@ apiVersion: v1alpha1
 kind: RegistryMirrorConfig
 name: ${registry.name}
 endpoints:
-  - url: "https://${registry_hostname}/v2/${path}"
+  - url: "http://${registry_hostname}/v2/${path}"
     overridePath: true
 skipFallback: true
 %{~endfor}

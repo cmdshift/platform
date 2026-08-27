@@ -19,7 +19,7 @@ module "external" {
     private_network_id = module.net.private_network_id
     private_ip         = module.conf.external.private_ip
   }
-  aliases = {
+  services = {
     "${module.conf.storage.name}"  = module.conf.storage.services
     "${module.conf.secrets.name}"  = module.conf.secrets.services
     "${module.conf.registry.name}" = module.conf.registry.services
@@ -46,9 +46,8 @@ module "dns" {
 }
 
 module "secrets" {
-  source   = "./secrets"
-  name     = module.conf.secrets.name
-  hostname = module.conf.secrets.services.main.hostname
+  source = "./secrets"
+  name   = module.conf.secrets.name
   net = {
     private_network_id = module.net.private_network_id
     private_ip         = module.conf.secrets.private_ip
@@ -71,7 +70,6 @@ module "storage" {
 module "registry" {
   source   = "./registry"
   name     = module.conf.registry.name
-  hostname = module.conf.registry.services.main.hostname
   net = {
     private_ip         = module.conf.registry.private_ip
     private_network_id = module.net.private_network_id
@@ -161,7 +159,6 @@ output "bootstrap" {
       access_key = module.secrets.s3.access_key
       secret_key = module.secrets.s3.secret_key
     }
-    intermediate_ca    = module.secrets.intermediate_ca
-    cloud_trust_bundle = module.secrets.cloud_trust_bundle
+    intermediate_ca = module.secrets.intermediate_ca
   }
 }

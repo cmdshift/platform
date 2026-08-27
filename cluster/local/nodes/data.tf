@@ -30,9 +30,7 @@ data "talos_machine_configuration" "ctrl" {
     local.cluster_machine_patch,
     local.base_machine_patch,
     local.ctrl_machine_patch,
-    local.cilium_machine_patch,
     local.registry_mirror_config_patch,
-    local.registry_tls_config_patch,
     local.user_volume_config_patch
   ]
 }
@@ -47,61 +45,6 @@ data "talos_machine_configuration" "work" {
     local.base_machine_patch,
     local.work_machine_patch,
     local.registry_mirror_config_patch,
-    local.registry_tls_config_patch,
     local.user_volume_config_patch
-  ]
-}
-
-data "helm_template" "cilium" {
-  name         = "cilium"
-  namespace    = "kube-system"
-  repository   = "https://helm.cilium.io"
-  chart        = "cilium"
-  version      = "1.20.1"
-  kube_version = var.cluster.k8s_version
-  set = [
-    {
-      name  = "cgroup.autoMount.enabled"
-      value = "false"
-    },
-    {
-      name  = "cgroup.hostRoot"
-      value = "/sys/fs/cgroup"
-    },
-    {
-      name  = "envoy.enabled"
-      value = "false"
-    },
-    {
-      name  = "ipam.mode"
-      value = "kubernetes"
-    },
-    {
-      name  = "k8sServiceHost"
-      value = "localhost"
-    },
-    {
-      name  = "k8sServicePort"
-      value = "7445"
-    },
-    {
-      name  = "kubeProxyReplacement"
-      value = "true"
-    },
-    {
-      name  = "l2announcements.enabled"
-      value = "true"
-    }
-  ]
-
-  values = [
-    yamlencode({
-      securityContext = {
-        capabilities = {
-          ciliumAgent      = ["CHOWN", "KILL", "NET_ADMIN", "NET_RAW", "IPC_LOCK", "SYS_ADMIN", "SYS_RESOURCE", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID"]
-          cleanCiliumState = ["NET_ADMIN", "SYS_ADMIN", "SYS_RESOURCE"]
-        }
-      }
-    })
   ]
 }

@@ -15,8 +15,8 @@ resource "docker_container" "cloud" {
     name         = var.net.private_network_id
     ipv4_address = var.net.private_ip
     aliases = flatten([
-      for service, hosts in var.aliases : [
-        for _, host in hosts : host.hostname
+      for name, backend in var.services : [
+        for _, server in backend : server.hostname
       ]
     ])
   }
@@ -40,10 +40,10 @@ resource "docker_container" "cloud" {
     file = "/usr/local/etc/haproxy/hosts.map"
     content = templatefile("${path.module}/templates/hosts.tftpl.map", {
       hosts = flatten([
-        for service, hosts in var.aliases : [
+        for service, hosts in var.services : [
           for host in hosts : {
-            name    = host.hostname
-            service = service
+            name       = host.hostname
+            private_ip = host.private_ip
           }
         ]
       ])
@@ -53,7 +53,7 @@ resource "docker_container" "cloud" {
     file = "/usr/local/etc/haproxy/ports.map"
     content = templatefile("${path.module}/templates/ports.tftpl.map", {
       hosts = flatten([
-        for service, hosts in var.aliases : [
+        for service, hosts in var.services : [
           for host in hosts : {
             name = host.hostname
             port = host.port
@@ -61,10 +61,5 @@ resource "docker_container" "cloud" {
         ]
       ])
     })
-  }
-  volumes {
-    read_only      = true
-    host_path      = abspath("${path.root}/.tmp/tls/cloud.pem")
-    container_path = "/usr/local/etc/ssl/certs/tls.pem"
   }
 }

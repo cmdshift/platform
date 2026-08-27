@@ -1,5 +1,0 @@
-apiVersion: v1alpha1
-kind: RegistryTLSConfig
-name: ${registry_hostname}
-ca: |
-${indent(2, ca_bundle_content)}

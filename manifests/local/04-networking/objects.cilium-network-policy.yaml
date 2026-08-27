@@ -1,15 +1,16 @@
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: external-secrets
-  namespace: external-secrets
+  name: objects
+  namespace: objects
 spec:
   endpointSelector: {}
   egress:
-    # K8s API server
     - toEntities:
         - kube-apiserver
-    # DNS
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: objects
     - toEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: kube-system
@@ -21,10 +22,3 @@ spec:
           rules:
             dns:
               - matchPattern: "*"
-    # Webhook secret store
-    - toFQDNs:
-        - matchName: secrets.cloud.test
-      toPorts:
-        - ports:
-            - port: "443"
-              protocol: TCP

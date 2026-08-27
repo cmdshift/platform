@@ -14,9 +14,10 @@ variable "net" {
   })
 }
 
-variable "aliases" {
+variable "services" {
   type = map(map(object({
-    hostname = string
-    port     = number
+    hostname   = string
+    private_ip = string
+    port       = number
   })))
 }

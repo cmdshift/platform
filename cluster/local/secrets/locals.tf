@@ -8,6 +8,4 @@ locals {
     crt = trimspace(file("${path.root}/.tmp/tls/intermediate_ca.crt"))
     key = trimspace(file("${path.root}/.tmp/tls/intermediate_ca.key"))
   }
-
-  cloud_trust_bundle = trimspace(file("${path.root}/.tmp/tls/cloud.bundle"))
 }

@@ -4,12 +4,10 @@ metadata:
   name: certificates
   namespace: flux-system
 spec:
-  interval: 10s
+  interval: 1m
   retryInterval: 5s
   dependsOn:
-    - name: sources
-    - name: network-policies
-    - name: secrets
+    - name: crds
   sourceRef:
     kind: Bucket
     name: main

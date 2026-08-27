@@ -36,23 +36,7 @@ locals {
     upstreams         = var.registry.upstreams
   })
 
-  registry_tls_config_patch = templatefile("${path.module}/templates/registry-tls-config.tftpl.yaml", {
-    registry_hostname = var.registry.hostname
-    ca_bundle_content = "\n${file("${path.root}/.tmp/tls/cloud.bundle")}"
-  })
-
   user_volume_config_patch = file("${path.module}/files/user-volume-config.yaml")
-
-  cilium_machine_patch = yamlencode({
-    cluster = {
-      inlineManifests = [
-        {
-          name     = "helm-cilium"
-          contents = data.helm_template.cilium.manifest
-        }
-      ]
-    }
-  })
 
   mounts = {
     tmpfs = ["/run", "/system", "/tmp"]

@@ -1,17 +1,17 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: network-policies
+  name: certificates-extra
   namespace: flux-system
 spec:
-  interval: 10s
+  interval: 1m
   retryInterval: 5s
   dependsOn:
-    - name: namespaces
-    - name: cni
+    - name: certificates
   sourceRef:
     kind: Bucket
     name: main
-  path: ./manifests/local/04-network-policies
+  path: ./manifests/local/07-certificates-extra
   prune: true
   wait: true
+  timeout: 5m

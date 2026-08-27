@@ -2,10 +2,6 @@ variable "name" {
   type = string
 }
 
-variable "hostname" {
-  type = string
-}
-
 variable "net" {
   type = object({
     private_ip         = string

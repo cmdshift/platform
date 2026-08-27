@@ -8,3 +8,5 @@ resources:
   - external-secrets.namespace.yaml
   - local-path-storage.namespace.yaml
   - monitoring.namespace.yaml
+  - rustfs-operator.namespace.yaml
+  - objects.namespace.yaml

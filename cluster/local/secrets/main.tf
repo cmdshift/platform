@@ -14,25 +14,14 @@ resource "docker_container" "secrets" {
   }
   entrypoint = ["httpd", "-vv", "-f", "-h", "/www"]
   upload {
-    file       = "/www/cgi-bin/index.cgi"
-    executable = true
-    content    = file("${path.module}/scripts/index.cgi")
-  }
-  upload {
-    file = "/www/secrets/_/bucket-credentials"
+    file = "/www/secrets/bucket-credentials"
     content = jsonencode({
       accesskey = local.s3.access_key
       secretkey = local.s3.secret_key
     })
   }
   upload {
-    file = "/www/secrets/_/cloud-trust-bundle"
-    content = jsonencode({
-      "ca.crt" = local.cloud_trust_bundle
-    })
-  }
-  upload {
-    file = "/www/secrets/cert-manager/intermediate-ca"
+    file = "/www/secrets/intermediate-ca"
     content = jsonencode({
       "tls.crt" = local.intermediate_ca.crt
       "tls.key" = local.intermediate_ca.key
