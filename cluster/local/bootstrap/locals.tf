@@ -1,5 +1,4 @@
 locals {
   k8s_client_config = data.terraform_remote_state.main.outputs.bootstrap.k8s_client_config
-  sync_bucket       = data.terraform_remote_state.main.outputs.bootstrap.sync_bucket
-  intermediate_ca   = data.terraform_remote_state.main.outputs.bootstrap.intermediate_ca
+  flux_bucket       = data.terraform_remote_state.main.outputs.bootstrap.flux_bucket
 }

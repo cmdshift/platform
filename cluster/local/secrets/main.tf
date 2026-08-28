@@ -12,23 +12,21 @@ resource "docker_container" "secrets" {
     name         = var.net.private_network_id
     ipv4_address = var.net.private_ip
   }
-  entrypoint = ["httpd", "-vv", "-f", "-h", "/www"]
+  entrypoint = ["httpd", "-vvv", "-f", "-h", "/www"]
   upload {
-    file = "/www/secrets/bucket-credentials"
-    content = jsonencode({
-      accesskey = local.s3.access_key
-      secretkey = local.s3.secret_key
-    })
+    file    = "/www/flux-system/bucket-credentials"
+    content = jsonencode(local.flux_system.bucket_credentials)
   }
   upload {
-    file = "/www/secrets/intermediate-ca"
-    content = jsonencode({
-      "tls.crt" = local.intermediate_ca.crt
-      "tls.key" = local.intermediate_ca.key
-    })
+    file    = "/www/cert-manager/intermediate-ca"
+    content = jsonencode(local.cert_manager.intermediate_ca)
   }
   upload {
-    file    = "/www/secrets/main-grafana-credentials"
-    content = jsonencode(local.main_grafana_credentials)
+    file    = "/www/objects/bucket-credentials"
+    content = jsonencode(local.flux_system.bucket_credentials)
+  }
+  upload {
+    file    = "/www/monitoring/main-grafana-credentials"
+    content = jsonencode(local.monitoring.main_grafana_credentials)
   }
 }

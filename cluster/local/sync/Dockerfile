@@ -1,4 +1,5 @@
-FROM public.ecr.aws/aws-cli/aws-cli:2.36.24
+FROM index.docker.io/rustfs/rc:v0.1.31
 
-RUN dnf install -y inotify-tools && dnf clean all
-  
+USER root
+
+RUN apk add --no-cache inotify-tools

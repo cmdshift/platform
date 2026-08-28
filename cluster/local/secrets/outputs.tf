@@ -1,7 +1,3 @@
-output "s3" {
-  value = local.s3
-}
-
-output "intermediate_ca" {
-  value = local.intermediate_ca
+output "flux_system_bucket_credentials" {
+  value = local.flux_system.bucket_credentials
 }

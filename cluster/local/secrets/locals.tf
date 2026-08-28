@@ -1,16 +1,22 @@
 locals {
-  s3 = {
-    access_key = "rustfsadmin"
-    secret_key = "rustfsadmin"
+  flux_system = {
+    bucket_credentials = {
+      accesskey = "flux"
+      secretkey = "password"
+    }
   }
 
-  intermediate_ca = {
-    crt = trimspace(file("${path.root}/.tmp/tls/intermediate_ca.crt"))
-    key = trimspace(file("${path.root}/.tmp/tls/intermediate_ca.key"))
+  cert_manager = {
+    intermediate_ca = {
+      "tls.crt" = trimspace(file("${path.root}/.tmp/tls/intermediate_ca.crt"))
+      "tls.key" = trimspace(file("${path.root}/.tmp/tls/intermediate_ca.key"))
+    }
   }
 
-  main_grafana_credentials = {
-    GF_SECURITY_ADMIN_USER     = "root"
-    GF_SECURITY_ADMIN_PASSWORD = "secret"
+  monitoring = {
+    main_grafana_credentials = {
+      GF_SECURITY_ADMIN_USER     = "root"
+      GF_SECURITY_ADMIN_PASSWORD = "secret"
+    }
   }
 }

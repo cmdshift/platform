@@ -13,10 +13,10 @@ resource "docker_container" "sync" {
   name  = var.name
   image = docker_image.sync.name
   env = [
-    "AWS_ACCESS_KEY_ID=${var.s3.access_key}",
-    "AWS_SECRET_ACCESS_KEY=${var.s3.secret_key}",
-    "RUSTFS_BUCKET=${var.s3.bucket}",
-    "RUSTFS_ENDPOINT=${var.s3.endpoint}"
+    "RUSTFS_ACCESS_KEY=${var.flux_s3.access_key}",
+    "RUSTFS_SECRET_KEY=${var.flux_s3.secret_key}",
+    "RUSTFS_BUCKET=${var.flux_s3.bucket}",
+    "RUSTFS_ENDPOINT=http://${var.flux_s3.endpoint}"
   ]
   networks_advanced {
     name         = var.net.private_network_id

@@ -9,7 +9,7 @@ variable "net" {
   })
 }
 
-variable "s3" {
+variable "flux_s3" {
   type = object({
     endpoint   = string
     bucket     = string

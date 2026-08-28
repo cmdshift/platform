@@ -9,19 +9,6 @@ variable "net" {
   })
 }
 
-variable "services" {
-  type = object({
-    s3 = object({
-      hostname = string
-      port     = string
-    })
-    ui = object({
-      hostname = string
-      port     = number
-    })
-  })
-}
-
 variable "access_key" {
   type = string
 }

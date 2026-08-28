@@ -1,22 +1,17 @@
 #!/bin/sh -eu
 
+rc alias set main "$RUSTFS_ENDPOINT" "$RUSTFS_ACCESS_KEY" "$RUSTFS_SECRET_KEY"
+
+sync() {
+  rc mirror /tmp/manifests/ "main/$RUSTFS_BUCKET/manifests/"
+}
+
 mirror() {
   echo "Watching for changes in /tmp/manifests..."
-  
-  aws s3 sync /tmp/manifests "s3://$RUSTFS_BUCKET/manifests" \
-    --endpoint-url "$RUSTFS_ENDPOINT" \
-    --delete \
-    --only-show-errors \
-    --no-verify-ssl
-
+  sync
   inotifywait -m -r -e create,delete,modify,move /tmp/manifests | while read -r _ event file; do
     echo "Detected $event on $file. Syncing..."
-    
-    aws s3 sync /tmp/manifests "s3://$RUSTFS_BUCKET/manifests" \
-      --endpoint-url "$RUSTFS_ENDPOINT" \
-      --delete \
-      --only-show-errors \
-      --no-verify-ssl
+    sync
   done
 }
 

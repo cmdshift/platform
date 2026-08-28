@@ -71,8 +71,8 @@ resource "kubernetes_secret_v1" "bucket_credentials" {
     }
   }
   data = {
-    accesskey = local.sync_bucket.access_key
-    secretkey = local.sync_bucket.secret_key
+    accesskey = local.flux_bucket.access_key
+    secretkey = local.flux_bucket.secret_key
   }
   type = "Opaque"
   depends_on = [
@@ -123,8 +123,8 @@ resource "helm_release" "flux" {
           }
           spec = {
             interval   = "1m"
-            endpoint   = local.sync_bucket.endpoint
-            bucketName = local.sync_bucket.name
+            endpoint   = local.flux_bucket.endpoint
+            bucketName = local.flux_bucket.name
             secretRef = {
               name = "bucket-credentials"
             }

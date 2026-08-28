@@ -61,15 +61,14 @@ module "storage" {
     private_network_id = module.net.private_network_id
     private_ip         = module.conf.storage.private_ip
   }
-  services   = module.conf.storage.services
-  access_key = module.secrets.s3.access_key
-  secret_key = module.secrets.s3.secret_key
   buckets    = module.conf.storage.buckets
+  access_key = module.secrets.flux_system_bucket_credentials.accesskey
+  secret_key = module.secrets.flux_system_bucket_credentials.secretkey
 }
 
 module "registry" {
-  source   = "./registry"
-  name     = module.conf.registry.name
+  source = "./registry"
+  name   = module.conf.registry.name
   net = {
     private_ip         = module.conf.registry.private_ip
     private_network_id = module.net.private_network_id
@@ -88,11 +87,11 @@ module "sync" {
     private_network_id = module.net.private_network_id
     private_ip         = module.conf.sync.private_ip
   }
-  s3 = {
+  flux_s3 = {
     bucket     = module.conf.sync.bucket
-    endpoint   = module.storage.endpoint
-    access_key = module.secrets.s3.access_key
-    secret_key = module.secrets.s3.secret_key
+    endpoint   = module.conf.storage.services.s3.hostname
+    access_key = module.secrets.flux_system_bucket_credentials.accesskey
+    secret_key = module.secrets.flux_system_bucket_credentials.secretkey
   }
 }
 
@@ -153,12 +152,11 @@ output "bootstrap" {
   sensitive = true
   value = {
     k8s_client_config = module.nodes.k8s_client_config
-    sync_bucket = {
+    flux_bucket = {
       name       = module.conf.sync.bucket
       endpoint   = module.conf.storage.services.s3.hostname
-      access_key = module.secrets.s3.access_key
-      secret_key = module.secrets.s3.secret_key
+      access_key = module.secrets.flux_system_bucket_credentials.accesskey
+      secret_key = module.secrets.flux_system_bucket_credentials.secretkey
     }
-    intermediate_ca = module.secrets.intermediate_ca
   }
 }

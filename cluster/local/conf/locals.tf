@@ -27,9 +27,3 @@ locals {
     }
   }
 }
-
-locals {
-  storage_buckets = {
-    flux = "flux"
-  }
-}

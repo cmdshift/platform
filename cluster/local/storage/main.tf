@@ -9,33 +9,31 @@ resource "docker_image" "storage" {
   keep_locally = true
 }
 
-resource "docker_volume" "data" {
-  name = join("-", [var.name, "data"])
-}
-
 resource "docker_container" "storage" {
   name  = var.name
   image = docker_image.storage.name
   wait  = true
   env = [
-    "RUSTFS_ENDPOINT=http://localhost:${var.services.s3.port}",
-    "RUSTFS_ACCESS_KEY=${var.access_key}",
-    "RUSTFS_SECRET_KEY=${var.secret_key}",
+    "RUSTFS_BUCKETS=${join(" ", var.buckets)}",
     "RUSTFS_CONSOLE_ENABLE=true"
   ]
-  volumes {
-    container_path = "/data"
-    volume_name    = docker_volume.data.name
+  upload {
+    file       = "/tmp/entrypoint.sh"
+    executable = true
+    content    = file("${path.module}/scripts/entrypoint.sh")
   }
   upload {
     file       = "/tmp/healthcheck.sh"
-    content    = file("${path.module}/scripts/healthcheck.sh")
     executable = true
+    content    = file("${path.module}/scripts/healthcheck.sh")
   }
   networks_advanced {
     name         = var.net.private_network_id
     ipv4_address = var.net.private_ip
   }
+  entrypoint = [
+    "/tmp/entrypoint.sh"
+  ]
   healthcheck {
     start_period = "3s"
     interval     = "5s"

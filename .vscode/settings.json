@@ -1,4 +1,8 @@
 {
+  "cSpell.userWords": [
+    "healthcheck",
+    "rustfs"
+  ],
   "files.insertFinalNewline": true,
   "files.trimTrailingWhitespace": true,
   "[terraform]": {
