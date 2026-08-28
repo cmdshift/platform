@@ -9,4 +9,4 @@ spec:
   ref:
     commit: 15a60a655583acc9bc6d14385ff0b004f4e8e948
   ignore: |
-    !/helm/chart/
+    !/bundle.yaml
