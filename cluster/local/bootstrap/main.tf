@@ -174,6 +174,7 @@ resource "kubernetes_secret_v1" "cert_manager_ca" {
     "tls.crt" = local.intermediate_ca.crt
     "tls.key" = local.intermediate_ca.key
   }
+  type = "kubernetes.io/tls"
   depends_on = [
     kubernetes_namespace_v1.cert_manager
   ]

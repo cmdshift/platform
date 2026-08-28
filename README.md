@@ -84,13 +84,13 @@ just init
 ## Build the Cluster
 
 ```shell
-just apply
+just cluster apply
 ```
 
 ## Bootstrap Gitops Sync
 
 ```shell
-just bootstrap
+just bootstrap apply
 ```
 
 ## Inspect the Cluster
@@ -103,4 +103,4 @@ k9s
 
 ### Local Talos Machine Bootstrap
 
-There may be a race condition with node bootup and HAProxy readiness. Report if you run into a hanging machine bootstrap locally.
+There may be a race condition with node bootup and HAProxy readiness. If cluster creation hangs at `machine_bootstrap` for more than a couple of seconds, destroy and try again. Report if you run into a hanging machine bootstrap locally.

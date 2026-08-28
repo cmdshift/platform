@@ -16,17 +16,11 @@ init *args:
   terraform -chdir=cluster/local init {{args}}
   terraform -chdir=cluster/local/bootstrap init {{args}}
 
-plan *args:
-  terraform -chdir=cluster/local plan {{args}}
+cluster action *args:
+  terraform -chdir=cluster/local {{action}} {{args}}
 
-apply *args:
-  terraform -chdir=cluster/local apply {{args}}
-
-destroy *args:
-  terraform -chdir=cluster/local destroy {{args}}
-
-bootstrap *args:
-  terraform -chdir=cluster/local/bootstrap {{args}}
+bootstrap action *args:
+  terraform -chdir=cluster/local/bootstrap {{action}} {{args}}
 
 image:
   packer build cluster/cloud/image
