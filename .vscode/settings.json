@@ -1,8 +1,12 @@
 {
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+  "[terraform]": {
+    "editor.defaultFormatter": "hashicorp.terraform",
+    "editor.formatOnSave": true
+  },
   "[toml]": {
     "editor.defaultFormatter": "tamasfe.even-better-toml",
     "editor.formatOnSave": false,
-    "files.insertFinalNewline": true,
-    "files.trimTrailingWhitespace": true,
   }
 }

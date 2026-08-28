@@ -25,11 +25,11 @@ spec:
     # Prometheus scrapes all pods (metrics)
     - toEntities:
         - cluster
+    # Fetch Grafana dashboards
+    - toFQDNs:
+        - matchName: raw.githubusercontent.com
       toPorts:
         - ports:
-            - port: "8080"   # kube-state-metrics
+            - port: "443"
               protocol: TCP
-            - port: "9090"   # prometheus itself
-              protocol: TCP
-            - port: "8082"   # kubelet (metrics)
-              protocol: TCP
+

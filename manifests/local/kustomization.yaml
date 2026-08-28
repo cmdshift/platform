@@ -16,3 +16,4 @@ resources:
   - 10-objects.yaml
   - 10-objects-config.yaml
   - 11-monitoring.yaml
+  - 11-monitoring-config.yaml

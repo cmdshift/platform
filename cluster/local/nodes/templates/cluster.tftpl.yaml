@@ -1,4 +1,15 @@
 cluster:
+  # Security note: binding to 0.0.0.0 exposes the metrics port on all interfaces.
+  # It's protected by TLS + bearer token auth (Prometheus presents the service account token),
+  # so it's not "open" in the unauthenticated sense.
+  # But if you're running this on a cloud VM with a public IP,
+  # you'd want a firewall rule (security group) restricting 10257/10259 to your cluster's internal CIDR.
+  controllerManager:
+    extraArgs:
+      bind-address: 0.0.0.0
+  scheduler:
+    extraArgs:
+      bind-address: 0.0.0.0
   controlPlane:
     endpoint: ${public_endpoint}
   apiServer:

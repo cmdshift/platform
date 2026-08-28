@@ -7,7 +7,8 @@ spec:
   interval: 1m
   retryInterval: 5s
   dependsOn:
-    - name: secrets-extra
+    - name: sources
+    - name: secrets-config
   sourceRef:
     kind: Bucket
     name: main

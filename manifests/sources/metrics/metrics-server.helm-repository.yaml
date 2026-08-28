@@ -4,5 +4,5 @@ metadata:
   name: kubernetes-sigs
   namespace: flux-system
 spec:
-  interval: 1h
+  interval: 12h
   url: https://kubernetes-sigs.github.io/metrics-server/

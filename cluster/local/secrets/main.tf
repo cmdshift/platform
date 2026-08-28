@@ -27,4 +27,8 @@ resource "docker_container" "secrets" {
       "tls.key" = local.intermediate_ca.key
     })
   }
+  upload {
+    file    = "/www/secrets/main-grafana-credentials"
+    content = jsonencode(local.main_grafana_credentials)
+  }
 }
