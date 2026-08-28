@@ -1,17 +1,17 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: certificates-extra
+  name: objects-config
   namespace: flux-system
 spec:
   interval: 1m
   retryInterval: 5s
   dependsOn:
-    - name: certificates
+    - name: objects
   sourceRef:
     kind: Bucket
     name: main
-  path: ./manifests/local/07-certificates-extra
+  path: ./manifests/local/11-objects-config
   prune: true
   wait: true
   timeout: 5m
