@@ -7,11 +7,12 @@ resources:
   - 03-cni.yaml
   - 04-networking.yaml
   - 05-secrets.yaml
-  - 05-secrets-extra.yaml
+  - 05-secrets-config.yaml
   - 06-flux.yaml
   - 07-certificates.yaml
-  - 07-certificates-extra.yaml
+  - 07-certificates-config.yaml
   - 08-metrics.yaml
   - 09-storage.yaml
-  - 10-monitoring.yaml
-  - 11-objects.yaml
+  - 10-objects.yaml
+  - 10-objects-config.yaml
+  - 11-monitoring.yaml

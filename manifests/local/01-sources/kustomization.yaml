@@ -9,6 +9,5 @@ resources:
   - ../../sources/certificates/kubelet-csr-approver.helm-repository.yaml
   - ../../sources/metrics/metrics-server.helm-repository.yaml
   - ../../sources/storage/local-path-provisioner.git-repository.yaml
-  - ../../sources/monitoring/prometheus-community.helm-repository.yaml
-  - ../../sources/monitoring/perses.helm-repository.yaml
   - ../../sources/objects/rustfs-operator.git-repository.yaml
+  - ../../sources/monitoring/prometheus-community.helm-repository.yaml

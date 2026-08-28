@@ -12,7 +12,7 @@ spec:
   sourceRef:
     kind: Bucket
     name: main
-  path: ./manifests/local/11-objects
+  path: ./manifests/local/10-objects
   prune: true
   wait: true
   timeout: 10m

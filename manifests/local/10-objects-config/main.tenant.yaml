@@ -1,0 +1,21 @@
+apiVersion: rustfs.com/v1alpha1
+kind: Tenant
+metadata:
+  name: main
+  namespace: objects
+spec:
+  credsSecret:
+    name: bucket-credentials
+  pools:
+    - name: primary
+      servers: 1
+      persistence:
+        volumesPerServer: 1
+        volumeClaimTemplate:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 5Gi
+          storageClassName: local-path
+          

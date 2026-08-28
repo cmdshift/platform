@@ -155,27 +155,3 @@ resource "helm_release" "flux" {
     })
   ]
 }
-
-resource "kubernetes_namespace_v1" "cert_manager" {
-  metadata {
-    name = "cert-manager"
-  }
-}
-
-resource "kubernetes_secret_v1" "cert_manager_ca" {
-  metadata {
-    name      = "intermediate-ca"
-    namespace = "cert-manager"
-    labels = {
-      "external-secrets.io/type" = "webhook"
-    }
-  }
-  data = {
-    "tls.crt" = local.intermediate_ca.crt
-    "tls.key" = local.intermediate_ca.key
-  }
-  type = "kubernetes.io/tls"
-  depends_on = [
-    kubernetes_namespace_v1.cert_manager
-  ]
-}

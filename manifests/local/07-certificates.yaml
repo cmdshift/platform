@@ -8,6 +8,7 @@ spec:
   retryInterval: 5s
   dependsOn:
     - name: crds
+    - name: secrets
   sourceRef:
     kind: Bucket
     name: main

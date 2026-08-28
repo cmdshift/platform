@@ -6,7 +6,8 @@
         "ms-azuretools.vscode-containers",
         "nefrob.vscode-just-syntax",
         "redhat.vscode-yaml",
+        "streetsidesoftware.code-spell-checker-cspell-bundled-dictionaries",
         "tamasfe.even-better-toml",
-        "weaveworks.vscode-gitops-tools"
+        "weaveworks.vscode-gitops-tools",
     ]
 }
