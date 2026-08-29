@@ -54,11 +54,19 @@ resource "helm_release" "cilium" {
       }
     })
   ]
+  lifecycle {
+    ignore_changes  = all
+    prevent_destroy = true
+  }
 }
 
 resource "kubernetes_namespace_v1" "flux_system" {
   metadata {
     name = "flux-system"
+  }
+  lifecycle {
+    ignore_changes  = all
+    prevent_destroy = true
   }
 }
 
@@ -78,6 +86,10 @@ resource "kubernetes_secret_v1" "bucket_credentials" {
   depends_on = [
     kubernetes_namespace_v1.flux_system
   ]
+  lifecycle {
+    ignore_changes  = all
+    prevent_destroy = true
+  }
 }
 
 resource "helm_release" "flux" {
@@ -154,4 +166,8 @@ resource "helm_release" "flux" {
       ]
     })
   ]
+  lifecycle {
+    ignore_changes  = all
+    prevent_destroy = true
+  }
 }
