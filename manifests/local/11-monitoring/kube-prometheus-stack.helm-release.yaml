@@ -18,9 +18,13 @@ spec:
     prometheus:
       prometheusSpec:
         retention: 2d
-        disableCompaction: true
         externalLabels:
           cluster: local
+        thanos:
+          objectStorageConfig:
+            existingSecret:
+              name: thanos-objstore
+              key: objstore.yaml
       thanosService:
         enabled: true
       thanosServiceMonitor:

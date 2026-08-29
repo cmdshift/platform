@@ -14,19 +14,27 @@ resource "docker_container" "secrets" {
   }
   entrypoint = ["httpd", "-vvv", "-f", "-h", "/www"]
   upload {
-    file    = "/www/flux-system/bucket-credentials"
-    content = jsonencode(local.flux_system.bucket_credentials)
-  }
-  upload {
     file    = "/www/cert-manager/intermediate-ca"
     content = jsonencode(local.cert_manager.intermediate_ca)
+  }
+  upload {
+    file    = "/www/flux-system/bucket-credentials"
+    content = jsonencode(local.flux_system.bucket_credentials)
   }
   upload {
     file    = "/www/objects/tenant-credentials"
     content = jsonencode(local.objects.tenant_credentials)
   }
   upload {
+    file    = "/www/objects/thanos-bucket-credentials"
+    content = jsonencode(local.objects.thanos_bucket_credentials)
+  }
+  upload {
     file    = "/www/monitoring/main-grafana-credentials"
     content = jsonencode(local.monitoring.main_grafana_credentials)
+  }
+  upload {
+    file    = "/www/monitoring/thanos-objstore"
+    content = jsonencode(local.monitoring.thanos_objstore)
   }
 }

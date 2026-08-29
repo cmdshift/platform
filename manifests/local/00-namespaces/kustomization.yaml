@@ -10,3 +10,4 @@ resources:
   - monitoring.namespace.yaml
   - rustfs-operator.namespace.yaml
   - objects.namespace.yaml
+  - thanos-operator-system.namespace.yaml

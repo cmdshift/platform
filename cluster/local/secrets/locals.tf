@@ -20,12 +20,30 @@ locals {
       accesskey = "objects-user"
       secretkey = "password"
     }
+
+    thanos_bucket_credentials = {
+      accesskey = "username"
+      secretkey = "password"
+    }
   }
 
   monitoring = {
     main_grafana_credentials = {
       GF_SECURITY_ADMIN_USER     = "root"
       GF_SECURITY_ADMIN_PASSWORD = "secret"
+    }
+
+    thanos_objstore = {
+      "objstore.yaml" = yamlencode({
+        type = "s3"
+        config = {
+          bucket     = "thanos"
+          endpoint   = "main-hl.objects.svc:9000"
+          access_key = "username"
+          secret_key = "password"
+          insecure   = true
+        }
+      })
     }
   }
 }
