@@ -1,7 +1,8 @@
 {
   "cSpell.userWords": [
     "healthcheck",
-    "rustfs"
+    "rustfs",
+    "seaweedfs"
   ],
   "files.insertFinalNewline": true,
   "files.trimTrailingWhitespace": true,

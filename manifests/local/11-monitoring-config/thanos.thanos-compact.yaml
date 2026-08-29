@@ -13,4 +13,4 @@ spec:
     oneHour: 180d
   storage:
     size: 10Gi
-  logFormat: logfmt
+  logFormat: json

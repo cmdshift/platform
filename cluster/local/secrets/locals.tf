@@ -16,14 +16,26 @@ locals {
   }
 
   objects = {
-    tenant_credentials = {
-      accesskey = "objects-user"
-      secretkey = "password"
-    }
-
-    thanos_bucket_credentials = {
-      accesskey = "username"
-      secretkey = "password"
+    seaweedfs_s3_config = {
+      "s3.json" = jsonencode({
+        identities = [
+          {
+            name = "thanos"
+            credentials = [
+              {
+                accessKey = "username"
+                secretKey = "password"
+              }
+            ]
+            actions = [
+              "Read:thanos",
+              "Write:thanos",
+              "List:thanos",
+              "Delete:thanos"
+            ]
+          }
+        ]
+      })
     }
   }
 
@@ -38,7 +50,7 @@ locals {
         type = "s3"
         config = {
           bucket     = "thanos"
-          endpoint   = "main-hl.objects.svc:9000"
+          endpoint   = "main-s3.objects.svc:8333"
           access_key = "username"
           secret_key = "password"
           insecure   = true

@@ -1,0 +1,29 @@
+apiVersion: seaweed.seaweedfs.com/v1
+kind: Seaweed
+metadata:
+  name: main
+  namespace: objects
+spec:
+  image: index.docker.io/chrislusf/seaweedfs:4.44
+  volumeServerDiskCount: 1
+  master:
+    replicas: 1
+    volumeSizeLimitMB: 1024
+  volume:
+    replicas: 1
+    storageClassName: local-path
+    requests:
+      storage: 10Gi
+  filer:
+    replicas: 1
+    persistence:
+      enabled: true
+      storageClassName: local-path
+      resources:
+        requests:
+          storage: 1Gi
+  s3:
+    replicas: 1
+    configSecret:
+      name: seaweedfs-s3-config
+      key: s3.json

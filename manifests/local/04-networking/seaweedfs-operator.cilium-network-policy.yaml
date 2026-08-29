@@ -1,8 +1,8 @@
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: rustfs-operator
-  namespace: rustfs-operator
+  name: seaweedfs-operator
+  namespace: seaweedfs-operator
 spec:
   endpointSelector: {}
   egress:
@@ -19,6 +19,9 @@ spec:
           rules:
             dns:
               - matchPattern: "*"
+    - toEndpoints:
+      - matchLabels:
+          io.kubernetes.pod.namespace: seaweedfs-operator
     - toEndpoints:
       - matchLabels:
           io.kubernetes.pod.namespace: objects
