@@ -21,4 +21,3 @@ spec:
           rules:
             dns:
               - matchPattern: "*"
-

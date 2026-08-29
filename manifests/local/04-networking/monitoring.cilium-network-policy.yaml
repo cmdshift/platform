@@ -6,22 +6,25 @@ metadata:
 spec:
   endpointSelector: {}
   egress:
-    - toEntities:
-        - kube-apiserver
     - toEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: monitoring
     - toEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: objects
+    - toEntities:
+        - kube-apiserver
+    - toEntities:
+        - cluster
     # Prometheus scrapes all pods (metrics)
     - toEntities:
         - host
-    - toEntities:
         - remote-node
       toPorts:
         - ports:
-            - port: "10250"
+            - port: "10250"   # kubelet
+              protocol: TCP
+            - port: "9100"    # node-exporter
               protocol: TCP
     # Fetch Grafana dashboards
     - toFQDNs:

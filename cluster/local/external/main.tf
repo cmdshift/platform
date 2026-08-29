@@ -25,11 +25,6 @@ resource "docker_container" "cloud" {
     external = 80
     ip       = "127.0.10.1"
   }
-  ports {
-    internal = 443
-    external = 443
-    ip       = "127.0.10.1"
-  }
   upload {
     file = "/usr/local/etc/haproxy/haproxy.cfg"
     content = templatefile("${path.module}/templates/haproxy.tftpl.cfg", {
