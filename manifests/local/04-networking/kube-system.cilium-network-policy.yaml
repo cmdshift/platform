@@ -21,6 +21,7 @@ spec:
           rules:
             dns:
               - matchPattern: "*"
+    # DNS
     - toEntities:
         - world
       toPorts:
@@ -28,4 +29,25 @@ spec:
             - port: "53"
               protocol: UDP
             - port: "53"
+              protocol: TCP
+    # Cilium Hubble
+    - toEntities:
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "4244"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            k8s-app: hubble-relay
+      toPorts:
+        - ports:
+            - port: "4245"
+              protocol: TCP
+    # Metrics Server
+    - toEntities:
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "10250"
               protocol: TCP

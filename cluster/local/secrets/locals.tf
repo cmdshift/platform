@@ -1,7 +1,9 @@
+# RustFS Operator wants a minimum of 8 bytes for accesskey and secretkey, hence "-user"
+
 locals {
   flux_system = {
     bucket_credentials = {
-      accesskey = "flux"
+      accesskey = "flux-user"
       secretkey = "password"
     }
   }
@@ -10,6 +12,13 @@ locals {
     intermediate_ca = {
       "tls.crt" = trimspace(file("${path.root}/.tmp/tls/intermediate_ca.crt"))
       "tls.key" = trimspace(file("${path.root}/.tmp/tls/intermediate_ca.key"))
+    }
+  }
+
+  objects = {
+    tenant_credentials = {
+      accesskey = "objects-user"
+      secretkey = "password"
     }
   }
 

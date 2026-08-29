@@ -22,8 +22,8 @@ resource "docker_container" "secrets" {
     content = jsonencode(local.cert_manager.intermediate_ca)
   }
   upload {
-    file    = "/www/objects/bucket-credentials"
-    content = jsonencode(local.flux_system.bucket_credentials)
+    file    = "/www/objects/tenant-credentials"
+    content = jsonencode(local.objects.tenant_credentials)
   }
   upload {
     file    = "/www/monitoring/main-grafana-credentials"

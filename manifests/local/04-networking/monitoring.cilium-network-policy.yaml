@@ -24,7 +24,13 @@ spec:
               - matchPattern: "*"
     # Prometheus scrapes all pods (metrics)
     - toEntities:
-        - cluster
+        - host
+    - toEntities:
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "10250"
+              protocol: TCP
     # Fetch Grafana dashboards
     - toFQDNs:
         - matchName: raw.githubusercontent.com

@@ -7,7 +7,7 @@ spec:
   interval: 1m
   retryInterval: 5s
   dependsOn:
-    - name: secrets
+    - name: secrets-config
     - name: monitoring
   sourceRef:
     kind: Bucket

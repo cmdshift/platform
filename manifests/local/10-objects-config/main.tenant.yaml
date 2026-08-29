@@ -5,7 +5,7 @@ metadata:
   namespace: objects
 spec:
   credsSecret:
-    name: bucket-credentials
+    name: tenant-credentials
   pools:
     - name: primary
       servers: 1
@@ -18,4 +18,17 @@ spec:
             requests:
               storage: 5Gi
           storageClassName: local-path
-          
+  policies:
+    - name: thanos-readwrite
+      document:
+        configMapKeyRef:
+          name: thanos-policy
+          key: policy.json
+  users:
+    - name: thanos-user
+      credsSecret:
+        name: thanos-bucket-credentials
+      policies:
+        - thanos-readwrite
+  buckets:
+    - name: thanos

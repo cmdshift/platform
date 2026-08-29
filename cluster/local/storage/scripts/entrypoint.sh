@@ -17,7 +17,7 @@ for BUCKET in $RUSTFS_BUCKETS; do
   echo "Provisioning: $BUCKET"
 
   rc mb "main/$BUCKET"
-  rc admin user add main/ "$BUCKET" "password"
+  rc admin user add main/ "${BUCKET}-user" "password"
 
   # Write policy to temp file
   POLICY_FILE=$(mktemp)
@@ -43,7 +43,7 @@ for BUCKET in $RUSTFS_BUCKETS; do
 EOF
 
   rc admin policy create main/ "${BUCKET}-policy" "$POLICY_FILE"
-  rc admin policy attach main/ "${BUCKET}-policy" --user "$BUCKET"
+  rc admin policy attach main/ "${BUCKET}-policy" --user "${BUCKET}-user"
 
   rm -f "$POLICY_FILE"
 done
