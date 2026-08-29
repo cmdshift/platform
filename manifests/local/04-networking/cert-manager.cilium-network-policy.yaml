@@ -11,14 +11,3 @@ spec:
     - toEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: cert-manager
-    - toEndpoints:
-        - matchLabels:
-            io.kubernetes.pod.namespace: kube-system
-            k8s-app: kube-dns
-      toPorts:
-        - ports:
-            - port: "53"
-              protocol: UDP
-          rules:
-            dns:
-              - matchPattern: "*"

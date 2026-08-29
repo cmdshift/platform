@@ -17,18 +17,6 @@ spec:
     - toEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: flux-system
-    # DNS
-    - toEndpoints:
-        - matchLabels:
-            io.kubernetes.pod.namespace: kube-system
-            k8s-app: kube-dns
-      toPorts:
-        - ports:
-            - port: "53"
-              protocol: UDP
-          rules:
-            dns:
-              - matchPattern: "*"
     # All HTTPS egress (registries, S3, GitHub, Helm repos, etc.)
     - toEntities:
         - world

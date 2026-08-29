@@ -10,17 +10,6 @@ spec:
         - kube-apiserver
     - toEntities:
         - host
-    - toEndpoints:
-        - matchLabels:
-            io.kubernetes.pod.namespace: kube-system
-            k8s-app: kube-dns
-      toPorts:
-        - ports:
-            - port: "53"
-              protocol: UDP
-          rules:
-            dns:
-              - matchPattern: "*"
     # DNS
     - toEntities:
         - world
@@ -30,12 +19,16 @@ spec:
               protocol: UDP
             - port: "53"
               protocol: TCP
-    # Cilium Hubble
     - toEntities:
         - remote-node
       toPorts:
+         # Cilium Hubble
         - ports:
             - port: "4244"
+              protocol: TCP
+        # Metrics Server
+        - ports:
+            - port: "10250"
               protocol: TCP
     - toEndpoints:
         - matchLabels:
@@ -43,11 +36,4 @@ spec:
       toPorts:
         - ports:
             - port: "4245"
-              protocol: TCP
-    # Metrics Server
-    - toEntities:
-        - remote-node
-      toPorts:
-        - ports:
-            - port: "10250"
               protocol: TCP
