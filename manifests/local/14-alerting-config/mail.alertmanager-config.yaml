@@ -1,0 +1,20 @@
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: mail
+  namespace: monitoring
+spec:
+  route:
+    groupBy: [alertname, severity]
+    groupWait: 30s
+    groupInterval: 5m
+    repeatInterval: 4h
+    receiver: email
+  receivers:
+    - name: email
+      emailConfigs:
+        - to: you@cloud.test
+          smarthost: "smtp.cloud.test:25"
+          from: alertmanager@cloud.test
+          requireTLS: false
+          sendResolved: true

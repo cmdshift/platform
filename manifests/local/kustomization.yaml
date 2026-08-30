@@ -21,3 +21,4 @@ resources:
   - 12-logging.yaml
   - 13-backups.yaml
   - 13-backups-config.yaml
+  - 14-alerting-config.yaml

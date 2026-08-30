@@ -40,3 +40,9 @@ spec:
         - ports:
             - port: "443"
               protocol: TCP
+    - toFQDNs:
+        - matchName: smtp.cloud.test
+      toPorts:
+        - ports:
+            - port: "25"
+              protocol: TCP

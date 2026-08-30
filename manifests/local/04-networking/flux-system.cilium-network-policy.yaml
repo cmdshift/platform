@@ -17,6 +17,13 @@ spec:
     - toEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: flux-system
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "9093"
+              protocol: TCP
     # All HTTPS egress (registries, S3, GitHub, Helm repos, etc.)
     - toEntities:
         - world
