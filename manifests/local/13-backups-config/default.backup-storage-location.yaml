@@ -1,0 +1,16 @@
+apiVersion: velero.io/v1
+kind: BackupStorageLocation
+metadata:
+  name: default
+  namespace: velero
+spec:
+  provider: aws
+  objectStorage:
+    bucket: velero
+  config:
+    s3Url: http://main-s3.objects.svc:8333
+    s3ForcePathStyle: "true"
+    region: local
+  credential:
+    name: velero-s3-credentials
+    key: seaweedfs

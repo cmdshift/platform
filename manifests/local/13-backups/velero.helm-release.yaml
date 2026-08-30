@@ -1,0 +1,33 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: velero
+  namespace: velero
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: velero
+      sourceRef:
+        kind: HelmRepository
+        name: velero
+        namespace: flux-system
+  values:
+    initContainers:
+      - name: velero-plugin-for-aws
+        image: index.docker.io/velero/velero-plugin-for-aws:v1.14.2
+        volumeMounts:
+          - mountPath: /target
+            name: plugins
+    credentials: {}
+    configuration:
+      backupStorageLocation: null
+      volumeSnapshotLocation: null
+    deployNodeAgent: true
+    nodeAgent:
+      containerSecurityContext:
+        privileged: true
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true

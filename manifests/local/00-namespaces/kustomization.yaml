@@ -12,3 +12,4 @@ resources:
   - objects.namespace.yaml
   - thanos-operator-system.namespace.yaml
   - logging.namespace.yaml
+  - velero.namespace.yaml

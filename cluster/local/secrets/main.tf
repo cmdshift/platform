@@ -37,4 +37,8 @@ resource "docker_container" "secrets" {
     file    = "/www/logging/loki-s3-credentials"
     content = jsonencode(local.logging.loki_s3_credentials)
   }
+  upload {
+    file    = "/www/backups/velero-s3-credentials"
+    content = jsonencode(local.backups.velero_s3_credentials)
+  }
 }

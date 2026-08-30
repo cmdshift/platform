@@ -14,3 +14,4 @@ resources:
   - ../../sources/prometheus-community.helm-repository.yaml
   - ../../sources/seaweedfs-operator.helm-repository.yaml
   - ../../sources/thanos-operator.git-repository.yaml
+  - ../../sources/velero.helm-repository.yaml

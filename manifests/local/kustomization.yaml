@@ -19,3 +19,5 @@ resources:
   - 11-monitoring.yaml
   - 11-monitoring-config.yaml
   - 12-logging.yaml
+  - 13-backups.yaml
+  - 13-backups-config.yaml

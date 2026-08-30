@@ -1,0 +1,21 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: velero
+  namespace: velero
+spec:
+  endpointSelector: {}
+  egress:
+    - toEntities:
+        - kube-apiserver
+    # S3 (SeaweedFS)
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: objects
+      toPorts:
+        - ports:
+            - port: "8333"
+              protocol: TCP
+    # Node agent reads PVCs on the node (hostPath)
+    - toEntities:
+        - host
