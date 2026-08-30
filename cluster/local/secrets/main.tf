@@ -33,4 +33,8 @@ resource "docker_container" "secrets" {
     file    = "/www/monitoring/thanos-objstore"
     content = jsonencode(local.monitoring.thanos_objstore)
   }
+  upload {
+    file    = "/www/logging/loki-s3-credentials"
+    content = jsonencode(local.logging.loki_s3_credentials)
+  }
 }

@@ -1,0 +1,9 @@
+apiVersion: seaweed.seaweedfs.com/v1
+kind: Bucket
+metadata:
+  name: loki-rules
+  namespace: objects
+spec:
+  clusterRef:
+    name: main
+    namespace: objects

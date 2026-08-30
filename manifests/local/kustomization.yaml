@@ -1,5 +1,6 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+
 resources:
   - 00-namespaces.yaml
   - 01-sources.yaml
@@ -17,3 +18,4 @@ resources:
   - 10-objects-config.yaml
   - 11-monitoring.yaml
   - 11-monitoring-config.yaml
+  - 12-logging.yaml

@@ -23,8 +23,8 @@ locals {
             name = "thanos"
             credentials = [
               {
-                accessKey = "username"
-                secretKey = "password"
+                accessKey = "thanos-username"
+                secretKey = "thanos-password"
               }
             ]
             actions = [
@@ -32,6 +32,25 @@ locals {
               "Write:thanos",
               "List:thanos",
               "Delete:thanos"
+            ]
+          },
+          {
+            name = "loki"
+            credentials = [
+              {
+                accessKey = "loki-username"
+                secretKey = "loki-password"
+              }
+            ]
+            actions = [
+              "Read:loki",
+              "Write:loki",
+              "List:loki",
+              "Delete:loki",
+              "Read:loki-rules",
+              "Write:loki-rules",
+              "List:loki-rules",
+              "Delete:loki-rules"
             ]
           }
         ]
@@ -51,11 +70,18 @@ locals {
         config = {
           bucket     = "thanos"
           endpoint   = "main-s3.objects.svc:8333"
-          access_key = "username"
-          secret_key = "password"
+          access_key = "thanos-username"
+          secret_key = "thanos-password"
           insecure   = true
         }
       })
+    }
+  }
+
+  logging = {
+    loki_s3_credentials = {
+      LOKI_S3_ACCESS_KEY_ID     = "loki-username"
+      LOKI_S3_SECRET_ACCESS_KEY = "loki-password"
     }
   }
 }

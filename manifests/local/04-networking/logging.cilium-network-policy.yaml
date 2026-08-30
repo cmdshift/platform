@@ -1,0 +1,24 @@
+# 04-networking/logging.cilium-network-policy.yaml
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: logging
+  namespace: logging
+spec:
+  endpointSelector: {}
+  egress:
+    - toEntities:
+        - kube-apiserver
+    - toEntities:
+        - cluster
+    - toEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "9080"   # Loki
+              protocol: TCP
+            - port: "3100"   # Loki HTTP
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: logging

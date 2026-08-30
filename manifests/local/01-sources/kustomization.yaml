@@ -13,3 +13,4 @@ resources:
   - ../../sources/monitoring/prometheus-community.helm-repository.yaml
   - ../../sources/monitoring/grafana.helm-repository.yaml
   - ../../sources/monitoring/thanos-operator.git-repository.yaml
+  - ../../sources/logging/grafana-community.helm-repository.yaml
