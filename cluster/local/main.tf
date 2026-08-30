@@ -19,10 +19,11 @@ module "external" {
     private_network_id = module.net.private_network_id
     private_ip         = module.conf.external.private_ip
   }
-  services = {
+  hosts = {
     "${module.conf.storage.name}"  = module.conf.storage.services
     "${module.conf.secrets.name}"  = module.conf.secrets.services
     "${module.conf.registry.name}" = module.conf.registry.services
+    "${module.conf.mail.name}"     = module.conf.mail.services
   }
 }
 
@@ -73,6 +74,15 @@ module "registry" {
     private_ip         = module.conf.registry.private_ip
     private_network_id = module.net.private_network_id
     bridge_network_id  = module.net.bridge_network_id
+  }
+}
+
+module "mail" {
+  source = "./mail"
+  name   = module.conf.mail.name
+  net = {
+    private_network_id = module.net.private_network_id
+    private_ip         = module.conf.mail.private_ip
   }
 }
 

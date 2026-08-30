@@ -14,7 +14,7 @@ variable "net" {
   })
 }
 
-variable "services" {
+variable "hosts" {
   type = map(map(object({
     hostname   = string
     private_ip = string

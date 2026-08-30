@@ -15,7 +15,7 @@ resource "docker_container" "cloud" {
     name         = var.net.private_network_id
     ipv4_address = var.net.private_ip
     aliases = flatten([
-      for name, backend in var.services : [
+      for name, backend in var.hosts : [
         for _, server in backend : server.hostname
       ]
     ])
@@ -28,18 +28,27 @@ resource "docker_container" "cloud" {
   upload {
     file = "/usr/local/etc/haproxy/haproxy.cfg"
     content = templatefile("${path.module}/templates/haproxy.tftpl.cfg", {
-
+      smtp = flatten([
+        for container_name, services in var.hosts : [
+          for name, service in services : {
+            name       = container_name
+            private_ip = service.private_ip
+          }
+          if can(regex("^smtp", name))
+        ]
+      ])
     })
   }
   upload {
     file = "/usr/local/etc/haproxy/hosts.map"
     content = templatefile("${path.module}/templates/hosts.tftpl.map", {
       hosts = flatten([
-        for service, hosts in var.services : [
-          for host in hosts : {
-            name       = host.hostname
-            private_ip = host.private_ip
+        for _, services in var.hosts : [
+          for name, service in services : {
+            name       = service.hostname
+            private_ip = service.private_ip
           }
+          if !can(regex("^smtp", name))
         ]
       ])
     })
@@ -48,11 +57,12 @@ resource "docker_container" "cloud" {
     file = "/usr/local/etc/haproxy/ports.map"
     content = templatefile("${path.module}/templates/ports.tftpl.map", {
       hosts = flatten([
-        for service, hosts in var.services : [
-          for host in hosts : {
-            name = host.hostname
-            port = host.port
+        for _, services in var.hosts : [
+          for name, service in services : {
+            name = service.hostname
+            port = service.port
           }
+          if !can(regex("^smtp", name))
         ]
       ])
     })

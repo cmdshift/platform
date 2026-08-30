@@ -93,9 +93,28 @@ output "registry" {
   }
 }
 
-output "sync" {
+output "mail" {
   value = {
     private_ip = cidrhost(local.cloud_cidr, 6)
+    name       = join("-", ["mail", local.external_name])
+    services = {
+      smtp = {
+        hostname   = join(".", ["smtp", var.external_hostname])
+        private_ip = cidrhost(local.cloud_cidr, 6)
+        port       = 1025
+      }
+      web = {
+        hostname   = join(".", ["mail", var.external_hostname])
+        private_ip = cidrhost(local.cloud_cidr, 6)
+        port       = 8025
+      }
+    }
+  }
+}
+
+output "sync" {
+  value = {
+    private_ip = cidrhost(local.cloud_cidr, 7)
     name       = join("-", ["sync", local.external_name])
     bucket     = "flux"
   }
