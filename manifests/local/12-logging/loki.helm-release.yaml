@@ -25,6 +25,20 @@ spec:
       extraEnvFrom:
         - secretRef:
             name: loki-s3-credentials
+    ruler:
+      storage:
+        type: local
+        local:
+          directory: /etc/loki/rules
+        rule_path: /tmp/loki/rules
+        alertmanager_url: http://alertmanager-operated.monitoring.svc:9093
+        enable_api: true
+        enable_alertmanager_v2: true
+        evaluation_interval: 1m
+    sidecar:
+      rules:
+        enabled: true
+        folder: /etc/loki/rules
     gateway:
       config:
         server:

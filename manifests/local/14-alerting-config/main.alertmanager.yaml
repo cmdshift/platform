@@ -7,3 +7,11 @@ spec:
   replicas: 1
   alertmanagerConfiguration:
     name: mail
+  storage:
+    volumeClaimTemplate:
+      spec:
+        storageClassName: local-path
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 1Gi

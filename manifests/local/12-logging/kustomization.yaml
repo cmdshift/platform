@@ -12,3 +12,18 @@ configMapGenerator:
       - config.alloy
     options:
       disableNameSuffixHash: true
+  - name: loki-rule
+    namespace: logging
+    files:
+      - loki-rules.yaml
+    options:
+      labels:
+        loki-rule: "true"
+  - name: thanos-rules
+    namespace: monitoring
+    files:
+      - thanos-rules.yaml
+    options:
+      labels:
+        operator.thanos.io/rule-file: "true"
+

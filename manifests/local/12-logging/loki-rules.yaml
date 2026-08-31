@@ -1,0 +1,11 @@
+groups:
+  - name: cluster-alerts
+    rules:
+      - alert: HighErrorRate
+        expr: |
+          sum(rate({} |= "error" [5m])) by (namespace, pod, container) > 3
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error log volume in {{ $labels.namespace }}/{{ $labels.pod }}"
