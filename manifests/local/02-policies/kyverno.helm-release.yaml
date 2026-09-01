@@ -1,0 +1,86 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kyverno
+  namespace: kyverno
+spec:
+  interval: 1h
+  timeout: 10m
+  chart:
+    spec:
+      chart: kyverno
+      version: 3.8.x
+      sourceRef:
+        kind: HelmRepository
+        name: kyverno
+        namespace: flux-system
+  install:
+    crds: Create
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  values:
+    reportsController:
+      enabled: false
+    features:
+      policyExceptions:
+        enabled: true
+        namespace: kyverno
+      admissionReports:
+        enabled: false
+      deferredLoading:
+        enabled: false
+      backgroundScan:
+        enabled: true
+        backgroundScanWorkers: 1
+        backgroundScanInterval: 1h
+      reporting:
+        validate: false
+    config:
+      resourceFiltersInclude:
+        - "[*/*,kyverno,*]"
+      webhooks:
+        - namespaceSelector:
+            matchExpressions:
+              - key: kubernetes.io/metadata.name
+                operator: NotIn
+                values:
+                - kube-system
+                - flux-system
+                - kyverno
+    admissionController:
+      replicas: 1
+      container:
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+      serviceMonitor:
+        enabled: true
+    backgroundController:
+      replicas: 1
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+      serviceMonitor:
+        enabled: true
+    cleanupController:
+      replicas: 1
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 50m
+          memory: 64Mi

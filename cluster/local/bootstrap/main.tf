@@ -41,7 +41,7 @@ resource "helm_release" "cilium" {
       }
       k8sServiceHost       = "localhost"
       k8sServicePort       = 7445
-      kubeProxyReplacement = true
+      kubeProxyReplacement = false # true in the cloud
       l2announcements = {
         enabled = true
       }

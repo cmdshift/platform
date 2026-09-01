@@ -1,0 +1,33 @@
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: disallow-proc-mount
+spec:
+  validationActions:
+    - Audit
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: [CREATE, UPDATE]
+        resources: ["pods"]
+  autogen:
+    podControllers:
+      controllers:
+        - deployments
+        - statefulsets
+        - replicasets
+        - daemonsets
+        - jobs
+        - cronjobs
+  variables:
+    - name: allContainers
+      expression: >-
+        object.spec.containers
+        + object.spec.?initContainers.orValue([])
+        + object.spec.?ephemeralContainers.orValue([])
+  validations:
+    - expression: "object.spec.?securityContext.?procMount.orValue('Default') != 'Unmasked'"
+      message: "procMount: Unmasked is not allowed at pod level."
+    - expression: "variables.allContainers.all(c, c.?securityContext.?procMount.orValue('Default') != 'Unmasked')"
+      message: "procMount: Unmasked is not allowed at container level."

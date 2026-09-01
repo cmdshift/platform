@@ -1,16 +1,19 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: networking
+  name: backups-config
   namespace: flux-system
 spec:
   interval: 1m
   retryInterval: 5s
   dependsOn:
-    - name: cni
+    - name: secrets-config
+    - name: objects-config
+    - name: backups
   sourceRef:
     kind: Bucket
     name: main
-  path: ./manifests/local/04-networking
+  path: ./manifests/local/10-backups-config
   prune: true
   wait: true
+  timeout: 10m

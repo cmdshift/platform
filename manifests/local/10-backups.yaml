@@ -1,7 +1,7 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: alerting-config
+  name: backups
   namespace: flux-system
 spec:
   interval: 1m
@@ -11,7 +11,7 @@ spec:
   sourceRef:
     kind: Bucket
     name: main
-  path: ./manifests/local/14-alerting-config
+  path: ./manifests/local/10-backups
   prune: true
   wait: true
   timeout: 10m

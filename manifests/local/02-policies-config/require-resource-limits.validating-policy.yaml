@@ -1,0 +1,33 @@
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: require-resource-limits
+spec:
+  validationActions:
+    - Audit
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: [CREATE, UPDATE]
+        resources: ["pods"]
+  autogen:
+    podControllers:
+      controllers:
+        - deployments
+        - statefulsets
+        - replicasets
+        - daemonsets
+        - jobs
+        - cronjobs
+  variables:
+    - name: allContainers
+      expression: >-
+        object.spec.containers
+        + object.spec.?initContainers.orValue([])
+        + object.spec.?ephemeralContainers.orValue([])
+  validations:
+    - expression: "variables.allContainers.all(c, has(c.resources.?limits.orValue({}).cpu) && has(c.resources.?limits.orValue({}).memory))"
+      message: "Containers must define cpu and memory limits."
+    - expression: "variables.allContainers.all(c, has(c.resources.?requests.orValue({}).cpu) && has(c.resources.?requests.orValue({}).memory))"
+      message: "Containers must define cpu and memory requests."

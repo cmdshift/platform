@@ -9,7 +9,7 @@ spec:
   chart:
     spec:
       chart: cilium
-      version: "1.20.1"
+      version: 1.20.1
       sourceRef:
         kind: HelmRepository
         name: cilium
@@ -48,7 +48,7 @@ spec:
       mode: kubernetes
     k8sServiceHost: localhost
     k8sServicePort: 7445
-    kubeProxyReplacement: true
+    kubeProxyReplacement: false # true in the cloud
     l2announcements:
       enabled: true
     rollOutCiliumPods: true

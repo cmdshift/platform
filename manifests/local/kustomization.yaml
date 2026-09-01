@@ -5,20 +5,21 @@ resources:
   - 00-namespaces.yaml
   - 01-sources.yaml
   - 02-crds.yaml
-  - 03-cni.yaml
-  - 04-networking.yaml
-  - 05-secrets.yaml
-  - 05-secrets-config.yaml
-  - 06-flux.yaml
-  - 07-certificates.yaml
-  - 07-certificates-config.yaml
-  - 08-metrics.yaml
-  - 09-storage.yaml
-  - 10-objects.yaml
-  - 10-objects-config.yaml
-  - 11-monitoring.yaml
-  - 11-monitoring-config.yaml
-  - 12-logging.yaml
-  - 13-backups.yaml
-  - 13-backups-config.yaml
-  - 14-alerting-config.yaml
+  - 02-policies.yaml
+  - 02-policies-config.yaml
+  # - 03-networking.yaml
+  # - 03-networking-config.yaml
+  # - 04-certificates.yaml
+  # - 04-certificates-config.yaml
+  # - 04-secrets.yaml
+  # - 04-secrets-config.yaml
+  # - 05-flux.yaml
+  # - 05-metrics.yaml
+  # - 09-storage.yaml
+  # - 10-backups.yaml
+  # - 10-backups-config.yaml
+  # - 10-objects.yaml
+  # - 10-objects-config.yaml
+  # - 11-monitoring.yaml
+  # - 11-monitoring-config.yaml
+  # - 12-logging.yaml

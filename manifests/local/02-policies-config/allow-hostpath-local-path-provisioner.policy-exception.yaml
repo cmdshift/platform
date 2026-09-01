@@ -1,0 +1,12 @@
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: allow-hostpath-local-path-provisioner
+  namespace: kyverno
+spec:
+  policyRefs:
+    - name: disallow-host-path
+      kind: ValidatingPolicy
+  matchConditions:
+    - name: match-local-path
+      expression: "object.metadata.namespace == 'local-path-storage'"
