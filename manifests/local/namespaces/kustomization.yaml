@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Note: flux-system and kube-system are NOT managed here.
+# flux-system is owned by the flux2 HelmRelease.
+# kube-system is owned by the cluster.
+resources:
+  - kyverno.namespace.yaml
+  - cert-manager.namespace.yaml
+  - external-secrets.namespace.yaml
+  - local-path-storage.namespace.yaml
+  - monitoring.namespace.yaml
+  - seaweedfs-operator.namespace.yaml
+  - objects.namespace.yaml
+  - thanos-operator-system.namespace.yaml
+  - logging.namespace.yaml
+  - velero.namespace.yaml

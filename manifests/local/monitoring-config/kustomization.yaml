@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - main.grafana.yaml
+  - main.alertmanager.yaml
+  - main.thanos-ruler.yaml
+  - main.thanos-compact.yaml
+  - main.thanos-query.yaml
+  - main.thanos-store.yaml
+  - mail.alertmanager-config.yaml
+  - flux-system.alert.yaml
+  - flux-system.provider.yaml
+  - prometheus.grafana-datasource.yaml
+  - k8s-views-nodes.grafana-dashboard.yaml
+  - k8s-views-pods.grafana-dashboard.yaml
+  - main-grafana-credentials.external-secret.yaml
+configMapGenerator:
+  - name: thanos-rules
+    namespace: monitoring
+    files:
+      - thanos-rules.yaml
+    options:
+      labels:
+        operator.thanos.io/rule-file: "true"

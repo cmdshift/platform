@@ -1,0 +1,36 @@
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: disallow-capabilities-strict
+spec:
+  validationActions:
+    - Audit
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: [CREATE, UPDATE]
+        resources: ["pods"]
+  autogen:
+    podControllers:
+      controllers:
+        - deployments
+        - statefulsets
+        - replicasets
+        - daemonsets
+        - jobs
+        - cronjobs
+  variables:
+    - name: allContainers
+      expression: >-
+        object.spec.containers
+        + object.spec.?initContainers.orValue([])
+        + object.spec.?ephemeralContainers.orValue([])
+  validations:
+    - expression: >-
+        variables.allContainers.all(c,
+          "ALL" in c.?securityContext.?capabilities.?drop.orValue(
+            object.spec.?securityContext.?capabilities.?drop.orValue([])
+          )
+        )
+      message: "Containers must explicitly drop ALL capabilities."

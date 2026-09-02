@@ -1,0 +1,36 @@
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: restrict-seccomp-strict
+spec:
+  validationActions:
+    - Audit
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: [CREATE, UPDATE]
+        resources: ["pods"]
+  autogen:
+    podControllers:
+      controllers:
+        - deployments
+        - statefulsets
+        - replicasets
+        - daemonsets
+        - jobs
+        - cronjobs
+  variables:
+    - name: allContainers
+      expression: >-
+        object.spec.containers
+        + object.spec.?initContainers.orValue([])
+        + object.spec.?ephemeralContainers.orValue([])
+  validations:
+    - expression: >-
+        variables.allContainers.all(c,
+          c.?securityContext.?seccompProfile.?type.orValue(
+            object.spec.?securityContext.?seccompProfile.?type.orValue('')
+          ) in ['RuntimeDefault', 'Localhost']
+        )
+      message: "seccompProfile must be explicitly set to RuntimeDefault or Localhost."

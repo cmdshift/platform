@@ -20,7 +20,8 @@ cluster:
     cni:
       name: none
   proxy:
-    disabled: true
+    disabled: false # true in the cloud
+    mode: iptables  # remove in the cloud
   etcd:
     advertisedSubnets:
       - ${ctrl_cidr}

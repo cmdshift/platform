@@ -1,0 +1,28 @@
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: disallow-host-path
+spec:
+  validationActions:
+    - Audit
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: [CREATE, UPDATE]
+        resources: ["pods"]
+  autogen:
+    podControllers:
+      controllers:
+        - deployments
+        - statefulsets
+        - replicasets
+        - daemonsets
+        - jobs
+        - cronjobs
+  variables:
+    - name: allVolumes
+      expression: "object.spec.?volumes.orValue([])"
+  validations:
+    - expression: "variables.allVolumes.all(v, !has(v.hostPath))"
+      message: "hostPath volumes are not allowed."

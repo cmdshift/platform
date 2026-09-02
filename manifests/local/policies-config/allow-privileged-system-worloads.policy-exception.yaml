@@ -1,0 +1,12 @@
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: allow-privileged-system-workloads
+  namespace: kyverno
+spec:
+  policyRefs:
+    - name: disallow-privileged
+      kind: ValidatingPolicy
+  matchConditions:
+    - name: exempt-namespaces
+      expression: "object.metadata.namespace in ['local-path-storage', 'velero']"

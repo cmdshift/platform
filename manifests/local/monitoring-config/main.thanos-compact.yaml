@@ -1,0 +1,16 @@
+apiVersion: monitoring.thanos.io/v1alpha1
+kind: ThanosCompact
+metadata:
+  name: main
+  namespace: monitoring
+spec:
+  objectStorageConfig:
+    name: thanos-objstore
+    key: objstore.yaml
+  retentionConfig:
+    raw: 7d
+    fiveMinutes: 30d
+    oneHour: 180d
+  storage:
+    size: 10Gi
+  logFormat: json

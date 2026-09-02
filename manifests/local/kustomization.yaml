@@ -1,24 +1,24 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-
 resources:
-  - 00-namespaces.yaml
-  - 01-sources.yaml
-  - 02-crds.yaml
-  - 03-cni.yaml
-  - 04-networking.yaml
-  - 05-secrets.yaml
-  - 05-secrets-config.yaml
-  - 06-flux.yaml
-  - 07-certificates.yaml
-  - 07-certificates-config.yaml
-  - 08-metrics.yaml
-  - 09-storage.yaml
-  - 10-objects.yaml
-  - 10-objects-config.yaml
-  - 11-monitoring.yaml
-  - 11-monitoring-config.yaml
-  - 12-logging.yaml
-  - 13-backups.yaml
-  - 13-backups-config.yaml
-  - 14-alerting-config.yaml
+  - namespaces.yaml
+  - sources.yaml
+  - crds.yaml
+  - secrets.yaml
+  - secrets-config.yaml
+  - certificates.yaml
+  - certificates-config.yaml
+  - networking.yaml
+  - networking-config.yaml
+  - flux.yaml
+  - metrics.yaml
+  - policies.yaml
+  - policies-config.yaml
+  - storage.yaml
+  - objects.yaml
+  - objects-config.yaml
+  - monitoring.yaml
+  - monitoring-config.yaml
+  - backups.yaml
+  - backups-config.yaml
+  - logging.yaml

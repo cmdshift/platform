@@ -1,0 +1,25 @@
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: disallow-host-namespaces
+spec:
+  validationActions:
+    - Audit
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: [CREATE, UPDATE]
+        resources: ["pods"]
+  autogen:
+    podControllers:
+      controllers:
+        - deployments
+        - statefulsets
+        - replicasets
+        - daemonsets
+        - jobs
+        - cronjobs
+  validations:
+    - expression: "!object.spec.?hostNetwork.orValue(false) && !object.spec.?hostPID.orValue(false) && !object.spec.?hostIPC.orValue(false)"
+      message: "Sharing host namespaces (hostNetwork, hostPID, hostIPC) is not allowed."
