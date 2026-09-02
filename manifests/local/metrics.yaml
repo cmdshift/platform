@@ -1,0 +1,23 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: metrics
+  namespace: flux-system
+spec:
+  interval: 1m
+  retryInterval: 5s
+  dependsOn:
+    - name: networking
+    - name: certificates
+  sourceRef:
+    kind: Bucket
+    name: main
+  path: ./manifests/local/metrics
+  prune: true
+  wait: true
+  timeout: 5m
+  healthChecks:
+    - apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      name: metrics-server
+      namespace: kube-system

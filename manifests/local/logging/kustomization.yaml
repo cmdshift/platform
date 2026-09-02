@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - alloy.helm-release.yaml
+  - loki.helm-release.yaml
+  - loki-s3-credentials.external-secret.yaml
+  - loki.grafana-datasource.yaml
+configMapGenerator:
+  - name: alloy-config
+    namespace: logging
+    files:
+      - config.alloy
+    options:
+      disableNameSuffixHash: true
+  - name: loki-rule
+    namespace: logging
+    files:
+      - loki-rules.yaml
+    options:
+      labels:
+        loki-rule: "true"

@@ -1,0 +1,15 @@
+apiVersion: monitoring.thanos.io/v1alpha1
+kind: ThanosStore
+metadata:
+  name: main
+  namespace: monitoring
+spec:
+  objectStorageConfig:
+    name: thanos-objstore
+    key: objstore.yaml
+  shardingStrategy:
+    type: block
+    shards: 1
+  storage:
+    size: 5Gi
+  logFormat: json
