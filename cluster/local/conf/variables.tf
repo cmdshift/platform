@@ -25,5 +25,5 @@ variable "ctrl_nodes" {
 
 variable "work_nodes" {
   type    = number
-  default = 3
+  default = 4 # leave set to 4 for now. cilium/kyverno forces host network
 }

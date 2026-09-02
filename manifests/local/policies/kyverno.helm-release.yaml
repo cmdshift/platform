@@ -9,7 +9,7 @@ spec:
   chart:
     spec:
       chart: kyverno
-      version: 3.8.x
+      version: 3.9.0
       sourceRef:
         kind: HelmRepository
         name: kyverno
@@ -25,8 +25,6 @@ spec:
       retries: 3
       remediateLastFailure: true
   values:
-    reportsController:
-      enabled: false
     features:
       policyExceptions:
         enabled: true
@@ -58,35 +56,20 @@ spec:
     admissionController:
       replicas: 1
       hostNetwork: true # remove in the cloud
-      container:
-        resources:
-          requests:
-            cpu: 50m
-            memory: 128Mi
-          limits:
-            cpu: 200m
-            memory: 256Mi
       serviceMonitor:
         enabled: true
     backgroundController:
       replicas: 1
       hostNetwork: true # remove in the cloud
-      resources:
-        requests:
-          cpu: 10m
-          memory: 64Mi
-        limits:
-          cpu: 100m
-          memory: 128Mi
       serviceMonitor:
         enabled: true
     cleanupController:
       replicas: 1
       hostNetwork: true # remove in the cloud
-      resources:
-        requests:
-          cpu: 10m
-          memory: 32Mi
-        limits:
-          cpu: 50m
-          memory: 64Mi
+      serviceMonitor:
+        enabled: true
+    reportsController:
+      replicas: 1
+      hostNetwork: true # remove in the cloud
+      serviceMonitor:
+        enabled: true
