@@ -23,3 +23,10 @@ spec:
       - node: DEFAULT_PATH_FOR_NON_LISTED_NODES
         paths:
           - /var/mnt/local-path-provisioner
+    # resources:
+    #   requests:
+    #     cpu: ""
+    #     memory: ""
+    #   limits:
+    #     cpu: ""
+    #     memory: ""

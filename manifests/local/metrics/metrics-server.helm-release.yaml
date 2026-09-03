@@ -20,3 +20,10 @@ spec:
     args:
       - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
       - --metric-resolution=15s
+    # resources:
+    #   requests:
+    #     cpu: ""
+    #     memory: ""
+    #   limits:
+    #     cpu: ""
+    #     memory: ""

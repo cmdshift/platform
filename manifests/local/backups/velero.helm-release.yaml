@@ -19,6 +19,13 @@ spec:
         volumeMounts:
           - mountPath: /target
             name: plugins
+        # resources:
+        #   requests:
+        #     cpu: ""
+        #     memory: ""
+        #   limits:
+        #     cpu: ""
+        #     memory: ""
     credentials: {}
     configuration:
       backupStorageLocation: null
@@ -27,6 +34,13 @@ spec:
     nodeAgent:
       containerSecurityContext:
         privileged: true
+      # resources:
+      #   requests:
+      #     cpu: ""
+      #     memory: ""
+      #   limits:
+      #     cpu: ""
+      #     memory: ""
     metrics:
       enabled: true
       serviceMonitor:

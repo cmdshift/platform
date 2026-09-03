@@ -58,18 +58,46 @@ spec:
       hostNetwork: true # remove in the cloud
       serviceMonitor:
         enabled: true
+      # resources:
+      #   requests:
+      #     cpu: ""
+      #     memory: ""
+      #   limits:
+      #     cpu: ""
+      #     memory: ""
     backgroundController:
       replicas: 1
       hostNetwork: true # remove in the cloud
       serviceMonitor:
         enabled: true
+      # resources:
+      #   requests:
+      #     cpu: ""
+      #     memory: ""
+      #   limits:
+      #     cpu: ""
+      #     memory: ""
     cleanupController:
       replicas: 1
       hostNetwork: true # remove in the cloud
       serviceMonitor:
         enabled: true
+      # resources:
+      #   requests:
+      #     cpu: ""
+      #     memory: ""
+      #   limits:
+      #     cpu: ""
+      #     memory: ""
     reportsController:
       replicas: 1
       hostNetwork: true # remove in the cloud
       serviceMonitor:
         enabled: true
+      # resources:
+      #   requests:
+      #     cpu: ""
+      #     memory: ""
+      #   limits:
+      #     cpu: ""
+      #     memory: ""

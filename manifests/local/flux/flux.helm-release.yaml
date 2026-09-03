@@ -23,3 +23,10 @@ spec:
       container:
         additionalArgs:
           - --requeue-dependency=5s
+        # resources:
+        #   requests:
+        #     cpu: ""
+        #     memory: ""
+        #   limits:
+        #     cpu: ""
+        #     memory: ""

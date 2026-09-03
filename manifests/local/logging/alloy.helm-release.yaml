@@ -22,3 +22,10 @@ spec:
         create: false
         name: alloy-config
         key: config.alloy
+      # resources:
+      #   requests:
+      #     cpu: ""
+      #     memory: ""
+      #   limits:
+      #     cpu: ""
+      #     memory: ""

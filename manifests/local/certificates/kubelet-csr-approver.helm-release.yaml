@@ -22,3 +22,10 @@ spec:
     skipDenyStep: true
     replicas: 1
     leaderElection: false
+    # resources:
+    #   requests:
+    #     cpu: ""
+    #     memory: ""
+    #   limits:
+    #     cpu: ""
+    #     memory: ""

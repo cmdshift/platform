@@ -15,6 +15,13 @@ spec:
   values:
     alertmanager:
       enabled: false
+      # resources:
+      #   requests:
+      #     cpu: ""
+      #     memory: ""
+      #   limits:
+      #     cpu: ""
+      #     memory: ""
     prometheus:
       prometheusSpec:
         retention: 2d
@@ -29,5 +36,19 @@ spec:
         enabled: true
       thanosServiceMonitor:
         enabled: true
+      # resources:
+      #   requests:
+      #     cpu: ""
+      #     memory: ""
+      #   limits:
+      #     cpu: ""
+      #     memory: ""
     grafana:
       enabled: false
+      # resources:
+      #   requests:
+      #     cpu: ""
+      #     memory: ""
+      #   limits:
+      #     cpu: ""
+      #     memory: ""
