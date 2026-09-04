@@ -1,12 +1,25 @@
 {
   "cSpell.userWords": [
     "healthcheck",
+    "opencode",
+    "openrouter",
     "rustfs",
     "seaweedfs",
     "velero"
   ],
   "files.insertFinalNewline": true,
   "files.trimTrailingWhitespace": true,
+  "json.schemaDownload.trustedDomains": {
+    "https://opencode.ai/": true,
+    "https://models.dev/": true,
+    "https://schemastore.azurewebsites.net/": true,
+    "https://raw.githubusercontent.com/microsoft/vscode/": true,
+    "https://raw.githubusercontent.com/devcontainers/spec/": true,
+    "https://www.schemastore.org/": true,
+    "https://json.schemastore.org/": true,
+    "https://json-schema.org/": true,
+    "https://developer.microsoft.com/json-schemas/": true
+  },
   "[terraform]": {
     "editor.defaultFormatter": "hashicorp.terraform",
     "editor.formatOnSave": true
