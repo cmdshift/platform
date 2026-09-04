@@ -13,22 +13,84 @@ spec:
         kind: HelmRepository
         name: prometheus-community
         namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
   values:
     alertmanager:
       enabled: false
+    prometheusOperator:
+      admissionWebhooks:
+        patch:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+      resources:
+        requests:
+          cpu: 10m
+          memory: 80Mi
+        limits:
+          cpu: 500m
+          memory: 120Mi
+      prometheusConfigReloader:
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 200m
+            memory: 48Mi
+    kube-state-metrics:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 96Mi
     prometheus:
       prometheusSpec:
         retention: 2d
         externalLabels:
           cluster: local
+        resources:
+          requests:
+            cpu: 30m
+            memory: 768Mi
+          limits:
+            cpu: 1000m
+            memory: 1152Mi
         thanos:
           objectStorageConfig:
             existingSecret:
               name: thanos-objstore
               key: objstore.yaml
+          resources:
+            requests:
+              cpu: 10m
+              memory: 88Mi
+            limits:
+              cpu: 200m
+              memory: 132Mi
       thanosService:
         enabled: true
       thanosServiceMonitor:
         enabled: true
+    prometheus-node-exporter:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 500m
+          memory: 48Mi
     grafana:
       enabled: false

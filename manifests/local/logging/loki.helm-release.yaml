@@ -14,6 +14,13 @@ spec:
         kind: HelmRepository
         name: grafana-community
         namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
   values:
     test:
       enabled: false
@@ -39,6 +46,13 @@ spec:
       rules:
         enabled: true
         folder: /etc/loki/rules
+      resources:
+        requests:
+          cpu: 10m
+          memory: 96Mi
+        limits:
+          cpu: 500m
+          memory: 144Mi
     gateway:
       config:
         server:
@@ -51,6 +65,21 @@ spec:
           path_prefix: /
         org_id:
           default: self-monitoring
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 100m
+          memory: 24Mi
+      metrics:
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 100m
+            memory: 24Mi
     loki:
       commonConfig:
         replication_factor: 1
@@ -89,3 +118,34 @@ spec:
         enabled: true
         storageClassName: local-path
         size: 2Gi
+      resources:
+        requests:
+          cpu: 15m
+          memory: 320Mi
+        limits:
+          cpu: 200m
+          memory: 512Mi
+    chunksCache:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 40Mi
+        limits:
+          cpu: 20m
+          memory: 60Mi
+    resultsCache:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 8Mi
+        limits:
+          cpu: 20m
+          memory: 12Mi
+    memcachedExporter:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 24Mi
+        limits:
+          cpu: 100m
+          memory: 36Mi

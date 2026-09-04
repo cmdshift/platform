@@ -7,10 +7,20 @@ spec:
   objectStorageConfig:
     name: thanos-objstore
     key: objstore.yaml
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
   retentionConfig:
     raw: 7d
     fiveMinutes: 30d
     oneHour: 180d
+  resourceRequirements:
+    requests:
+      cpu: 10m
+      memory: 40Mi
+    limits:
+      cpu: 200m
+      memory: 60Mi
   storage:
     size: 10Gi
   logFormat: json

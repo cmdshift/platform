@@ -36,18 +36,18 @@ spec:
       backgroundScan:
         enabled: true
         backgroundScanWorkers: 1
-        backgroundScanInterval: 5m
+        backgroundScanInterval: 1h # investigate: was 5m, reports-controller CPU ramped to 5+ cores (see cmdshift/platform#17)
       reporting:
         validate: false
     config:
       resourceFiltersInclude:
         - "[*/*,kyverno,*]"
       webhooks:
-        - namespaceSelector:
-            matchExpressions:
-              - key: kubernetes.io/metadata.name
-                operator: NotIn
-                values:
+        namespaceSelector:
+          matchExpressions:
+            - key: kubernetes.io/metadata.name
+              operator: NotIn
+              values:
                 - kube-system
                 - kube-public
                 - kube-node-lease
@@ -56,20 +56,49 @@ spec:
     admissionController:
       replicas: 1
       hostNetwork: true # remove in the cloud
+      container:
+        resources:
+          requests:
+            cpu: 15m
+            memory: 200Mi
+          limits:
+            cpu: 500m
+            memory: 300Mi
       serviceMonitor:
         enabled: true
     backgroundController:
       replicas: 1
       hostNetwork: true # remove in the cloud
+      resources:
+        requests:
+          cpu: 10m
+          memory: 144Mi
+        limits:
+          cpu: 500m
+          memory: 216Mi
       serviceMonitor:
         enabled: true
     cleanupController:
       replicas: 1
       hostNetwork: true # remove in the cloud
+      resources:
+        requests:
+          cpu: 10m
+          memory: 104Mi
+        limits:
+          cpu: 500m
+          memory: 156Mi
       serviceMonitor:
         enabled: true
     reportsController:
       replicas: 1
       hostNetwork: true # remove in the cloud
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 2000m
+          memory: 192Mi
       serviceMonitor:
         enabled: true

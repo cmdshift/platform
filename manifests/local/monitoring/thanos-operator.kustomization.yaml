@@ -11,6 +11,19 @@ spec:
     name: thanos-operator
     namespace: flux-system
   path: .
+  patches:
+    - patch: |-
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: thanos-operator-controller-manager
+          namespace: thanos-operator-system
+        spec:
+          template:
+            spec:
+              securityContext:
+                seccompProfile:
+                  type: RuntimeDefault
   wait: true
   prune: true
   timeout: 5m

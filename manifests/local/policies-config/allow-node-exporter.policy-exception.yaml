@@ -1,0 +1,22 @@
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: allow-node-exporter
+  namespace: kyverno
+spec:
+  policyRefs:
+    - name: disallow-capabilities-strict
+      kind: ValidatingPolicy
+    - name: disallow-host-namespaces
+      kind: ValidatingPolicy
+    - name: disallow-host-path
+      kind: ValidatingPolicy
+    - name: disallow-host-ports
+      kind: ValidatingPolicy
+    - name: require-run-as-nonroot
+      kind: ValidatingPolicy
+    - name: restrict-seccomp-strict
+      kind: ValidatingPolicy
+  matchConditions:
+    - name: match-node-exporter
+      expression: "object.metadata.namespace == 'monitoring' && object.metadata.name.startsWith('kube-prometheus-stack-prometheus-node-exporter')"

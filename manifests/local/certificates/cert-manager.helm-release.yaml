@@ -16,12 +16,48 @@ spec:
         namespace: flux-system
   install:
     crds: CreateReplace
+    remediation:
+      retries: 3
   upgrade:
     crds: CreateReplace
+    remediation:
+      retries: 3
+      remediateLastFailure: true
   values:
     crds:
       enabled: true
       keep: true
     config:
       enableGatewayAPI: true
+    resources:
+      requests:
+        cpu: 10m
+        memory: 80Mi
+      limits:
+        cpu: 200m
+        memory: 120Mi
+    cainjector:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 144Mi
+        limits:
+          cpu: 200m
+          memory: 216Mi
+    webhook:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 56Mi
+        limits:
+          cpu: 200m
+          memory: 84Mi
+    startupapicheck:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
 

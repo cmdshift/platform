@@ -32,6 +32,14 @@ spec:
     encryption:
       enabled: true
       type: wireguard
+    envoy:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 48Mi
+        limits:
+          cpu: 40m
+          memory: 72Mi
     gatewayAPI:
       enabled: true
       hostNetwork:
@@ -42,15 +50,60 @@ spec:
     hubble:
       relay:
         enabled: true
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 96Mi
       ui:
         enabled: true
+        backend:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 48Mi
+            limits:
+              cpu: 100m
+              memory: 72Mi
+        frontend:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 20m
+              memory: 24Mi
     ipam:
       mode: kubernetes
+    initResources:
+      requests:
+        cpu: 10m
+        memory: 48Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
     k8sServiceHost: localhost
     k8sServicePort: 7445
     kubeProxyReplacement: false # true in the cloud
     l2announcements:
       enabled: true
+    operator:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 144Mi
+        limits:
+          cpu: 40m
+          memory: 216Mi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        cpu: 200m
+        memory: 384Mi
     rollOutCiliumPods: true
     securityContext:
       capabilities:

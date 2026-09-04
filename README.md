@@ -3,6 +3,8 @@
 - `just`
 - `talosctl`
 - `kubectl`
+- `cilium`
+- `kubescape`
 - `flux` (`brew tap fluxcd/tap`)
 - `k9s`
 - `direnv`

@@ -4,7 +4,7 @@ metadata:
   name: disallow-latest
 spec:
   validationActions:
-    - Audit
+    - Deny
   matchConstraints:
     resourceRules:
       - apiGroups: [""]
@@ -16,7 +16,6 @@ spec:
       controllers:
         - deployments
         - statefulsets
-        - replicasets
         - daemonsets
         - jobs
         - cronjobs
