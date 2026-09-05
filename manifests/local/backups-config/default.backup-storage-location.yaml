@@ -6,11 +6,11 @@ metadata:
 spec:
   provider: aws
   objectStorage:
-    bucket: velero
+    bucket: backups
   config:
-    s3Url: http://main-s3.objects.svc:8333
+    s3Url: http://s3.cloud.test
     s3ForcePathStyle: "true"
     region: local
   credential:
     name: velero-s3-credentials
-    key: seaweedfs
+    key: default

@@ -1,9 +1,0 @@
-apiVersion: seaweed.seaweedfs.com/v1
-kind: Bucket
-metadata:
-  name: velero
-  namespace: objects
-spec:
-  clusterRef:
-    name: main
-    namespace: objects
