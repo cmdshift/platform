@@ -13,9 +13,27 @@ spec:
       labels:
         app: seaweedfs-admin
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: admin
           image: chrislusf/seaweedfs:4.44
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 10m
+              memory: 96Mi
+            limits:
+              cpu: 100m
+              memory: 144Mi
           args:
             - admin
             - --master=main-master.objects.svc:9333

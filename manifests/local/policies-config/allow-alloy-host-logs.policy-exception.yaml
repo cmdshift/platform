@@ -1,0 +1,14 @@
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: allow-alloy-host-logs
+  namespace: kyverno
+spec:
+  policyRefs:
+    - name: disallow-host-path
+      kind: ValidatingPolicy
+    - name: require-run-as-nonroot
+      kind: ValidatingPolicy
+  matchConditions:
+    - name: match-alloy
+      expression: "object.metadata.namespace == 'logging' && object.metadata.name.startsWith('alloy')"

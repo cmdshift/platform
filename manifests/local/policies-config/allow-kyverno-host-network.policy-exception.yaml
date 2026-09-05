@@ -1,0 +1,14 @@
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: allow-kyverno-host-network
+  namespace: kyverno
+spec:
+  policyRefs:
+    - name: disallow-host-namespaces
+      kind: ValidatingPolicy
+    - name: disallow-host-ports
+      kind: ValidatingPolicy
+  matchConditions:
+    - name: match-kyverno-controllers
+      expression: "object.metadata.namespace == 'kyverno' && (object.metadata.name.startsWith('kyverno-admission-controller') || object.metadata.name.startsWith('kyverno-background-controller') || object.metadata.name.startsWith('kyverno-cleanup-controller') || object.metadata.name.startsWith('kyverno-reports-controller'))"

@@ -8,10 +8,18 @@ spec:
   chart:
     spec:
       chart: velero
+      version: 12.1.0
       sourceRef:
         kind: HelmRepository
         name: velero
         namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
   values:
     initContainers:
       - name: velero-plugin-for-aws
@@ -19,14 +27,42 @@ spec:
         volumeMounts:
           - mountPath: /target
             name: plugins
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 40m
+            memory: 48Mi
     credentials: {}
+    resources:
+      requests:
+        cpu: 10m
+        memory: 88Mi
+      limits:
+        cpu: 500m
+        memory: 132Mi
     configuration:
       backupStorageLocation: null
       volumeSnapshotLocation: null
     deployNodeAgent: true
+    upgradeJobResources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
     nodeAgent:
       containerSecurityContext:
         privileged: true
+      resources:
+        requests:
+          cpu: 10m
+          memory: 80Mi
+        limits:
+          cpu: 500m
+          memory: 120Mi
     metrics:
       enabled: true
       serviceMonitor:

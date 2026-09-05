@@ -5,6 +5,16 @@ metadata:
   namespace: monitoring
 spec:
   replicas: 1
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  resourceRequirements:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 96Mi
   customStoreLabelSelector:
     matchLabels:
       operator.thanos.io/store-api: "true"

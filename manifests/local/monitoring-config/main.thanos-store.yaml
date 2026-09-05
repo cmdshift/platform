@@ -7,9 +7,19 @@ spec:
   objectStorageConfig:
     name: thanos-objstore
     key: objstore.yaml
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
   shardingStrategy:
     type: block
     shards: 1
+  resourceRequirements:
+    requests:
+      cpu: 10m
+      memory: 56Mi
+    limits:
+      cpu: 200m
+      memory: 84Mi
   storage:
     size: 5Gi
   logFormat: json

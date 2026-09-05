@@ -14,12 +14,50 @@ spec:
         kind: HelmRepository
         name: fluxcd-community
         namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
   values:
     imageAutomationController:
       create: false
     imageReflectionController:
       create: false
+    helmController:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 200Mi
+        limits:
+          cpu: 1000m
+          memory: 512Mi
     kustomizeController:
       container:
         additionalArgs:
           - --requeue-dependency=5s
+      resources:
+        requests:
+          cpu: 50m
+          memory: 120Mi
+        limits:
+          cpu: 500m
+          memory: 180Mi
+    notificationController:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 80Mi
+        limits:
+          cpu: 200m
+          memory: 120Mi
+    sourceController:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 160Mi
+        limits:
+          cpu: 1000m
+          memory: 1Gi
