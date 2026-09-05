@@ -5,6 +5,14 @@ metadata:
   namespace: monitoring
 spec:
   replicas: 1
+  # the prometheus sidecar's store API (served via the thanos-discovery
+  # service). The operator's label-based discovery can't find that service —
+  # it requires part-of=thanos, and overriding the chart's part-of label
+  # breaks helm rendering (duplicate key). Without this endpoint the query
+  # only sees block data (2h+ old) and ruler rules evaluate against empty
+  # vectors forever.
+  additionalArgs:
+    - --endpoint=dnssrv+_grpc._tcp.kube-prometheus-stack-thanos-discovery.monitoring.svc
   securityContext:
     seccompProfile:
       type: RuntimeDefault

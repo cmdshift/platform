@@ -79,12 +79,13 @@ spec:
               name: thanos-objstore
               key: objstore.yaml
           resources:
+            # upload bursts peaked 112Mi against the old 132Mi limit
             requests:
               cpu: 10m
-              memory: 88Mi
+              memory: 128Mi
             limits:
               cpu: 200m
-              memory: 132Mi
+              memory: 192Mi
       thanosService:
         enabled: true
       thanosServiceMonitor:

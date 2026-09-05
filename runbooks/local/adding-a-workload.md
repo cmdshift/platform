@@ -18,7 +18,7 @@ All containers + initContainers need cpu/memory requests and limits. Size per th
 Render and size them — they're admission-checked too:
 
 ```
-helm template <chart> | yq 'select(.kind == "Job")' 
+helm template <chart> | yq 'select(.kind == "Job")'
 ```
 
 Known-proofed: cert-manager `startupapicheck.resources` (all-lowercase key!), velero `upgradeJobResources`, kube-prometheus-stack `prometheusOperator.admissionWebhooks.patch.resources`. See AGENTS.md's admission section for the rest.

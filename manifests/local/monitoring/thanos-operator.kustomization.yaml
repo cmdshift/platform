@@ -37,6 +37,19 @@ spec:
               containers:
                 - name: manager
                   image: quay.io/thanos/thanos-operator:main-2026-09-03-49cd11f
+                  # otel-sidecar gate dropped: it injects tracing config
+                  # (localhost:4318) without a collector — every thanos
+                  # component spams connection-refused ~2900/hr each
+                  args:
+                    - --leader-elect
+                    - --metrics-secure
+                    - --metrics-bind-address=:8443
+                    - --health-probe-bind-address=:8081
+                    - --log.format=logfmt
+                    - --log.level=debug
+                    - --enable-feature=service-monitor
+                    - --enable-feature=prometheus-rule
+                    - --enable-feature=kube-resource-sync
     # chart/bundle RBAC lacks the events permission the operator needs in
     # managed namespaces
     - patch: |-

@@ -38,13 +38,15 @@ spec:
       container:
         additionalArgs:
           - --requeue-dependency=5s
+      # steady 107Mi against the old 180Mi limit; delivery components wedge
+      # the whole pipeline when starved (see AGENTS.md sizing section)
       resources:
         requests:
           cpu: 50m
-          memory: 120Mi
+          memory: 128Mi
         limits:
-          cpu: 500m
-          memory: 180Mi
+          cpu: 1000m
+          memory: 512Mi
     notificationController:
       resources:
         requests:

@@ -14,13 +14,16 @@ spec:
     raw: 7d
     fiveMinutes: 30d
     oneHour: 180d
+  # compaction is inherently bursty: OOMKilled twice at the old 60Mi limit and
+  # CPU pegged 200m at 92% throttle during compaction runs — generous burst
+  # room on both axes (see AGENTS.md sizing conventions)
   resourceRequirements:
     requests:
-      cpu: 10m
-      memory: 40Mi
+      cpu: 50m
+      memory: 64Mi
     limits:
-      cpu: 200m
-      memory: 60Mi
+      cpu: 1
+      memory: 256Mi
   storage:
     size: 10Gi
   logFormat: json
