@@ -15,4 +15,7 @@ spec:
       kind: ValidatingPolicy
   matchConditions:
     - name: match-velero
-      expression: "object.metadata.namespace == 'velero' && (object.metadata.name.startsWith('velero') || object.metadata.name.startsWith('node-agent'))"
+      # velero/node-agent pods by name, plus the temporary data mover pods velero creates
+      # for fs-backup/restore — those are named after their PodVolumeBackup/PVR (arbitrary
+      # prefix) but always carry the velero.io/pod-volume-backup (or restore) label
+      expression: "object.metadata.namespace == 'velero' && (object.metadata.name.startsWith('velero') || object.metadata.name.startsWith('node-agent') || 'velero.io/pod-volume-backup' in object.metadata.labels || 'velero.io/pod-volume-restore' in object.metadata.labels)"

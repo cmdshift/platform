@@ -2,6 +2,9 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: local-path-immediate
+  annotations:
+    # defaultVolumeType: local — same rationale as the local-path class (velero FSB compat)
+    defaultVolumeType: local
 provisioner: rancher.io/local-path
 reclaimPolicy: Delete
 volumeBindingMode: Immediate

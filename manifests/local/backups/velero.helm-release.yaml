@@ -59,6 +59,9 @@ spec:
     nodeAgent:
       containerSecurityContext:
         privileged: true
+      extraArgs:
+        # sizes the temporary data mover pods (see backups-config/node-agent-config.configmap.yaml)
+        - --node-agent-configmap=node-agent-config
       resources:
         requests:
           cpu: 10m

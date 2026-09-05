@@ -1,3 +1,5 @@
+set dotenv-load
+
 [private]
 default:
   @just --list --unsorted --list-heading '' --list-prefix ''
@@ -23,7 +25,7 @@ bootstrap action *args:
   terraform -chdir=cluster/local/bootstrap {{action}} {{args}}
 
 code:
-  doppler run -- opencode
+  doppler run -- opencode --model "${OPENCODE_MODEL}"
 
 image:
   packer build cluster/cloud/image

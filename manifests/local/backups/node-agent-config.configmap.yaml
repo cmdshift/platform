@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: node-agent-config
+  namespace: velero
+data:
+  # Single-key configmap (velero requires exactly one key); loaded by node-agent via
+  # --node-agent-configmap (see the HelmRelease). Only read at node-agent startup —
+  # changing it requires a node-agent restart.
+  #
+  # podResources sizes the TEMPORARY data mover pods velero creates for fs-backup/restore
+  # (velero 1.15+ runs the kopia data path in hosting pods, not in the node-agent itself).
+  # Without this they are BestEffort, which the require-resource-limits policy denies —
+  # backups would PartiallyFailed with "admission webhook ... denied the request".
+  # Sizing per convention: lean CPU request, generous CPU limit (kopia dedup is bursty),
+  # memory 2x request like the velero server (kopia repo-prep OOM history — see the
+  # velero.helm-release.yaml comment).
+  config: |
+    {
+      "podResources": {
+        "cpuRequest": "50m",
+        "cpuLimit": "1000m",
+        "memoryRequest": "256Mi",
+        "memoryLimit": "512Mi"
+      }
+    }
