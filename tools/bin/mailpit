@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Mailpit subjects (where alert emails land), newest first.
+#   mailpit [limit]   # default 10
+
+mailpit() {
+  local limit="${1:-10}"
+  curl -s --max-time 5 "http://mail.cloud.test/api/v1/messages?limit=$limit" \
+    | jq -r '.messages[]? | .Subject[0:120]'
+}
+
+mailpit "$@"

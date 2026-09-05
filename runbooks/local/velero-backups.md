@@ -38,7 +38,7 @@ EOF
 Verify it landed in rustfs:
 
 ```
-docker exec storage-cloud-test sh -c 'rc alias set main http://localhost:9000 rustfsadmin rustfsadmin >/dev/null 2>&1; rc ls main/backups --recursive'
+rustfs ls main/backups --recursive
 ```
 
 ## Deleting backups — the resurrection trap

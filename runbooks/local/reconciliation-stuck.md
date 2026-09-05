@@ -4,6 +4,7 @@ When a flux kustomization won't go Ready, or a root reconcile isn't settling.
 
 ## Discipline
 
+- `flux_wait` (tools/bin) wraps this entire routine: root reconcile + bounded progress poll + exit 0/1
 - Estimate the settle time first, then cap polling at ~2× the estimate. A root reconcile settles in ~2-3m (artifact event → dependency chain at 5s requeue × chain depth + health waits); a fresh cluster bootstrap takes ~10m
 - Poll with bounded `until` loops that **echo progress each iteration**. Test exit codes / existence (`until ! kubectl get <thing> >/dev/null 2>&1; do ...`), not output parsing — kubectl prints "No resources found" to stdout, so `wc -l` checks never match
 - When the cap is hit: stop polling and diagnose. A stuck loop is a real problem, not slowness

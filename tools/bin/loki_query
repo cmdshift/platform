@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# LogQL query against loki, with the platform tenant and time math preset.
+#   loki_query '<logql>' [duration]   # duration e.g. 30m 4h 2d; default 1h
+# Prints raw log lines. The tenant is "self-monitoring" (see config.alloy).
+
+usage() {
+  echo "usage: loki_query '<logql>' [duration]" >&2
+  exit 2
+}
+
+range_start() { # e.g. 4h -> epoch seconds
+  case "$1" in
+    *m) date -v-"${1%m}"M +%s ;;
+    *h) date -v-"${1%h}"H +%s ;;
+    *d) date -v-"${1%d}"d +%s ;;
+    *)  return 1 ;;
+  esac
+}
+
+port_forward() {
+  local i=0
+  PORT_FORWARD_PORT=$(jot -r 1 21000 21999 2>/dev/null || echo 29124)
+  kubectl -n logging port-forward svc/loki "$PORT_FORWARD_PORT:3100" >/dev/null 2>&1 &
+  PORT_FORWARD_PID=$!
+  trap 'kill $PORT_FORWARD_PID 2>/dev/null' EXIT
+  until curl -s --max-time 2 "http://localhost:$PORT_FORWARD_PORT/ready" >/dev/null 2>&1; do
+    i=$((i + 1))
+    [ "$i" -gt 20 ] && { echo "port-forward never became ready" >&2; return 1; }
+    sleep 0.5
+  done
+}
+
+loki_query() {
+  [ -n "${1:-}" ] || usage
+  local query="$1" duration="${2:-1h}"
+  local start
+  start=$(range_start "$duration") || usage
+  local end
+  end=$(date +%s)
+
+  port_forward || return 1
+
+  curl -sG "http://localhost:$PORT_FORWARD_PORT/loki/api/v1/query_range" \
+    -H "X-Scope-OrgID: self-monitoring" \
+    --data-urlencode "query=$query" \
+    --data-urlencode "start=${start}000000000" \
+    --data-urlencode "end=${end}000000000" \
+    --data-urlencode "limit=100" \
+    | jq -r '.data.result[]? | .values[] | .[1]'
+}
+
+loki_query "$@"

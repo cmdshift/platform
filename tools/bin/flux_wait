@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Reconcile from the root and poll until every kustomization is Ready,
+# echoing progress (see AGENTS.md polling discipline).
+#   flux_wait [max_polls]   # 10s per poll; default 42 (~7m)
+# Exit 0 = all green. Exit 1 = timeout, with the pending list + diagnose hint.
+
+reconcile() {
+  flux reconcile kustomization local --with-source --timeout 4m 2>&1 | tail -1 || true
+}
+
+pending_kustomizations() {
+  kubectl -n flux-system get kustomizations --no-headers 2>/dev/null \
+    | awk '$3 != "True" {printf "%s ", $1}'
+}
+
+wait_for_green() {
+  local max="$1" n=0 pending
+  while :; do
+    pending="$(pending_kustomizations)"
+    if [ -z "$pending" ]; then
+      local total
+      total=$(kubectl -n flux-system get kustomizations --no-headers | wc -l | tr -d ' ')
+      echo "flux_wait: all $total kustomizations Ready"
+      return 0
+    fi
+    n=$((n + 1))
+    if [ "$n" -ge "$max" ]; then
+      echo "flux_wait: TIMEOUT after $max polls — pending: $pending"
+      echo "diagnose: kubectl -n flux-system describe kustomization <name> ; kubectl -n flux-system get events --sort-by=.lastTimestamp | tail -10"
+      return 1
+    fi
+    echo "[$n/$max] pending: $pending"
+    sleep 10
+  done
+}
+
+flux_wait() {
+  reconcile
+  wait_for_green "${1:-42}"
+}
+
+flux_wait "$@"

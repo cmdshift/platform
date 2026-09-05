@@ -15,7 +15,7 @@ docker logs sync-cloud-test --since 10m
 macOS bind mounts occasionally drop inotify DELETE events — the classic symptom is edits propagate but deletions don't. Verify the bucket against the local tree:
 
 ```
-docker exec storage-cloud-test sh -c 'rc alias set main http://localhost:9000 rustfsadmin rustfsadmin >/dev/null 2>&1; rc ls main/flux --recursive'
+rustfs ls main/flux --recursive
 ```
 
 Fix for anything stale or missing:

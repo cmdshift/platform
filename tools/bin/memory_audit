@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Memory usage-vs-limits audit across all containers.
+#   memory_audit [threshold_pct]   # default 50
+# Normalizes Mi/Gi (the classic bug: '1Gi' parses as 1 in naive awk).
+# Footer: containers with no memory limit — expected 9 (control-plane
+# statics + thanos-ruler config-reloader); anything else is a finding.
+
+collect_usage() {
+  kubectl top pods -A --containers --no-headers \
+    | awk '{print $1"/"$2"/"$3, $5}' | sort
+}
+
+collect_limits() {
+  kubectl get pods -A -o json \
+    | jq -r '.items[] | .metadata.namespace as $ns | .metadata.name as $p
+        | .spec.containers[]? | select(.resources.limits.memory != null)
+        | "\($ns)/\($p)/\(.name) \(.resources.limits.memory | sub("Mi$";""))"' | sort
+}
+
+count_unlimited() {
+  kubectl get pods -A -o json \
+    | jq '[.items[] | .spec.containers[]? | select((.resources.limits.memory // null) == null)] | length'
+}
+
+ratios() { # usage_file limits_file threshold
+  join "$2" "$1" | awk -v t="$3" '{
+    u=$3; l=$2
+    if (u ~ /Gi$/) { gsub(/Gi$/,"",u); u*=1024 } else gsub(/Mi$/,"",u)
+    if (l ~ /Gi$/) { gsub(/Gi$/,"",l); l*=1024 } else gsub(/Mi$/,"",l)
+    r=u/l
+    if (r*100 >= t) printf "%-72s %6.0fMi / %6.0fMi  %3.0f%%\n", $1, u, l, r*100
+  }' | sort -k4 -rn
+}
+
+memory_audit() {
+  local threshold="${1:-50}"
+  local usage limits
+  usage=$(mktemp); limits=$(mktemp)
+  trap 'rm -f "$usage" "$limits"' EXIT
+  collect_usage > "$usage"
+  collect_limits > "$limits"
+  ratios "$usage" "$limits" "$threshold"
+  echo "---"
+  echo "containers without memory limits: $(count_unlimited) (expected: 9 — control-plane statics + thanos-ruler config-reloader)"
+}
+
+memory_audit "$@"

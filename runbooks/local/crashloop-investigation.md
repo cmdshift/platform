@@ -21,24 +21,19 @@ If admission denied the pod: its template violates a policy (missing requests/li
 
 ## 3. Memory: limit too low, or a leak?
 
-Usage vs limits across the cluster (mind Mi/Gi normalization — `1Gi` silently parses as `1`):
+Usage vs limits across the cluster (Mi/Gi handled — `1Gi` silently parses as `1` in naive scripts):
 
 ```
-kubectl top pods -A --containers --no-headers | awk '{print $1"/"$2"/"$3, $5}' | sort > /tmp/usage.txt
-kubectl get pods -A -o json | jq -r '.items[] | .metadata.namespace as $ns | .metadata.name as $p | .spec.containers[]? | select(.resources.limits.memory != null) | "\($ns)/\($p)/\(.name) \(.resources.limits.memory | sub("Mi$";""))"' > /tmp/limits.txt
-join <(sort /tmp/limits.txt) <(sort /tmp/usage.txt) | awk '{u=$3; l=$2; gsub(/Mi$/,"",u); if (l ~ /Gi$/) {gsub(/Gi$/,"",l); l*=1024} else gsub(/Mi$/,"",l); r=u/l; if (r>=0.5) printf "%-72s %6.0fMi / %6.0fMi %3.0f%%\n", $1, u, l, r*100}' | sort -k4 -rn
+memory_audit 50
 ```
 
 Is it growing or stable? (snapshot proves nothing — query the trend):
 
 ```
-kubectl -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090 &
-curl -sG --data-urlencode 'query=container_memory_working_set_bytes{namespace="<ns>",container="<name>"}' \
-  --data-urlencode "start=$(date -v-6H +%s)" --data-urlencode "end=$(date +%s)" --data-urlencode "step=1800" \
-  http://localhost:9090/api/v1/query_range | jq -r '.data.result[0].values[] | "\(.[0]) \(.[1] | tonumber / 1048576 | floor)Mi"'
+prometheus_query -v -r 6h 'container_memory_working_set_bytes{namespace="<ns>",container="<name>"}'
 ```
 
-For prometheus specifically, also check series count and cardinality by job (`prometheus_tsdb_head_series`, `topk(10, count by (job)({__name__=~".+"}))`) — memory growth usually tracks series growth.
+For prometheus specifically, also check series count and cardinality by job (`prometheus_tsdb_head_series`, `topk(10, count by (job)({__name__=~".+"}))` via `prometheus_query`) — memory growth usually tracks series growth.
 
 The `ContainerOOMKilled` alert (ruler → alertmanager → mailpit) catches ceiling hits that go unnoticed in logs. **Alerts are readable at http://mail.cloud.test.**
 

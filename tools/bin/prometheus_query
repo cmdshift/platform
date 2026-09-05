@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# Prometheus query with port-forward lifecycle handled.
+#   prometheus_query '<promql>'              instant, raw JSON
+#   prometheus_query -v '<promql>'           values only (value + labels, or ts value)
+#   prometheus_query -r 6h '<promql>'        range over the last 6h (m|h|d), auto step
+#   prometheus_query --query '<promql>'      against svc/thanos-query-main instead
+
+usage() {
+  echo "usage: prometheus_query [-v] [-r 6h] [--query] '<promql>'" >&2
+  exit 2
+}
+
+range_start() { # e.g. 6h -> epoch seconds
+  case "$1" in
+    *m) date -v-"${1%m}"M +%s ;;
+    *h) date -v-"${1%h}"H +%s ;;
+    *d) date -v-"${1%d}"d +%s ;;
+    *)  return 1 ;;
+  esac
+}
+
+port_forward() { # service_name — sets PORT_FORWARD_PORT / PORT_FORWARD_PID
+  local i=0
+  PORT_FORWARD_PORT=$(jot -r 1 20000 29999 2>/dev/null || echo 29123)
+  kubectl -n monitoring port-forward "svc/$1" "$PORT_FORWARD_PORT:9090" >/dev/null 2>&1 &
+  PORT_FORWARD_PID=$!
+  trap 'kill $PORT_FORWARD_PID 2>/dev/null' EXIT
+  until curl -s --max-time 2 "http://localhost:$PORT_FORWARD_PORT/-/ready" >/dev/null 2>&1; do
+    i=$((i + 1))
+    [ "$i" -gt 20 ] && { echo "port-forward never became ready" >&2; return 1; }
+    sleep 0.5
+  done
+}
+
+format_values() {
+  jq -r '
+    if .data.result then
+      .data.result[]?
+      | (if .values then .values[] | "\(.[0]) \(.[1])"
+         else "\(.value[1]) \(.metric | del(.__name__) | to_entries | map("\(.key)=\(.value)") | join(","))"
+         end)
+    else . end'
+}
+
+prometheus_query() {
+  local service=kube-prometheus-stack-prometheus mode=instant values=0 range= query=
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -v) values=1; shift ;;
+      -r) range="$2"; mode=range; shift 2 ;;
+      --query) service=thanos-query-main; shift ;;
+      *) query="$1"; shift ;;
+    esac
+  done
+  [ -n "$query" ] || usage
+
+  port_forward "$service" || return 1
+  local url="http://localhost:$PORT_FORWARD_PORT/api/v1/query"
+
+  if [ "$mode" = range ]; then
+    local start end step
+    start=$(range_start "$range") || usage
+    end=$(date +%s)
+    step=$(( (end - start) / 30 )); [ "$step" -lt 60 ] && step=60
+    url="http://localhost:$PORT_FORWARD_PORT/api/v1/query_range?start=$start&end=$end&step=$step"
+  fi
+
+  if [ "$values" = 1 ]; then
+    curl -sG "$url" --data-urlencode "query=$query" | format_values
+  else
+    curl -sG "$url" --data-urlencode "query=$query"
+    echo
+  fi
+}
+
+prometheus_query "$@"

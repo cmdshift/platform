@@ -19,7 +19,7 @@ Local file → docker sync container (`rc mirror --overwrite --remove` + inotify
 3. **Check for rationale comments before overriding "odd" config** — deliberate decisions are documented inline (why the thanos-operator uses `bundle.yaml` instead of its helm chart, why some kustomizations have `prune: false`, why `mirror.sh` passes `--remove`). If a choice looks wrong, look for the comment explaining it first. And when you make a non-obvious decision yourself, **leave one** — future you will have forgotten it
 
 **Reconcile and wait:**
-- **Reconcile from the root any time you change a file**: `flux reconcile kustomization local --with-source`
+- **Reconcile from the root any time you change a file**: `flux reconcile kustomization local --with-source` — or just `flux_wait`, which does the reconcile, polls with progress echoes, and exits 0/1 (timeout prints the pending list + diagnose hint)
 - Poll for completion with bounded `until` loops that **echo progress each iteration**, not blind sleeps or silent loops that look hung. Test exit codes / existence (`until ! kubectl get <thing> >/dev/null 2>&1; do ...`), not output parsing — kubectl prints "No resources found" to stdout, so `wc -l` checks never match
 - **Estimate the reconcile duration first, then cap the poll at ~2× that** (a root reconcile settles in ~2-3m). When the cap is hit, stop polling and diagnose — a stuck loop means a real problem, not slowness. Triage ladder (diagnose commands + common causes): [runbooks/local/reconciliation-stuck.md](runbooks/local/reconciliation-stuck.md)
 
@@ -51,6 +51,17 @@ local-path-provisioner creates **world-writable (0777)** dirs (`mkdir -m 0777`),
 ## CR-managed workloads (not helm values)
 
 grafana (`Grafana` CR), thanos ×3, alertmanager (`Alertmanager` CR) → `monitoring-config/`; seaweed cluster + `seaweedfs-admin` (plain Deployment) → `objects-config/`. Resources/security contexts go in the CR specs (`resourceRequirements`, `securityContext`, per-component `podSecurityContext`/`containerSecurityContext`).
+
+## tools/bin
+
+Helper scripts for the repeated plumbing (direnv adds `tools/bin` to PATH; invoke as `tools/bin/<name>` otherwise). Prefer these over reconstructing pipelines inline:
+
+- `flux_wait [max-polls]` — reconcile from the root + bounded progress poll; exit 0 green / 1 timeout with pending list
+- `memory_audit [threshold-pct]` — usage-vs-limits table (Mi/Gi normalized) + unlimited-container count
+- `prometheus_query [-v] [-r 6h] [--query] '<promql>'` — prometheus (or `--query` for thanos-query) with port-forward lifecycle handled; `-v` = values only, `-r` = range
+- `loki_query '<logql>' [duration]` — loki query, tenant + nanosecond time math preset; prints raw log lines
+- `rustfs <rc args...>` — rustfs rc inside the storage container, admin alias preset
+- `mailpit [n]` — mailpit subjects (where alert emails land)
 
 ## Landmines
 

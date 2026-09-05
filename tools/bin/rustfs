@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# rustfs 'rc' CLI passthrough inside the storage container, admin alias preset.
+#   rustfs ls main/flux --recursive
+#   rustfs object remove main/backups/<key>
+#   rustfs mirror --remove /tmp/manifests/ main/flux/manifests/
+
+rustfs() {
+  docker exec storage-cloud-test \
+    sh -c 'rc alias set main http://localhost:9000 rustfsadmin rustfsadmin >/dev/null 2>&1; exec rc "$@"' \
+    rustfs "$@"
+}
+
+rustfs "$@"
