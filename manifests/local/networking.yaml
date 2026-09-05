@@ -4,7 +4,7 @@ metadata:
   name: networking
   namespace: flux-system
 spec:
-  interval: 1m
+  interval: 10m
   retryInterval: 5s
   dependsOn:
     - name: crds
@@ -16,8 +16,3 @@ spec:
   prune: true
   wait: true
   timeout: 10m
-  healthChecks:
-    - apiVersion: apps/v1
-      kind: DaemonSet
-      name: cilium
-      namespace: kube-system

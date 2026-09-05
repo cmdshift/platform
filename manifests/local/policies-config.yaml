@@ -4,7 +4,7 @@ metadata:
   name: policies-config
   namespace: flux-system
 spec:
-  interval: 1m
+  interval: 10m
   retryInterval: 5s
   dependsOn:
     - name: policies
@@ -12,5 +12,8 @@ spec:
     kind: Bucket
     name: main
   path: ./manifests/local/policies-config
+  # never prune: auto-deleting an exception (e.g. velero node-agents, cilium)
+  # would immediately get those pods denied at admission on next restart
   prune: false
   wait: true
+  timeout: 2m

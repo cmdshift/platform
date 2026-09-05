@@ -4,11 +4,14 @@ metadata:
   name: namespaces
   namespace: flux-system
 spec:
-  interval: 1m
+  interval: 10m
+  retryInterval: 5s
   sourceRef:
     kind: Bucket
     name: main
   path: ./manifests/local/namespaces
+  # never prune: pruning a namespace manifest deletes the namespace and
+  # everything in it, including objects owned by other kustomizations
   prune: false
   wait: true
   timeout: 2m

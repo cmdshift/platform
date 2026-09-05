@@ -4,7 +4,7 @@ metadata:
   name: objects-config
   namespace: flux-system
 spec:
-  interval: 1m
+  interval: 10m
   retryInterval: 5s
   dependsOn:
     - name: secrets-config
@@ -16,3 +16,7 @@ spec:
   prune: true
   wait: true
   timeout: 5m
+  healthCheckExprs:
+    - apiVersion: seaweed.seaweedfs.com/v1
+      current: status.conditions.filter(e, e.type == 'Ready').all(e, e.status == 'True')
+      failed: status.conditions.filter(e, e.type == 'Ready').all(e, e.status == 'False')

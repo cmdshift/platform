@@ -4,7 +4,7 @@ metadata:
   name: crds
   namespace: flux-system
 spec:
-  interval: 1m
+  interval: 10m
   retryInterval: 5s
   dependsOn:
     - name: sources
@@ -12,5 +12,8 @@ spec:
     kind: Bucket
     name: main
   path: ./manifests/local/crds
+  # never prune: deleting a CRD destroys every CR of that kind cluster-wide —
+  # CRD removal must be deliberate and coordinated, never git-driven
   prune: false
   wait: true
+  timeout: 2m

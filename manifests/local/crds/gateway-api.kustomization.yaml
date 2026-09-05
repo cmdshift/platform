@@ -4,11 +4,15 @@ metadata:
   name: gateway-api
   namespace: flux-system
 spec:
-  interval: 1m
+  interval: 10m
+  retryInterval: 5s
   sourceRef:
     kind: GitRepository
     name: gateway-api
     namespace: flux-system
   path: ./config/crd/standard
+  # never prune: upstream CRD churn between releases would delete every
+  # Gateway/HTTPRoute/etc CR — same rule as the crds kustomization
   prune: false
   wait: true
+  timeout: 2m

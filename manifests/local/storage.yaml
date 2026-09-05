@@ -4,7 +4,7 @@ metadata:
   name: storage
   namespace: flux-system
 spec:
-  interval: 1m
+  interval: 10m
   retryInterval: 5s
   dependsOn:
     - name: namespaces
@@ -17,8 +17,3 @@ spec:
   prune: true
   wait: true
   timeout: 5m
-  healthChecks:
-    - apiVersion: apps/v1
-      kind: Deployment
-      name: local-path-provisioner
-      namespace: local-path-storage

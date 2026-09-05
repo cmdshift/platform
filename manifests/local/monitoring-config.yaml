@@ -4,10 +4,11 @@ metadata:
   name: monitoring-config
   namespace: flux-system
 spec:
-  interval: 1m
+  interval: 10m
   retryInterval: 5s
   dependsOn:
     - name: monitoring
+    - name: thanos-operator
   sourceRef:
     kind: Bucket
     name: main
@@ -15,3 +16,12 @@ spec:
   prune: true
   wait: true
   timeout: 10m
+  healthCheckExprs:
+    - apiVersion: grafana.integreatly.org/v1beta1
+      kind: Grafana
+      current: status.conditions.filter(e, e.type == 'GrafanaReady').all(e, e.status == 'True')
+      failed: status.conditions.filter(e, e.type == 'GrafanaReady').all(e, e.status == 'False')
+    - apiVersion: monitoring.coreos.com/v1
+      kind: Alertmanager
+      current: status.conditions.filter(e, e.type == 'Available').all(e, e.status == 'True')
+      failed: status.conditions.filter(e, e.type == 'Available').all(e, e.status == 'False')

@@ -4,7 +4,7 @@ metadata:
   name: networking-config
   namespace: flux-system
 spec:
-  interval: 1m
+  interval: 10m
   retryInterval: 5s
   dependsOn:
     - name: networking
@@ -14,3 +14,4 @@ spec:
   path: ./manifests/local/networking-config
   prune: true
   wait: true
+  timeout: 2m

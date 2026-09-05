@@ -8,6 +8,10 @@ Local file → docker sync container (`rc mirror --overwrite --remove` + inotify
 
 - **Reconcile from the root any time you change a file**: `flux reconcile kustomization local --with-source`
 - Poll for completion with bounded `until` loops that **echo progress each iteration**, not blind sleeps or silent loops that look hung. Test exit codes / existence (`until ! kubectl get <thing> >/dev/null 2>&1; do ...`), not output parsing — kubectl prints "No resources found" to stdout, so `wc -l` checks never match
+- **Estimate the reconcile duration first, then cap the poll at ~2× that**. A root reconcile settles in ~2-3m (artifact event → dependency chain at 5s requeue × chain depth + health wait). When the cap is hit, stop polling and diagnose — a stuck loop means a real problem, not slowness:
+  - `kubectl -n flux-system get kustomizations` — find the not-True entries and their status messages
+  - `kubectl -n flux-system describe kustomization <name>` — Ready condition reason; last applied vs last attempted revision (attempted advancing while applied stalls = apply/dry-run failing)
+  - `kubectl -n flux-system get events --sort-by=.lastTimestamp | tail -10` — `ReconciliationFailed` warnings carry the reason (CRD schema rejections, webhook denials, missing dependsOn targets)
 - Verify values paths with `helm template` + the release's `values:` before reconciling
 
 ## Policy enforcement (read this before adding any workload)
@@ -35,6 +39,7 @@ local-path-provisioner creates **world-writable (0777)** dirs (`mkdir -m 0777`),
 - **seaweedfs-operator**: setting `spec.admin` on the Seaweed CR *enables* a new component — only set component sections intentionally
 - **velero**: node-agents are privileged by design ("remove in the cloud" comments mark local-only settings). Backs up to rustfs: bucket `backups` at `s3.cloud.test`, user `backups-user` via secrets-server payload `backups/velero-s3-credentials` (key `default`), egress via the velero CNP's `toFQDNs: s3.cloud.test` rule — seaweedfs is no longer involved. Delete backups with `velero backup delete`, never `kubectl delete backup` — kubectl leaves the S3 objects and backup-sync resurrects the Backup CR from storage within minutes
 - **rustfs** (`rc` CLI, run inside the `storage-cloud-test` container; admin alias: `rc alias set main http://localhost:9000 rustfsadmin rustfsadmin`): `rc rm --recursive` silently removes nothing (exits 0, reports success) — use `rc object remove` per key or `rc mirror --remove`; `rc ls` needs `--recursive` to show objects under a prefix. Buckets/users/policies are auto-provisioned by the container entrypoint from the `buckets` list in `cluster/local/conf/outputs.tf` (user is `<bucket>-user`, password `password`) — bucket changes recreate the container and wipe its data, but the sync container re-mirrors the `flux` bucket from the local manifests
+- **flux Kustomizations**: `wait: true` **ignores** `spec.healthChecks` — gate custom resources on real operator status with `spec.healthCheckExprs` (CEL); copy battle-tested expressions from https://fluxcd.io/flux/cheatsheets/cel-healthchecks/ (ClusterIssuer, ClusterSecretStore, etc. — only the apiVersion **group** is matched, `kind` optional for group-wide entries). Verify new API fields against the **on-cluster CRD schema** before pushing (`kubectl get crd <crd> -o jsonpath='{.spec.versions[0].schema.openAPIV3Schema.properties.spec.properties.<field>}'`) — undeclared fields fail the root dry-run ("field not declared in schema") and wedge the whole dependency chain (`healthyWhen` did exactly this). When unsure of a flux/CRD API shape, fetch the upstream docs or CRD (webfetch) instead of guessing
 
 ## CR-managed workloads (not helm values)
 

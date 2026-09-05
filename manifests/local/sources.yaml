@@ -4,7 +4,7 @@ metadata:
   name: sources
   namespace: flux-system
 spec:
-  interval: 1m
+  interval: 10m
   retryInterval: 5s
   sourceRef:
     kind: Bucket
@@ -12,3 +12,4 @@ spec:
   path: ./manifests/local/sources
   prune: true
   wait: true
+  timeout: 5m
