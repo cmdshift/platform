@@ -66,6 +66,7 @@ Helper scripts for the repeated plumbing (direnv adds `tools/bin` to PATH; invok
 - `loki_query '<logql>' [duration]` — loki query, tenant + nanosecond time math preset; prints raw log lines
 - `rustfs <rc args...>` — rustfs rc inside the storage container, admin alias preset
 - `mailpit [n]` — mailpit subjects (where alert emails land)
+- `cilium_test [args...]` — `cilium connectivity test` with the temp admission scaffolding applied/removed automatically (see the cilium-connectivity-test runbook)
 
 ## Hygiene
 
@@ -106,6 +107,7 @@ Routine operations:
 - [cluster-rebuild.md](runbooks/local/cluster-rebuild.md) — fresh bootstrap from terraform: procedure, expected timeline (~10m, one shot), verification list, data implications
 - [velero-backups.md](runbooks/local/velero-backups.md) — nightly backup check, test backups, the deletion trap, BSL troubleshooting
 - [rustfs-operations.md](runbooks/local/rustfs-operations.md) — rc CLI quirks, bucket/user provisioning, verifying bucket contents
+- [cilium-connectivity-test.md](runbooks/local/cilium-connectivity-test.md) — full-cluster cilium validation: temp scaffolding for the three admission layers (kyverno exception, PSS labels, allow-all CNP vs the egress default-deny), run + cleanup; `tools/bin/cilium_test` automates it
 - [adding-a-workload.md](runbooks/local/adding-a-workload.md) — the full checklist: sizing, security context, hook jobs, network policy, secrets, wiring
 
 Changes with landmines:

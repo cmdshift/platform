@@ -36,10 +36,12 @@ spec:
       resources:
         requests:
           cpu: 10m
-          memory: 48Mi
+          # steady state ~25Mi, but the connectivity test's L7 traffic pushed
+          # the busy node's envoy to ~69Mi against the old 72Mi limit (90%)
+          memory: 64Mi
         limits:
           cpu: 40m
-          memory: 72Mi
+          memory: 128Mi
     gatewayAPI:
       enabled: true
       hostNetwork:
@@ -103,7 +105,10 @@ spec:
         memory: 256Mi
       limits:
         cpu: 200m
-        memory: 384Mi
+        # test-namespace endpoints/identities spiked agents to ~323Mi against
+        # the old 384Mi limit (84%) during a connectivity test run; 512Mi keeps
+        # burst headroom, request unchanged (steady state ~160-200Mi)
+        memory: 512Mi
     rollOutCiliumPods: true
     securityContext:
       capabilities:

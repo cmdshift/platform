@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+# Run `cilium connectivity test` on the local cluster, applying the
+# temporary test scaffolding first and removing it on exit.
+#   cilium_test [args...]   # passed through to `cilium connectivity test`
+# Three admission/policy layers block the CLI's test pods; all are handled
+# IMPERATIVELY here (applied for the run, deleted after) — deliberately NOT
+# committed as manifests, so the cluster's policy posture stays minimal.
+# Snippet source of truth + manual procedure: runbooks/local/cilium-connectivity-test.md
+#   1. kyverno ValidatingPolicies — temp PolicyException (kyverno ns)
+#   2. PodSecurity — apiserver defaults unlabeled namespaces to enforce=baseline
+#      (Talos admission-control-config.yaml, kube-system exempt); test pods add
+#      NET_RAW → label every cilium-test* ns privileged
+#   3. cilium default-deny CCNP (egress, cluster-wide) — temp allow-all CNP in
+#      every cilium-test* ns
+# The scaffold loop must keep running mid-test: the ccnp suites create
+# additional cilium-test-ccnp* namespaces partway through the run.
+
+set -euo pipefail
+
+cleanup() {
+  kubectl -n kyverno delete policyexception allow-cilium-connectivity-test --ignore-not-found >/dev/null 2>&1 || true
+  kubectl get ns -o name 2>/dev/null | grep -E '^namespace/cilium-test' | cut -d/ -f2 \
+    | xargs -r kubectl delete ns --wait=false >/dev/null 2>&1 || true
+  echo "cilium_test: scaffolding removed (exception deleted, test namespaces deleting)"
+}
+
+trap cleanup EXIT
+
+kubectl -n kyverno apply -f - >/dev/null <<'EOF'
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: allow-cilium-connectivity-test
+  namespace: kyverno
+spec:
+  policyRefs:
+    - name: disallow-capabilities-strict
+      kind: ValidatingPolicy
+    - name: disallow-host-namespaces
+      kind: ValidatingPolicy
+    - name: disallow-privilege-escalation
+      kind: ValidatingPolicy
+    - name: require-resource-limits
+      kind: ValidatingPolicy
+    - name: require-run-as-nonroot
+      kind: ValidatingPolicy
+    - name: restrict-seccomp-strict
+      kind: ValidatingPolicy
+  matchConditions:
+    - name: match-cilium-test-namespace
+      expression: "object.metadata.namespace.startsWith('cilium-test')"
+EOF
+
+scaffold() {
+  kubectl get namespaces -o name 2>/dev/null \
+    | grep -E '^namespace/cilium-test' \
+    | cut -d/ -f2 \
+    | while read -r ns; do
+        if ! kubectl get ns "$ns" -o jsonpath='{.metadata.labels.pod-security\.kubernetes\.io/enforce}' 2>/dev/null | grep -q privileged; then
+          kubectl label ns "$ns" --overwrite \
+            pod-security.kubernetes.io/enforce=privileged \
+            pod-security.kubernetes.io/warn=privileged \
+            pod-security.kubernetes.io/audit=privileged >/dev/null \
+            && echo "cilium_test: labeled $ns privileged (PSS baseline default)"
+        fi
+        kubectl -n "$ns" apply -f - >/dev/null <<EOF
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-all
+  namespace: $ns
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEntities: [all]
+  egress:
+    - toEntities: [all]
+EOF
+      done
+}
+
+cilium_test() {
+  local args=("$@")
+  # flow validation off: this cluster runs kube-proxy (kubeProxyReplacement:
+  # false) so service-IP SYNs are DNAT'd before cilium sees them, and monitor
+  # aggregation hides DNS flows — hubble can never match what the CLI looks
+  # for. The datapath tests themselves still run; only flow matching is skipped.
+  if ! printf '%s\n' "${args[@]}" 2>/dev/null | grep -q -- '--flow-validation'; then
+    args+=(--flow-validation=disabled)
+  fi
+  # connectivity suites only, by default. The policy suites (deny-all, ingress/
+  # egress-l7, tls-sni, to-fqdns, ...) deploy their own deny policies and verify
+  # enforcement — on this cluster their deny expectations union with the required
+  # allow-all scaffold (the cluster's own egress default-deny CCNP forces it), so
+  # they can only fail here; the policy engine is exercised for real by the
+  # workload CNPs 24/7. check-log-errors is excluded because its two matches are
+  # benign on talos-in-docker (kernel lacks CONFIG_INET_DIAG_DESTROY; the
+  # bpf-lb-sock warning is expected with kubeProxyReplacement: false).
+  if ! printf '%s\n' "${args[@]}" 2>/dev/null | grep -q -- '--test'; then
+    args+=(--test='^(health|no-policies|host-entity-egress|host-entity-ingress|pod-to-itself-via-service|pod-to-pod-no-frag|pod-to-pod-encryption-v2|pod-to-pod-with-l7-policy-encryption-v2|node-to-node-encryption|no-unexpected-packet-drops|policy-local-cluster-egress)')
+  fi
+  # a previous failed/aborted run may have left cilium-test* namespaces deleting
+  # — the CLI collides with leftovers ("serviceaccount already exists")
+  local n=0
+  until ! kubectl get ns -o name 2>/dev/null | grep -qE '^namespace/cilium-test'; do
+    n=$((n + 1))
+    if [ "$n" -ge 36 ]; then
+      echo "cilium_test: TIMEOUT waiting for old cilium-test namespaces to finish deleting — diagnose: kubectl get ns | grep cilium-test"
+      return 1
+    fi
+    sleep 5
+  done
+  cilium connectivity test "${args[@]}" &
+  local test_pid=$!
+  while kill -0 "$test_pid" 2>/dev/null; do
+    scaffold || true
+    sleep 2
+  done
+  wait "$test_pid"
+}
+
+cilium_test "$@"
