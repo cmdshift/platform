@@ -1,0 +1,28 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: flux-config
+  namespace: flux-system
+spec:
+  interval: 10m
+  retryInterval: 5s
+  dependsOn:
+    - name: flux
+  sourceRef:
+    kind: Bucket
+    name: main
+  path: ./manifests/local/flux-config
+  # never prune: these manifests own the pipeline's own source and root.
+  # Removing them from git must orphan the Bucket + root Kustomization,
+  # never delete them (deleting the root would GC the entire cluster tree)
+  prune: false
+  # force-adopt: the terraform bootstrap's helm hooks create the Bucket +
+  # root Kustomization first (the hooks are load-bearing for fresh installs —
+  # CRDs must exist before the Bucket CR). force lets flux SSA take ownership
+  # of their specs from the terraform-provider-helm field manager on every
+  # bootstrap, no manual intervention
+  force: true
+  # wait would be circular: flux-config health-waits on the root Kustomization,
+  # whose Ready depends on flux-config itself — a deadlock at timeout
+  wait: false
+  timeout: 2m

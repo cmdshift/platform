@@ -62,12 +62,17 @@ spec:
         externalLabels:
           cluster: local
         resources:
+          # sized after observed P99 ~756Mi (working set reached the old 768Mi
+          # request within 6h of bootstrap; ~half of all series are apiserver
+          # request metrics on this CRD-heavy cluster) — request = P99 x 1.2
+          # rounded, limit = 1.5x request. Trend + recurrence playbook:
+          # cmdshift/platform#20
           requests:
             cpu: 30m
-            memory: 768Mi
+            memory: 1Gi
           limits:
             cpu: 1000m
-            memory: 1152Mi
+            memory: 1536Mi
         thanos:
           objectStorageConfig:
             existingSecret:

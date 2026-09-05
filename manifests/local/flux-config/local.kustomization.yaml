@@ -1,0 +1,24 @@
+# The ROOT kustomization — applies every child under manifests/local/.
+# Duplicated in cluster/local/bootstrap extraObjects (helm post-install hooks)
+# for fresh installs — close enough, not identical: flux-config force-adopts
+# this object and converges it to this spec on first reconcile (the bootstrap
+# twin runs interval 1m; adoption lands within seconds). The live object's
+# helm.sh/hook annotation is inert residue from the hook.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: local
+  namespace: flux-system
+spec:
+  interval: 10m
+  retryInterval: 5s
+  sourceRef:
+    kind: Bucket
+    name: main
+  path: ./manifests/local
+  prune: true
+  timeout: 5m
+  # deliberate deviation from the bootstrap twin: an unset deletionPolicy
+  # (MirrorPrune) would GC the entire cluster tree if this CR were ever
+  # deleted; Orphan turns that accident into an orphaned-but-running cluster
+  deletionPolicy: Orphan

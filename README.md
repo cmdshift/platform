@@ -1,18 +1,23 @@
 ## Required Binaries
 
-- `just`
-- `talosctl`
-- `kubectl`
 - `cilium`
-- `kubescape`
-- `flux` (`brew tap fluxcd/tap`)
-- `k9s`
 - `direnv`
-- `step`
-- `terraform` (`brew tap hashicorp/tap`)
-- `packer` (`brew tap hashicorp/tap`)
 - `dnsmasq` (or other host management)
+- `docker` (Docker Desktop or equivalent — runs the cluster and companions)
 - `doppler`
+- `flux` (`brew tap fluxcd/tap`)
+- `helm`
+- `jq`
+- `just`
+- `k9s`
+- `kubectl`
+- `kubescape`
+- `packer` (`brew tap hashicorp/tap`)
+- `step`
+- `talosctl`
+- `terraform` (`brew tap hashicorp/tap`)
+- `velero` (backup operations — see `runbooks/local/velero-backups.md`)
+- `yq` (manifest lint — see `AGENTS.md`)
 
 ## Ensure that `direnv` is working.
 

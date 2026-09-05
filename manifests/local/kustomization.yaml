@@ -11,6 +11,7 @@ resources:
   - networking.yaml
   - networking-config.yaml
   - flux.yaml
+  - flux-config.yaml
   - metrics.yaml
   - policies.yaml
   - policies-config.yaml

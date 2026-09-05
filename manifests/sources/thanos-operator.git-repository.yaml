@@ -7,6 +7,6 @@ spec:
   interval: 12h
   url: https://github.com/thanos-community/thanos-operator
   ref:
-    commit: 15a60a655583acc9bc6d14385ff0b004f4e8e948
+    commit: 49cd11f1f3b11fc099f815da4b3dfce243ffeeb3
   ignore: |
     !/bundle.yaml

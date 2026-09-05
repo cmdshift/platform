@@ -22,3 +22,4 @@ configMapGenerator:
     options:
       labels:
         operator.thanos.io/rule-file: "true"
+        operator.thanos.io/prometheus-rule: "true"

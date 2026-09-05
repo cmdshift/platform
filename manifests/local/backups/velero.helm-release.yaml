@@ -36,12 +36,15 @@ spec:
             memory: 48Mi
     credentials: {}
     resources:
+      # memory sized after OOMKill at the 132Mi limit during kopia repo prep
+      # (nightly fs-backup); limit is 2x request instead of the usual 1.5x to
+      # absorb unified-repo maintenance spikes
       requests:
         cpu: 10m
-        memory: 88Mi
+        memory: 256Mi
       limits:
         cpu: 500m
-        memory: 132Mi
+        memory: 512Mi
     configuration:
       backupStorageLocation: null
       volumeSnapshotLocation: null

@@ -1,0 +1,18 @@
+# The pipeline's source. Duplicated in cluster/local/bootstrap extraObjects
+# (helm post-install hooks) for fresh installs — close enough, not identical
+# (the twin omits provider/timeout; the CRD defaults fill them); flux-config
+# force-adopts this object and converges it on first reconcile.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: Bucket
+metadata:
+  name: main
+  namespace: flux-system
+spec:
+  interval: 1m
+  endpoint: s3.cloud.test
+  bucketName: flux
+  secretRef:
+    name: bucket-credentials
+  insecure: true
+  provider: generic
+  timeout: 60s

@@ -1,0 +1,18 @@
+# The thanos-operator builds the ruler StatefulSet; when rules are configured it
+# adds a config-reloader sidecar with no resource limits or security context,
+# and those fields are not exposed via the ThanosRuler CR API — admission would
+# otherwise deny the STS update and the ruler would run with no rule files.
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: allow-thanos-ruler-security-contexts
+  namespace: kyverno
+spec:
+  policyRefs:
+    - name: require-resource-limits
+      kind: ValidatingPolicy
+    - name: require-run-as-nonroot
+      kind: ValidatingPolicy
+  matchConditions:
+    - name: match-thanos-ruler
+      expression: "object.metadata.namespace == 'monitoring' && object.metadata.name.startsWith('thanos-ruler')"

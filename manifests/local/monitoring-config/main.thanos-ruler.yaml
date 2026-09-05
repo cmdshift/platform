@@ -9,11 +9,21 @@ spec:
   queryLabelSelector:
     matchLabels:
       app.kubernetes.io/part-of: thanos
-      app.kubernetes.io/component: query
+      app.kubernetes.io/component: query-layer
   ruleConfigSelector:
     matchLabels:
       operator.thanos.io/rule-file: "true"
   evaluationInterval: 1m
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  resourceRequirements:
+    requests:
+      cpu: 10m
+      memory: 56Mi
+    limits:
+      cpu: 200m
+      memory: 84Mi
   storage:
     storageClass: local-path
     size: 1Gi
@@ -21,5 +31,5 @@ spec:
     type: Stateful
     stateful:
       objectStorageConfig:
-        name: thanos-object-storage
-        key: thanos.yaml
+        name: thanos-objstore
+        key: objstore.yaml

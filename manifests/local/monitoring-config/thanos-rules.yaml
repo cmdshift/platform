@@ -9,6 +9,17 @@ groups:
           severity: critical
         annotations:
           summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash-looping ({{ $value }} restarts in 15m)"
+  - name: memory-alerts
+    rules:
+      - alert: ContainerOOMKilled
+        expr: |
+          increase(kube_pod_container_status_restarts_total[10m]) > 0
+            and on(namespace, pod, container)
+          kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1
+        labels:
+          severity: critical
+        annotations:
+          summary: "Container {{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.container }}) was OOM-killed — limit too low or a leak"
   - name: node-alerts
     rules:
       - alert: NodeHighDiskUsage

@@ -6,12 +6,22 @@ metadata:
 spec:
   interval: 24h
   retryInterval: 5s
+  # never delete-on-removal: the bundle includes CRDs — deleting a CRD destroys
+  # every CR of that kind, so un-managing must orphan, never prune
+  deletionPolicy: Orphan
   sourceRef:
     kind: GitRepository
     name: thanos-operator
     namespace: flux-system
+  # deployed from the repo's bundle.yaml, NOT its helm chart: the chart embeds
+  # ~2.5MB of CRDs in the release manifest, blowing helm's 1MB release-secret cap
   path: .
+  prune: true
+  wait: true
+  timeout: 5m
   patches:
+    # kyverno compliance + image pinning (matches the GitRepository ref;
+    # quay publishes main-YYYY-MM-DD-COMMIT per commit)
     - patch: |-
         apiVersion: apps/v1
         kind: Deployment
@@ -24,6 +34,18 @@ spec:
               securityContext:
                 seccompProfile:
                   type: RuntimeDefault
-  wait: true
-  prune: true
-  timeout: 5m
+              containers:
+                - name: manager
+                  image: quay.io/thanos/thanos-operator:main-2026-09-03-49cd11f
+    # chart/bundle RBAC lacks the events permission the operator needs in
+    # managed namespaces
+    - patch: |-
+        - op: add
+          path: /rules/-
+          value:
+            apiGroups: ["", "events.k8s.io"]
+            resources: ["events"]
+            verbs: ["create", "patch"]
+      target:
+        kind: ClusterRole
+        name: thanos-operator-manager-role
