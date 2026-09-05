@@ -1,0 +1,26 @@
+# Cloud cluster notes (self-managed Talos)
+
+Things to do differently from the local Talos-in-Docker cluster when standing up a cloud cluster. The inventory of deliberately local-only settings lives in `manifests/local/notes.md`.
+
+## Storage: local-path reclaim policy + volume binding (from cmdshift/platform#12)
+
+Both `reclaimPolicy` and `volumeBindingMode` are **StorageClass-level** settings — there is no per-PVC override in general use:
+
+- `volumeBindingMode: WaitForFirstConsumer` — non-negotiable in a multi-node cloud cluster: volumes must bind after pod scheduling so they land on the node the pod runs on. (We already default this locally, so it carries over as-is.)
+- `reclaimPolicy` — the PV snapshots the class's policy at provision time. Changing the class later only affects newly provisioned PVs; existing PVs keep `Delete` (or `Retain`) until patched individually.
+  - Selective overrides: a separate `local-path-retain` class for data that can't be regenerated, or patch the PV's `persistentVolumeReclaimPolicy` directly. A PVC-level `spec.persistentVolumeReclaimPolicy` field exists upstream (KEP-3939, alpha in 1.32, feature-gated) — verify its status in our k8s version before relying on it.
+  - Keep `Delete` as the class default in the cloud too: `Retain` everywhere trades accidental-deletion safety for a steady accumulation of `Released` PVs nobody cleans up. Protect the few volumes that matter, not all of them.
+
+Bigger caveat first: local-path is node-local with no replication — a lost node is a lost volume. In the cloud it's only appropriate for rebuildable state (caches, scratch); durable data belongs on replicated storage or off-cluster S3 (the velero → rustfs pattern we already use locally). Decide the real storage story before spending time tuning local-path policy.
+
+## Cilium (local: manifests/local/networking/cilium.helm-release.yaml)
+
+What must change vs the local helm release:
+
+- `kubeProxyReplacement: false` → **`true`** (explicitly marked in-repo: "true in the cloud") — BPF-based service routing instead of kube-proxy; on real Talos VMs the chart default (probe-based auto) is fine, but pin it.
+- `k8sServiceHost: localhost` / `k8sServicePort: 7445` → the real control-plane endpoint (Talos cluster/API VIP or a proper LB). The local values point at the per-node docker haproxy (`cluster/local/nodes/main.tf`) and exist because cilium must reach the API before pod networking exists — a bootstrap chicken-and-egg that doesn't apply on real VMs.
+- `cgroup.autoMount.enabled: false` + `hostRoot` → drop; that's a Talos-in-docker container quirk. Use chart defaults on real nodes.
+- `gatewayAPI.hostNetwork: true` (+ `k8s-role/work` node match) → normal non-hostNetwork gateway API listeners fronted by a cloud LB. The local form exists to publish LB ports on the docker host.
+- `l2announcements` → only if the cloud VMs share an L2 segment; otherwise replace with the LB story above.
+
+Keep as-is (validate under real traffic): wireguard encryption, `ipam.mode: kubernetes`, resource sizing (re-audit — local sizing was tuned for idle test loads, not real traffic).

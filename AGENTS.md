@@ -54,7 +54,7 @@ grafana (`Grafana` CR), thanos ×3, alertmanager (`Alertmanager` CR) → `monito
 
 ## tools/bin
 
-Helper scripts for the repeated plumbing (direnv adds `tools/bin` to PATH; invoke as `tools/bin/<name>` otherwise). Prefer these over reconstructing pipelines inline:
+Helper scripts for the repeated plumbing (direnv adds `tools/bin` to PATH; invoke as `tools/bin/<name>` otherwise). Prefer these over reconstructing pipelines inline — and when a task needs more than a round or two of hand-rolled jq/kubectl plumbing, promote it to a new `tools/bin` script instead of re-deriving it next time (that's the proven pattern: `policy_report`/`cpu_audit`/`kyverno_unblock` all started as several rounds of throwaway jq — see cmdshift/platform#21).
 
 - `yaml_lint [path]` — parse-check all YAML manifests (default `manifests/local`); the pre-reconcile lint step
 - `flux_wait [max-polls]` — reconcile from the root + bounded progress poll; exit 0 green / 1 timeout with pending list
@@ -66,6 +66,11 @@ Helper scripts for the repeated plumbing (direnv adds `tools/bin` to PATH; invok
 - `loki_query '<logql>' [duration]` — loki query, tenant + nanosecond time math preset; prints raw log lines
 - `rustfs <rc args...>` — rustfs rc inside the storage container, admin alias preset
 - `mailpit [n]` — mailpit subjects (where alert emails land)
+
+## Hygiene
+
+- **local-vs-cloud notes**: `manifests/local/notes.md` (inventory of deliberately local-only settings + rationale) and `manifests/cloud/notes.md` (what to do differently in the cloud cluster). When you add or change a setting that's local-only, or learn something the cloud cluster must do differently, record it in the matching file. In-repo markers (`# remove in the cloud`, `# true in the cloud`) stay the source of truth at the value itself; the notes carry the "why" and the cloud-side action.
+- **Rationale comments**: when you make a non-obvious decision (sizing after observed P99, a deliberate `prune: false`, a workaround for a landmine), leave the inline comment at the value — then link the notes/runbook/issue if there's more context.
 
 ## Landmines
 
