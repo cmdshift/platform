@@ -30,7 +30,7 @@ memory_audit 50
 Is it growing or stable? (snapshot proves nothing — query the trend):
 
 ```
-prometheus_query -v -r 6h 'container_memory_working_set_bytes{namespace="<ns>",container="<name>"}'
+prometheus_query -c -r 6h 'container_memory_working_set_bytes{namespace="<ns>",container="<name>"}'
 ```
 
 For prometheus specifically, also check series count and cardinality by job (`prometheus_tsdb_head_series`, `topk(10, count by (job)({__name__=~".+"}))` via `prometheus_query`) — memory growth usually tracks series growth.

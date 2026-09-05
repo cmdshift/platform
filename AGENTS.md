@@ -14,7 +14,7 @@ Local file → docker sync container (`rc mirror --overwrite --remove` + inotify
 ## Making changes: workflow
 
 **Before reconciling:**
-1. Lint: `find manifests/local -name '*.yaml' -print0 | xargs -0 -n1 yq '.' >/dev/null`
+1. Lint: `yaml_lint`
 2. Verify values paths with `helm template` + the release's `values:`
 3. **Check for rationale comments before overriding "odd" config** — deliberate decisions are documented inline (why the thanos-operator uses `bundle.yaml` instead of its helm chart, why some kustomizations have `prune: false`, why `mirror.sh` passes `--remove`). If a choice looks wrong, look for the comment explaining it first. And when you make a non-obvious decision yourself, **leave one** — future you will have forgotten it
 
@@ -25,7 +25,7 @@ Local file → docker sync container (`rc mirror --overwrite --remove` + inotify
 
 **Final checks:**
 1. Green everywhere: `kubectl -n flux-system get kustomizations` and `kubectl get helmreleases -A`
-2. `kubectl get policyreports -A -o json | jq '[.items[] | .results[]? | select(.result=="fail")] | length'` → expect 0 (skips = exceptions)
+2. `policy_report` → failures: 0 expected (skips = exceptions); also lists stale reports for gone resources
 3. `kubescape scan framework nsa` for compliance (baseline ~80)
 
 ## Admission policy (read this before adding any workload)
@@ -56,9 +56,13 @@ grafana (`Grafana` CR), thanos ×3, alertmanager (`Alertmanager` CR) → `monito
 
 Helper scripts for the repeated plumbing (direnv adds `tools/bin` to PATH; invoke as `tools/bin/<name>` otherwise). Prefer these over reconstructing pipelines inline:
 
+- `yaml_lint [path]` — parse-check all YAML manifests (default `manifests/local`); the pre-reconcile lint step
 - `flux_wait [max-polls]` — reconcile from the root + bounded progress poll; exit 0 green / 1 timeout with pending list
 - `memory_audit [threshold-pct]` — usage-vs-limits table (Mi/Gi normalized) + unlimited-container count
-- `prometheus_query [-v] [-r 6h] [--query] '<promql>'` — prometheus (or `--query` for thanos-query) with port-forward lifecycle handled; `-v` = values only, `-r` = range
+- `cpu_audit [threshold-pct]` — the CPU sibling of memory_audit: throttled-periods top-N (the silent killer) + usage-vs-limits table + unlimited-container count
+- `policy_report` — policyreport summary: fail/skip/pass counts, per-namespace counts, stale-report detection
+- `kyverno_unblock` — LOCAL-ONLY: deletes old-generation kyverno pods when a rollout deadlocks on hostNetwork ports (see the kyverno landmine below)
+- `prometheus_query [-v|-c] [-r 6h] [--query] '<promql>'` — prometheus (or `--query` for thanos-query) with port-forward lifecycle handled; `-v` = values only, `-c` = compact one line per series; `-r` = range
 - `loki_query '<logql>' [duration]` — loki query, tenant + nanosecond time math preset; prints raw log lines
 - `rustfs <rc args...>` — rustfs rc inside the storage container, admin alias preset
 - `mailpit [n]` — mailpit subjects (where alert emails land)
@@ -67,7 +71,7 @@ Helper scripts for the repeated plumbing (direnv adds `tools/bin` to PATH; invok
 
 ### Charts
 
-- **kyverno**: `admissionController.container.resources` is nested (unlike background/cleanup/reports); `config.webhooks` is a **map** (a list is silently dropped by helm merge); `backgroundScanInterval: 1h` (5m caused a reports-controller CPU ramp — cmdshift/platform#17); controllers use hostNetwork → rollouts deadlock on host ports (delete old pods to unblock)
+- **kyverno**: `admissionController.container.resources` is nested (unlike background/cleanup/reports); `config.webhooks` is a **map** (a list is silently dropped by helm merge); `backgroundScanInterval: 1h` (5m caused a reports-controller CPU ramp — cmdshift/platform#17); controllers use hostNetwork → rollouts deadlock on host ports (`kyverno_unblock` deletes the old pods)
 - **cert-manager**: values keys all-lowercase (`startupapicheck`), camelCase fails chart schema and blocks the whole dependency chain
 - **seaweedfs-operator**: setting `spec.admin` on the Seaweed CR *enables* a new component — only set component sections intentionally
 - **velero**: node-agents are privileged by design ("remove in the cloud" comments mark local-only settings). Backs up to rustfs: bucket `backups` at `s3.cloud.test`, user `backups-user` via secrets-server payload `backups/velero-s3-credentials` (key `default`), egress via the velero CNP's `toFQDNs: s3.cloud.test` rule — seaweedfs is no longer involved. Delete backups with `velero backup delete`, never `kubectl delete backup` — kubectl leaves the S3 objects and backup-sync resurrects the Backup CR from storage within minutes. Operations: [runbooks/local/velero-backups.md](runbooks/local/velero-backups.md)

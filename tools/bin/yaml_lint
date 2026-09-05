@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Parse-check every YAML manifest with yq (the pre-reconcile lint step).
+#   yaml_lint [path]   # default manifests/local
+# Prints per-file errors and exits 1 on the first bad file; silent exit 0
+# when everything parses (the lint step only catches syntax, not semantics —
+# values verification still needs helm template).
+
+yaml_lint() {
+  local path="${1:-manifests/local}" fail=0 count=0 f err
+  err=$(mktemp)
+  trap 'rm -f "$err"' EXIT
+  while IFS= read -r -d '' f; do
+    count=$((count+1))
+    if ! yq '.' "$f" >/dev/null 2>"$err"; then
+      echo "FAIL: $f"
+      sed 's/^/  /' "$err"
+      fail=1
+    fi
+  done < <(find "$path" -name '*.yaml' -print0)
+  if [ "$fail" -eq 0 ]; then
+    echo "OK: $count YAML files parse clean"
+  fi
+  return "$fail"
+}
+
+yaml_lint "$@"

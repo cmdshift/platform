@@ -49,8 +49,8 @@ Controllers that generate non-compliant pods with no config knobs (e.g. the than
 ## 8. Verify
 
 ```
-find manifests/local -name '*.yaml' -print0 | xargs -0 -n1 yq '.' >/dev/null   # lint
-flux reconcile kustomization local --with-source                                # then poll
+yaml_lint                                       # parse-check
+flux_wait                                       # reconcile from the root + poll
 ```
 
-Then the AGENTS.md final checks (kustomizations + helmreleases green, policyreports 0). If the workload exposes metrics: ServiceMonitor (+ `service-monitor` feature where applicable); if it should alert: rules in `monitoring-config/thanos-rules.yaml` (delivered to http://mail.cloud.test).
+Then the AGENTS.md final checks: kustomizations + helmreleases green, then `policy_report` → failures 0, no stale reports. If the workload exposes metrics: ServiceMonitor (+ `service-monitor` feature where applicable); if it should alert: rules in `monitoring-config/thanos-rules.yaml` (delivered to http://mail.cloud.test).

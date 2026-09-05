@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Unstick kyverno rollouts deadlocked on hostNetwork ports.
+#   kyverno_unblock
+# LOCAL-ONLY: hostNetwork is a talos-in-docker setting (the "remove in the
+# cloud" values in kyverno.helm-release.yaml). Each kyverno pod claims its
+# node's port, so every worker can host exactly one pod per controller — a
+# new-generation pod stays Pending until the old one is deleted (AGENTS.md
+# kyverno landmine). Deletes the old-generation running pods; no-op exit 0
+# when nothing is pending.
+
+pending_pods() {
+  kubectl -n kyverno get pods --no-headers \
+    | awk '$3 == "Pending" {print $1}'
+}
+
+old_generation_pods() { # pending_pod -> running pods of the same deployment, different ReplicaSet
+  local deploy="${1%-*}" # strip pod-hash, then rs-hash
+  deploy="${deploy%-*}"
+  kubectl -n kyverno get pods --no-headers \
+    | awk -v deploy="$deploy" -v skip="$1" \
+        'index($1, deploy "-") == 1 && $1 != skip && $3 == "Running" {print $1}'
+}
+
+kyverno_unblock() {
+  local pending p old deleted=0
+  pending=$(pending_pods)
+  if [ -z "$pending" ]; then
+    echo "kyverno_unblock: no pending kyverno pods — nothing to do"
+    return 0
+  fi
+  for p in $pending; do
+    echo "pending: $p"
+    old=$(old_generation_pods "$p")
+    if [ -z "$old" ]; then
+      echo "  no old-generation running pod found — this is not the hostNetwork deadlock; describe the pod"
+      continue
+    fi
+    for o in $old; do
+      echo "  deleting $o (holds the hostNetwork port)"
+      kubectl -n kyverno delete pod "$o" && deleted=1
+    done
+  done
+  [ "$deleted" = 1 ] && echo "old pods deleted — rollout should proceed; re-run flux_wait"
+}
+
+kyverno_unblock "$@"

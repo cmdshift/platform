@@ -36,6 +36,7 @@ When a flux kustomization won't go Ready, or a root reconcile isn't settling.
 - **admission webhook denied** — kyverno rejected a pod/job; events show `admission webhook ... denied the request: Policy <name> failed`. Size the workload or add a scoped PolicyException (`policies-config/`), per the admission-policy section of AGENTS.md
 - **missing dependsOn target** — a kustomization references one that was deleted or renamed; the error names the target
 - **health timeout** — `wait: true` + `healthCheckExprs` waiting on a CR that never reports healthy; check the CR's status and its operator's logs
+- **kyverno rollout deadlock on host ports** (observed 2026-09-05, a kyverno values change): the new-generation pod stays `Pending` because every worker already hosts one hostNetwork kyverno pod holding the port, so the helm upgrade never finishes and the kustomization hangs. `kubectl -n kyverno get pods` shows Pending new-gen + Running old-gen; run `kyverno_unblock` (deletes the old pods), then re-run `flux_wait`
 - **helm release failing underneath** — see [helmrelease-stuck.md](helmrelease-stuck.md)
 
 ## After fixing

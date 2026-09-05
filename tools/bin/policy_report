@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# PolicyReport summary — the AGENTS.md final check plus stale-report detection.
+#   policy_report
+# Prints fail/skip/pass counts (failures: expect 0; skips = PolicyExceptions),
+# per-namespace report counts, and reports scoped to resources that no longer
+# exist (kyverno never retracts unmatched reports — AGENTS.md says delete the
+# stale objects directly). Counts pods AND controller kinds (and jobs, for
+# helm-hook reports) since background scans emit one report per subject.
+
+policy_report() {
+  local reports live scopes
+  reports=$(mktemp); live=$(mktemp); scopes=$(mktemp)
+  trap 'rm -f "$reports" "$live" "$scopes"' EXIT
+
+  kubectl get policyreports -A -o json > "$reports"
+  kubectl get pods,deployments,daemonsets,statefulsets,jobs -A -o json \
+    | jq -r '.items[] | "\(.metadata.namespace)\t\(.kind)\t\(.metadata.name)"' | sort -u > "$live"
+
+  echo "== results =="
+  jq -r '
+    [.items[] | .results[]?] as $r
+    | "failures: \([$r[] | select(.result == "fail")] | length) (expect 0)   skips: \([$r[] | select(.result == "skip")] | length) (exceptions)   passes: \([$r[] | select(.result == "pass")] | length)"' "$reports"
+
+  echo
+  echo "== reports per namespace (total: $(jq '.items | length' "$reports")) =="
+  jq -r '.items | sort_by(.metadata.namespace) | group_by(.metadata.namespace)
+      | map("\(.[0].metadata.namespace): \(length)") | join("  ")' "$reports"
+
+  echo
+  echo "== stale reports (scope resource gone) =="
+  jq -r '.items[] | select(.scope != null)
+      | "\(.metadata.namespace)\t\(.scope.kind)\t\(.scope.name)"' "$reports" > "$scopes"
+  local stale unscoped
+  stale=$(awk -F'\t' 'NR==FNR {k[$1"/"$2"/"$3]; next} !($1"/"$2"/"$3 in k)' "$live" "$scopes")
+  unscoped=$(jq '[.items[] | select(.scope == null)] | length' "$reports")
+  if [ -n "$stale" ]; then
+    echo "delete these directly (never retracted):"
+    echo "$stale" | awk -F'\t' '{printf "  %s/%s %s\n", $1, $2, $3}'
+  else
+    echo "none"
+  fi
+  [ "$unscoped" -gt 0 ] && echo "reports without scope: $unscoped"
+}
+
+policy_report "$@"

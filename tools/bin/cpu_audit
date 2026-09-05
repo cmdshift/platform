@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# CPU usage-vs-limits + throttling audit — the sibling of memory_audit.
+#   cpu_audit [threshold_pct]   # default 50
+# Throttling first (the silent killer — AGENTS.md resource sizing): top 10
+# containers by % of CFS periods throttled (1h rate), via prometheus_query.
+# Then usage-vs-limits table, millicores normalized ("2" cores parses as 2m
+# in naive scripts, the cpu twin of memory_audit's '1Gi' bug).
+
+collect_usage() { # ns/pod/container cpu_millicores
+  kubectl top pods -A --containers --no-headers \
+    | awk '{v=$4; if (v ~ /m$/) gsub(/m$/,"",v); else v*=1000; print $1"/"$2"/"$3, v}' | sort
+}
+
+collect_limits() {
+  kubectl get pods -A -o json \
+    | jq -r '.items[] | .metadata.namespace as $ns | .metadata.name as $p
+        | .spec.containers[]? | select(.resources.limits.cpu != null)
+        | "\($ns)/\($p)/\(.name) \(.resources.limits.cpu
+            | if endswith("m") then sub("m$";"") | tonumber else (tonumber)*1000 end)"' | sort
+}
+
+count_unlimited() {
+  kubectl get pods -A -o json \
+    | jq '[.items[] | .spec.containers[]? | select((.resources.limits.cpu // null) == null)] | length'
+}
+
+ratios() { # usage_file limits_file threshold
+  join "$2" "$1" | awk -v t="$3" '{
+    r=$3/$2*100
+    if (r >= t) printf "%-72s %7.0fm / %6.0fm  %3.0f%%\n", $1, $3, $2, r
+  }' | sort -k5 -rn
+}
+
+throttled() { # top 10 by throttled-periods ratio (1h), via the sibling prometheus_query
+  "$(dirname "$0")/prometheus_query" -v '
+    topk(10, sum by (namespace, container) (rate(container_cpu_cfs_throttled_periods_total{container!=""}[1h]))
+       / sum by (namespace, container) (rate(container_cpu_cfs_periods_total{container!=""}[1h])))' \
+    | awk '{printf "%7.2f%%  %s\n", $1*100, $2}' | sort -rn | head -10
+}
+
+cpu_audit() {
+  local threshold="${1:-50}"
+  echo "== % of CFS periods throttled, 1h rate (top 10; >5% is worth a look) =="
+  throttled || echo "  prometheus unreachable — skipping throttle check"
+  echo
+  echo "== cpu usage vs limit >= ${threshold}% =="
+  local usage limits
+  usage=$(mktemp); limits=$(mktemp)
+  trap 'rm -f "$usage" "$limits"' EXIT
+  collect_usage > "$usage"
+  collect_limits > "$limits"
+  ratios "$usage" "$limits" "$threshold"
+  echo "---"
+  echo "containers without cpu limits: $(count_unlimited)"
+}
+
+cpu_audit "$@"

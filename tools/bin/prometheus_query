@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Prometheus query with port-forward lifecycle handled.
 #   prometheus_query '<promql>'              instant, raw JSON
-#   prometheus_query -v '<promql>'           values only (value + labels, or ts value)
-#   prometheus_query -r 6h '<promql>'        range over the last 6h (m|h|d), auto step
-#   prometheus_query --query '<promql>'      against svc/thanos-query-main instead
+#   prometheus_query -v '<promql>'            values only (value + labels, or ts value)
+#   prometheus_query -c '<promql>'            compact: "<pod=... container=...> vals" per line
+#   prometheus_query -r 6h '<promql>'         range over the last 6h (m|h|d), auto step
+#   prometheus_query --query '<promql>'       against svc/thanos-query-main instead
 
 usage() {
-  echo "usage: prometheus_query [-v] [-r 6h] [--query] '<promql>'" >&2
+  echo "usage: prometheus_query [-v|-c] [-r 6h] [--query] '<promql>'" >&2
   exit 2
 }
 
@@ -42,11 +43,27 @@ format_values() {
     else . end'
 }
 
+format_compact() { # one line per series: short label subset + values (token-cheap; -v strips
+  # labels entirely, raw JSON drowns them in id/image/instance noise)
+  jq -r '
+    def kept: ["pod","container","job","namespace","instance","service","endpoint","device","persistentvolumeclaim","policy","policy_group","rule"];
+    def labels_c:
+      .metric as $m
+      | ([kept[] | select($m[.] != null) | "\(.)=\($m[.])"]) as $picked
+      | if ($picked | length) > 0 then $picked | join(" ")
+        else $m | del(.__name__) | to_entries | map("\(.key)=\(.value)") | join(",") end;
+    .data.result[]?
+    | (if .values then .values | map(.[1]) | join(" ") else .value[1] end) as $vals
+    | labels_c as $l
+    | "\($l): \($vals)"'
+}
+
 prometheus_query() {
-  local service=kube-prometheus-stack-prometheus mode=instant values=0 range= query=
+  local service=kube-prometheus-stack-prometheus mode=instant values=0 compact=0 range= query=
   while [ $# -gt 0 ]; do
     case "$1" in
       -v) values=1; shift ;;
+      -c) compact=1; shift ;;
       -r) range="$2"; mode=range; shift 2 ;;
       --query) service=thanos-query-main; shift ;;
       *) query="$1"; shift ;;
@@ -65,7 +82,9 @@ prometheus_query() {
     url="http://localhost:$PORT_FORWARD_PORT/api/v1/query_range?start=$start&end=$end&step=$step"
   fi
 
-  if [ "$values" = 1 ]; then
+  if [ "$compact" = 1 ]; then
+    curl -sG "$url" --data-urlencode "query=$query" | format_compact
+  elif [ "$values" = 1 ]; then
     curl -sG "$url" --data-urlencode "query=$query" | format_values
   else
     curl -sG "$url" --data-urlencode "query=$query"
