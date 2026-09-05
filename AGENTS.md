@@ -4,10 +4,10 @@ Platform manifests for a Talos-in-Docker local test cluster (terraform in `clust
 
 ## How changes propagate
 
-Local file → docker sync container (`rc mirror` + inotify) → S3 bucket `flux` on seaweedfs → flux `Bucket` source (`main`, 1m interval) → `Kustomization/local` (root) → child kustomizations in dependency order.
+Local file → docker sync container (`rc mirror --overwrite --remove` + inotify) → S3 bucket `flux` on **rustfs** (out-of-cluster, terraform/docker `storage` container, endpoint `s3.cloud.test`) → flux `Bucket` source (`main`, 1m interval) → `Kustomization/local` (root) → child kustomizations in dependency order.
 
 - **Reconcile from the root any time you change a file**: `flux reconcile kustomization local --with-source`
-- Poll for completion with bounded `until` loops (e.g. `until [ "$(kubectl get ... )" = "True" ]; do sleep 10; done`), not blind sleeps
+- Poll for completion with bounded `until` loops that **echo progress each iteration**, not blind sleeps or silent loops that look hung. Test exit codes / existence (`until ! kubectl get <thing> >/dev/null 2>&1; do ...`), not output parsing — kubectl prints "No resources found" to stdout, so `wc -l` checks never match
 - Verify values paths with `helm template` + the release's `values:` before reconciling
 
 ## Policy enforcement (read this before adding any workload)
@@ -33,7 +33,8 @@ local-path-provisioner creates **world-writable (0777)** dirs (`mkdir -m 0777`),
 - **kyverno**: `admissionController.container.resources` is nested (unlike background/cleanup/reports); `config.webhooks` is a **map** (a list is silently dropped by helm merge); `backgroundScanInterval: 1h` (5m caused a reports-controller CPU ramp — cmdshift/platform#17); controllers use hostNetwork → rollouts deadlock on host ports (delete old pods to unblock)
 - **cert-manager**: values keys all-lowercase (`startupapicheck`), camelCase fails chart schema and blocks the whole dependency chain
 - **seaweedfs-operator**: setting `spec.admin` on the Seaweed CR *enables* a new component — only set component sections intentionally
-- **velero**: node-agents are privileged by design ("remove in the cloud" comments mark local-only settings)
+- **velero**: node-agents are privileged by design ("remove in the cloud" comments mark local-only settings). Backs up to rustfs: bucket `backups` at `s3.cloud.test`, user `backups-user` via secrets-server payload `backups/velero-s3-credentials` (key `default`), egress via the velero CNP's `toFQDNs: s3.cloud.test` rule — seaweedfs is no longer involved. Delete backups with `velero backup delete`, never `kubectl delete backup` — kubectl leaves the S3 objects and backup-sync resurrects the Backup CR from storage within minutes
+- **rustfs** (`rc` CLI, run inside the `storage-cloud-test` container; admin alias: `rc alias set main http://localhost:9000 rustfsadmin rustfsadmin`): `rc rm --recursive` silently removes nothing (exits 0, reports success) — use `rc object remove` per key or `rc mirror --remove`; `rc ls` needs `--recursive` to show objects under a prefix. Buckets/users/policies are auto-provisioned by the container entrypoint from the `buckets` list in `cluster/local/conf/outputs.tf` (user is `<bucket>-user`, password `password`) — bucket changes recreate the container and wipe its data, but the sync container re-mirrors the `flux` bucket from the local manifests
 
 ## CR-managed workloads (not helm values)
 

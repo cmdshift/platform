@@ -53,21 +53,6 @@ locals {
               "Delete:loki-rules"
             ]
           },
-          {
-            name = "velero"
-            credentials = [
-              {
-                accessKey = "velero-username"
-                secretKey = "velero-password"
-              }
-            ]
-            actions = [
-              "Read:velero",
-              "Write:velero",
-              "List:velero",
-              "Delete:velero"
-            ]
-          }
         ]
       })
     }
@@ -102,10 +87,10 @@ locals {
 
   backups = {
     velero_s3_credentials = {
-      seaweedfs = <<-EOF
+      default = <<-EOF
         [default]
-        aws_access_key_id=velero-username
-        aws_secret_access_key=velero-password
+        aws_access_key_id=backups-user
+        aws_secret_access_key=password
       EOF
     }
   }

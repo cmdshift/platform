@@ -3,7 +3,7 @@
 rc alias set main "$RUSTFS_ENDPOINT" "$RUSTFS_ACCESS_KEY" "$RUSTFS_SECRET_KEY"
 
 sync() {
-  rc mirror --overwrite /tmp/manifests/ "main/$RUSTFS_BUCKET/manifests/"
+  rc mirror --overwrite --remove /tmp/manifests/ "main/$RUSTFS_BUCKET/manifests/"
 }
 
 mirror() {

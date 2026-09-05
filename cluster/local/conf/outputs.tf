@@ -62,7 +62,8 @@ output "storage" {
     private_ip = cidrhost(local.cloud_cidr, 4)
     name       = join("-", ["storage", local.external_name])
     buckets = [
-      "flux"
+      "flux",
+      "backups"
     ]
     services = {
       s3 = {
