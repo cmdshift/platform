@@ -15,7 +15,7 @@ Local file → docker sync container (`rc mirror --overwrite --remove` + inotify
 
 **Before reconciling:**
 1. Lint: `yaml_lint`
-2. Verify values paths with `helm template` + the release's `values:`
+2. Verify values paths with `helm_verify` (renders every HelmRelease's values via `helm template`; schema-less charts don't reject key typos — see tools/bin/README.md)
 3. **Check for rationale comments before overriding "odd" config** — deliberate decisions are documented inline (why the thanos-operator uses `bundle.yaml` instead of its helm chart, why some kustomizations have `prune: false`, why `mirror.sh` passes `--remove`). If a choice looks wrong, look for the comment explaining it first. And when you make a non-obvious decision yourself, **leave one** — future you will have forgotten it
 
 **Reconcile and wait:**
@@ -56,7 +56,7 @@ grafana (`Grafana` CR), thanos ×3, alertmanager (`Alertmanager` CR) → `monito
 
 Helper scripts for the repeated plumbing (direnv adds `tools/bin` to PATH; invoke as `tools/bin/<name>` otherwise). **Check here before formulating any kubectl/jq/prometheus/docker command by hand** — audits (`memory_audit`/`cpu_audit`/`request_audit`/`policy_report`/`nsa_scan`), observability queries (`prometheus_query`/`loki_query`/`mailpit`), and waits (`flux_wait`/`velero_wait`) already exist and handle the plumbing you'd get wrong inline: port-forward lifecycle, Mi/Gi/m normalization, bounded polling. When a task needs more than a round or two of throwaway plumbing anyway, promote it to a new script here instead of re-deriving it next time (the proven pattern: `policy_report`/`cpu_audit`/`kyverno_unblock` all started as inline jq — see cmdshift/platform#21).
 
-Full reference — what each does, arguments, defaults, exit codes, gotchas: [tools/bin/README.md](tools/bin/README.md). One-line map: `yaml_lint` (manifest lint), `flux_wait` (reconcile root + bounded poll), `memory_audit`/`cpu_audit` (usage-vs-**limits**), `request_audit` (usage-vs-**requests**, the scheduling side), `policy_report` (admission results), `nsa_scan` (kubescape NSA), `kyverno_unblock` (hostNetwork rollout deadlock), `prometheus_query`/`loki_query`/`mailpit` (observability), `velero_wait` (backup/restore poll), `rustfs` (rc CLI in the storage container), `cilium_test` (connectivity test + temp scaffolding).
+Full reference — what each does, arguments, defaults, exit codes, gotchas: [tools/bin/README.md](tools/bin/README.md). One-line map: `yaml_lint` (manifest lint), `helm_verify` (HelmRelease values render check), `flux_wait` (reconcile root + bounded poll), `memory_audit`/`cpu_audit` (usage-vs-**limits**), `request_audit` (usage-vs-**requests**, the scheduling side), `policy_report` (admission results), `nsa_scan` (kubescape NSA), `kyverno_unblock` (hostNetwork rollout deadlock), `prometheus_query`/`loki_query`/`mailpit` (observability), `velero_wait` (backup/restore poll), `rustfs` (rc CLI in the storage container), `cilium_test` (connectivity test + temp scaffolding).
 
 ## Hygiene
 

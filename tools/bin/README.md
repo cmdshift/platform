@@ -17,15 +17,16 @@ directory to PATH — invoke as `<name>` inside the repo; otherwise
   time — that's how `policy_report`/`cpu_audit`/`request_audit` started
   (cmdshift/platform#21).
 
-Dependencies: `kubectl`, `jq`, `yq`, plus `velero` / `cilium` / `kubescape`
-CLIs for their respective tools, `docker` for `rustfs`. macOS date math
-(`date -v`) assumes darwin.
+Dependencies: `kubectl`, `jq`, `yq`, plus `helm`/`git` for `helm_verify`,
+`velero` / `cilium` / `kubescape` CLIs for their respective tools, `docker`
+for `rustfs`. macOS date math (`date -v`) assumes darwin.
 
 ## Quick reference
 
 | tool | one-liner |
 |---|---|
 | `yaml_lint` | parse-check all YAML manifests (pre-reconcile lint) |
+| `helm_verify` | render every HelmRelease's values via `helm template` (values-path check) |
 | `flux_wait` | reconcile from the root + bounded poll to all-green |
 | `memory_audit` | memory usage-vs-limits table |
 | `cpu_audit` | CPU throttling top-N + usage-vs-limits table |
@@ -48,8 +49,22 @@ Parse-checks every `.yaml` under `path` (default `manifests/local`) with yq.
 The pre-reconcile lint step.
 
 - Exits 1 on the first bad file (prints it + the error); `OK: N files …` when clean
-- Syntax only — value-path verification still needs `helm template` against
-  the release's `values:`
+- Syntax only — value-path verification is `helm_verify`'s job
+
+### `helm_verify [path]`
+
+Renders every HelmRelease's `spec.values` through `helm template` (the
+AGENTS.md "verify values paths" step, automated). Charts resolve from the
+source CRs on the live cluster: HelmRepository → repo index, GitRepository
+(tag/commit) → shallow clone. All helm state lives in a temp dir.
+
+- `PASS/FAIL` per release + `OK: N releases render clean`; exit 1 on any
+  failure or missing source CR
+- Gotcha: `helm template` rejects unknown values keys **only** for charts
+  shipping a `values.schema.json` (kube-prometheus-stack does; most don't)
+  — for schema-less charts this catches nil-pointer template errors, not
+  key typos. Cross-check surprise diffs against the chart's values.yaml
+- Needs `helm` + `git` CLIs beyond the shared deps
 
 ### `flux_wait [max_polls]`
 

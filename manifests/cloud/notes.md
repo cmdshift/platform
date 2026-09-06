@@ -15,6 +15,8 @@ Bigger caveat first: local-path is node-local with no replication — a lost nod
 
 **Velero + local-path volume data — solved locally with a one-annotation fix** (drill 2026-09-05, runbooks/local/velero-backups.md): velero FSB skips hostPath PVs, and local-path-provisioner defaults to hostPath — but its `defaultVolumeType: local` StorageClass annotation makes it emit `local` PVs, which velero FSB backs up natively (no CSI plugin needed). The local StorageClasses carry the annotation; the cloud cluster needs the same on its StorageClasses if it keeps local-path. Velero's temporary data mover pods need resources (`node-agent-config` configmap) and a PolicyException scoped by the `velero.io/pod-volume-*` labels.
 
+**Volume expansion**: the local classes set `allowVolumeExpansion: false` because local-path-provisioner has no expansion code at all (a `true` value just wedges any PVC resize forever — evidence in `manifests/local/notes.md`). Any real CSI StorageClass in the cloud (EBS, Ceph, …) expands natively — set `allowVolumeExpansion: true` there, and size local-path-hosted stateful workloads for the recreate-with-bigger-PVC path if any stay on local-path.
+
 ## Cilium (local: manifests/local/networking/cilium.helm-release.yaml)
 
 What must change vs the local helm release:

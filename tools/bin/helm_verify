@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# Render every HelmRelease's spec.values through `helm template` — the
+# values-path verification step (catches bad values keys/paths before flux
+# ships them to the cluster).
+#   helm_verify [path]   # default manifests/local
+# Chart sources resolve from the live cluster's source CRs
+# (`kubectl get helmrepo,gitrepo -n flux-system`): HelmRepository →
+# `helm repo add` + template from the repo index; GitRepository (tag or
+# commit ref) → shallow clone + template from the chart subpath. All helm
+# state lives in a temp dir — the user's helm home/cache is untouched.
+#
+# Prints PASS/FAIL per release; exit 1 if any release fails or a source CR
+# is missing (diagnose hint printed).
+#
+# Gotcha: helm template rejects unknown values keys only for charts that
+# ship a values.schema.json (kube-prometheus-stack does; most don't) — for
+# schema-less charts this catches nil-pointer template errors, not key
+# typos. Cross-check surprise changes against the upstream values.yaml.
+
+set -uo pipefail
+
+path="${1:-manifests/local}"
+fail=0
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+export HELM_CACHE_HOME="$tmp/cache" HELM_CONFIG_HOME="$tmp/config" HELM_DATA_HOME="$tmp/data"
+export HELM_REPOSITORY_CACHE="$tmp/cache/repository"
+
+command -v helm >/dev/null || { echo "FAIL: helm not installed"; exit 1; }
+
+# --- source CRs from the cluster: name<TAB>kind<TAB>url<TAB>ref-type<TAB>ref ---
+{
+  kubectl get helmrepo -A -o json 2>/dev/null | jq -r --arg k HelmRepository \
+    '.items[] | [.metadata.name, $k, .spec.url, "-", "-"] | @tsv'
+  kubectl get gitrepo -A -o json 2>/dev/null | jq -r --arg k GitRepository \
+    '.items[] | [.metadata.name, $k, .spec.url, (.spec.ref // {} | to_entries[0].key // "-"), (.spec.ref // {} | to_entries[0].value // "-")] | @tsv'
+} > "$tmp/sources.tsv"
+[[ -s "$tmp/sources.tsv" ]] || { echo "FAIL: no HelmRepository/GitRepository CRs found — is the cluster up?"; exit 1; }
+
+git_checkout() { # url reftype refvalue dest
+  local url="$1" reftype="$2" ref="$3" dest="$4"
+  # tag refs check out detached — silence git's advice noise
+  if [[ "$reftype" == "commit" ]]; then
+    git -c advice.detachedHead=false init -q "$dest" && git -C "$dest" remote add origin "$url" &&
+      git -C "$dest" fetch -q --depth 1 origin "$ref" && git -C "$dest" checkout -q FETCH_HEAD
+  else
+    git -c advice.detachedHead=false clone -q --depth 1 --branch "$ref" "$url" "$dest"
+  fi
+}
+
+kubever=$(kubectl version -o json 2>/dev/null | jq -r '.serverVersion.gitVersion // empty')
+kube_args=(); [[ -n "$kubever" ]] && kube_args=(--kube-version "$kubever")
+
+count=0
+for f in $(grep -rl --include='*.yaml' 'kind: HelmRelease' "$path" 2>/dev/null | sort); do
+  while IFS=$'\t' read -r name ns chart version srcKind srcName; do
+    count=$((count + 1))
+    url=$(awk -F'\t' -v n="$srcName" -v k="$srcKind" '$1==n && $2==k {print $3; exit}' "$tmp/sources.tsv")
+    if [[ -z "$url" ]]; then
+      echo "FAIL: $name — source $srcKind/$srcName not found on cluster (check sources.yaml apply state)"
+      fail=1; continue
+    fi
+
+    if [[ "$srcKind" == "HelmRepository" ]]; then
+      helm repo add "$srcName" "$url" --force-update >/dev/null 2>&1 || true
+      ref="$srcName/$chart"
+    else
+      reftype=$(awk -F'\t' -v n="$srcName" '$1==n && $2=="GitRepository" {print $4; exit}' "$tmp/sources.tsv")
+      refval=$(awk -F'\t' -v n="$srcName" '$1==n && $2=="GitRepository" {print $5; exit}' "$tmp/sources.tsv")
+      clone="$tmp/git-$srcName"
+      if [[ ! -d "$clone" ]]; then
+        git_checkout "$url" "$reftype" "$refval" "$clone" || { echo "FAIL: $name — git clone $srcName ($reftype $refval) failed"; fail=1; continue; }
+      fi
+      ref="$clone/$chart"
+    fi
+
+    yq eval-all -o=json 'select(.kind == "HelmRelease" and .metadata.name == "'"$name"'") | .spec.values // {}' "$f" > "$tmp/values-$name.json"
+    [[ -s "$tmp/values-$name.json" ]] || echo '{}' > "$tmp/values-$name.json"
+    args=("$ref" --namespace "$ns" -f "$tmp/values-$name.json" "${kube_args[@]}")
+    [[ -n "$version" && "$srcKind" == "HelmRepository" ]] && args+=(--version "$version")
+
+    if err=$(helm template "$name" "${args[@]}" 2>&1 >/dev/null); then
+      echo "PASS: $name ($chart${version:+ $version})"
+    else
+      echo "FAIL: $name ($chart${version:+ $version})"
+      sed 's/^/  /' <<< "$err" | head -15
+      fail=1
+    fi
+  done < <(yq eval-all -o=json 'select(.kind == "HelmRelease") | [{"name": .metadata.name, "ns": .metadata.namespace, "chart": .spec.chart.spec.chart, "version": (.spec.chart.spec.version // ""), "srcKind": (.spec.chart.spec.sourceRef.kind // ""), "srcName": (.spec.chart.spec.sourceRef.name // "")}]' "$f" | jq -r '.[] | [.name, .ns, .chart, .version, .srcKind, .srcName] | @tsv')
+done
+
+if [[ "$fail" -eq 0 ]]; then
+  echo "OK: $count releases render clean"
+else
+  echo "FAILED releases above — fix before reconciling (values land verbatim in helm-controller)"
+fi
+exit "$fail"

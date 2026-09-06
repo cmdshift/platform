@@ -65,6 +65,15 @@ spec:
     prometheus:
       prometheusSpec:
         retention: 2d
+        # CR-managed Alertmanager (monitoring-config/main.alertmanager.yaml) — the
+        # chart's alertmanager component is disabled, so without this the whole
+        # kubernetes-mixin rule set (PV filling, StatefulSet mismatch, …) fires
+        # into the void. Same endpoint thanos-ruler uses (main.thanos-ruler.yaml).
+        alertingEndpoints:
+          - namespace: monitoring
+            name: alertmanager-operated
+            port: 9093
+            scheme: http
         externalLabels:
           cluster: local
         resources:

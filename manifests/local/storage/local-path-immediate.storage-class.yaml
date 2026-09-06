@@ -8,4 +8,6 @@ metadata:
 provisioner: rancher.io/local-path
 reclaimPolicy: Delete
 volumeBindingMode: Immediate
-allowVolumeExpansion: true
+# false on purpose — same rationale as the local-path class (no expansion code
+# in local-path-provisioner; a true value would wedge any PVC resize forever)
+allowVolumeExpansion: false # true in the cloud

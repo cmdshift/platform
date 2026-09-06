@@ -12,4 +12,8 @@ metadata:
 provisioner: rancher.io/local-path
 reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer
-allowVolumeExpansion: true
+# false on purpose: local-path-provisioner has NO expansion code (v0.0.37 source
+# ships create/delete actions only) and non-CSI provisioners can't expand anyway —
+# `true` here just lets a PVC resize (e.g. a CNPG volume grow) hang forever.
+# Recreate-with-larger-size is the resize path locally; CSI in the cloud expands fine.
+allowVolumeExpansion: false # true in the cloud
