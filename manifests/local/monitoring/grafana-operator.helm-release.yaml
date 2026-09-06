@@ -22,8 +22,17 @@ spec:
       remediateLastFailure: true
   values:
     podSecurityContext:
+      # C-0013 (kubescape NSA): pod-level non-root (container-level comes from
+      # the chart defaults); operator image is distroless nonroot
+      runAsNonRoot: true
       seccompProfile:
         type: RuntimeDefault
+    # C-0013 (kubescape NSA): explicit non-root uid/gid at container level
+    # (image runs as 65532, gid was implicit 0 before). Chart default already
+    # sets roFS + runAsNonRoot on the container; these merge in
+    securityContext:
+      runAsUser: 65532
+      runAsGroup: 65532
     resources:
       requests:
         cpu: 10m

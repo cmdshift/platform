@@ -24,8 +24,8 @@ cluster action *args:
 bootstrap action *args:
   terraform -chdir=cluster/local/bootstrap {{action}} {{args}}
 
-code:
-  doppler run -- opencode --model "${OPENCODE_MODEL}"
+code *args:
+  doppler run -- opencode --model "${OPENCODE_MODEL}" {{args}}
 
 image:
   packer build cluster/cloud/image

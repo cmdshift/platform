@@ -50,6 +50,27 @@ spec:
                     - --enable-feature=service-monitor
                     - --enable-feature=prometheus-rule
                     - --enable-feature=kube-resource-sync
+                  # C-0013/C-0016/C-0046/C-0017 (kubescape NSA): image runs as
+                  # 65532; leader election is API-based and there's no webhook
+                  # server, so an immutable root fs is safe. /tmp emptyDir is
+                  # cheap insurance for Go temp files (controller-runtime
+                  # defaults write there if a webhook ever gets added)
+                  securityContext:
+                    allowPrivilegeEscalation: false
+                    capabilities:
+                      drop: [ALL]
+                    readOnlyRootFilesystem: true
+                    # image is 65532:65532 — explicit uid/gid so kubelet
+                    # verifies numerically (C-0013)
+                    runAsNonRoot: true
+                    runAsUser: 65532
+                    runAsGroup: 65532
+                  volumeMounts:
+                    - name: tmp
+                      mountPath: /tmp
+              volumes:
+                - name: tmp
+                  emptyDir: {}
     # chart/bundle RBAC lacks the events permission the operator needs in
     # managed namespaces
     - patch: |-

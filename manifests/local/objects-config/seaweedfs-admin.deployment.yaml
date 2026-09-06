@@ -13,6 +13,9 @@ spec:
       labels:
         app: seaweedfs-admin
     spec:
+      # C-0034 (kubescape NSA): the admin server proxies to the master over
+      # HTTP and never calls the API
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534
@@ -27,6 +30,12 @@ spec:
             capabilities:
               drop:
                 - ALL
+            # C-0013 (kubescape NSA): explicit non-root uid/gid — the image
+            # defaults to root; pod-level runAsUser 65534 left gid implicit 0
+            runAsUser: 65534
+            runAsGroup: 65534
+            # C-0017 (kubescape NSA): admin is stateless (no local writes)
+            readOnlyRootFilesystem: true
           resources:
             requests:
               cpu: 10m

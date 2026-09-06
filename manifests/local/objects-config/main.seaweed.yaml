@@ -29,6 +29,8 @@ spec:
       capabilities:
         drop:
           - ALL
+      # no readOnlyRootFilesystem here: master has no persistence knob in this
+      # CR and writes its wal/segment files to /data on the container's root fs
   volume:
     replicas: 1
     storageClassName: local-path
@@ -50,6 +52,8 @@ spec:
       capabilities:
         drop:
           - ALL
+      # C-0017 (kubescape NSA): volume server writes only to its -dir (/data0)
+      readOnlyRootFilesystem: true
   filer:
     replicas: 1
     requests:
@@ -69,6 +73,16 @@ spec:
       capabilities:
         drop:
           - ALL
+      # C-0017 (kubescape NSA): filer writes its metadata to the /data PVC,
+      # but the unix socket it gRPC-serves lives in /tmp — that stays a
+      # writable emptyDir
+      readOnlyRootFilesystem: true
+    volumes:
+      - name: tmp
+        emptyDir: {}
+    volumeMounts:
+      - name: tmp
+        mountPath: /tmp
     persistence:
       enabled: true
       storageClassName: local-path
@@ -94,6 +108,16 @@ spec:
       capabilities:
         drop:
           - ALL
+      # C-0017 (kubescape NSA): the s3 gateway is stateless — multipart parts
+      # stage on the filer (/.uploads), not on local disk — but it also drops
+      # sockets/temp files in /tmp, so keep that writable
+      readOnlyRootFilesystem: true
+    volumes:
+      - name: tmp
+        emptyDir: {}
+    volumeMounts:
+      - name: tmp
+        mountPath: /tmp
     configSecret:
       name: seaweedfs-s3-config
       key: s3.json

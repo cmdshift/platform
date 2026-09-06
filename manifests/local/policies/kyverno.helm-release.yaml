@@ -64,6 +64,12 @@ spec:
           limits:
             cpu: 500m
             memory: 300Mi
+      # C-0013 (kubescape NSA): pod-level non-root on top of the chart's
+      # container-level setting. NOTE: any kyverno rollout can deadlock on
+      # hostNetwork ports (old pod holds them) — run kyverno_unblock if the
+      # new pods hang in ContainerCreating/CrashLoopBackOff
+      podSecurityContext:
+        runAsNonRoot: true
       serviceMonitor:
         enabled: true
     backgroundController:
@@ -76,6 +82,8 @@ spec:
         limits:
           cpu: 500m
           memory: 216Mi
+      podSecurityContext:
+        runAsNonRoot: true
       serviceMonitor:
         enabled: true
     cleanupController:
@@ -88,6 +96,8 @@ spec:
         limits:
           cpu: 500m
           memory: 156Mi
+      podSecurityContext:
+        runAsNonRoot: true
       serviceMonitor:
         enabled: true
     reportsController:
@@ -100,5 +110,7 @@ spec:
         limits:
           cpu: 2000m
           memory: 240Mi # memory sawtooth peaks ~178Mi during the hourly background scan (93% of the old 192Mi limit); 240Mi leaves headroom, request 160Mi covers the scan-driven baseline
+      podSecurityContext:
+        runAsNonRoot: true
       serviceMonitor:
         enabled: true

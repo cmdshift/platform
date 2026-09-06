@@ -32,6 +32,7 @@ spec:
     securityContext:
       runAsNonRoot: true
       runAsUser: 65534
+      runAsGroup: 65534 # C-0013 (kubescape NSA): explicit non-root gid
       allowPrivilegeEscalation: false
       readOnlyRootFilesystem: true
       capabilities:

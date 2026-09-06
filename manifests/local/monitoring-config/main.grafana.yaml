@@ -14,6 +14,11 @@ spec:
     spec:
       template:
         spec:
+          # C-0034/C-0013 (kubescape NSA): grafana only serves HTTP — no SA
+          # token needed; non-root at pod level (grafana image runs as uid 472)
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
           containers:
             - name: grafana
               resources:

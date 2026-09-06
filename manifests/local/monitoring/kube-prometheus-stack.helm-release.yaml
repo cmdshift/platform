@@ -49,6 +49,12 @@ spec:
             cpu: 200m
             memory: 48Mi
     kube-state-metrics:
+      # C-0013 (kubescape NSA): explicit non-root uid/gid at container level
+      # (image declares USER "nobody"; pod-level sc already had 65534)
+      containerSecurityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
       resources:
         requests:
           cpu: 10m

@@ -1,0 +1,32 @@
+# Kubescape SecurityException — see kyverno.security-exception.yaml header.
+# The flux controllers authenticate to the API with their tokens (that is the
+# gitops mechanism), and their cluster-admin-adjacent RBAC is what gitops is.
+apiVersion: kubescape.io/v1beta1
+kind: SecurityException
+metadata:
+  name: gitops-controllers
+  namespace: flux-system
+spec:
+  reason: flux controllers are API clients; their broad RBAC is the gitops function
+  author: platform
+  posture:
+    - controlID: C-0034
+      action: ignore
+    - controlID: C-0035
+      action: ignore
+    - controlID: C-0002
+      action: ignore
+  match:
+    resources:
+      - kind: Deployment
+        name: helm-controller
+      - kind: Deployment
+        name: kustomize-controller
+      - kind: Deployment
+        name: notification-controller
+      - kind: Deployment
+        name: source-controller
+      - kind: ServiceAccount
+        name: helm-controller
+      - kind: ServiceAccount
+        name: kustomize-controller

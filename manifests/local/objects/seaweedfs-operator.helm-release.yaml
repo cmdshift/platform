@@ -23,6 +23,12 @@ spec:
       fsGroup: 65532
       seccompProfile:
         type: RuntimeDefault
+    # C-0013 (kubescape NSA): explicit non-root gid at container level (image
+    # is 65532:65532; the pod-level values above left gid implicit)
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 65532
+      runAsGroup: 65532
     webhook:
       certManager:
         enabled: true

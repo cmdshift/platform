@@ -1,0 +1,20 @@
+# Kubescape SecurityException — see kyverno.security-exception.yaml header.
+apiVersion: kubescape.io/v1beta1
+kind: SecurityException
+metadata:
+  name: api-clients-need-sa-tokens
+  namespace: cert-manager
+spec:
+  reason: cert-manager components are API clients (issuance, webhooks, RBAC)
+  author: platform
+  posture:
+    - controlID: C-0034
+      action: ignore
+  match:
+    resources:
+      - kind: Deployment
+        name: cert-manager
+      - kind: Deployment
+        name: cert-manager-cainjector
+      - kind: Deployment
+        name: cert-manager-webhook

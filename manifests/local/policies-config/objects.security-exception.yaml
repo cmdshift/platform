@@ -1,0 +1,16 @@
+# Kubescape SecurityException — see kyverno.security-exception.yaml header.
+apiVersion: kubescape.io/v1beta1
+kind: SecurityException
+metadata:
+  name: seaweed-master-rootfs-writes
+  namespace: objects
+spec:
+  reason: master has no persistence knob in the Seaweed CR and writes its wal/segments to /data on the container root fs — roFS would break it (notes.md)
+  author: platform
+  posture:
+    - controlID: C-0017
+      action: ignore
+  match:
+    resources:
+      - kind: StatefulSet
+        name: main-master

@@ -34,6 +34,20 @@ spec:
           limits:
             cpu: 40m
             memory: 48Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+    # C-0016/C-0046 hardening via the plugin init container's container-level
+    # securityContext. The velero chart only exposes securityContext at POD
+    # level (and applies it to its CRD-upgrade hook jobs too, where
+    # allowPrivilegeEscalation is not a legal pod field — SSA rejects it, helm
+    # upgrade fails). Its pod-level runAsUser: 0 default is deliberate (the
+    # node-agent needs root), so container-level readOnlyRootFilesystem /
+    # caps dropping is not reachable via values — kubescape C-0013/C-0055/
+    # C-0017 stay accepted for the velero deployment (kustomize post-render
+    # would be the only path; not worth the fight for the score)
     credentials: {}
     resources:
       # memory sized after OOMKill at the 132Mi limit during kopia repo prep

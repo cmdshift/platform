@@ -1,0 +1,31 @@
+# Kubescape SecurityException (kubescape.io/v1beta1) — the kubescape-native
+# counterpart of the kyverno PolicyExceptions in this directory. The CLI reads
+# these automatically at scan time (no operator needed); `tools/bin/nsa_scan`
+# tuned view reports these findings as "passed with exceptions".
+# Entries here map 1:1 to the accepted-findings list in manifests/local/notes.md.
+apiVersion: kubescape.io/v1beta1
+kind: SecurityException
+metadata:
+  name: system-tokens-and-hostnetwork
+  namespace: kyverno
+spec:
+  reason: >-
+    controllers talk to the API constantly (admission, background scan) and run
+    hostNetwork locally (see allow-kyverno-host-network PolicyException;
+    remove in the cloud)
+  author: platform
+  posture:
+    - controlID: C-0034
+      action: ignore
+    - controlID: C-0041
+      action: ignore
+  match:
+    resources:
+      - kind: Deployment
+        name: kyverno-admission-controller
+      - kind: Deployment
+        name: kyverno-background-controller
+      - kind: Deployment
+        name: kyverno-cleanup-controller
+      - kind: Deployment
+        name: kyverno-reports-controller

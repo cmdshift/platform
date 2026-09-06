@@ -25,10 +25,10 @@ spec:
       mounts:
         varlog: true
         containerd: true
-      configMap:
-        create: false
-        name: alloy-config
-        key: config.alloy
+        extra:
+          # writable /tmp: --storage.path=/tmp/alloy (WAL + positions) below
+          - name: tmp
+            mountPath: /tmp
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -36,6 +36,11 @@ spec:
             - ALL
         seccompProfile:
           type: RuntimeDefault
+        # C-0017 (kubescape NSA): immutable root fs. Alloy still runs as root
+        # (image declares no USER; the alloy PolicyException covers
+        # run-as-nonroot for the host-log mounts) — the WAL/positions live in
+        # --storage.path=/tmp/alloy, so /tmp stays a writable emptyDir
+        readOnlyRootFilesystem: true
       resources:
         requests:
           cpu: 10m
@@ -51,3 +56,8 @@ spec:
         limits:
           cpu: 200m
           memory: 64Mi
+    controller:
+      volumes:
+        extra:
+          - name: tmp
+            emptyDir: {}

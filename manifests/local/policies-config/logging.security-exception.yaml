@@ -1,0 +1,34 @@
+# Kubescape SecurityException — see kyverno.security-exception.yaml header.
+# alloy: root by design (image has no USER; allow-alloy-host-logs
+# PolicyException covers run-as-nonroot for the host-log mounts) and its
+# discovery.kubernetes component needs the SA token.
+# loki: the rules sidecar watches ConfigMaps via the API. The ConfigMap
+# C-0012 findings are regex false positives — S3 credentials are env-var
+# interpolations, never stored in the CM (verified).
+apiVersion: kubescape.io/v1beta1
+kind: SecurityException
+metadata:
+  name: log-agents
+  namespace: logging
+spec:
+  reason: alloy runs as root for host logs (exceptioned) and needs its token; loki sidecar needs the token; C-0012 findings are verified regex false positives
+  author: platform
+  posture:
+    - controlID: C-0013
+      action: ignore
+    - controlID: C-0034
+      action: ignore
+    - controlID: C-0012
+      action: ignore
+  match:
+    resources:
+      - kind: DaemonSet
+        name: alloy
+      - kind: ConfigMap
+        name: loki
+      - kind: StatefulSet
+        name: loki
+      - kind: StatefulSet
+        name: loki-chunks-cache
+      - kind: StatefulSet
+        name: loki-results-cache

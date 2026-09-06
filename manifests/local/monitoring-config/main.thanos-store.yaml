@@ -8,6 +8,9 @@ spec:
     name: thanos-objstore
     key: objstore.yaml
   securityContext:
+    # C-0013 (kubescape NSA): thanos image runs as nobody; pod-level is the
+    # only non-root knob the CRD exposes (no per-container securityContext)
+    runAsNonRoot: true
     seccompProfile:
       type: RuntimeDefault
   shardingStrategy:

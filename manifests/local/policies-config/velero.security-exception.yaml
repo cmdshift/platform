@@ -1,0 +1,39 @@
+# Kubescape SecurityException — see kyverno.security-exception.yaml header.
+# velero deployment: the chart only exposes pod-level securityContext and
+# renders it into its CRD-upgrade hook jobs where allowPrivilegeEscalation is
+# illegal (SSA rejects it) — container hardening is unreachable via values
+# (notes.md). node-agent: privileged by design (velero PolicyException,
+# "remove in the cloud"). velero-server SA: backup controller RBAC.
+apiVersion: kubescape.io/v1beta1
+kind: SecurityException
+metadata:
+  name: velero-backup-controller
+  namespace: velero
+spec:
+  reason: chart limitations + deliberate privileged node-agent + backup RBAC
+  author: platform
+  posture:
+    - controlID: C-0034
+      action: ignore
+    - controlID: C-0013
+      action: ignore
+    - controlID: C-0016
+      action: ignore
+    - controlID: C-0017
+      action: ignore
+    - controlID: C-0055
+      action: ignore
+    - controlID: C-0057
+      action: ignore
+    - controlID: C-0035
+      action: ignore
+    - controlID: C-0002
+      action: ignore
+  match:
+    resources:
+      - kind: Deployment
+        name: velero
+      - kind: DaemonSet
+        name: node-agent
+      - kind: ServiceAccount
+        name: velero-server

@@ -1,0 +1,16 @@
+# Kubescape SecurityException — see kyverno.security-exception.yaml header.
+apiVersion: kubescape.io/v1beta1
+kind: SecurityException
+metadata:
+  name: operators-are-api-clients
+  namespace: thanos-operator-system
+spec:
+  reason: the operator watches/manages thanos CRs via the API
+  author: platform
+  posture:
+    - controlID: C-0034
+      action: ignore
+  match:
+    resources:
+      - kind: Deployment
+        name: thanos-operator-controller-manager

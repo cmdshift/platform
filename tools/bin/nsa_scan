@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Kubescape NSA posture scan, two views:
+#   nsa_scan              full cluster scan + accepted findings (default)
+#   nsa_scan full         same, explicit
+#   nsa_scan apps         app-namespaces-only view (kube-system excluded)
+#
+# Every non-kube-system acceptance ships as a SecurityException /
+# ClusterSecurityException resource (kubescape.io/v1beta1) in
+# manifests/local/policies-config/*.security-exception.yaml, applied by flux —
+# kubescape reads them automatically at scan time. Each maps to a kyverno
+# PolicyException or a rationale in manifests/local/notes.md; keep them in
+# sync: an exception without a documented reason doesn't belong there.
+# (The CLI's --exceptions JSON flag silently no-ops on 4.0.13 — verified —
+# which is why the in-cluster route is used.)
+#
+# Why the apps view can score LOWER than the full scan: kubescape's score is
+# severity-weighted over scanned resources — excluding kube-system strips
+# hundreds of passing resources, so the remaining failures weigh heavier.
+# The full scan is the headline number; the apps view answers "what would a
+# prod-style app-namespace scan say".
+
+set -euo pipefail
+
+OUT="${TMPDIR:-/tmp}/opencode"
+
+score_and_fails() {
+  local file="$1" label="$2"
+  jq -r --arg l "$label" '"\($l) score: \(.summaryDetails.complianceScore)"' "$file" 2>/dev/null \
+    || echo "$label score: see $file"
+  echo "remaining failing controls ($label):"
+  jq -r '
+    .results[] | .resourceID as $rid |
+    .controls[] | select(.status.status == "failed") |
+    [.controlID, ($rid | split("//")[0] | sub("apps/v1/"; ""))] | @tsv' "$file" 2>/dev/null |
+    sort | uniq -c | sort -rn | head -15
+}
+
+scan_full() {
+  echo "=== full cluster scan (in-cluster SecurityExceptions applied) ==="
+  kubescape scan framework nsa --format json --output "$OUT/nsa-full.json" >/dev/null 2>&1
+  score_and_fails "$OUT/nsa-full.json" "full"
+}
+
+scan_apps() {
+  echo "=== apps-only scan (kube-system excluded) ==="
+  kubescape scan framework nsa --format json --output "$OUT/nsa-apps.json" \
+    --exclude-namespaces kube-system >/dev/null 2>&1
+  score_and_fails "$OUT/nsa-apps.json" "apps"
+}
+
+case "${1:-full}" in
+  full) scan_full ;;
+  apps) scan_apps ;;
+  both) scan_full; echo; scan_apps ;;
+  *) echo "usage: nsa_scan [full|apps|both]" >&2; exit 1 ;;
+esac
