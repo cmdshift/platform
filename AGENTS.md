@@ -60,6 +60,7 @@ Full reference — what each does, arguments, defaults, exit codes, gotchas: [to
 
 ## Hygiene
 
+- **No live patches — everything in files**: never fix drift with `kubectl edit`/`talosctl patch`/`docker exec` mutations (flux root `local`/`main` bucket edits during a wedge are the documented exception). Change the manifest or terraform template and reconcile; if the fix needs a rebuild, note the pending state in `manifests/local/notes.md`.
 - **local-vs-cloud notes**: `manifests/local/notes.md` (inventory of deliberately local-only settings + rationale) and `manifests/cloud/notes.md` (what to do differently in the cloud cluster). When you add or change a setting that's local-only, or learn something the cloud cluster must do differently, record it in the matching file. In-repo markers (`# remove in the cloud`, `# true in the cloud`) stay the source of truth at the value itself; the notes carry the "why" and the cloud-side action.
 - **Rationale comments**: when you make a non-obvious decision (sizing after observed P99, a deliberate `prune: false`, a workaround for a landmine), leave the inline comment at the value — then link the notes/runbook/issue if there's more context.
 

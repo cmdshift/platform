@@ -22,6 +22,9 @@ spec:
       retries: 3
       remediateLastFailure: true
   values:
+    monitoring:
+      serviceMonitor:
+        enabled: true # loki self-metrics — lives under `monitoring:` in this chart
     test:
       enabled: false
     lokiCanary:

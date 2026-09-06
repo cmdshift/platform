@@ -61,3 +61,5 @@ spec:
         extra:
           - name: tmp
             emptyDir: {}
+    serviceMonitor:
+      enabled: true # alloy self-metrics — top-level key in this chart

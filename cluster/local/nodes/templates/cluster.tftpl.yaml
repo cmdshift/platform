@@ -22,6 +22,14 @@ cluster:
   proxy:
     disabled: false # true in the cloud
     mode: iptables  # remove in the cloud
+    # kube-proxy 1.33+ defaults --metrics-bind-address to 127.0.0.1:10249, so
+    # Prometheus (a pod) can't reach it and the kube-proxy targets sit at up=0
+    # (TargetDown/KubeProxyInstanceUnreachable). Expose on all interfaces — the
+    # monitoring CNP's 10249 egress rule is the gate. Same 0.0.0.0 caveat as
+    # controllerManager/scheduler above; in the cloud kube-proxy is disabled
+    # anyway.
+    extraArgs:
+      metrics-bind-address: 0.0.0.0:10249
   etcd:
     advertisedSubnets:
       - ${ctrl_cidr}

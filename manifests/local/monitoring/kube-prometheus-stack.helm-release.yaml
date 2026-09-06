@@ -74,6 +74,15 @@ spec:
             name: alertmanager-operated
             port: 9093
             scheme: http
+        # Nil (unset) serviceMonitorSelector + this flag=false = `{}` = select
+        # every ServiceMonitor cluster-wide. The chart default requires a
+        # `release: kube-prometheus-stack` label that only the stack's own SMs
+        # carry, which left kyverno/thanos/velero SMs unscraped. (Setting
+        # serviceMonitorSelector: {} directly doesn't work — the chart template
+        # treats an empty map as falsy and falls back to the release label.)
+        # Curated single-tenant cluster: everything is meant to be scraped,
+        # and future operator SMs (CNPG/RabbitMQ) get picked up automatically.
+        serviceMonitorSelectorNilUsesHelmValues: false
         externalLabels:
           cluster: local
         resources:

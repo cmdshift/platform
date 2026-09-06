@@ -52,6 +52,11 @@ spec:
     hubble:
       relay:
         enabled: true
+        prometheus:
+          # relay metrics (9966) — the SM needs the metrics endpoint enabled
+          enabled: true
+          serviceMonitor:
+            enabled: true
         resources:
           requests:
             cpu: 10m
@@ -91,7 +96,20 @@ spec:
     kubeProxyReplacement: false # true in the cloud
     l2announcements:
       enabled: true
+    prometheus:
+      # cilium-agent metrics (9962) — endpoint is disabled by chart default,
+      # and the SM needs it enabled
+      enabled: true
+      serviceMonitor:
+        enabled: true
+        # helm-controller renders without API discovery, so the chart's
+        # validate.yaml gate fails unless told the SM CRDs exist — they do
+        # (prometheus-operator-crds release, crds/)
+        trustCRDsExist: true
     operator:
+      prometheus:
+        serviceMonitor:
+          enabled: true # chart default requires release labels; Prometheus selects all SMs (serviceMonitorSelector: {})
       resources:
         requests:
           cpu: 10m
