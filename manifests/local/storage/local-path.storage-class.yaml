@@ -6,7 +6,9 @@ metadata:
     storageclass.kubernetes.io/is-default-class: "true"
     # defaultVolumeType: local — REQUIRED for velero: FSB skips hostPath PVs (node-agent can
     # only reach volumes staged under /var/lib/kubelet/pods; local PVs get staged there,
-    # hostPath PVs don't). Defaults to hostPath without this. Affects NEW PVs only — existing
+    # hostPath PVs don't). Also the only reason kubelet_volume_stats_* exists for PVCs —
+    # kubelet skips hostPath volumes, so hostPath-backed PVCs report no capacity/usage metrics.
+    # Defaults to hostPath without this. Affects NEW PVs only — existing
     # hostPath PVs are grandfathered until their PVCs are recreated (runbooks/local/velero-backups.md)
     defaultVolumeType: local
 provisioner: rancher.io/local-path
