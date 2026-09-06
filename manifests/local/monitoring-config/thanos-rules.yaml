@@ -30,3 +30,19 @@ groups:
           severity: warning
         annotations:
           summary: "Disk usage above 85% on {{ $labels.instance }}"
+  - name: backup-alerts
+    rules:
+      - alert: VeleroBackupStale
+        expr: |
+          time() - velero_backup_last_successful_timestamp{schedule="pvcs"} > 93600
+        labels:
+          severity: warning
+        annotations:
+          summary: "No successful velero backup in 26h (schedule pvcs) — nightly 03:00 run missed or failing"
+      - alert: VeleroBackupFailed
+        expr: |
+          increase(velero_backup_failure_total[24h]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "A velero backup failed in the last 24h (schedule {{ $labels.schedule }})"

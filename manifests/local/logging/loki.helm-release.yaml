@@ -106,6 +106,25 @@ spec:
           insecure: true
           accessKeyId: "${LOKI_S3_ACCESS_KEY_ID}"
           secretAccessKey: "${LOKI_S3_SECRET_ACCESS_KEY}"
+      limits_config:
+        # bounded retention (was unbounded — the seaweed loki bucket grew
+        # forever); 30d matches the thanos 5m-tier. Logs are triage data.
+        retention_period: 30d
+      compactor:
+        retention_enabled: true
+        # Loki 3.x retention requires a delete-request store; `s3` names the
+        # chart-generated aws object store — verified in /config + compactor
+        # startup after reconcile
+        delete_request_store: s3
+        # default 2h safe-delete window is production caution; 5m keeps the
+        # delete path observable in a test cluster (verify via
+        # loki_compactor_deleted_lines_total after each retention sweep)
+        retention_delete_delay: 5m
+        # default 24h = the undo window before a delete request is processed;
+        # 15m is a deliberate local-only tradeoff (shorter accidental-delete
+        # undo, faster delete-path feedback) — `# true in the cloud` style:
+        # keep the default in cloud
+        delete_request_cancel_period: 15m
       extraEnv:
         - name: LOKI_S3_ACCESS_KEY_ID
           valueFrom:

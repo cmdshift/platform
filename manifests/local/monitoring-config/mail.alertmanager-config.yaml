@@ -11,6 +11,14 @@ spec:
     groupInterval: 5m
     repeatInterval: 4h
     receiver: email
+    routes:
+      # kube-proxy targets are down until the rebuild lands the metrics
+      # bind-address fix (cmdshift/platform#23) — mute instead of emailing.
+      # REMOVE after the rebuild.
+      - matchers:
+          - name: job
+            value: kube-proxy
+        receiver: "null"
   receivers:
     - name: email
       emailConfigs:
@@ -19,3 +27,6 @@ spec:
           from: alertmanager@cloud.test
           requireTLS: false
           sendResolved: true
+    # no integrations — sink for the muted kube-proxy TargetDown
+    # (quoted: bare `null` parses as a YAML null and the CRD rejects it)
+    - name: "null"

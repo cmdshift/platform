@@ -23,6 +23,16 @@ spec:
   values:
     alertmanager:
       enabled: false
+    defaultRules:
+      disabled:
+        # environmental on Talos-in-Docker: node_timex_sync_status=0 on every
+        # node (no sync flag from the docker VMs) — accepted finding, notes.md
+        NodeClockNotSynchronising: true
+        # kube-proxy targets sit at connection refused until the rebuild lands
+        # metrics-bind-address 0.0.0.0:10249 — cmdshift/platform#23. TargetDown
+        # stays enabled (generic coverage) and is muted in the mail
+        # AlertmanagerConfig for this job only.
+        KubeProxyInstanceUnreachable: true
     prometheusOperator:
       admissionWebhooks:
         patch:
