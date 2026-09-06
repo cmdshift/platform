@@ -47,9 +47,11 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       resources:
+        # 2026-09-06 overnight: sawtooth 69-248Mi against the old 200Mi request
+        # (124% at peak) — request = P99 x 1.2; 512Mi limit holds (peak 48%)
         requests:
           cpu: 50m
-          memory: 200Mi
+          memory: 288Mi
         limits:
           cpu: 1000m
           memory: 512Mi
@@ -57,12 +59,14 @@ spec:
       container:
         additionalArgs:
           - --requeue-dependency=5s
-      # steady 107Mi against the old 180Mi limit; delivery components wedge
-      # the whole pipeline when starved (see AGENTS.md sizing section)
+      # steady 127-164Mi against the old 128Mi request (99-128% — first in line
+      # for eviction under node pressure); 2026-09-06 overnight request =
+      # P99 x 1.2. 512Mi limit holds (peak 32%); delivery components wedge the
+      # whole pipeline when starved (see AGENTS.md sizing section)
       resources:
         requests:
           cpu: 50m
-          memory: 128Mi
+          memory: 192Mi
         limits:
           cpu: 1000m
           memory: 512Mi
@@ -107,8 +111,9 @@ spec:
         requests:
           cpu: 50m
           # request audit 2026-09-06: steady 102Mi against the old 160Mi
-          # request (64%); 224Mi = observed x 1.2
-          memory: 224Mi
+          # request (64%); 224Mi = observed x 1.2 — then the full overnight
+          # window peaked 220Mi = 98% of 224Mi, so 256Mi (peak x 1.2)
+          memory: 256Mi
         limits:
           cpu: 1000m
           memory: 1Gi

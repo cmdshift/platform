@@ -37,10 +37,14 @@ spec:
     requests:
       storage: 10Gi
       cpu: 10m
-      memory: 88Mi
+      # overnight burn-in 2026-09-06: OOMKilled at the old 132Mi limit (peak
+      # ~131Mi) — request = P99 x 1.2, limit = 1.5x request
+      memory: 160Mi
     limits:
-      cpu: 200m
-      memory: 132Mi
+      # 6% of CFS periods throttled at ~2m average = short write bursts
+      # against the old 200m limit — generous burst room per AGENTS.md
+      cpu: 500m
+      memory: 240Mi
     podSecurityContext:
       runAsNonRoot: true
       runAsUser: 65534
@@ -58,10 +62,12 @@ spec:
     replicas: 1
     requests:
       cpu: 10m
-      memory: 168Mi
+      # overnight burn-in 2026-09-06: peak ~210Mi against the old 252Mi limit
+      # (83%) — request = P99 x 1.2, limit = 1.5x request
+      memory: 256Mi
     limits:
       cpu: 200m
-      memory: 252Mi
+      memory: 384Mi
     podSecurityContext:
       runAsNonRoot: true
       runAsUser: 65534
@@ -92,11 +98,19 @@ spec:
   s3:
     replicas: 1
     requests:
-      cpu: 10m
-      memory: 112Mi
+      cpu: 50m
+      # overnight burn-in 2026-09-06: memory P99 ~161Mi vs the old 168Mi limit
+      # + 108 OOMKilled samples in 12h — request = P99 x 1.2, limit = 1.5x
+      memory: 192Mi
     limits:
-      cpu: 200m
-      memory: 168Mi
+      # the silent killer: sustained 110-160m against the old 200m limit at 97%
+      # of CFS periods throttled starved the liveness probe (context deadline
+      # exceeded) — kubelet killed the pod ~10x/h ("Completed exit 0"), plus
+      # CPUThrottlingHigh flapping in mailpit. The s3 gateway fronts loki AND
+      # thanos object storage (hottest path in the cluster) — generous burst
+      # room per AGENTS.md (200m-2000m)
+      cpu: 1000m
+      memory: 288Mi
     podSecurityContext:
       runAsNonRoot: true
       runAsUser: 65534

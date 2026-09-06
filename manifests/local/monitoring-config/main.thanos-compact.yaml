@@ -19,14 +19,17 @@ spec:
     oneHour: 180d
   # compaction is inherently bursty: OOMKilled twice at the old 60Mi limit and
   # CPU pegged 200m at 92% throttle during compaction runs — generous burst
-  # room on both axes (see AGENTS.md sizing conventions)
+  # room on both axes (see AGENTS.md sizing conventions). 2026-09-06 overnight
+  # re-audit: sawtooth now peaks ~230Mi = 90% of the (already twice-bumped)
+  # 256Mi limit while the 64Mi request lied at 159% — request = P99 x 1.2,
+  # limit = 1.5x request
   resourceRequirements:
     requests:
       cpu: 50m
-      memory: 64Mi
+      memory: 256Mi
     limits:
       cpu: 1
-      memory: 256Mi
+      memory: 384Mi
   storage:
     size: 10Gi
   logFormat: json

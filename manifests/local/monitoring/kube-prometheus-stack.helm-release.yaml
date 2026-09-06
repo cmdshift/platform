@@ -102,7 +102,9 @@ spec:
           # rounded, limit = 1.5x request. Trend + recurrence playbook:
           # cmdshift/platform#20
           requests:
-            cpu: 30m
+            # 2026-09-06 overnight: steady 36m against the old 30m request
+            # (120%) — lean per AGENTS.md but honest
+            cpu: 50m
             memory: 1Gi
           limits:
             cpu: 1000m
@@ -113,12 +115,14 @@ spec:
               name: thanos-objstore
               key: objstore.yaml
           resources:
-            # upload bursts peaked 112Mi against the old 132Mi limit
+            # 2026-09-06 overnight: 2h block uploads pin the CPU quota — 33% of
+            # CFS periods throttled at only 0.7m average = hard bursts against
+            # the old 200m limit. Memory fits (peak 112Mi vs 192Mi limit)
             requests:
               cpu: 10m
               memory: 128Mi
             limits:
-              cpu: 200m
+              cpu: 500m
               memory: 192Mi
       thanosService:
         enabled: true

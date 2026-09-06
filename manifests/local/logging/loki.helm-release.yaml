@@ -77,12 +77,14 @@ spec:
           memory: 24Mi
       metrics:
         resources:
+          # 2026-09-06 overnight: peak 22.3Mi = 93% of the old 24Mi limit —
+          # request = P99 x 1.2, limit = 1.5x request
           requests:
             cpu: 10m
-            memory: 16Mi
+            memory: 24Mi
           limits:
             cpu: 100m
-            memory: 24Mi
+            memory: 36Mi
     loki:
       commonConfig:
         replication_factor: 1
