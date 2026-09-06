@@ -6,9 +6,9 @@ Out-of-cluster companions (terraform/docker, `*.cloud.test`): rustfs S3 (`s3.clo
 
 ## How changes propagate
 
-Local file → docker sync container (`rc mirror --overwrite --remove` + inotify) → S3 bucket `flux` on **rustfs** (out-of-cluster, terraform/docker `storage` container, endpoint `s3.cloud.test`) → flux `Bucket` source (`main`, 1m interval) → `Kustomization/local` (root) → child kustomizations in dependency order.
+Local file → docker sync container (`rc mirror --overwrite --remove` + inotify) → S3 bucket `flux` on **rustfs** (out-of-cluster, terraform/docker `storage` container, endpoint `s3.cloud.test`) → flux `Bucket` source (`main`, 5m interval) → `Kustomization/local` (root) → child kustomizations in dependency order.
 
-- Child kustomization intervals are **drift-heal only** — propagation is event-driven (artifact change + `dependsOn` requeue at 5s), so the 10m child intervals cost nothing in latency. `retryInterval` is 5s everywhere
+- Child kustomization intervals are **drift-heal only** (1h; the thanos-operator's is 24h) — propagation is event-driven (artifact change + `dependsOn` requeue at 5s), so loosened intervals cost nothing in latency. Loosened from 10m/1m (2026-09-06) for interactive determinism: the 1m bucket poll could publish a half-mirrored artifact mid-edit and set the whole chain applying it. The manual flow (`sync_wait` + `flux_wait --with-source`) forces an immediate pull; the bootstrap twin's 1m intervals keep the one-shot rebuild fast until flux-config adopts. **Do not suspend** kustomizations — a suspended tree reconciles nothing on rebuild, breaking the one-shot requirement. `retryInterval` is 5s everywhere
 - macOS bind mounts occasionally drop inotify delete events — if a manifest deletion doesn't propagate (check with `rustfs ls main/flux --recursive`), `docker restart sync-cloud-test` forces a full `--remove` re-mirror. Full wedge triage (sync/bucket/root decision tree): [runbooks/local/pipeline-wedged.md](runbooks/local/pipeline-wedged.md)
 
 ## Making changes: workflow
@@ -26,7 +26,7 @@ Local file → docker sync container (`rc mirror --overwrite --remove` + inotify
 **Final checks:**
 1. Green everywhere: `kubectl get helmreleases -A` (kustomizations are already covered by `flux_wait`'s exit code)
 2. `policy_report` → failures: 0 expected (skips = exceptions); also lists stale reports for gone resources
-3. `nsa_scan` (kubescape NSA) for compliance — baseline ~85 with the in-cluster `SecurityException`s applied; zero findings outside kube-system (accepted findings + reasons in `manifests/local/notes.md` and `policies-config/*.security-exception.yaml`)
+3. `nsa_scan` (kubescape NSA) for compliance — baseline **92.3, zero failing controls** (kubelet controls C-0069/C-0070 are `notEvaluated` without the operator's node-agent — the lean ceiling; see `manifests/local/notes.md`). Accepted findings + reasons in `manifests/local/notes.md` and `security-config/*.security-exception.yaml`
 
 ## Admission policy (read this before adding any workload)
 
@@ -56,7 +56,7 @@ grafana (`Grafana` CR), thanos ×3, alertmanager (`Alertmanager` CR) → `monito
 
 Helper scripts for the repeated plumbing (direnv adds `tools/bin` to PATH; invoke as `tools/bin/<name>` otherwise). **Check here before formulating any kubectl/jq/prometheus/docker command by hand** — audits (`memory_audit`/`cpu_audit`/`request_audit`/`policy_report`/`nsa_scan`), observability queries (`prometheus_query`/`loki_query`/`mailpit`), and waits (`flux_wait`/`velero_wait`) already exist and handle the plumbing you'd get wrong inline: port-forward lifecycle, Mi/Gi/m normalization, bounded polling. When a task needs more than a round or two of throwaway plumbing anyway, promote it to a new script here instead of re-deriving it next time (the proven pattern: `policy_report`/`cpu_audit`/`kyverno_unblock` all started as inline jq — see cmdshift/platform#21).
 
-Full reference — what each does, arguments, defaults, exit codes, gotchas: [tools/bin/README.md](tools/bin/README.md). One-line map: `yaml_lint` (manifest lint), `helm_verify` (HelmRelease values render check), `flux_wait` (reconcile root + bounded poll), `memory_audit`/`cpu_audit` (usage-vs-**limits**), `request_audit` (usage-vs-**requests**, the scheduling side), `policy_report` (admission results), `nsa_scan` (kubescape NSA), `kyverno_unblock` (hostNetwork rollout deadlock), `prometheus_query`/`loki_query`/`mailpit` (observability), `velero_wait` (backup/restore poll), `rustfs` (rc CLI in the storage container), `cilium_test` (connectivity test + temp scaffolding).
+Full reference — what each does, arguments, defaults, exit codes, gotchas: [tools/bin/README.md](tools/bin/README.md). One-line map: `yaml_lint` (manifest lint), `helm_verify` (HelmRelease values render check), `sync_wait` (bucket-sync convergence before reconciling), `flux_wait` (reconcile root + bounded poll), `memory_audit`/`cpu_audit` (usage-vs-**limits**), `request_audit` (usage-vs-**requests**, the scheduling side), `pod_status` (pod table with restarts/exit codes, crashloop triage), `policy_report` (admission results), `nsa_scan` (kubescape NSA), `kyverno_unblock` (hostNetwork rollout deadlock), `prometheus_query`/`loki_query`/`mailpit` (observability), `velero_wait` (backup/restore poll), `rustfs` (rc CLI in the storage container), `cilium_test` (connectivity test + temp scaffolding).
 
 ## Hygiene
 

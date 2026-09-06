@@ -8,7 +8,12 @@ metadata:
   name: main
   namespace: flux-system
 spec:
-  interval: 1m
+  # 5m, not 1m: a poll mid-edit publishes a half-mirrored artifact and the
+  # whole chain starts applying it (the sync container's inotify lag is the
+  # documented hazard). The manual flow (sync_wait + flux_wait --with-source)
+  # forces an immediate pull, so interactive latency is unaffected; the
+  # bootstrap twin's tighter interval keeps the one-shot rebuild fast.
+  interval: 5m
   endpoint: s3.cloud.test
   bucketName: flux
   secretRef:

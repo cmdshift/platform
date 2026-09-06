@@ -1,0 +1,63 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kubescape
+  namespace: kubescape
+spec:
+  interval: 12h
+  releaseName: kubescape
+  chart:
+    spec:
+      chart: kubescape-operator
+      # pinned: chart's kubescape image v4.0.13 matches the CLI on the host,
+      # so the operator's baked-in policy set == the nsa_scan baseline
+      version: "1.40.4"
+      sourceRef:
+        kind: HelmRepository
+        name: kubescape
+        namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  values:
+    # context is admin@local-test; the bare cluster name is what results carry
+    clusterName: local-test
+    capabilities:
+      # lean install: posture + risk acceptance only. The node-agent cannot
+      # run here — its container watcher marks runc with a fanotify PERMISSION
+      # event unconditionally at startup, and the linuxkit 7.0.12 kernel
+      # (Docker Desktop VM) ships CONFIG_FANOTIFY_ACCESS_PERMISSIONS=n, so the
+      # mark fails EINVAL and the agent fatals on every node. Verified live
+      # 2026-09-06 (with RUNTIME_PATH set correctly too). This is a docker-VM
+      # kernel limit, not a Talos one — nodeScan is viable in the cloud
+      # (manifests/cloud/notes.md). Still off: vuln scanning (registry egress
+      # + kubevuln weight), and kubescape's own admissionController (kyverno
+      # already owns admission).
+      configurationScan: enable
+      continuousScan: enable
+      riskAcceptance: enable # operator reads SecurityException CRs (default disable)
+      nodeScan: disable
+      nodeSbomGeneration: disable
+      vulnerabilityScan: disable
+      relevancy: disable
+      runtimeObservability: disable
+      networkPolicyService: disable
+      networkEventsStreaming: disable
+      nodeProfileService: disable
+      admissionController: disable
+      httpDetection: disable
+      seccompProfileService: disable
+    kubescape:
+      # true in the cloud: baked-in policy set (no per-scan github fetch),
+      # keeps the one-shot rebuild free of external egress dependencies
+      downloadArtifacts: false
+      skipUpdateCheck: true
+    # chart default also excludes kube-system — but the Talos findings we
+    # exception live there; keep kube-system scanned so operator results
+    # match the CLI audit. kubescape ns stays excluded (upstream default,
+    # avoids the operator scanning its own storage/results)
+    excludeNamespaces: "kubescape,kube-public,kube-node-lease,kubeconfig,gmp-system,gmp-public"

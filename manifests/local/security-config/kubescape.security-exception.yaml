@@ -1,0 +1,42 @@
+# Kubescape SecurityExceptions for kubescape's own components (namespace
+# kubescape). C-0034: the scanner/operator/storage are API clients by function
+# (watch, scan, persist via the aggregated API). C-0017 on storage: the
+# sqlite-backed aggregated API server has no readOnlyRootFilesystem knob in
+# the chart (hardcoded container securityContext, templates/storage/deployment.yaml).
+apiVersion: kubescape.io/v1beta1
+kind: SecurityException
+metadata:
+  name: api-clients-need-sa-tokens
+  namespace: kubescape
+spec:
+  reason: kubescape/operator/storage watch and persist cluster state via the API by function
+  author: platform
+  posture:
+    - controlID: C-0034
+      action: ignore
+  match:
+    resources:
+      - kind: Deployment
+        name: kubescape
+      - kind: Deployment
+        name: operator
+      - kind: Deployment
+        name: storage
+---
+apiVersion: kubescape.io/v1beta1
+kind: SecurityException
+metadata:
+  name: storage-sqlite-writes
+  namespace: kubescape
+spec:
+  reason: >-
+    storage is a sqlite-backed API server writing scan results; the chart
+    hardcodes its container securityContext with no readOnlyRootFilesystem knob
+  author: platform
+  posture:
+    - controlID: C-0017
+      action: ignore
+  match:
+    resources:
+      - kind: Deployment
+        name: storage

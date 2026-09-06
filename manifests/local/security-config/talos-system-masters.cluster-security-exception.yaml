@@ -1,0 +1,30 @@
+# Kubescape ClusterSecurityException — the built-in cluster-admin
+# ClusterRoleBinding grants system:masters, which is how Talos (and the
+# talosconfig kubeconfig) authenticates as admin. Stock cluster bootstrap on
+# every Talos cluster, not managed by any manifest here. Companion to the
+# kubernetes-default-rbac exception (system:* discovery bindings).
+apiVersion: kubescape.io/v1beta1
+kind: ClusterSecurityException
+metadata:
+  name: talos-system-masters
+spec:
+  reason: cluster-admin -> system:masters is the Talos admin credential group; stock bootstrap
+  author: platform
+  posture:
+    - controlID: C-0002
+      action: ignore
+    - controlID: C-0035
+      action: ignore
+  match:
+    resources:
+      - apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRoleBinding
+        name: cluster-admin
+      - apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: cluster-admin
+      # the C-0035 rule anchors its finding on the Group pseudo-object (first
+      # segment of the resourceID) — without this entry the binding/role
+      # entries alone never match that rule (verified by scan 2026-09-06)
+      - kind: Group
+        name: system:masters

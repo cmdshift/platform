@@ -4,7 +4,8 @@ metadata:
   name: backups
   namespace: flux-system
 spec:
-  interval: 10m
+  # drift-heal only: propagation is event-driven; manual flow = sync_wait + flux_wait
+  interval: 1h
   retryInterval: 5s
   dependsOn:
     - name: namespaces

@@ -1,0 +1,22 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: security-config
+  namespace: flux-system
+spec:
+  # drift-heal only: propagation is event-driven; manual flow = sync_wait + flux_wait
+  interval: 1h
+  retryInterval: 5s
+  dependsOn:
+    - name: security
+    - name: crds
+  sourceRef:
+    kind: Bucket
+    name: main
+  path: ./manifests/local/security-config
+  # never prune: an exception deleted by GC is a finding that silently comes
+  # back (or, for kyverno-side PolicyExceptions, pods denied at admission).
+  # Exception removal must be a deliberate file deletion + explicit cleanup.
+  prune: false
+  wait: true
+  timeout: 2m

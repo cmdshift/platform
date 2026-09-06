@@ -4,14 +4,22 @@
 #   nsa_scan full         same, explicit
 #   nsa_scan apps         app-namespaces-only view (kube-system excluded)
 #
-# Every non-kube-system acceptance ships as a SecurityException /
-# ClusterSecurityException resource (kubescape.io/v1beta1) in
-# manifests/local/policies-config/*.security-exception.yaml, applied by flux —
+# Every acceptance ships as a SecurityException / ClusterSecurityException
+# resource (kubescape.io/v1beta1) in
+# manifests/local/security-config/*.security-exception.yaml, applied by flux —
 # kubescape reads them automatically at scan time. Each maps to a kyverno
 # PolicyException or a rationale in manifests/local/notes.md; keep them in
 # sync: an exception without a documented reason doesn't belong there.
-# (The CLI's --exceptions JSON flag silently no-ops on 4.0.13 — verified —
-# which is why the in-cluster route is used.)
+#
+# --exceptions with an empty file replaces the ARMO-portal exception download
+# (the source of bundled GKE/AKS/EKS "systemException" defaults). Those
+# defaults overlap our in-cluster CRs and, being file-level, take precedence
+# over them (documented kubescape precedence) — leaving the overlapped
+# findings as failed-with-exceptions (acknowledgedResources). An empty list
+# makes the in-cluster CRs the only exception source, so the GitOps objects
+# govern the score. (--exceptions DOES work on 4.0.13 — the earlier
+# "silently no-ops" note here was wrong; the observed no-op was the portal
+# set outranking in-cluster CRs, not a dead flag.)
 #
 # Why the apps view can score LOWER than the full scan: kubescape's score is
 # severity-weighted over scanned resources — excluding kube-system strips
@@ -22,6 +30,10 @@
 set -euo pipefail
 
 OUT="${TMPDIR:-/tmp}/opencode"
+# empty exceptions file: disables the ARMO portal exception download (see header)
+EXCEPTIONS_FILE="$OUT/empty-exceptions.json"
+mkdir -p "$OUT"
+[[ -s "$EXCEPTIONS_FILE" ]] || echo '[]' > "$EXCEPTIONS_FILE"
 
 score_and_fails() {
   local file="$1" label="$2"
@@ -37,14 +49,15 @@ score_and_fails() {
 
 scan_full() {
   echo "=== full cluster scan (in-cluster SecurityExceptions applied) ==="
-  kubescape scan framework nsa --format json --output "$OUT/nsa-full.json" >/dev/null 2>&1
+  kubescape scan framework nsa --format json --output "$OUT/nsa-full.json" \
+    --exceptions "$EXCEPTIONS_FILE" >/dev/null 2>&1
   score_and_fails "$OUT/nsa-full.json" "full"
 }
 
 scan_apps() {
   echo "=== apps-only scan (kube-system excluded) ==="
   kubescape scan framework nsa --format json --output "$OUT/nsa-apps.json" \
-    --exclude-namespaces kube-system >/dev/null 2>&1
+    --exclude-namespaces kube-system --exceptions "$EXCEPTIONS_FILE" >/dev/null 2>&1
   score_and_fails "$OUT/nsa-apps.json" "apps"
 }
 

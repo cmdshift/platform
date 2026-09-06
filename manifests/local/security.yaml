@@ -1,20 +1,20 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: crds
+  name: security
   namespace: flux-system
 spec:
   # drift-heal only: propagation is event-driven; manual flow = sync_wait + flux_wait
   interval: 1h
   retryInterval: 5s
   dependsOn:
+    - name: namespaces
     - name: sources
+    - name: networking
   sourceRef:
     kind: Bucket
     name: main
-  path: ./manifests/local/crds
-  # never prune: deleting a CRD destroys every CR of that kind cluster-wide —
-  # CRD removal must be deliberate and coordinated, never git-driven
-  prune: false
+  path: ./manifests/local/security
+  prune: true
   wait: true
-  timeout: 2m
+  timeout: 10m

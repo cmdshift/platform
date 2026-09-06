@@ -14,3 +14,4 @@ resources:
   - thanos-operator-system.namespace.yaml
   - logging.namespace.yaml
   - velero.namespace.yaml
+  - kubescape.namespace.yaml

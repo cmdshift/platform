@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# Wait until locally-changed manifests have actually landed in the flux
+# bucket — run BEFORE flux_wait. The sync container mirrors via inotify and
+# drops events (documented in AGENTS.md; hit live twice 2026-09-06 on plain
+# edits) — a reconcile against a stale artifact fails confusingly or, for a
+# helm release, churns upgrade/rollback cycles.
+#
+#   sync_wait                  # wait for every uncommitted change under manifests/
+#   sync_wait <path>...        # wait for specific files (repo-relative or absolute)
+#
+# Compares sha256 of each local file against `rustfs cat main/flux/<path>`
+# (deleted files: converged when the bucket object is gone). Bounded poll
+# (SYNC_WAIT_TIMEOUT, default 120s) echoing progress; exit 0 = converged,
+# 1 = timeout (still-stale files listed + restart hint), 2 = usage.
+#
+# Nothing to do (no changes) exits 0 immediately.
+
+set -euo pipefail
+
+TIMEOUT="${SYNC_WAIT_TIMEOUT:-120}"
+REPO=$(git rev-parse --show-toplevel)
+
+# --- collect repo-relative paths ---
+declare -a paths=()
+if [[ $# -gt 0 ]]; then
+  for p in "$@"; do
+    case "$p" in
+      /*) paths+=("${p#"$REPO"/}") ;;
+      *) paths+=("$p") ;;
+    esac
+  done
+else
+  while IFS= read -r f; do paths+=("$f"); done < <(git status --porcelain -- manifests/ \
+    | awk '{status=$1; $1=""; sub(/^ +/, ""); if (status == "D" || status == "M" || status == "A" || status ~ /^R/) print}')
+  [[ ${#paths[@]} -gt 0 ]] || { echo "nothing changed under manifests/ — bucket sync is a no-op"; exit 0; }
+fi
+
+# local hash set: path -> sha256, empty string for deleted files
+declare -A want
+for p in "${paths[@]}"; do
+  [[ -f "$REPO/$p" ]] && want[$p]=$(sha256sum "$REPO/$p" | awk '{print $1}') || want[$p]=""
+done
+
+stale() {
+  local p h remote
+  for p in "${!want[@]}"; do
+    h="${want[$p]}"
+    remote=$(rustfs cat "main/flux/$p" 2>/dev/null | sha256sum | awk '{print $1}') || remote=""
+    [[ "$remote" == "$h" ]] || echo "$p"
+  done
+}
+
+START=$(date +%s)
+while true; do
+  pending=$(stale | sort)
+  if [[ -z "$pending" ]]; then
+    echo "sync_wait: bucket matches working tree (${#want[@]} file(s))"
+    exit 0
+  fi
+  if (( $(date +%s) - START > TIMEOUT )); then
+    echo "sync_wait: TIMEOUT after ${TIMEOUT}s — still stale in bucket:"
+    sed 's/^/  /' <<< "$pending"
+    echo "hint: docker restart sync-cloud-test forces a full re-mirror (runbooks/local/pipeline-wedged.md)"
+    exit 1
+  fi
+  echo "sync_wait: waiting on $(wc -l <<< "$pending") file(s): $(tr '\n' ' ' <<< "$pending")"
+  sleep 5
+done

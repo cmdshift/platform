@@ -2,6 +2,20 @@
 
 Bringing a new helm chart in (or deciding how to deploy an upstream project at all). Worked example throughout: the thanos-operator, 2026-09-05.
 
+## 0. Import the chart repo into the local helm client
+
+Add the upstream repo locally first — name it the same as the HelmRepository CR it will get in `sources/`:
+
+```
+helm repo add <name> <url> && helm repo update
+```
+
+- `helm search repo <name>/ --versions | head` — find the exact version to pin (releases pin versions, never floating tags)
+- `helm show values <name>/<chart> --version <v>` — read the real values surface before writing release values
+- `helm template <release> <name>/<chart>` — the section-1 size check and admission renders need the chart locally anyway
+
+The tools (helm_verify) resolve sources from the cluster's source CRs into their own temp dir, so a local import isn't strictly required — but it turns every ad-hoc lookup above into one command. Diagnostic note: when helm_verify prints `FAIL: <name> — repo <name> not found`, its `helm repo add` silently swallowed a failure (`|| true`) — usually a transient network hiccup; re-run before digging deeper (velero, 2026-09-06).
+
 ## 1. Can it be a helm release?
 
 Helm persists the release manifest in the `sh.helm.release.*` Secret, which caps at **1MB** (`data: Too long: may not be more than 1048576 bytes`). Check the rendered size **before** the HelmRelease exists:
