@@ -17,6 +17,16 @@ spec:
     remediation:
       retries: 3
   values:
+    # request audit 2026-09-06: chart default request (50Mi) ran at 114% of
+    # request in steady state; 120Mi = observed peak x 1.2. cpu/limits are the
+    # chart defaults, pinned here so a chart bump can't silently re-shrink them
+    resources:
+      requests:
+        cpu: 100m
+        memory: 120Mi
+      limits:
+        cpu: 500m
+        memory: 500Mi
     podSecurityContext:
       runAsNonRoot: true
       runAsUser: 65532

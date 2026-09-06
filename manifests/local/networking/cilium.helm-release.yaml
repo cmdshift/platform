@@ -102,12 +102,14 @@ spec:
     resources:
       requests:
         cpu: 50m
-        memory: 256Mi
+        # request audit 2026-09-06: the busy work node's agent sat at 234Mi
+        # steady (91% of the old 256Mi request); 288Mi = worst-node x 1.2
+        memory: 288Mi
       limits:
         cpu: 200m
         # test-namespace endpoints/identities spiked agents to ~323Mi against
         # the old 384Mi limit (84%) during a connectivity test run; 512Mi keeps
-        # burst headroom, request unchanged (steady state ~160-200Mi)
+        # burst headroom
         memory: 512Mi
     rollOutCiliumPods: true
     securityContext:

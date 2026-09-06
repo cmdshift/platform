@@ -37,6 +37,16 @@ spec:
               containers:
                 - name: manager
                   image: quay.io/thanos/thanos-operator:main-2026-09-03-49cd11f
+                  # request audit 2026-09-06: steady 41Mi against the bundle's
+                  # 64Mi request (64%); 80Mi = observed x 1.2. cpu/limits match
+                  # the bundle (pinned in case the bundle ref moves)
+                  resources:
+                    requests:
+                      cpu: 10m
+                      memory: 80Mi
+                    limits:
+                      cpu: 500m
+                      memory: 128Mi
                   # otel-sidecar gate dropped: it injects tracing config
                   # (localhost:4318) without a collector — every thanos
                   # component spams connection-refused ~2900/hr each

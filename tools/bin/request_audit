@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# Usage-vs-REQUESTS audit across all containers — the scheduling side. The
+# usage-vs-LIMITS siblings are memory_audit/cpu_audit. Convention (AGENTS.md):
+# memory request ≈ P99 × 1.2, i.e. steady usage lands ~83% of request.
+# Containers running ≥100% of their memory request are first in line for
+# eviction under node memory pressure, and their scheduling reservation lies.
+#   request_audit [threshold_pct]   # default 60, filters both tables
+# Judge after the fresh-cluster ramp settles (~3h) — bootstrap scrape/init
+# bursts spike working set above request for the first minutes (see
+# runbooks/local/memory-sizing-audit.md §4).
+
+collect_usage() { # $1 = top column: 5 memory (Mi), 4 cpu (m)
+  kubectl top pods -A --containers --no-headers \
+    | awk -v col="$1" '{print $1"/"$2"/"$3, $col}' | sort
+}
+
+collect_requests() { # $1 = memory|cpu
+  kubectl get pods -A -o json \
+    | jq -r --arg res "$1" '.items[] | .metadata.namespace as $ns | .metadata.name as $p
+        | .spec.containers[]? | select(.resources.requests[$res] != null)
+        | "\($ns)/\($p)/\(.name) \(.resources.requests[$res])"' | sort
+}
+
+mem_ratios() { # requests_file usage_file threshold
+  join "$1" "$2" | awk -v t="$3" '{
+    q=$2; u=$3
+    if (q ~ /Gi$/) {gsub(/Gi$/,"",q); q*=1024} else if (q ~ /Ki$/) {gsub(/Ki$/,"",q); q/=1024} else gsub(/Mi$/,"",q)
+    if (u ~ /Gi$/) {gsub(/Gi$/,"",u); u*=1024} else if (u ~ /Ki$/) {gsub(/Ki$/,"",u); u/=1024} else gsub(/Mi$/,"",u)
+    r=u/q
+    if (r*100 >= t) printf "%-64s %7.0fMi used / %6.0fMi req  %3.0f%%\n", $1, u, q, r*100
+  }' | sort -k5 -rn
+}
+
+cpu_ratios() { # requests_file usage_file threshold — both sides normalized to m
+  join "$1" "$2" | awk -v t="$3" '{
+    q=$2; u=$3
+    if (q ~ /m$/) gsub(/m$/,"",q); else q*=1000
+    if (u ~ /m$/) gsub(/m$/,"",u); else u*=1000
+    r=u/q
+    if (r*100 >= t) printf "%-64s %6sm used / %5sm req  %3.0f%%\n", $1, u, q, r*100
+  }' | sort -k5 -rn
+}
+
+count_mem_over() { # requests_file usage_file pct-cap
+  join "$1" "$2" | awk -v cap="$3" '{
+    q=$2; u=$3
+    if (q ~ /Gi$/) {gsub(/Gi$/,"",q); q*=1024} else if (q ~ /Ki$/) {gsub(/Ki$/,"",q); q/=1024} else gsub(/Mi$/,"",q)
+    if (u ~ /Gi$/) {gsub(/Gi$/,"",u); u*=1024} else if (u ~ /Ki$/) {gsub(/Ki$/,"",u); u/=1024} else gsub(/Mi$/,"",u)
+    if (u/q*100 >= cap) n++
+  } END {print n+0}'
+}
+
+count_no_request() { # $1 = memory|cpu
+  kubectl get pods -A -o json \
+    | jq -r --arg res "$1" '[.items[] | .spec.containers[]? | select(.resources.requests[$res] == null)] | length'
+}
+
+request_audit() {
+  local threshold="${1:-60}"
+  local mem_req mem_use cpu_req cpu_use
+  mem_req=$(mktemp); mem_use=$(mktemp); cpu_req=$(mktemp); cpu_use=$(mktemp)
+  trap 'rm -f "$mem_req" "$mem_use" "$cpu_req" "$cpu_use"' EXIT
+  collect_requests memory > "$mem_req"; collect_usage 5 > "$mem_use"
+  collect_requests cpu    > "$cpu_req"; collect_usage 4 > "$cpu_use"
+
+  echo "== memory: usage vs request (>= ${threshold}%) =="
+  mem_ratios "$mem_req" "$mem_use" "$threshold"
+  echo "== cpu: usage vs request (>= ${threshold}%) =="
+  cpu_ratios "$cpu_req" "$cpu_use" "$threshold"
+  echo "---"
+  echo "memory usage over 100% of request: $(count_mem_over "$mem_req" "$mem_use" 100)"
+  echo "memory usage over 80% of request (audit threshold): $(count_mem_over "$mem_req" "$mem_use" 80)"
+  echo "containers without memory request: $(count_no_request memory) (control-plane statics + kube-proxy are expected)"
+}
+
+request_audit "$@"

@@ -106,7 +106,9 @@ spec:
       resources:
         requests:
           cpu: 50m
-          memory: 160Mi
+          # request audit 2026-09-06: steady 102Mi against the old 160Mi
+          # request (64%); 224Mi = observed x 1.2
+          memory: 224Mi
         limits:
           cpu: 1000m
           memory: 1Gi

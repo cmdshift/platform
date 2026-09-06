@@ -37,10 +37,12 @@ spec:
     resources:
       requests:
         cpu: 10m
-        memory: 80Mi
+        # request audit 2026-09-06: steady 77Mi peak against the old 80Mi
+        # request; 96Mi = observed x 1.2, limit bumped to keep the 1.5x ratio
+        memory: 96Mi
       limits:
         cpu: 200m
-        memory: 120Mi
+        memory: 144Mi
     cainjector:
       containerSecurityContext:
         runAsUser: 65532

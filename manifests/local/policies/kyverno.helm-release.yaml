@@ -60,7 +60,9 @@ spec:
         resources:
           requests:
             cpu: 15m
-            memory: 200Mi
+            # request audit 2026-09-06: steady 120Mi against the old 200Mi
+            # request; 208Mi = observed peak x 1.2
+            memory: 208Mi
           limits:
             cpu: 500m
             memory: 300Mi
