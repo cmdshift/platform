@@ -27,11 +27,13 @@ for `rustfs`. macOS date math (`date -v`) assumes darwin.
 |---|---|
 | `yaml_lint` | parse-check all YAML manifests (pre-reconcile lint) |
 | `helm_verify` | render every HelmRelease's values via `helm template` (values-path check) |
+| `sync_wait` | wait until changed manifests have actually landed in the flux bucket |
 | `flux_wait` | reconcile from the root + bounded poll to all-green |
+| `pod_status` | pod table with restarts + last exit code/reason (crashloop triage) |
 | `memory_audit` | memory usage-vs-limits table |
 | `cpu_audit` | CPU throttling top-N + usage-vs-limits table |
 | `request_audit` | usage-vs-requests table, memory + CPU (scheduling side) |
-| `policy_report` | PolicyReport summary + stale-report detection |
+| `policy_report` | PolicyReport summary + stale-report detection (`--clean` deletes them) |
 | `nsa_scan` | kubescape NSA posture scan (full / apps views) |
 | `kyverno_unblock` | unstick kyverno rollouts deadlocked on hostNetwork ports |
 | `prometheus_query` | PromQL with port-forward lifecycle handled |
@@ -51,12 +53,14 @@ The pre-reconcile lint step.
 - Exits 1 on the first bad file (prints it + the error); `OK: N files …` when clean
 - Syntax only — value-path verification is `helm_verify`'s job
 
-### `helm_verify [path]`
+### `helm_verify [path] [release]`
 
 Renders every HelmRelease's `spec.values` through `helm template` (the
 AGENTS.md "verify values paths" step, automated). Charts resolve from the
 source CRs on the live cluster: HelmRepository → repo index, GitRepository
-(tag/commit) → shallow clone. All helm state lives in a temp dir.
+(tag/commit) → shallow clone. All helm state lives in a temp dir. An
+optional release-name argument renders just that one (ad-hoc values
+debugging without the full-suite noise).
 
 - `PASS/FAIL` per release + `OK: N releases render clean`; exit 1 on any
   failure or missing source CR
@@ -65,6 +69,21 @@ source CRs on the live cluster: HelmRepository → repo index, GitRepository
   — for schema-less charts this catches nil-pointer template errors, not
   key typos. Cross-check surprise diffs against the chart's values.yaml
 - Needs `helm` + `git` CLIs beyond the shared deps
+
+### `sync_wait [path...]`
+
+Waits until locally-changed manifests have actually landed in the flux
+bucket. The sync container mirrors via inotify and **drops events** (plain
+edits included — hit twice 2026-09-06, once causing helm upgrade/rollback
+churn); a reconcile against a stale artifact fails confusingly. Run between
+editing and `flux_wait`.
+
+- No args: every uncommitted change under `manifests/` (from git status);
+  args: specific files (repo-relative or absolute)
+- Compares sha256 of each local file against `rustfs cat main/flux/<path>`;
+  deleted files converge when the bucket object is gone
+- Bounded: `SYNC_WAIT_TIMEOUT` (default 120s). Exit 0 converged; exit 1
+  timeout with still-stale list + `docker restart sync-cloud-test` hint
 
 ### `flux_wait [max_polls]`
 
@@ -116,7 +135,8 @@ PolicyReport summary (the AGENTS.md final check): fail/skip/pass counts
 (failures: 0 expected — skips are PolicyExceptions), per-namespace counts,
 and **stale-report detection** (reports scoped to resources that no longer
 exist — kyverno never retracts them; delete the stale report objects
-directly). Counts pods and controller kinds + jobs.
+directly). Counts pods and controller kinds + jobs. `--clean` deletes the
+stale reports it lists, then re-prints the fresh summary.
 
 ### `nsa_scan [full|apps|both]`
 
@@ -165,6 +185,16 @@ Subjects of the latest alert emails from http://mail.cloud.test (ruler →
 alertmanager delivery), newest first. Default 10.
 
 ## Operations
+
+### `pod_status [-n ns] [-l selector] [name-prefix]`
+
+Pod triage table: phase, ready counts, restarts, and the **last termination
+(exit code + reason)** per container — what `kubectl get pods` hides and the
+first step of runbooks/local/crashloop-investigation.md.
+
+- Informational: exit 0 even when crashing (the data is the output)
+- Footer lists restart>0 pods as `kubectl logs --previous` one-liners
+- Exit codes: 0 always (usage errors aside)
 
 ### `velero_wait backup|restore <name> [max_polls]`
 

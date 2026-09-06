@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 # PolicyReport summary — the AGENTS.md final check plus stale-report detection.
-#   policy_report
+#   policy_report            # summary + stale-report listing
+#   policy_report --clean    # delete the stale reports, then re-print
 # Prints fail/skip/pass counts (failures: expect 0; skips = PolicyExceptions),
 # per-namespace report counts, and reports scoped to resources that no longer
 # exist (kyverno never retracts unmatched reports — AGENTS.md says delete the
 # stale objects directly). Counts pods AND controller kinds (and jobs, for
 # helm-hook reports) since background scans emit one report per subject.
+
+clean=false
+[[ "${1:-}" == "--clean" ]] && { clean=true; shift; }
 
 policy_report() {
   local reports live scopes
@@ -38,6 +42,25 @@ policy_report() {
   if [ -n "$stale" ]; then
     echo "delete these directly (never retracted):"
     echo "$stale" | awk -F'\t' '{printf "  %s/%s %s\n", $1, $2, $3}'
+    if [[ "$clean" == "true" ]]; then
+      # report-object names for the stale scopes (comma-joined key match —
+      # k8s resource names can't contain commas)
+      local stale_keys
+      stale_keys=$(echo "$stale" | awk -F'\t' '{print $1"/"$2"/"$3}' | paste -sd, -)
+      local names
+      names=$(jq -r --arg keys ",$stale_keys," '
+          .items[] | select(.scope != null)
+          | ((.metadata.namespace) + "/" + (.scope.kind) + "/" + (.scope.name)) as $k
+          | select(($keys | contains("," + $k + ",")))
+          | .metadata.namespace + "\t" + .metadata.name' "$reports")
+      if [[ -n "$names" ]]; then
+        echo "deleting stale reports:"
+        while IFS=$'\t' read -r ns name; do
+          kubectl delete policyreport -n "$ns" "$name" && echo "  deleted $ns/$name"
+        done <<< "$names"
+        exec "$0"
+      fi
+    fi
   else
     echo "none"
   fi

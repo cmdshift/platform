@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Crashloop triage snapshot — the table the crashloop-investigation runbook
+# starts from: phase, restarts, and the LAST termination (exit code + reason)
+# per container, which `kubectl get pods` hides.
+#
+#   pod_status                        # all namespaces
+#   pod_status -n kubescape           # one namespace
+#   pod_status -n kubescape node-agent   # namespace + name prefix
+#   pod_status -l app.kubernetes.io/name=foo
+#
+# Informational: exit 0 even when things are crashing (the data IS the
+# output). Footer hint lists pods worth `kubectl logs --previous`.
+
+set -euo pipefail
+
+ns_args=(-A); sel_args=(); prefix=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -n) ns_args=(-n "$2"); shift 2 ;;
+    -l) sel_args=(-l "$2"); shift 2 ;;
+    *) prefix="$1"; shift ;;
+  esac
+done
+
+kubectl get pods -o json "${ns_args[@]}" "${sel_args[@]}" | jq -r --arg prefix "$prefix" '
+  def info: . as $p
+    | [.status.containerStatuses[]?] as $cs
+    | {
+        ns: .metadata.namespace, name: .metadata.name,
+        phase: .status.phase,
+        ready: ((([.status.containerStatuses[]? | select(.ready)] | length | tostring)) + "/" + ((.status.containerStatuses // []) | length | tostring)),
+        restarts: ([$cs[]?.restartCount] | add // 0),
+        exit: ([$cs[]? | .lastState.terminated?.exitCode | select(. != null) | tostring] | join(",") | if . == "" then "-" else . end),
+        reason: ([$cs[]? | .lastState.terminated?.reason | select(. != null)] | join(",") | if . == "" then (($p.status.containerStatuses[0]?.state.waiting?.reason // "-")) else . end),
+        age: ((now - (.metadata.creationTimestamp | fromdateiso8601)) / 60 | floor | tostring + "m")
+      };
+  (["NS", "POD", "PHASE", "READY", "RESTARTS", "EXIT", "LAST-REASON", "AGE"] | @tsv),
+  (.items[] | info
+    | select($prefix == "" or (.name | startswith($prefix)))
+    | [.ns, .name, .phase, .ready, (.restarts | tostring), .exit, .reason, .age] | @tsv)' \
+| column -t
+
+echo
+suspects=$(kubectl get pods -o json "${ns_args[@]}" "${sel_args[@]}" | jq -r --arg prefix "$prefix" '
+  .items[]
+  | select($prefix == "" or (.metadata.name | startswith($prefix)))
+  | select([.status.containerStatuses[]? | .restartCount > 0] | any)
+  | "\(.metadata.namespace)/\(.metadata.name)"' | sort -u)
+if [[ -n "$suspects" ]]; then
+  echo "restarts>0 — check logs + exit codes (runbooks/local/crashloop-investigation.md):"
+  sed 's/^/  kubectl logs --previous -n /; s/\// /; s/$//' <<< "$suspects" | head -10
+fi

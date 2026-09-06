@@ -10,7 +10,10 @@ metadata:
   name: local
   namespace: flux-system
 spec:
-  interval: 10m
+  # drift-heal only — propagation is event-driven (artifact change → dependsOn
+  # requeue at 5s); loosened from 10m so background reconciles don't interleave
+  # with interactive work (see main.bucket.yaml for the reasoning)
+  interval: 1h
   retryInterval: 5s
   sourceRef:
     kind: Bucket

@@ -2,7 +2,8 @@
 # Render every HelmRelease's spec.values through `helm template` — the
 # values-path verification step (catches bad values keys/paths before flux
 # ships them to the cluster).
-#   helm_verify [path]   # default manifests/local
+#   helm_verify [path] [release]   # default: manifests/local, all releases;
+#                                  # a release name renders just that one
 # Chart sources resolve from the live cluster's source CRs
 # (`kubectl get helmrepo,gitrepo -n flux-system`): HelmRepository →
 # `helm repo add` + template from the repo index; GitRepository (tag or
@@ -20,6 +21,7 @@
 set -uo pipefail
 
 path="${1:-manifests/local}"
+filter="${2:-}"
 fail=0
 
 tmp=$(mktemp -d)
@@ -55,6 +57,7 @@ kube_args=(); [[ -n "$kubever" ]] && kube_args=(--kube-version "$kubever")
 count=0
 for f in $(grep -rl --include='*.yaml' 'kind: HelmRelease' "$path" 2>/dev/null | sort); do
   while IFS=$'\t' read -r name ns chart version srcKind srcName; do
+    if [[ -n "$filter" && "$name" != "$filter" ]]; then continue; fi
     count=$((count + 1))
     url=$(awk -F'\t' -v n="$srcName" -v k="$srcKind" '$1==n && $2==k {print $3; exit}' "$tmp/sources.tsv")
     if [[ -z "$url" ]]; then

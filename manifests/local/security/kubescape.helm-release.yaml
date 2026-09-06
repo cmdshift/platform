@@ -27,10 +27,16 @@ spec:
     # context is admin@local-test; the bare cluster name is what results carry
     clusterName: local-test
     capabilities:
-      # lean install: posture + risk acceptance only. nodeScan/runtime/vuln
-      # pull in a privileged node-agent DaemonSet (hostPath x10, hostPID,
-      # root) that admission rejects, and kubescape's own admissionController
-      # would duplicate kyverno. Audit the lean set before ever widening it.
+      # lean install: posture + risk acceptance only. The node-agent cannot
+      # run here — its container watcher marks runc with a fanotify PERMISSION
+      # event unconditionally at startup, and the linuxkit 7.0.12 kernel
+      # (Docker Desktop VM) ships CONFIG_FANOTIFY_ACCESS_PERMISSIONS=n, so the
+      # mark fails EINVAL and the agent fatals on every node. Verified live
+      # 2026-09-06 (with RUNTIME_PATH set correctly too). This is a docker-VM
+      # kernel limit, not a Talos one — nodeScan is viable in the cloud
+      # (manifests/cloud/notes.md). Still off: vuln scanning (registry egress
+      # + kubevuln weight), and kubescape's own admissionController (kyverno
+      # already owns admission).
       configurationScan: enable
       continuousScan: enable
       riskAcceptance: enable # operator reads SecurityException CRs (default disable)
