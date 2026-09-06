@@ -124,9 +124,12 @@ Kubescape NSA framework scan. Default/full = headline number; `apps`
 excludes kube-system (prod-style view — can score *lower* because the score
 is severity-weighted over scanned resources). In-cluster
 `SecurityException`/`ClusterSecurityException` CRDs
-(`policies-config/*.security-exception.yaml`) are applied automatically at
-scan time — the CLI's `--exceptions` flag silently no-ops on 4.0.13.
-Findings + acceptance rationale: manifests/local/notes.md.
+(`security-config/*.security-exception.yaml`) are applied automatically at
+scan time. The scan also passes `--exceptions` with an empty file — that
+replaces the ARMO-portal exception download whose bundled GKE/AKS/EKS
+"systemExceptions" would otherwise outrank the in-cluster CRs on overlap
+(see nsa_scan header + notes.md). Findings + acceptance rationale:
+manifests/local/notes.md.
 
 ### `kyverno_unblock`
 

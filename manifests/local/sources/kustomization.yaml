@@ -15,4 +15,5 @@ resources:
   - ../../sources/grafana.helm-repository.yaml
   - ../../sources/grafana-community.helm-repository.yaml
   - ../../sources/prometheus-community.helm-repository.yaml
+  - ../../sources/kubescape.helm-repository.yaml
   - ../../sources/thanos-operator.git-repository.yaml

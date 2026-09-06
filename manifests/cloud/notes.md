@@ -28,3 +28,13 @@ What must change vs the local helm release:
 - `l2announcements` → only if the cloud VMs share an L2 segment; otherwise replace with the LB story above.
 
 Keep as-is (validate under real traffic): wireguard encryption, `ipam.mode: kubernetes`, resource sizing (re-audit — local sizing was tuned for idle test loads, not real traffic).
+
+## Kubescape operator (local: manifests/local/security/)
+
+The local cluster runs the kubescape operator lean (config scanning + continuous scanning + risk acceptance only) — see `manifests/local/notes.md`. Cloud changes:
+
+- `kubescape.downloadArtifacts: true` ("remove in the cloud" marker on the local `false`) + a `security` CNP with egress to the artifact hosts (github.com / objects.githubusercontent.com, 443) — local keeps the baked-in policy set so the one-shot rebuild has no external egress dependency.
+- Consider `capabilities.nodeScan: enable` in the cloud: the kubelet controls C-0069/C-0070 are `notEvaluated` without the node-agent, capping the NSA score at ~92 locally. Real nodes make them evaluable — but budget for the node-agent's admission story (privileged hostPath DaemonSet → PolicyException + PSS) and eBPF-on-real-kernel verification.
+- `capabilities.admissionController` stays **disabled** in the cloud too — kyverno owns admission there as well.
+- `security-config/` holds ALL kubescape SecurityExceptions (migrated from `policies-config/`, which keeps only kyverno PolicyExceptions). Copy it wholesale, then re-review the kube-system entries: the Talos statics/kube-proxy/coredns rationales carry over (still Talos-rendered), but re-run `nsa_scan` first — the cloud cilium runs non-hostNetwork and the findings set will differ.
+- `nsa_scan`'s empty `--exceptions` file stays: the ARMO-portal systemExceptions preempt in-cluster CRs on overlap regardless of cluster.

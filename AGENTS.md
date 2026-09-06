@@ -26,7 +26,7 @@ Local file → docker sync container (`rc mirror --overwrite --remove` + inotify
 **Final checks:**
 1. Green everywhere: `kubectl get helmreleases -A` (kustomizations are already covered by `flux_wait`'s exit code)
 2. `policy_report` → failures: 0 expected (skips = exceptions); also lists stale reports for gone resources
-3. `nsa_scan` (kubescape NSA) for compliance — baseline ~85 with the in-cluster `SecurityException`s applied; zero findings outside kube-system (accepted findings + reasons in `manifests/local/notes.md` and `policies-config/*.security-exception.yaml`)
+3. `nsa_scan` (kubescape NSA) for compliance — baseline **92.3, zero failing controls** (kubelet controls C-0069/C-0070 are `notEvaluated` without the operator's node-agent — the lean ceiling; see `manifests/local/notes.md`). Accepted findings + reasons in `manifests/local/notes.md` and `security-config/*.security-exception.yaml`
 
 ## Admission policy (read this before adding any workload)
 
