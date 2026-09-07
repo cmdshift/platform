@@ -42,7 +42,9 @@ kustomizeController:
   resources:
     requests:
       cpu: 50m
-      memory: 192Mi
+      # 2026-09-07 audit: 178Mi steady = 93% of the old 192Mi request —
+      # 224Mi = P99 x 1.2; 512Mi limit holds
+      memory: 224Mi
     limits:
       cpu: 1000m
       memory: 512Mi
@@ -89,7 +91,8 @@ sourceController:
       # request audit 2026-09-06: steady 102Mi against the old 160Mi
       # request (64%); 224Mi = observed x 1.2 — then the full overnight
       # window peaked 220Mi = 98% of 224Mi, so 256Mi (peak x 1.2)
-      memory: 256Mi
+      # 2026-09-07 audit: 260Mi steady = 102% of 256Mi — 320Mi = P99 x 1.2
+      memory: 320Mi
     limits:
       cpu: 1000m
       memory: 1Gi

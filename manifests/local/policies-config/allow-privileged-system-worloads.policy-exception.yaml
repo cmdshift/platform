@@ -2,11 +2,17 @@ apiVersion: policies.kyverno.io/v1
 kind: PolicyException
 metadata:
   name: allow-privileged-system-workloads
-  namespace: kyverno
+  namespace: policies
+  # ns refactor #31: bumped 2026-09-07 to force the kyverno admission engine to
+  # re-pick-up the matchConditions update (the generator saw the edit, the
+  # admission path kept evaluating the previous expression — storage matched,
+  # backups denied with identical CEL)
+  annotations:
+    platform.cmdshift.io/ns-refactor: "2026-09-07"
 spec:
   policyRefs:
     - name: disallow-privileged
       kind: ValidatingPolicy
   matchConditions:
     - name: exempt-namespaces
-      expression: "object.metadata.namespace in ['local-path-storage', 'velero']"
+      expression: "object.metadata.namespace in ['storage', 'backups']"

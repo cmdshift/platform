@@ -147,7 +147,10 @@ serviceMonitor:
 resources:
   requests:
     cpu: 50m
-    memory: 256Mi
+    # 2026-09-07 audit (burn-in done): steady ~322Mi, but hourly scan bursts
+    # peak 496Mi = 111% of the 448Mi request — 640Mi = burst-P99 x 1.2;
+    # limit stays 1Gi (usage 50% of it)
+    memory: 640Mi
   limits:
     cpu: 1000m
     memory: 1Gi

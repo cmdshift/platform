@@ -70,7 +70,7 @@ groups:
     rules:
       - alert: TrivyCriticalImageVulnerabilities
         expr: |
-          sum by (namespace) (trivy_image_vulnerabilities{severity="Critical", namespace=~"kube-system|flux-system|monitoring|security|storage|logging|objects"}) > 0
+          sum by (namespace) (trivy_image_vulnerabilities{severity="Critical", namespace=~"kube-system|flux-system|certificates|secrets|policies|storage|objects|monitoring|backups|logging|security"}) > 0
         for: 15m
         labels:
           severity: warning

@@ -5,7 +5,7 @@ resources:
   - kyverno.helm-release.yaml
 configMapGenerator:
   - name: kyverno-values
-    namespace: kyverno
+    namespace: policies
     files:
       - values.yaml=kyverno-values.yaml
     options:

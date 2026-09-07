@@ -19,11 +19,8 @@ Also not ladder material: the release is **kyverno itself** and its pods sit Pen
 
 ## Escalation ladder
 
-1. Reconcile:
-   ```
-   flux reconcile helmrelease <name> -n <ns>
-   ```
-2. Clear Stalled + retry counters:
+1. Reconcile — recognize the **terminal-state replay**: once `remediation.retries` is exhausted, every later reconcile replays the cached failure ("terminal error: exceeded maximum retries" in helm-controller logs) without re-attempting, even after the original blocker is fixed. An instant return of the old error = replay, not a fresh attempt. Use `helm_wait <ns> <name>` — it surfaces the HR failure message immediately instead of polling.
+2. Clear Stalled + retry counters (forces a genuinely fresh install after a terminal state):
    ```
    flux suspend helmrelease <name> -n <ns> && flux resume helmrelease <name> -n <ns>
    ```
@@ -32,6 +29,10 @@ Also not ladder material: the release is **kyverno itself** and its pods sit Pen
    kubectl get secrets -n <ns> -l owner=helm
    helm uninstall <release> -n <ns>
    ```
+
+## Wedged finalizer
+
+An HR deletion that hangs on `finalizers.fluxcd.io` means the uninstall is stuck (hit live 2026-09-07: the old release's `kyverno-scale-to-zero` hook retried forever against already-deleted deployments). Clearing the finalizer (`kubectl patch hr <name> -n <ns> --type=merge -p '{"metadata":{"finalizers":null}}'`) skips the uninstall — safe when the remaining work is namespace-scoped garbage that dies with the old namespace and chart CRDs are not GC'd by helm-controller anyway. Check cluster-scoped release objects (webhook configs) survive/are recreated before clearing.
 
 ## Context
 

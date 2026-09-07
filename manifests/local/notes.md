@@ -10,10 +10,11 @@ Inventory of settings in this tree that are deliberately local-only — the coun
 - `gatewayAPI.hostNetwork: true` on `k8s-role/work` nodes — publishes LB ports on the docker host
 - `l2announcements` — relies on the docker bridge network being one L2 segment
 
-## Kyverno — `policies/kyverno.helm-release.yaml`, `namespaces/kyverno.namespace.yaml`
+## Kyverno — `policies/kyverno.helm-release.yaml`, `namespaces/policies.namespace.yaml`
 
 - `hostNetwork: true` on all 4 controllers (marked `# remove in the cloud`) — docker host ports; also the cause of the rollout-deadlock landmine (`tools/bin/kyverno_unblock`)
-- PSS `privileged` labels on the kyverno namespace (marked `# remove in the cloud`)
+- PSS `privileged` labels on the `policies` namespace (marked `# remove in the cloud`)
+- kyverno reads PolicyExceptions from `features.policyExceptions.namespace: policies` — the exceptions live with it (ns refactor 2026-09-07, see the namespace-convention section)
 
 ## Velero — `backups/velero.helm-release.yaml`
 
@@ -166,6 +167,19 @@ Deliberate settings (rationale comments at each value):
 
 Session learnings: the sync container dropped an **edit** again (third occurrence — 2026-09-06 ×2, now 2026-09-07 on the helm-release; `sync_wait`'s file-count match hid it — always verify a marker with `rustfs cat` on edit-heavy changes). The Docker port-publisher wedge above cost a debugging round the same session. Sizing is provisional (operator 50m/256Mi → 1000m/1Gi) — audit after burn-in per the resource-sizing convention; scan jobs were re-sized from evidence 2026-09-07 (above).
 
+## Namespace convention (2026-09-07, issue #31)
+
+Operators install into a namespace named after their kustomization group — one namespace per ops domain, prepping for lab/dev/prod layering (cluster admins own operators; user workloads later land in `default`). Full mapping, migration rules, and the traps hit live: [runbooks/local/namespace-migration.md](../../runbooks/local/namespace-migration.md). Summary:
+
+- **Moved**: cert-manager → `certificates`, external-secrets + ClusterSecretStore → `secrets`, kyverno + all PolicyExceptions → `policies`, local-path-provisioner → `storage`, seaweedfs-operator → `objects` (joins its cluster), thanos-operator → `monitoring` (bundle resources patched; the bundle's own Namespace manifest is renamed to converge with ours), velero → `backups`.
+- **Stayed**: cilium/metrics-server/kubelet-csr-approver in `kube-system` (cluster plumbing, per the issue), flux in `flux-system`, prometheus-operator-crds in `monitoring` (monitoring-owned CRD plumbing — deliberately not a `crds` ns), alloy/loki in `logging`, tetragon/trivy in `security`.
+- **Secrets-server paths mirror namespaces** (`/www/<namespace>/<key>`): `cert-manager/intermediate-ca` → `certificates/intermediate-ca` (terraform `locals.certificates` + upload path + ES key); the rest already matched.
+- **ClusterSecretStore `conditions`** gate which namespaces it serves — `certificates` and `backups` replaced `cert-manager` and `velero`. Adding a workload in a new namespace means adding it there too.
+- **Explicit `metadata.namespace` on every HelmRelease** — the HR namespace is the release target; no kustomize `namespace:` transformers (they clobber explicit fields).
+- Old namespaces deleted after the move: `cert-manager`, `external-secrets`, `kyverno`, `local-path-storage`, `seaweedfs-operator`, `thanos-operator-system`, `velero`.
+
+Cloud: the same convention when refactoring `manifests/cloud/` — the kyverno `policies` ns keeps its "remove in the cloud" PSS/hostNetwork markers.
+
 ## valuesFrom everywhere (2026-09-07)
 
 All 17 HelmReleases now ship values via **configMapGenerator → `valuesFrom`** (issue cmdshift/platform#31; trivy was the 2026-09-07 pilot). Per release: values live in a plain `<release>-values.yaml` next to the HelmRelease, and the dir's `kustomization.yaml` generates `ConfigMap/<release>-values` (`valuesKey: values.yaml`). `prometheus-operator-crds` is the only release without values — untouched.
@@ -180,3 +194,20 @@ Conventions (the inline file comments were deliberately kept terse — this sect
 Tooling: `helm_verify` resolves `valuesFrom` refs locally (configMapGenerator entry first, literal ConfigMap fallback, unresolved = FAIL) and renders the exact values flux ships. `sync_wait` had a bug fixed this session: untracked files were excluded from its git-status collection, so newly-created manifests were never verified against the bucket (silent gap on add-style changes).
 
 Cloud: adopt the same layout when refactoring `manifests/cloud/` — no local-only settings involved.
+
+## Resource audit (2026-09-07, post ns-refactor)
+
+Full three-audit sweep after the namespace move churned the cluster (all values applied via `helm_wait`; rationale comments at each value):
+
+- **Request-side fixes (eviction risk — the real finding)**: tetragon 128→512Mi (usage was 312-338% of request, spike 497Mi against the old 512Mi limit), prometheus 1Gi→1.5Gi / limit 1536→2304Mi (108% of request; head series still climbing — see below), cilium-agent 288→448Mi / limit 672Mi (103-122%), trivy-operator 256→448Mi (135%), loki 320→384Mi / limit 576Mi (92%), alloy 240→384Mi / limit 576Mi (118-129%), source-controller 256→320Mi (102%), kustomize-controller 192→224Mi (93%), kube-state-metrics 64→96Mi / limit 144Mi (119%), thanos-query 64→112Mi / limit 160Mi (131% + 88% of limit), thanos-operator 80→112Mi / limit 168Mi (106%), thanos-ruler 56→72Mi (100%), loki chunks-cache memcached 40→64Mi / limit 96Mi (123%).
+- **CPU-limit fixes (burst throttling)**: cilium-agent 200m→500m (21.8% of CFS periods throttled), cilium-operator 40m→200m (7.3%), hubble-ui backend 100m→200m (13.6%), hubble-ui frontend 20m→100m (33% in the rollout window), prometheus config-reloader 200m→500m (18.1%), CR-managed alertmanager 200m→500m (15.2%).
+- **Not touched, deliberate**: kube-apiserver/kube-scheduler (static control-plane pods, nominal requests), hubble-ui backend/frontend + loki-gateway nginx request tightness (13-44Mi absolutes, well under limits), node-exporter/local-path-provisioner/cainjector throttles (6.5-8.3%, one-shot bursts), the historical `kubectl`-in-kyverno throttle series (namespace deleted during the refactor).
+- **Second pass (same audit, after the first rollout)**: trivy-operator 448→640Mi request (hourly scan bursts peak 496Mi = 111%), loki 384→512Mi / limit 768Mi (still climbing post-WAL-replay: 296→404Mi), prometheus cpu request 50m→100m (56m steady = 112%).
+- **Scheduling health (post-audit)**: zero Pending; DaemonSets 5/5 (alloy 4/4 — control-plane taint respected). Per-node allocations: memory requests 9-20%, cpu requests 4-7% — reservations honest with wide headroom. Two deliberate wrinkles to know about: (1) cpu **limits** sit at 80-101% of allocatable on the busy nodes (flux controllers/tetragon/trivy/kyverno-reports carry 1-2 CPU burst limits) — limits-overcommit is the convention's accepted model, throttling only bites if bursts collide (cpu_audit shows nothing sustained ≥50% of limit); (2) the control-plane node's "9% allocated" understates reality — the kube-system statics carry nominal requests (apiserver reserves 512Mi, runs ~3Gi), so the ctrl node's real usage is ~3Gi above its reservation.
+- **Two open watches**: (1) tetragon's rising baseline — 210→430Mi over 6h on ALL agents, eventcache ruled out (70-94 entries); if it keeps climbing at steady state it's a leak → tracking issue, don't just re-bump. (2) prometheus head series 157k→187k over ~2h with `scrape_series_added` ≈ 0 — looks like churn-decay lag (dead targets' series still in the head); if it plateaus the 1.5Gi request covers the P99, if it keeps climbing it's a relabeling problem (per the #20 playbook), not another bump.
+
+## Trivy alerting verified + ruler store-path window (2026-09-07)
+
+Trivy alerting was suspected missing; verification says it's fully wired (metric → thanos-rules CM → ruler → mailpit, `TrivyCriticalImageVulnerabilities` FIRING). The real defect — the alert flaps fire→resolve across trivy rescan cycles (gauge dips mid-rescan) — is tracked with fix options in cmdshift/platform#36. Critical-only coverage (no High alert) was never a recorded decision; decide when the flap is fixed.
+
+**Ruler store-path window**: during verification the ruler logged `no query API server reachable` / store `dial tcp <pod-ip>:10901: i/o timeout` — the query's SRV-resolved store endpoint held a stale pod IP after the store pod was recreated, and the query errors the WHOLE request when one store dials out (even head-only rules failed). Self-healed when the query pod rolled. **Not a CiliumNetworkPolicy block** — direct dial from the query pod to the live store IP passes (`wget http://<store-ip>:10902/-/ready`). This is the store-path sibling of the "head path broken again" landmine; triage order: ruler logs → dial-test the store IP from the query pod → only then suspect policy.

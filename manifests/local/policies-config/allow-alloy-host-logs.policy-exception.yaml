@@ -2,7 +2,7 @@ apiVersion: policies.kyverno.io/v1
 kind: PolicyException
 metadata:
   name: allow-alloy-host-logs
-  namespace: kyverno
+  namespace: policies
 spec:
   policyRefs:
     - name: disallow-host-path

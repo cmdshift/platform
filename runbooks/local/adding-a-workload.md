@@ -30,7 +30,7 @@ The cluster runs default-deny egress (except kube-system); every workload needs 
 - `kube-apiserver` egress (almost everything)
 - intra-namespace for peer traffic
 - specific service: `toEndpoints` + `matchLabels: io.kubernetes.pod.namespace: <ns>` + port
-- external companions: `toFQDNs: matchName: <host>.cloud.test` + port (e.g. the velero CNP's `s3.cloud.test:80` rule, external-secrets' `secrets.cloud.test:80`)
+- external companions: `toFQDNs: matchName: <host>.cloud.test` + port (e.g. the backups CNP's `s3.cloud.test:80` rule, secrets' `secrets.cloud.test:80`)
 
 ## 5. Secrets (if needed)
 

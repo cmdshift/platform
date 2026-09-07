@@ -5,7 +5,7 @@ resources:
   - seaweedfs-operator.helm-release.yaml
 configMapGenerator:
   - name: seaweedfs-operator-values
-    namespace: seaweedfs-operator
+    namespace: objects
     files:
       - values.yaml=seaweedfs-operator-values.yaml
     options:

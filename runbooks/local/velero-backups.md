@@ -2,17 +2,17 @@
 
 ## Architecture
 
-Velero backs up to **rustfs** (out-of-cluster): bucket `backups` at `s3.cloud.test`, user `backups-user` via the secrets-server payload `backups/velero-s3-credentials` (secret key `default`), egress through the velero CNP's `toFQDNs: s3.cloud.test` rule. The BSL is `default` (`manifests/local/backups-config/default.backup-storage-location.yaml`); the `pvcs` schedule (03:00 daily, all namespaces, fs-backup, 168h TTL) is the nightly run.
+Velero backs up to **rustfs** (out-of-cluster): bucket `backups` at `s3.cloud.test`, user `backups-user` via the secrets-server payload `backups/velero-s3-credentials` (secret key `default`), egress through the backups CNP's `toFQDNs: s3.cloud.test` rule. The BSL is `default` (`manifests/local/backups-config/default.backup-storage-location.yaml`); the `pvcs` schedule (03:00 daily, all namespaces, fs-backup, 168h TTL) is the nightly run.
 
 ## Check the nightly backup (morning routine)
 
 ```
-kubectl -n velero get backups
+kubectl -n backups get backups
 ```
 
-Expect `pvcs-YYYYMMDD030015`-style entries with `Completed`. Since 2026-09-05 the nightly also captures volume data (local-path `local` PVs): `kubectl -n velero get podvolumebackups -l velero.io/backup-name=<name>` should list one per PVC-backed pod — **empty means the data path broke again** (hostPath regression or the PolicyException/configmap got dropped). If `Failed`:
+Expect `pvcs-YYYYMMDD030015`-style entries with `Completed`. Since 2026-09-05 the nightly also captures volume data (local-path `local` PVs): `kubectl -n backups get podvolumebackups -l velero.io/backup-name=<name>` should list one per PVC-backed pod — **empty means the data path broke again** (hostPath regression or the PolicyException/configmap got dropped). If `Failed`:
 
-1. `kubectl -n velero describe backup <name> | tail -40` and `kubectl -n velero logs deploy/velero --tail=200 | grep -i error`
+1. `kubectl -n backups describe backup <name> | tail -40` and `kubectl -n backups logs deploy/velero --tail=200 | grep -i error`
 2. Check the velero pod for restarts (`OOMKilled` history: the server needs 256Mi+ for kopia repo prep — see the sizing comment in `backups/velero.helm-release.yaml`)
 3. Confirm the BSL is `Available` and the rustfs `backups` bucket exists (`rc ls main/` in the storage container)
 
@@ -21,14 +21,14 @@ Expect `pvcs-YYYYMMDD030015`-style entries with `Completed`. Since 2026-09-05 th
 Small backup (k8s objects only, fast, no volume data):
 
 ```
-kubectl -n velero apply -f - <<'EOF'
+kubectl -n backups apply -f - <<'EOF'
 apiVersion: velero.io/v1
 kind: Backup
 metadata:
   name: test-backup
-  namespace: velero
+  namespace: backups
 spec:
-  includedNamespaces: ["velero"]
+  includedNamespaces: ["storage"]
   defaultVolumesToFsBackup: false
   snapshotVolumes: false
   ttl: 1h
@@ -56,9 +56,9 @@ Two restore shapes, both exercised:
 **Object restore with namespace mapping** (the safe pattern — clones can't fight flux, and HelmRelease CRs + helm release secrets come back into the clone for review):
 
 ```
-velero backup create phase1-object-drill -n velero --include-namespaces cert-manager \
+velero backup create phase1-object-drill -n backups --include-namespaces cert-manager \
   --snapshot-volumes=false --default-volumes-to-fs-backup=false --ttl 1h
-velero restore create phase1-restore -n velero --from-backup phase1-object-drill \
+velero restore create phase1-restore -n backups --from-backup phase1-object-drill \
   --namespace-mappings cert-manager:cert-manager-drill
 ```
 
@@ -73,14 +73,14 @@ Expect `0 errors` + ~19 benign `No annotations found ... using restore spec sett
 
 Two gotchas the drill surfaced:
 
-- **Node-agent crashloops if the configmap is missing** (velero exits at startup when the flag is set). This bit a fresh rebuild: the configmap originally lived in `backups-config/`, which `dependsOn` backups — `backups` never went Ready, so `backups-config` could never apply the CM. Circular. Fixed structurally by moving it into `backups/` so it lands atomically with the HelmRelease (rebuilds are one-shot again). If you ever see node-agent pods Error-looping at startup, check the configmap exists: `kubectl -n velero get cm node-agent-config`
+- **Node-agent crashloops if the configmap is missing** (velero exits at startup when the flag is set). This bit a fresh rebuild: the configmap originally lived in `backups-config/`, which `dependsOn` backups — `backups` never went Ready, so `backups-config` could never apply the CM. Circular. Fixed structurally by moving it into `backups/` so it lands atomically with the HelmRelease (rebuilds are one-shot again). If you ever see node-agent pods Error-looping at startup, check the configmap exists: `kubectl -n backups get cm node-agent-config`
 - **The annotation only affects NEW PVs.** The 2026-09-05 rebuild provisioned all 8 PVs as `local` (seaweed included), so the whole cluster is volume-data protected — verified `local PVs: 8 | hostPath PVs: 0`. On any cluster with pre-annotation hostPath PVs, leave them until a rebuild; never recreate seaweed's PVCs out-of-band to convert them early — the volume contents are the only copy of the thanos/loki object store.
 
 Validated end-to-end (drill re-run): PVB `Completed` (data mover pod passed admission), destroy → restore returned the exec-written file byte-for-byte, and the restore's injected `restore-wait` init container also passed admission. Drill procedure for the data path (re-run after any storage change):
 
 1. Compliant throwaway pod (pinned tag, runAsNonRoot 65534, seccomp, caps dropped, requests/limits — admission denies otherwise) writing a marker to a local-path PVC
 2. `velero backup create ... --include-namespaces drill --default-volumes-to-fs-backup --snapshot-volumes=false`
-3. Check a `PodVolumeBackup` exists (`kubectl -n velero get podvolumebackups -l velero.io/backup-name=<name>`) — if the PVB is `Failed` with an admission-webhook message, the PolicyException or `podResources` regressed
+3. Check a `PodVolumeBackup` exists (`kubectl -n backups get podvolumebackups -l velero.io/backup-name=<name>`) — if the PVB is `Failed` with an admission-webhook message, the PolicyException or `podResources` regressed
 4. Delete pod + PVC (PV reclaim `Delete` removes the data), restore from the backup, verify the exec-written file (don't be fooled by `marker.txt` — the pod's own startup command writes that; only the exec-written file proves the data path)
 
 ### velero CLI quirks

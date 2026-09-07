@@ -31,10 +31,13 @@ prometheusOperator:
     resources:
       requests:
         cpu: 10m
-        memory: 32Mi
-      limits:
-        cpu: 200m
+        # 2026-09-07 audit: 38Mi steady vs the old 32Mi request (119%)
         memory: 48Mi
+      limits:
+        # 2026-09-07 audit: 18% of CFS periods throttled at the old 200m —
+        # reload bursts; generous CPU limit per convention
+        cpu: 500m
+        memory: 72Mi
 kube-state-metrics:
   # NSA hardening: explicit non-root uid/gid at container level
   # (image declares USER "nobody"; pod-level sc already had 65534)
@@ -45,10 +48,12 @@ kube-state-metrics:
   resources:
     requests:
       cpu: 10m
-      memory: 64Mi
+      # 2026-09-07 audit (post ns-refactor churn): 76Mi steady = 119% of the
+      # old 64Mi request — 96Mi = P99 x 1.2, limit 1.5x
+      memory: 96Mi
     limits:
       cpu: 200m
-      memory: 96Mi
+      memory: 144Mi
 prometheus:
   prometheusSpec:
     retention: 2d
@@ -78,14 +83,20 @@ prometheus:
       # request metrics on this CRD-heavy cluster) — request = P99 x 1.2
       # rounded, limit = 1.5x request. Trend + recurrence playbook:
       # cmdshift/platform#20
+      # 2026-09-07 audit (post ns-refactor churn): working set 1010-1175Mi =
+      # 108% of the old 1Gi request (first evicted under node pressure) and
+      # head series still climbing (157k -> 187k over 2h — churn-driven,
+      # watch for plateau). request = P99 x 1.2 -> 1.5Gi, limit 1.5x.
       requests:
         # 2026-09-06 overnight: steady 36m against the old 30m request
         # (120%) — lean per AGENTS.md but honest
-        cpu: 50m
-        memory: 1Gi
+        # 2026-09-07 audit: 56m = 112% of the 50m request — 100m keeps the
+        # reservation honest (node CPU requests sit at 4-7%)
+        cpu: 100m
+        memory: 1536Mi
       limits:
         cpu: 1000m
-        memory: 1536Mi
+        memory: 2304Mi
     thanos:
       objectStorageConfig:
         existingSecret:

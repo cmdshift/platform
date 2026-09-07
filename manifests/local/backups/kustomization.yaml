@@ -6,7 +6,7 @@ resources:
   - velero.helm-release.yaml
 configMapGenerator:
   - name: velero-values
-    namespace: velero
+    namespace: backups
     files:
       - values.yaml=velero-values.yaml
     options:

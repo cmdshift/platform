@@ -6,7 +6,7 @@ resources:
   - kubelet-csr-approver.helm-release.yaml
 configMapGenerator:
   - name: cert-manager-values
-    namespace: cert-manager
+    namespace: certificates
     files:
       - values.yaml=cert-manager-values.yaml
     options:

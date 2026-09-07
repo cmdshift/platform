@@ -24,10 +24,16 @@ tetragon:
   resources:
     requests:
       cpu: 50m
-      memory: 128Mi
+      # 2026-09-07 audit: baseline 400-430Mi with a 497Mi spike against the
+      # old 128Mi request (312-338% — first evicted under node pressure) and
+      # a 97%-of-limit burst. request = P99 x 1.2 rounded to 512Mi; limit
+      # 1.5x. Rising-baseline watch: re-audit at 24h — if it keeps climbing
+      # at steady state it's a leak (eventcache ruled out: 70-94 entries),
+      # not churn.
+      memory: 512Mi
     limits:
       cpu: 1000m
-      memory: 512Mi
+      memory: 768Mi
   prometheus:
     serviceMonitor:
       enabled: true # agent metrics :2112

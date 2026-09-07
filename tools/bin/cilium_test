@@ -31,7 +31,7 @@ apiVersion: policies.kyverno.io/v1
 kind: PolicyException
 metadata:
   name: allow-cilium-connectivity-test
-  namespace: kyverno
+  namespace: policies
 spec:
   policyRefs:
     - name: disallow-capabilities-strict

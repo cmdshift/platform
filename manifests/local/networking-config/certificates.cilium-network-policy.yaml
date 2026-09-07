@@ -1,8 +1,8 @@
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: cert-manager
-  namespace: cert-manager
+  name: certificates
+  namespace: certificates
 spec:
   endpointSelector: {}
   egress:
@@ -10,4 +10,4 @@ spec:
         - kube-apiserver
     - toEndpoints:
         - matchLabels:
-            io.kubernetes.pod.namespace: cert-manager
+            io.kubernetes.pod.namespace: certificates

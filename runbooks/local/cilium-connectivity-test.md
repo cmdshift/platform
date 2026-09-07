@@ -23,12 +23,12 @@ Fresh `cilium-test*` namespaces hit all three admission/policy layers of this cl
 ### 1. Temporary kyverno PolicyException
 
 ```bash
-kubectl -n kyverno apply -f - <<'EOF'
+kubectl -n policies apply -f - <<'EOF'
 apiVersion: policies.kyverno.io/v1
 kind: PolicyException
 metadata:
   name: allow-cilium-connectivity-test
-  namespace: kyverno
+  namespace: policies
 spec:
   policyRefs:
     - name: disallow-capabilities-strict
@@ -89,7 +89,7 @@ wait $TEST_PID
 ### 3. Clean up (delete when done)
 
 ```bash
-kubectl -n kyverno delete policyexception allow-cilium-connectivity-test
+kubectl -n policies delete policyexception allow-cilium-connectivity-test
 kubectl get ns -o name | grep -E '^namespace/cilium-test' | cut -d/ -f2 | xargs kubectl delete ns --wait=false
 ```
 

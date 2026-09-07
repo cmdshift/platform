@@ -1,7 +1,7 @@
 features:
   policyExceptions:
     enabled: true
-    namespace: kyverno
+    namespace: policies
   admissionReports:
     enabled: false
   deferredLoading:
@@ -14,7 +14,7 @@ features:
     validate: false
 config:
   resourceFiltersInclude:
-    - "[*/*,kyverno,*]"
+    - "[*/*,policies,*]"
   webhooks:
     namespaceSelector:
       matchExpressions:
@@ -25,7 +25,7 @@ config:
             - kube-public
             - kube-node-lease
             - flux-system
-            - kyverno
+            - policies
 admissionController:
   replicas: 1
   hostNetwork: true # remove in the cloud

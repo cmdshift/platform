@@ -36,7 +36,7 @@ kubectl -n flux-system get kustomizations
 | Kustomizations | `kubectl -n flux-system get kustomizations` | 27/27 True |
 | HelmReleases | `kubectl get helmreleases -A` | 17/17 True |
 | flux-config adoption | `kubectl -n flux-system get kustomization local -o json --show-managed-fields` | `kustomize-controller` owns the spec |
-| Velero BSL | `kubectl -n velero get bsl default` | `Available` |
+| Velero BSL | `kubectl -n backups get bsl default` | `Available` |
 | Rustfs buckets | `rc ls main/` in the storage container | `flux`, `backups` (auto-provisioned) |
 | Thanos ruler | `kubectl -n monitoring get pods -l app.kubernetes.io/name=thanos-ruler` | 2/2 Running, rule files wired |
 | PolicyReports | `policy_report` | 0 failures |

@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: node-agent-config
-  namespace: velero
+  namespace: backups
 data:
   # Single-key configmap (velero requires exactly one key); loaded by node-agent via
   # --node-agent-configmap (see the HelmRelease). Only read at node-agent startup —
