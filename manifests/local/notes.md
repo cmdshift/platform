@@ -221,3 +221,13 @@ Upstream thanos-community/thanos-operator#636 (commit `831accd4`, main HEAD) rep
 Trivy alerting was suspected missing; verification says it's fully wired (metric → thanos-rules CM → ruler → mailpit, `TrivyCriticalImageVulnerabilities` FIRING). The real defect — the alert flaps fire→resolve across trivy rescan cycles (gauge dips mid-rescan) — is tracked with fix options in cmdshift/platform#36. Critical-only coverage (no High alert) was never a recorded decision; decide when the flap is fixed.
 
 **Ruler store-path window**: during verification the ruler logged `no query API server reachable` / store `dial tcp <pod-ip>:10901: i/o timeout` — the query's SRV-resolved store endpoint held a stale pod IP after the store pod was recreated, and the query errors the WHOLE request when one store dials out (even head-only rules failed). Self-healed when the query pod rolled. **Not a CiliumNetworkPolicy block** — direct dial from the query pod to the live store IP passes (`wget http://<store-ip>:10902/-/ready`). This is the store-path sibling of the "head path broken again" landmine; triage order: ruler logs → dial-test the store IP from the query pod → only then suspect policy.
+
+## Storage split: `storage-config/` for the StorageClasses (2026-09-07, issue #35)
+
+`storage/` was the only group mixing operator install and config objects — the two StorageClasses shipped inside the local-path-provisioner kustomization. Now the tree follows the `X` / `X-config` convention everywhere: `storage/` = the helm release, `storage-config/` = `local-path` (default) + `local-path-immediate` StorageClasses, applied by a new `storage-config` Kustomization (dependsOn `storage`; no `healthCheckExprs` — a StorageClass has no status to gate on).
+
+**The invariant moved with the objects**: before, `storage` Ready implied the SCs existed (same artifact, `wait: true`); after the split it doesn't — so the PVC-creating groups (objects, logging, backups) now depend on `storage-config`, not `storage` (monitoring reaches the SCs transitively via objects-config). A group naming `storageClassName: local-path` must depend on `storage-config` — check that when adding one.
+
+**First-reconcile blip is expected**: flux prunes the SCs out of `storage` (old artifact no longer lists them) and `storage-config` recreates them seconds later — ~5s of SC absence, harmless with WaitForFirstConsumer (a PVC created in the window just pends). Bound PVCs/PVs are untouched by SC deletion. Verified live: all 9 PVCs stayed Bound through the transition.
+
+Cloud note: when the cloud manifests exist, mirror this split — and the cloud StorageClasses will differ (`allowVolumeExpansion: true` with real CSI; see `manifests/cloud/notes.md`).

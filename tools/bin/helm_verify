@@ -19,8 +19,10 @@
 # commit ref) → shallow clone + template from the chart subpath. All helm
 # state lives in a temp dir — the user's helm home/cache is untouched.
 #
-# Prints PASS/FAIL per release; exit 1 if any release fails or a source CR
-# is missing (diagnose hint printed).
+# Prints PASS/FAIL per release; exit 1 if any release fails, a source CR
+# is missing, or a pinned version isn't in the repo index (helm's fallback
+# would silently render the closest version instead — diagnose hint printed).
+# Exit 2 = usage error.
 #
 # Gotcha: helm template rejects unknown values keys only for charts that
 # ship a values.schema.json (kube-prometheus-stack does; most don't) — for
@@ -29,25 +31,24 @@
 
 set -uo pipefail
 
-path="${1:-manifests/local}"
-filter="${2:-}"
-fail=0
+path="" filter="" fail=0 count=0
+tmp="" SOURCES="" kube_args=() VFILES=()
 
-tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT
-export HELM_CACHE_HOME="$tmp/cache" HELM_CONFIG_HOME="$tmp/config" HELM_DATA_HOME="$tmp/data"
-export HELM_REPOSITORY_CACHE="$tmp/cache/repository"
-
-command -v helm >/dev/null || { echo "FAIL: helm not installed"; exit 1; }
+usage() {
+  echo "usage: helm_verify [path] [release]" >&2
+  exit 2
+}
 
 # --- source CRs from the cluster: name<TAB>kind<TAB>url<TAB>ref-type<TAB>ref ---
-{
-  kubectl get helmrepo -A -o json 2>/dev/null | jq -r --arg k HelmRepository \
-    '.items[] | [.metadata.name, $k, .spec.url, "-", "-"] | @tsv'
-  kubectl get gitrepo -A -o json 2>/dev/null | jq -r --arg k GitRepository \
-    '.items[] | [.metadata.name, $k, .spec.url, (.spec.ref // {} | to_entries[0].key // "-"), (.spec.ref // {} | to_entries[0].value // "-")] | @tsv'
-} > "$tmp/sources.tsv"
-[[ -s "$tmp/sources.tsv" ]] || { echo "FAIL: no HelmRepository/GitRepository CRs found — is the cluster up?"; exit 1; }
+load_sources() {
+  {
+    kubectl get helmrepo -A -o json 2>/dev/null | jq -r --arg k HelmRepository \
+      '.items[] | [.metadata.name, $k, .spec.url, "-", "-"] | @tsv'
+    kubectl get gitrepo -A -o json 2>/dev/null | jq -r --arg k GitRepository \
+      '.items[] | [.metadata.name, $k, .spec.url, (.spec.ref // {} | to_entries[0].key // "-"), (.spec.ref // {} | to_entries[0].value // "-")] | @tsv'
+  } > "$SOURCES"
+  [[ -s "$SOURCES" ]] || { echo "FAIL: no HelmRepository/GitRepository CRs found — is the cluster up?"; exit 1; }
+}
 
 git_checkout() { # url reftype refvalue dest
   local url="$1" reftype="$2" ref="$3" dest="$4"
@@ -85,69 +86,145 @@ resolve_cm_values() { # reldir refname refkey
   [[ -n "$src" ]] && echo "$src"
 }
 
-kubever=$(kubectl version -o json 2>/dev/null | jq -r '.serverVersion.gitVersion // empty')
-kube_args=(); [[ -n "$kubever" ]] && kube_args=(--kube-version "$kubever")
+source_url() { # srcKind srcName -> chart-source url; empty when the CR is missing
+  awk -F'\t' -v n="$2" -v k="$1" '$1==n && $2==k {print $3; exit}' "$SOURCES"
+}
 
-count=0
-for f in $(grep -rl --include='*.yaml' 'kind: HelmRelease' "$path" 2>/dev/null | sort); do
-  while IFS=$'\t' read -r name ns chart version srcKind srcName; do
-    if [[ -n "$filter" && "$name" != "$filter" ]]; then continue; fi
-    count=$((count + 1))
-    url=$(awk -F'\t' -v n="$srcName" -v k="$srcKind" '$1==n && $2==k {print $3; exit}' "$tmp/sources.tsv")
-    if [[ -z "$url" ]]; then
-      echo "FAIL: $name — source $srcKind/$srcName not found on cluster (check sources.yaml apply state)"
-      fail=1; continue
+git_source_ref() { # srcName -> "reftype refvalue" of its GitRepository
+  awk -F'\t' -v n="$1" '$1==n && $2=="GitRepository" {print $4, $5; exit}' "$SOURCES"
+}
+
+repo_present() { # name url -> rc 0 when the repo is registered with this url
+  helm repo list -o json 2>/dev/null | jq -e --arg n "$1" --arg u "$2" \
+    '.[] | select(.name == $n and .url == $u)' >/dev/null
+}
+
+chart_in_index() { # repo chart [version] -> rc 0 when the local index knows the
+                   # chart (and the pinned version, when given; v-prefix normalized)
+  local versions
+  versions=$(helm search repo "$1/$2" --versions -o json 2>/dev/null) || return 1
+  if [[ -z "${3:-}" ]]; then
+    [ "$(jq 'length' <<< "$versions")" -gt 0 ]
+  else
+    jq -r --arg want "${3#v}" '.[].version | sub("^v";"") | select(. == $want)' <<< "$versions" | grep -q .
+  fi
+}
+
+chart_ref() { # srcKind srcName chart version -> echo usable helm ref; on
+              # failure echo the reason (main prefixes "FAIL: <release> — ")
+              # and exit 1
+  local url reftype refval clone
+  url=$(source_url "$1" "$2")
+  if [[ -z "$url" ]]; then
+    echo "source $1/$2 not found on cluster (check sources.yaml apply state)"
+    return 1
+  fi
+  if [[ "$1" == "HelmRepository" ]]; then
+    # fetch only on a miss: the probe (chart_in_index) answers from the local
+    # index, so each unique repo is fetched at most once per run — a re-fetch
+    # per release both wastes the network and widens the window for the
+    # transient stale-index reads this flow used to hit (external-secrets
+    # FAILED a full run with 2.10.0 very much in the upstream index). A miss
+    # triggers exactly one scoped `helm repo update` before failing — and a
+    # failed add/update is a FAIL, not a swallowed `|| true`.
+    if ! repo_present "$2" "$url"; then
+      helm repo add "$2" "$url" --force-update >/dev/null 2>&1 || { echo "helm repo add $2 ($url) failed"; return 1; }
     fi
-
-    if [[ "$srcKind" == "HelmRepository" ]]; then
-      helm repo add "$srcName" "$url" --force-update >/dev/null 2>&1 || true
-      ref="$srcName/$chart"
-    else
-      reftype=$(awk -F'\t' -v n="$srcName" '$1==n && $2=="GitRepository" {print $4; exit}' "$tmp/sources.tsv")
-      refval=$(awk -F'\t' -v n="$srcName" '$1==n && $2=="GitRepository" {print $5; exit}' "$tmp/sources.tsv")
-      clone="$tmp/git-$srcName"
-      if [[ ! -d "$clone" ]]; then
-        git_checkout "$url" "$reftype" "$refval" "$clone" || { echo "FAIL: $name — git clone $srcName ($reftype $refval) failed"; fail=1; continue; }
+    if ! chart_in_index "$2" "$3" "$4"; then
+      helm repo update "$2" >/dev/null 2>&1 || { echo "helm repo update $2 failed (transient network?)"; return 1; }
+      if ! chart_in_index "$2" "$3" "$4"; then
+        # helm's --version falls back to the CLOSEST index version with only
+        # a warning — a typo'd pin would render a different chart than flux
+        # deploys and still PASS. The leading v is normalized on both sides
+        # (indexes publish v1.2.3 where HelmReleases pin 1.2.3 — flux resolves
+        # the same way via semver constraints).
+        echo "version $4 not in $2 index (helm would silently render the closest available version)"
+        return 1
       fi
-      ref="$clone/$chart"
     fi
+    echo "$2/$3"
+    return 0
+  fi
+  read -r reftype refval < <(git_source_ref "$2")
+  clone="$tmp/git-$2"
+  if [[ ! -d "$clone" ]] && ! git_checkout "$url" "$reftype" "$refval" "$clone"; then
+    echo "git clone $2 ($reftype $refval) failed"
+    return 1
+  fi
+  echo "$clone/$3"
+}
 
-    # values: inline first, then valuesFrom refs in declared order
-    vfiles=()
-    inline="$tmp/values-$name-inline.json"
-    yq eval-all -o=json 'select(.kind == "HelmRelease" and .metadata.name == "'"$name"'") | .spec.values // {}' "$f" > "$inline"
-    [[ -s "$inline" ]] || echo '{}' > "$inline"
-    vfiles+=("$inline")
-    unresolved=0
-    while IFS=$'\t' read -r rname rkey; do
-      [[ -z "$rname" ]] && continue
-      src=$(resolve_cm_values "$(dirname "$f")" "$rname" "$rkey")
-      if [[ -z "$src" ]]; then
-        echo "FAIL: $name — valuesFrom ConfigMap/$rname (key '$rkey') has no local source (expected configMapGenerator in $(dirname "$f")/kustomization.yaml or a literal ConfigMap manifest)"
-        unresolved=1
-      else
-        vfiles+=("$src")
-      fi
-    done < <(yq eval-all 'select(.kind == "HelmRelease" and .metadata.name == "'"$name"'") | .spec.valuesFrom[]? | select(.kind == "ConfigMap") | [.name, (.valuesKey // "values.yaml")] | @tsv' "$f")
-    if [[ "$unresolved" -eq 1 ]]; then fail=1; continue; fi
-
-    args=("$ref" --namespace "$ns" "${kube_args[@]}")
-    for v in "${vfiles[@]}"; do args+=(-f "$v"); done
-    [[ -n "$version" && "$srcKind" == "HelmRepository" ]] && args+=(--version "$version")
-
-    if err=$(helm template "$name" "${args[@]}" 2>&1 >/dev/null); then
-      echo "PASS: $name ($chart${version:+ $version})"
+collect_values() { # file name -> VFILES (inline first, then valuesFrom refs in
+                   # declared order); exit 1 when a valuesFrom ref has no local
+                   # source (all missing refs are reported first)
+  local f="$1" name="$2" rname rkey src unresolved=0
+  VFILES=() # per-release: leaks here flow into the NEXT release's render
+  local inline="$tmp/values-$name-inline.json"
+  yq eval-all -o=json 'select(.kind == "HelmRelease" and .metadata.name == "'"$name"'") | .spec.values // {}' "$f" > "$inline"
+  [[ -s "$inline" ]] || echo '{}' > "$inline"
+  VFILES+=("$inline")
+  while IFS=$'\t' read -r rname rkey; do
+    [[ -z "$rname" ]] && continue
+    src=$(resolve_cm_values "$(dirname "$f")" "$rname" "$rkey")
+    if [[ -z "$src" ]]; then
+      echo "FAIL: $name — valuesFrom ConfigMap/$rname (key '$rkey') has no local source (expected configMapGenerator in $(dirname "$f")/kustomization.yaml or a literal ConfigMap manifest)"
+      unresolved=1
     else
-      echo "FAIL: $name ($chart${version:+ $version})"
-      sed 's/^/  /' <<< "$err" | head -15
-      fail=1
+      VFILES+=("$src")
     fi
-  done < <(yq eval-all -o=json 'select(.kind == "HelmRelease") | [{"name": .metadata.name, "ns": .metadata.namespace, "chart": .spec.chart.spec.chart, "version": (.spec.chart.spec.version // ""), "srcKind": (.spec.chart.spec.sourceRef.kind // ""), "srcName": (.spec.chart.spec.sourceRef.name // "")}]' "$f" | jq -r '.[] | [.name, .ns, .chart, .version, .srcKind, .srcName] | @tsv')
-done
+  done < <(yq eval-all 'select(.kind == "HelmRelease" and .metadata.name == "'"$name"'") | .spec.valuesFrom[]? | select(.kind == "ConfigMap") | [.name, (.valuesKey // "values.yaml")] | @tsv' "$f")
+  return "$unresolved"
+}
 
-if [[ "$fail" -eq 0 ]]; then
-  echo "OK: $count releases render clean"
-else
-  echo "FAILED releases above — fix before reconciling (values land verbatim in helm-controller)"
-fi
-exit "$fail"
+render_release() { # file name ns chart version srcKind srcName
+  local f="$1" name="$2" ns="$3" chart="$4" version="$5" srcKind="$6" srcName="$7"
+  local ref err v
+  ref=$(chart_ref "$srcKind" "$srcName" "$chart" "$version") || { echo "FAIL: $name — $ref"; fail=1; return 0; }
+  collect_values "$f" "$name" || { fail=1; return 0; }
+  local args=("$ref" --namespace "$ns" "${kube_args[@]}")
+  for v in "${VFILES[@]}"; do args+=(-f "$v"); done
+  [[ -n "$version" && "$srcKind" == "HelmRepository" ]] && args+=(--version "$version")
+  if err=$(helm template "$name" "${args[@]}" 2>&1 >/dev/null); then
+    echo "PASS: $name ($chart${version:+ $version})"
+  else
+    echo "FAIL: $name ($chart${version:+ $version})"
+    sed 's/^/  /' <<< "$err" | head -15
+    fail=1
+  fi
+}
+
+helm_verify() {
+  [ $# -le 2 ] || usage
+  path="${1:-manifests/local}"
+  filter="${2:-}"
+  [ -e "$path" ] || { echo "helm_verify: no such path: $path" >&2; usage; }
+
+  command -v helm >/dev/null || { echo "FAIL: helm not installed"; exit 1; }
+  tmp=$(mktemp -d)
+  SOURCES="$tmp/sources.tsv"
+  trap 'rm -rf "$tmp"' EXIT
+  export HELM_CACHE_HOME="$tmp/cache" HELM_CONFIG_HOME="$tmp/config" HELM_DATA_HOME="$tmp/data"
+  export HELM_REPOSITORY_CACHE="$tmp/cache/repository"
+
+  load_sources
+  local kubever f name ns chart version srcKind srcName
+  kubever=$(kubectl version -o json 2>/dev/null | jq -r '.serverVersion.gitVersion // empty')
+  kube_args=(); [[ -n "$kubever" ]] && kube_args=(--kube-version "$kubever")
+
+  for f in $(grep -rl --include='*.yaml' 'kind: HelmRelease' "$path" 2>/dev/null | sort); do
+    while IFS=$'\t' read -r name ns chart version srcKind srcName; do
+      if [[ -n "$filter" && "$name" != "$filter" ]]; then continue; fi
+      count=$((count + 1))
+      render_release "$f" "$name" "$ns" "$chart" "$version" "$srcKind" "$srcName"
+    done < <(yq eval-all -o=json 'select(.kind == "HelmRelease") | [{"name": .metadata.name, "ns": .metadata.namespace, "chart": .spec.chart.spec.chart, "version": (.spec.chart.spec.version // ""), "srcKind": (.spec.chart.spec.sourceRef.kind // ""), "srcName": (.spec.chart.spec.sourceRef.name // "")}]' "$f" | jq -r '.[] | [.name, .ns, .chart, .version, .srcKind, .srcName] | @tsv')
+  done
+
+  if [[ "$fail" -eq 0 ]]; then
+    echo "OK: $count releases render clean"
+  else
+    echo "FAILED releases above — fix before reconciling (values land verbatim in helm-controller)"
+  fi
+  exit "$fail"
+}
+
+helm_verify "$@"

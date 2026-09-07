@@ -10,7 +10,9 @@ spec:
   dependsOn:
     - name: sources
     - name: secrets-config
-    - name: storage
+    # was: storage — the StorageClasses split out into storage-config (#35);
+    # loki-values.yaml names storageClassName: local-path
+    - name: storage-config
     - name: monitoring
   sourceRef:
     kind: Bucket

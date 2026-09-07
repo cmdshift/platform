@@ -10,19 +10,40 @@
 #
 # Informational: exit 0 even when things are crashing (the data IS the
 # output). Footer hint lists pods worth `kubectl logs --previous`.
+# Exit 2 = usage error.
 
 set -euo pipefail
 
 ns_args=(-A); sel_args=(); prefix=""
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    -n) ns_args=(-n "$2"); shift 2 ;;
-    -l) sel_args=(-l "$2"); shift 2 ;;
-    *) prefix="$1"; shift ;;
-  esac
-done
 
-kubectl get pods -o json "${ns_args[@]}" "${sel_args[@]}" | jq -r --arg prefix "$prefix" '
+usage() {
+  echo "usage: pod_status [-n namespace] [-l selector] [name-prefix]" >&2
+  exit 2
+}
+
+parse_args() {
+  local ns sel
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -n) [[ -n "${2:-}" ]] || { echo "pod_status: -n requires a value" >&2; usage; }
+          ns="$2"; shift 2 ;;
+      -l) [[ -n "${2:-}" ]] || { echo "pod_status: -l requires a value" >&2; usage; }
+          sel="$2"; shift 2 ;;
+      -*) echo "pod_status: unknown flag $1" >&2; usage ;; # a typo'd flag would silently act as the name prefix
+      *) [[ -z "$prefix" ]] || usage # multiple positionals are ambiguous — last-one-wins hides the mistake
+         prefix="$1"; shift ;;
+    esac
+  done
+  [[ -z "${ns:-}" ]] && ns_args=(-A) || ns_args=(-n "$ns")
+  [[ -z "${sel:-}" ]] && sel_args=() || sel_args=(-l "$sel")
+}
+
+pod_json() {
+  kubectl get pods -o json "${ns_args[@]}" "${sel_args[@]}"
+}
+
+print_table() {
+  pod_json | jq -r --arg prefix "$prefix" '
   def info: . as $p
     | [.status.containerStatuses[]?] as $cs
     | {
@@ -39,14 +60,26 @@ kubectl get pods -o json "${ns_args[@]}" "${sel_args[@]}" | jq -r --arg prefix "
     | select($prefix == "" or (.name | startswith($prefix)))
     | [.ns, .name, .phase, .ready, (.restarts | tostring), .exit, .reason, .age] | @tsv)' \
 | column -t
+}
 
-echo
-suspects=$(kubectl get pods -o json "${ns_args[@]}" "${sel_args[@]}" | jq -r --arg prefix "$prefix" '
-  .items[]
-  | select($prefix == "" or (.metadata.name | startswith($prefix)))
-  | select([.status.containerStatuses[]? | .restartCount > 0] | any)
-  | "\(.metadata.namespace)/\(.metadata.name)"' | sort -u)
-if [[ -n "$suspects" ]]; then
-  echo "restarts>0 — check logs + exit codes (runbooks/local/crashloop-investigation.md):"
-  sed 's/^/  kubectl logs --previous -n /; s/\// /; s/$//' <<< "$suspects" | head -10
-fi
+print_suspects() {
+  local suspects
+  suspects=$(pod_json | jq -r --arg prefix "$prefix" '
+    .items[]
+    | select($prefix == "" or (.metadata.name | startswith($prefix)))
+    | select([.status.containerStatuses[]? | .restartCount > 0] | any)
+    | "\(.metadata.namespace)/\(.metadata.name)"' | sort -u)
+  if [[ -n "$suspects" ]]; then
+    echo "restarts>0 — check logs + exit codes (runbooks/local/crashloop-investigation.md):"
+    sed 's/^/  kubectl logs --previous -n /; s/\// /; s/$//' <<< "$suspects" | head -10
+  fi
+}
+
+pod_status() {
+  parse_args "$@"
+  print_table
+  echo
+  print_suspects
+}
+
+pod_status "$@"

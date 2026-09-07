@@ -8,6 +8,12 @@
 # Judge after the fresh-cluster ramp settles (~3h) — bootstrap scrape/init
 # bursts spike working set above request for the first minutes (see
 # runbooks/local/memory-sizing-audit.md §4).
+# Exit 0 = audited, 2 = usage error.
+
+usage() {
+  echo "usage: request_audit [threshold_pct]   # default 60, filters both tables" >&2
+  exit 2
+}
 
 collect_usage() { # $1 = top column: 5 memory (Mi), 4 cpu (m)
   kubectl top pods -A --containers --no-headers \
@@ -56,7 +62,9 @@ count_no_request() { # $1 = memory|cpu
 }
 
 request_audit() {
+  [ $# -le 1 ] || usage
   local threshold="${1:-60}"
+  case "$threshold" in ''|*[!0-9]*) usage ;; esac # non-numeric silently corrupts the awk comparisons
   local mem_req mem_use cpu_req cpu_use
   mem_req=$(mktemp); mem_use=$(mktemp); cpu_req=$(mktemp); cpu_use=$(mktemp)
   trap 'rm -f "$mem_req" "$mem_use" "$cpu_req" "$cpu_use"' EXIT

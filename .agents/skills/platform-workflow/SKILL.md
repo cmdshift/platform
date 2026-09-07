@@ -15,7 +15,7 @@ The standard loop for every change to `manifests/local/`. Flux v2 deploys everyt
 ## 1. Pre-reconcile checks
 
 ```
-yaml_lint          # parse-check all YAML; exits 1 on the first bad file
+yaml_lint          # parse-check all YAML; prints every bad file, exit 1 if any
 helm_verify        # renders every HelmRelease's values via helm template
 cr_validate        # server-side dry-run of CRs against on-cluster CRD schemas
 ```
@@ -59,6 +59,10 @@ Docs are part of the change — a change isn't ready to commit or PR until the d
 - `tools/bin/README.md` — new/changed helper scripts: args, defaults, exit codes
 
 Rule of thumb: if this session hit a landmine or learned something the hard way, it's documentation — write it down where the next operator (or agent) will find it.
+
+## 5. Stop at green — the human commits
+
+Commits and pushes are **human-only** (AGENTS.md Hygiene). When reconcile is green and docs are swept, summarize the change and stop — propose a commit split if it's natural, but never run `git commit`/`git push`; the human reviews the diff and makes history.
 
 ## Full detail
 
