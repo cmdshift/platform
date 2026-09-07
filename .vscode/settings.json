@@ -20,6 +20,7 @@
     "https://json-schema.org/": true,
     "https://developer.microsoft.com/json-schemas/": true
   },
+  "yaml.kubernetesCRDStore.enable": false,
   "[terraform]": {
     "editor.defaultFormatter": "hashicorp.terraform",
     "editor.formatOnSave": true

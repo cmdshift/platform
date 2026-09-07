@@ -85,6 +85,7 @@ Full reference — what each does, arguments, defaults, exit codes, gotchas: [to
 
 ### Charts
 
+- **alloy**: omitting `alloy.configMap` (create/name/key — pointing at the kustomize-generated `alloy-config`) makes the chart **SILENTLY install its example config**: pods healthy, no push, zero errors — Loki ingests nothing. Fingerprint + helper: `alloy_components` (example config shows `discovery.kubernetes.{nodes,services,...}` components, no `loki.*` — cmdshift/platform#27)
 - **kyverno**: `admissionController.container.resources` is nested (unlike background/cleanup/reports); `config.webhooks` is a **map** (a list is silently dropped by helm merge); `backgroundScanInterval: 1h` (5m caused a reports-controller CPU ramp — cmdshift/platform#17); controllers use hostNetwork → rollouts deadlock on host ports (`kyverno_unblock` deletes the old pods)
 - **cert-manager**: values keys all-lowercase (`startupapicheck`), camelCase fails chart schema and blocks the whole dependency chain
 - **seaweedfs-operator**: setting `spec.admin` on the Seaweed CR *enables* a new component — only set component sections intentionally
