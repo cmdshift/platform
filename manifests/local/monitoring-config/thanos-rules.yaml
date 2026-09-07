@@ -46,3 +46,23 @@ groups:
           severity: critical
         annotations:
           summary: "A velero backup failed in the last 24h (schedule {{ $labels.schedule }})"
+  - name: tetragon-alerts
+    rules:
+      - alert: TetragonTracingPolicyLoadFailed
+        expr: |
+          tetragon_tracingpolicy_loaded{state=~"error|load_error"} > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Tetragon on {{ $labels.pod }} ({{ $labels.node }}) has a tracing policy in {{ $labels.state }} — a policy file may be invalid or use a hook this kernel lacks"
+      - alert: TetragonEnforcementKill
+        expr: |
+          increase(tetragon_kill_events_total[10m]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "Tetragon enforcement killed a process on {{ $labels.pod }} ({{ $labels.node }}) — check tetra getevents for the policy and binary"
+        # tetragon_kill_events_total materializes on the first enforcement
+        # event (stage 2) — until then the series is absent and this alert
+        # stays inactive by design, arming exactly when enforcement goes live

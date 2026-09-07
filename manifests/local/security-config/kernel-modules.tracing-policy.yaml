@@ -1,0 +1,52 @@
+# Audit trail of kernel module operations (load attempts, auto-load requests).
+# Adapted from tetragon examples/policylibrary/modules.yaml; do_init_module added
+# for module-name context (local symbol `t` on linuxkit 7.0.12 — verified in
+# kallsyms; free_module is inlined in this kernel build and was dropped).
+# monitor_only: no enforcement actions — stage 2 flips this to Override+Sigkill
+# (modules-nohost pattern) after a clean burn-in.
+# retire: flux prunes this group — deleting the file unloads the sensor; keep in
+# mind the tetragon PolicyException in this same group denies the agent at
+# admission if *its* file is removed.
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: kernel-modules
+spec:
+  kprobes:
+    - call: security_kernel_module_request
+      # Automatic module loading requests (missing kernel feature)
+      message: "kernel module auto-load requested"
+      syscall: false
+      return: true
+      args:
+        - index: 0
+          type: string
+      returnArg:
+        index: 0
+        type: int
+    - call: security_kernel_read_file
+      # Explicit module loading via finit_module() — prints the module's full path
+      message: "kernel module file read"
+      syscall: false
+      return: true
+      args:
+        - index: 0
+          type: file
+        - index: 1
+          type: int
+      returnArg:
+        index: 0
+        type: int
+      selectors:
+        - matchArgs:
+            - index: 1
+              operator: Equal
+              values:
+                - "2" # READING_MODULE
+    - call: do_init_module
+      # Handles both init_module() and finit_module() — names the module
+      message: "kernel module initialized"
+      syscall: false
+      args:
+        - index: 0
+          type: module

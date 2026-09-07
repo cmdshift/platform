@@ -1,0 +1,31 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: security-config
+  namespace: flux-system
+spec:
+  # drift-heal only: propagation is event-driven; manual flow = sync_wait + flux_wait
+  interval: 1h
+  retryInterval: 5s
+  dependsOn:
+    # TracingPolicy CRDs are created by the tetragon operator (security group) —
+    # this group MUST NOT be depended on by security: that was a deadlock (the
+    # policies here need the release's CRDs; the release waited on this group).
+    # The tetragon PolicyException lives in policies-config/ so it still lands
+    # before the release on a fresh rebuild.
+    - name: security
+  sourceRef:
+    kind: Bucket
+    name: main
+  path: ./manifests/local/security-config
+  # prune on purpose (flux = source of truth): TracingPolicies retire by file
+  # deletion. Nothing here is admission-critical — the tetragon PolicyException
+  # lives in policies-config/ (prune: false) with the other exceptions.
+  prune: true
+  # no wait:true — TracingPolicy CRs have no status/conditions, so a health
+  # check can only pass trivially or stall 2m per attempt on a flux discovery
+  # hiccup ("no matches for kind" while the CRD demonstrably exists — hit
+  # 2026-09-07, three consecutive 2m timeouts). The real loaded-signal lives in
+  # the agent: `tetra tracingpolicy list` + the TetragonTracingPolicyLoadFailed
+  # alert (thanos-rules tetragon-alerts).
+  timeout: 2m

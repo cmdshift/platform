@@ -38,7 +38,7 @@ Credentials come from the secrets server: add the payload to `cluster/local/secr
 
 ## 6. Wiring
 
-- **namespace**: plain manifest in `namespaces/` (prune is deliberately false there)
+- **namespace**: plain manifest in `namespaces/` **and register it in `namespaces/kustomization.yaml`** — the list is explicit, so an unregistered `*.namespace.yaml` is silently not applied and everything depending on the namespace hangs on `namespaces "<name>" not found` (cost a debugging round with tetragon, 2026-09-07). Prune is deliberately false there
 - **helm release**: in the relevant `<thing>/` dir; **CRs/config** in the matching `<thing>-config/` dir (grafana/thanos/alertmanager CRs go in `monitoring-config/`, not helm values)
 - **custom resources**: if operator-managed, add `healthCheckExprs` to the owning kustomization (copy from the CEL cheatsheet — see the flux landmine in AGENTS.md)
 
