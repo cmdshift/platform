@@ -18,7 +18,7 @@ directory to PATH — invoke as `<name>` inside the repo; otherwise
   (cmdshift/platform#21).
 
 Dependencies: `kubectl`, `jq`, `yq`, plus `helm`/`git` for `helm_verify`,
-`velero` / `cilium` / `kubescape` CLIs for their respective tools, `docker`
+`velero` / `cilium` CLIs for their respective tools, `docker`
 for `rustfs`. macOS date math (`date -v`) assumes darwin.
 
 ## Quick reference
@@ -34,7 +34,6 @@ for `rustfs`. macOS date math (`date -v`) assumes darwin.
 | `cpu_audit` | CPU throttling top-N + usage-vs-limits table |
 | `request_audit` | usage-vs-requests table, memory + CPU (scheduling side) |
 | `policy_report` | PolicyReport summary + stale-report detection (`--clean` deletes them) |
-| `nsa_scan` | kubescape NSA posture scan (full / apps views) |
 | `kyverno_unblock` | unstick kyverno rollouts deadlocked on hostNetwork ports |
 | `prometheus_query` | PromQL with port-forward lifecycle handled |
 | `loki_query` | LogQL with tenant + time math preset |
@@ -137,19 +136,6 @@ and **stale-report detection** (reports scoped to resources that no longer
 exist — kyverno never retracts them; delete the stale report objects
 directly). Counts pods and controller kinds + jobs. `--clean` deletes the
 stale reports it lists, then re-prints the fresh summary.
-
-### `nsa_scan [full|apps|both]`
-
-Kubescape NSA framework scan. Default/full = headline number; `apps`
-excludes kube-system (prod-style view — can score *lower* because the score
-is severity-weighted over scanned resources). In-cluster
-`SecurityException`/`ClusterSecurityException` CRDs
-(`security-config/*.security-exception.yaml`) are applied automatically at
-scan time. The scan also passes `--exceptions` with an empty file — that
-replaces the ARMO-portal exception download whose bundled GKE/AKS/EKS
-"systemExceptions" would otherwise outrank the in-cluster CRs on overlap
-(see nsa_scan header + notes.md). Findings + acceptance rationale:
-manifests/local/notes.md.
 
 ### `kyverno_unblock`
 

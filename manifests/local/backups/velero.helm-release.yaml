@@ -45,9 +45,9 @@ spec:
     # allowPrivilegeEscalation is not a legal pod field — SSA rejects it, helm
     # upgrade fails). Its pod-level runAsUser: 0 default is deliberate (the
     # node-agent needs root), so container-level readOnlyRootFilesystem /
-    # caps dropping is not reachable via values — kubescape C-0013/C-0055/
-    # C-0017 stay accepted for the velero deployment (kustomize post-render
-    # would be the only path; not worth the fight for the score)
+    # caps dropping is not reachable via values — these stay accepted
+    # deviations for the velero deployment (kustomize post-render
+    # would be the only path; not worth the fight)
     credentials: {}
     resources:
       # memory sized after OOMKill at the 132Mi limit during kopia repo prep

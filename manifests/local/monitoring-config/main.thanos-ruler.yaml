@@ -15,7 +15,7 @@ spec:
       operator.thanos.io/rule-file: "true"
   evaluationInterval: 1m
   securityContext:
-    # C-0013 (kubescape NSA): pod-level non-root also covers the operator's
+    # NSA hardening: pod-level non-root also covers the operator's
     # config-reloader sidecar, which has no container-level securityContext of
     # its own (see the thanos-ruler PolicyException for its missing resources).
     # runAsUser must be numeric: the config-reloader image declares USER

@@ -36,7 +36,7 @@ spec:
             - ALL
         seccompProfile:
           type: RuntimeDefault
-        # C-0017 (kubescape NSA): immutable root fs. Alloy still runs as root
+        # NSA hardening: immutable root fs. Alloy still runs as root
         # (image declares no USER; the alloy PolicyException covers
         # run-as-nonroot for the host-log mounts) — the WAL/positions live in
         # --storage.path=/tmp/alloy, so /tmp stays a writable emptyDir

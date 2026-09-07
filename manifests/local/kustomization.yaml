@@ -15,8 +15,6 @@ resources:
   - metrics.yaml
   - policies.yaml
   - policies-config.yaml
-  - security.yaml
-  - security-config.yaml
   - storage.yaml
   - objects.yaml
   - objects-config.yaml

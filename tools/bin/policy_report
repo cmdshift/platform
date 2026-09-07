@@ -17,8 +17,9 @@ policy_report() {
   trap 'rm -f "$reports" "$live" "$scopes"' EXIT
 
   kubectl get policyreports -A -o json > "$reports"
-  # cronjobs too — kubescape's scheduler cronjob report otherwise reads as
-  # permanently stale (hit live 2026-09-06)
+  # cronjobs too — a cronjob's report otherwise reads as permanently stale
+  # once its schedule target is gone (hit live 2026-09-06; the counting
+  # itself is generic)
   kubectl get pods,deployments,daemonsets,statefulsets,jobs,cronjobs -A -o json \
     | jq -r '.items[] | "\(.metadata.namespace)\t\(.kind)\t\(.metadata.name)"' | sort -u > "$live"
 

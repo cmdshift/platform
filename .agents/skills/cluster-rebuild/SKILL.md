@@ -24,8 +24,8 @@ Expect **~10 minutes**, progressing through the dependency chain in order:
 ```
 sources → crds → namespaces → certificates → networking (cilium: the long pole)
 → flux → flux-config (adopts the Bucket + root) → metrics → policies
-→ security (kubescape operator) → storage
-→ objects → monitoring → thanos-operator → monitoring-config → backups → logging
+→ storage → objects → monitoring → thanos-operator → monitoring-config
+→ backups → logging
 ```
 
 Watch with `flux_wait` (or `kubectl -n flux-system get kustomizations`).
@@ -34,8 +34,8 @@ Watch with `flux_wait` (or `kubectl -n flux-system get kustomizations`).
 
 | Check | Command | Expect |
 |---|---|---|
-| Kustomizations | `kubectl -n flux-system get kustomizations` | 27/27 True |
-| HelmReleases | `kubectl get helmreleases -A` | 16/16 True |
+| Kustomizations | `kubectl -n flux-system get kustomizations` | 25/25 True |
+| HelmReleases | `kubectl get helmreleases -A` | 15/15 True |
 | flux-config adoption | `kubectl -n flux-system get kustomization local -o json --show-managed-fields` | `kustomize-controller` owns the spec |
 | Velero BSL | `kubectl -n velero get bsl default` | `Available` |
 | Rustfs buckets | `rustfs ls main/` | `flux`, `backups` |

@@ -27,11 +27,11 @@ spec:
     imageReflectionController:
       create: false
     helmController:
-      # C-0013 (kubescape NSA): pod-level non-root — the chart already sets it
-      # at container level; this satisfies kubescape's stricter check
+      # NSA hardening: pod-level non-root — the chart already sets it
+      # at container level; this pins it at pod level too
       podSecurityContext:
         runAsNonRoot: true
-      # C-0013 (kubescape NSA): explicit non-root gid. NOTE: this chart's
+      # NSA hardening: explicit non-root gid. NOTE: this chart's
       # securityContext template replaces (not merges) its defaults when any
       # value is set, so the full container context must be spelled out —
       # providing only runAsGroup silently dropped APE/caps/roFS (hit live)

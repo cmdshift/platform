@@ -14,7 +14,7 @@ spec:
   additionalArgs:
     - --endpoint=dnssrv+_grpc._tcp.kube-prometheus-stack-thanos-discovery.monitoring.svc
   securityContext:
-    # C-0013 (kubescape NSA): thanos image runs as nobody; pod-level is the
+    # NSA hardening: thanos image runs as nobody; pod-level is the
     # only non-root knob the CRD exposes (no per-container securityContext)
     runAsNonRoot: true
     seccompProfile:
