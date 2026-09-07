@@ -29,7 +29,7 @@ spec:
       keep: true
     config:
       enableGatewayAPI: true
-    # C-0013 (kubescape NSA): explicit non-root uid/gid at container level
+    # NSA hardening: explicit non-root uid/gid at container level
     # (image runs as 65532, gid was implicit 0 before)
     containerSecurityContext:
       runAsUser: 65532

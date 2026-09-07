@@ -39,10 +39,9 @@ The sync container drops inotify events (edits included, not just deletes — hi
 ```
 kubectl get helmreleases -A      # every release True
 policy_report                    # failures: 0 expected (skips = PolicyExceptions); lists stale reports for gone resources
-nsa_scan                         # kubescape NSA; baseline 92.3, zero failing controls
 ```
 
-C-0069/C-0070 are `notEvaluated` without the kubescape node-agent — that is the lean ceiling (kernel fanotify limitation), not a regression. Accepted findings live in `manifests/local/notes.md` + `security-config/*.security-exception.yaml`.
+Posture scanning (kubescape) was removed 2026-09-06 — single-purpose hardening tools are its replacement (see `manifests/local/notes.md` for the accepted-deviations baseline those tools will audit against).
 
 ## Hard rule: no live patches
 

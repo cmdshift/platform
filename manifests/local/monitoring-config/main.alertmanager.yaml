@@ -5,7 +5,7 @@ metadata:
   namespace: monitoring
 spec:
   replicas: 1
-  # C-0034 (kubescape NSA): alertmanager serves HTTP only and its config
+  # NSA hardening: alertmanager serves HTTP only and its config
   # reload watches mounted files, never the API — the SA token is dead weight
   automountServiceAccountToken: false
   securityContext:

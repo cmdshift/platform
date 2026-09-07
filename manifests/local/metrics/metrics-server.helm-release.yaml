@@ -27,8 +27,8 @@ spec:
     args:
       - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
       - --metric-resolution=15s
-    # chart's securityContext is CONTAINER-level; runAsGroup added for kubescape
-    # C-0013 (requires explicit container-level uid+gid, not just runAsNonRoot)
+    # chart's securityContext is CONTAINER-level; runAsGroup added for NSA
+    # hardening (requires explicit container-level uid+gid, not just runAsNonRoot)
     securityContext:
       runAsGroup: 1000
     resources:

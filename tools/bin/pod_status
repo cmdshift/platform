@@ -4,8 +4,8 @@
 # per container, which `kubectl get pods` hides.
 #
 #   pod_status                        # all namespaces
-#   pod_status -n kubescape           # one namespace
-#   pod_status -n kubescape node-agent   # namespace + name prefix
+#   pod_status -n monitoring          # one namespace
+#   pod_status -n monitoring thanos   # namespace + name prefix
 #   pod_status -l app.kubernetes.io/name=foo
 #
 # Informational: exit 0 even when things are crashing (the data IS the

@@ -17,7 +17,6 @@ A local Kubernetes platform testbed: Talos nodes running in Docker, provisioned 
 - `just`
 - `k9s`
 - `kubectl`
-- `kubescape`
 - `packer` (`brew tap hashicorp/tap`)
 - `step`
 - `talosctl`
@@ -159,7 +158,7 @@ Bootstrap the GitOps sync (cilium + flux + the pipeline's own Bucket/root object
 just bootstrap apply
 ```
 
-Expect roughly **10 minutes** of one-shot convergence — no manual intervention. Watch it with `kubectl -n flux-system get kustomizations`; the full verification checklist (27 kustomizations, 16 HelmReleases, velero BSL, ...) is in `runbooks/local/cluster-rebuild.md`.
+Expect roughly **10 minutes** of one-shot convergence — no manual intervention. Watch it with `kubectl -n flux-system get kustomizations`; the full verification checklist (25 kustomizations, 15 HelmReleases, velero BSL, ...) is in `runbooks/local/cluster-rebuild.md`.
 
 Inspect the cluster:
 
