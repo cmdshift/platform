@@ -50,7 +50,9 @@ spec:
                   type: RuntimeDefault
               containers:
                 - name: manager
-                  image: quay.io/thanos/thanos-operator:main-2026-09-03-49cd11f
+                  # 831accd4 (#636): status conditions fixed — single Ready
+                  # condition replaces the sticky ReconcileSuccess/Failed pair
+                  image: quay.io/thanos/thanos-operator:main-2026-09-07-831accd
                   # request audit 2026-09-06: steady 41Mi against the bundle's
                   # 64Mi request (64%); 80Mi = observed x 1.2. cpu/limits match
                   # the bundle (pinned in case the bundle ref moves)

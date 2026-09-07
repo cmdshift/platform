@@ -44,7 +44,7 @@ Watch with `flux_wait` (or `kubectl -n flux-system get kustomizations`).
 | Thanos ruler | `kubectl -n monitoring get pods -l app.kubernetes.io/name=thanos-ruler` | 1/1 Running (CR sets `replicas: 1`) |
 | PolicyReports | `policy_report` | 0 failures |
 
-**Known expected artifact:** thanos ruler CRs show `ReconcileFailed=True` alongside `ReconcileSuccess=True` (first-minute race before the query service exists; the condition never resets — thanos-community/thanos-operator#635). Trust the workloads, not the conditions.
+**Bootstrap race, self-healing:** on a fresh rebuild the ruler CR can fail its first sync (query service not up yet) → `Ready=False (ReconcileError)` on the CR. Since thanos-community/thanos-operator#636 the operator emits a single recoverable `Ready` condition — the next sync flips it `True`; no manual action, verify it converged (cmdshift/platform#22).
 
 ## Data implications
 
