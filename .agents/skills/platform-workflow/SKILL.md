@@ -32,6 +32,7 @@ flux_wait          # reconcile root kustomization local --with-source + bounded 
 The sync container drops inotify events (edits included, not just deletes — hit twice 2026-09-06), so reconciling without `sync_wait` can apply a stale artifact. For edit-heavy sessions, spot-check with `rustfs cat <key> | grep <marker>`.
 
 - `flux_wait` exit 0 = all green; exit 1 = timeout with the pending list + diagnose hint → load the `reconcile-stuck` skill.
+- **valuesFrom releases (issue #31 pattern)**: a values-only change (ConfigMap edit, HelmRelease spec untouched) does not re-trigger helm-controller — after `flux_wait`, run `flux reconcile helmrelease <name> -n <ns> --with-source` or the release keeps old values until drift-heal.
 - Edits never reaching the cluster at all → load the `pipeline-wedged` skill.
 - Observed timing (2026-09-07): a single-group change settles in ~5 polls (~1m); a full-tree reconcile in ~2-3m; a fresh rebuild ~10m. Default cap 42 covers the rebuild worst case — for interactive changes run `flux_wait 15`: a kustomization still pending at ~8 polls is almost always **failing, not slow** — `describe` it instead of waiting out the cap.
 

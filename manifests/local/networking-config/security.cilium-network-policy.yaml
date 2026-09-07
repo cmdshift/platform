@@ -6,7 +6,8 @@ metadata:
 spec:
   endpointSelector: {}
   egress:
-    # agent watches the k8s API (tetragon.enableK8sAPI); operator manages CRDs/leases
+    # agent watches the k8s API (tetragon.enableK8sAPI); trivy-operator
+    # manages CRDs/leases
     - toEntities:
         - kube-apiserver
     # agent is hostNetwork — node-local paths resolve via the host entity
@@ -28,6 +29,34 @@ spec:
           rules:
             dns:
               - matchPattern: "*"
+    # trivy-operator: scan jobs pull the cached trivy-db from the built-in
+    # trivy-server (chart 0.36.0 listens on :4954 — values.yaml's "4975"
+    # comment is stale; verified in the chart's service template)
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: security
+      toPorts:
+        - ports:
+            - port: "4954"
+              protocol: TCP
+    # trivy: all image/DB pulls go through the angos caching registry
+    # (registry.cloud.test, plain HTTP :80 — see notes.md companions) — scan
+    # jobs pull scanned images through it via the chart's registry.mirror
+    # rewrite, trivy-server pulls trivy-db the same way. world:443 stays as
+    # the fallback for upstreams outside the cache's map
+    - toFQDNs:
+        - matchName: registry.cloud.test
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
   # no ingress section: this cluster's default-deny is egress-only, and the
-  # metrics ports (2112/2113) must stay scrapeable by Prometheus. The tetra
-  # gRPC listener is loopback-only and does not traverse Cilium.
+  # metrics ports (tetragon 2112/2113, trivy-operator 80) must stay scrapeable
+  # by Prometheus. The tetra gRPC listener is loopback-only and does not
+  # traverse Cilium.

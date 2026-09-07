@@ -1,0 +1,169 @@
+# trivy-operator helm values — single source of truth, consumed two ways:
+# flux (configMapGenerator here -> HelmRelease valuesFrom) and helm_verify
+# (`helm template --values` against the chart). Pattern from
+# cmdshift/platform#31. Keep rationale comments at the value.
+operator:
+  # trivy-server caches trivy-db/java-db on a PVC (local-path, 5Gi): scan
+  # jobs hit the server instead of each downloading ~75MB of DB. The built-in
+  # server listens on :4954 — values.yaml's "4975" comment is stale (verified
+  # in the chart's service/configmap templates, 0.36.0)
+  builtInTrivyServer: true
+  # infra assessment drives node-collector jobs mounting standard-Linux node
+  # paths (etcd, /etc/systemd...) — Talos has no systemd and a nonstandard
+  # layout, and the hostPath mounts would be denied by disallow-host-path.
+  # Revisit only if infra assessment ever matters here
+  infraAssessmentScannerEnabled: false
+  # gentle on the local node + registries during the initial ~50-workload
+  # scan flood (chart default 10); stuck/failed jobs also fill this budget
+  scanJobsConcurrentLimit: 3
+  # housekeeping: delete completed/stale Job objects (chart default: forever)
+  scanJobTTL: 10m
+  # trivy-server pulls trivy-db/java-db over the cache's plain HTTP endpoint
+  # (chart knob for exactly this: "insecure connection from the built-in Trivy
+  # server to the registry")
+  builtInServerRegistryInsecure: true
+trivy:
+  # full vulnerability picture (unfixed CVEs included) — deliberate for a
+  # hardening testbed; keeps reports actionable-poor but information-rich
+  ignoreUnfixed: false
+  # ALL pull paths go through the angos caching registry (registry.cloud.test,
+  # the cluster's pull-through cache — see notes.md companions section):
+  # - tool + operator images are kubelet-pulled, so the node containerd mirror
+  #   catches them — but only for registries in the upstream map; mirror.gcr.io
+  #   (chart default) is NOT in it, docker.io is
+  # - scan-job clients rewrite target image refs via registry.mirror below
+  #   (operator GetMirroredImage string-rewrite, matches the angos
+  #   /v2/<upstream-key> path layout that the node mirror also uses)
+  # - trivy-server pulls trivy-db/java-db from dbRegistry
+  image:
+    registry: docker.io
+  dbRegistry: registry.cloud.test
+  dbRepository: docker/aquasec/trivy-db
+  javaDbRegistry: registry.cloud.test
+  javaDbRepository: docker/aquasec/trivy-java-db
+  # the cache is plain HTTP via haproxy (:80, no TLS terminates locally)
+  dbRepositoryInsecure: "true"
+  registry:
+    mirror:
+      # keys = image-ref prefixes (HasPrefix match, first hit wins); values =
+      # angos upstream-key paths. index.docker.io is the normalized form of
+      # docker.io refs (go-containerregistry) — both needed
+      "docker.io": registry.cloud.test/docker
+      "index.docker.io": registry.cloud.test/docker
+      "ghcr.io": registry.cloud.test/ghcr
+      "registry.k8s.io": registry.cloud.test/k8s
+      "quay.io": registry.cloud.test/quay
+      "gcr.io": registry.cloud.test/gcr
+      "mcr.microsoft.com": registry.cloud.test/mcr
+      "public.ecr.aws": registry.cloud.test/ecr
+  insecureRegistries:
+    # scan jobs get TRIVY_INSECURE=true when the target matches — the http
+    # cache endpoint needs it (trivy falls back to plain HTTP)
+    cache: registry.cloud.test
+  # scan-job containers AND the standalone DB-download init container inherit
+  # these (verified in operator source v0.34.0 pkg/plugins/trivy);
+  # provisional — audit after burn-in
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  server:
+    # PVC-backed cache on the Talos user volume (50GB, thin-provisioned,
+    # ~12MB used across all nodes as of adoption; local-path cannot expand a
+    # PVC in place, so keep headroom — real footprint ~1-2GB, peak ~3GB during
+    # DB update double-buffering)
+    storageClassEnabled: true
+    storageSize: 5Gi
+    # chart defaults (runAsUser/fsGroup 65534, readOnlyRootFilesystem) + the
+    # admission-required knobs the chart omits; cache lives on the PVC so a
+    # read-only root filesystem is fine
+    podSecurityContext:
+      runAsUser: 65534
+      runAsGroup: 65534
+      runAsNonRoot: true
+      fsGroup: 65534
+      seccompProfile:
+        type: RuntimeDefault
+    securityContext:
+      privileged: false
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      seccompProfile:
+        type: RuntimeDefault
+      capabilities:
+        drop:
+          - ALL
+trivyOperator:
+  # scan jobs are kyverno-checked like any pod — the operator hardcodes an
+  # EMPTY pod-level securityContext into generated Jobs (v0.34.0 source) and
+  # merges these values in via WithPodSecurityContext; without them every scan
+  # job is denied at admission (require-run-as-nonroot,
+  # restrict-seccomp-string) and vulnerability scanning silently never runs.
+  # runAsUser 65534 is load-bearing: the trivy image declares USER root, so
+  # runAsNonRoot alone fails the kubelet's image-USER check
+  # (CreateContainerConfigError: "image will run as root"); with an explicit
+  # non-zero uid the check is skipped and the container just runs as nobody —
+  # cache goes to the /tmp emptyDir, DB lives on the server
+  scanJobPodTemplatePodSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    seccompProfile:
+      type: RuntimeDefault
+  scanJobPodTemplateContainerSecurityContext:
+    allowPrivilegeEscalation: false
+    privileged: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+    capabilities:
+      drop:
+        - ALL
+compliance:
+  # ClusterComplianceReport CRs are vendored in security-config/ (nsa + pss
+  # baseline/restricted) — spec content is version-controlled there. CIS
+  # (chart default) dropped: its controls depend on node-collector jobs with
+  # standard-Linux hostPath mounts — Talos is neither
+  specs: []
+# operator image — kubelet-pulled, so the node containerd mirror catches it
+# (docker.io is in the angos upstream map; the chart default mirror.gcr.io is
+# NOT and would bypass the cache)
+image:
+  registry: docker.io
+serviceMonitor:
+  enabled: true # trivy metrics :80 (kube-prometheus-stack selects all)
+# operator pod resources — TOP-LEVEL key (the chart ignores
+# operator.resources; caught because the rendered Deployment had
+# containers[].resources: null). provisional — audit after burn-in per the
+# resource-sizing convention (report parsing + rego config-audit run
+# in-process)
+resources:
+  requests:
+    cpu: 50m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  # chart ships privileged:false / allowPrivilegeEscalation:false /
+  # readOnlyRootFilesystem:true / drop ALL; runAsNonRoot + seccompProfile
+  # added for the require-run-as-nonroot and restrict-seccomp-string
+  # admission policies
+  privileged: false
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+  capabilities:
+    drop:
+      - ALL

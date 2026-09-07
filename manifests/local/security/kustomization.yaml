@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# configMapGenerator -> HelmRelease valuesFrom (cmdshift/platform#31): values
+# stay a plain YAML file, consumable by `helm template --values` directly.
+# disableNameSuffixHash: HelmRelease.valuesFrom is not a kustomize-known name
+# reference, so a content-hash suffix would desync the hand-written HelmRelease
+# reference — helm-controller re-reconciles on configmap data changes anyway.
+generatorOptions:
+  disableNameSuffixHash: true
+configMapGenerator:
+  - name: trivy-operator-values
+    namespace: security
+    files:
+      - values.yaml=trivy-values.yaml
+resources:
+  # every yaml in this dir must be listed here — an unregistered file is
+  # silently not built and flux prunes it (same trap as namespaces/)
+  - tetragon.helm-release.yaml
+  - trivy-operator.helm-release.yaml
