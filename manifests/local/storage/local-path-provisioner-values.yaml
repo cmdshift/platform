@@ -1,4 +1,3 @@
-namespaceOverride: local-path-storage
 helperImage:
   tag: "1.36"
 podSecurityContext:

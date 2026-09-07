@@ -8,7 +8,8 @@ locals {
     }
   }
 
-  cert_manager = {
+  # ns refactor #31: locals/upload paths mirror the cluster namespaces
+  certificates = {
     intermediate_ca = {
       "tls.crt" = trimspace(file("${path.root}/.tmp/tls/intermediate_ca.crt"))
       "tls.key" = trimspace(file("${path.root}/.tmp/tls/intermediate_ca.key"))

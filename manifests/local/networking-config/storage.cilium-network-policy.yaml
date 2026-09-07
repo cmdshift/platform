@@ -1,8 +1,8 @@
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: local-path-storage
-  namespace: local-path-storage
+  name: storage
+  namespace: storage
 spec:
   endpointSelector: {}
   egress:

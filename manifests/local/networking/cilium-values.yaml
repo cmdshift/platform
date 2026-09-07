@@ -46,7 +46,8 @@ hubble:
           cpu: 10m
           memory: 48Mi
         limits:
-          cpu: 100m
+          # 2026-09-07 audit: 13.6% of CFS periods throttled at the old 100m
+          cpu: 200m
           memory: 72Mi
     frontend:
       resources:
@@ -54,7 +55,8 @@ hubble:
           cpu: 10m
           memory: 16Mi
         limits:
-          cpu: 20m
+          # 2026-09-07 audit: 33% of CFS periods throttled at the old 20m
+          cpu: 100m
           memory: 24Mi
 ipam:
   mode: kubernetes
@@ -89,20 +91,26 @@ operator:
       cpu: 10m
       memory: 144Mi
     limits:
-      cpu: 40m
+      # 2026-09-07 audit: 7.3% of CFS periods throttled at the old 40m —
+      # convention floor for burst headroom
+      cpu: 200m
       memory: 216Mi
 resources:
   requests:
     cpu: 50m
     # request audit 2026-09-06: the busy work node's agent sat at 234Mi
     # steady (91% of the old 256Mi request); 288Mi = worst-node x 1.2
-    memory: 288Mi
+    # 2026-09-07 audit (post ns-refactor churn): agents 296-351Mi =
+    # 103-122% of the 288Mi request — 448Mi = worst-node x 1.2, limit 1.5x
+    memory: 448Mi
   limits:
-    cpu: 200m
+    # 2026-09-07 audit: 21.8% of CFS periods throttled at the old 200m —
+    # eBPF/encrypt bursts; generous CPU limit per convention
+    cpu: 500m
     # test-namespace endpoints/identities spiked agents to ~323Mi against
     # the old 384Mi limit (84%) during a connectivity test run; 512Mi keeps
     # burst headroom
-    memory: 512Mi
+    memory: 672Mi
 rollOutCiliumPods: true
 securityContext:
   capabilities:

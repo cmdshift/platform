@@ -8,6 +8,12 @@
 # kyverno landmine). Deletes the old-generation running pods; no-op exit 0
 # when nothing is pending.
 #
+# 2026-09-07 (#31 ns refactor): kyverno runs in the `policies` namespace —
+# this script targets it there. Cross-namespace deadlock variant hit live
+# during the move: the OLD namespace's deployments held the ports while the
+# new pods pended — deleting the old DEPLOYMENTS (not just their pods) avoids
+# the replacement-pod re-grab race this script's single-call rule exists for.
+#
 # All victims are deleted in a SINGLE kubectl call. Piecemeal deletion loses
 # the race: while pods go down one at a time, the deployment controller
 # recreates old-generation pods that re-grab the freed host ports before the
@@ -19,7 +25,7 @@
 set -euo pipefail
 
 pending_pods() {
-  kubectl -n kyverno get pods --no-headers \
+  kubectl -n policies get pods --no-headers \
     | awk '$3 == "Pending" {print $1}'
 }
 
@@ -31,7 +37,7 @@ pod_deploy() {
 
 # newest ReplicaSet of a deployment = its current pod template
 newest_rs() {
-  kubectl -n kyverno get rs -o json \
+  kubectl -n policies get rs -o json \
     | jq -r --arg d "$1" '
         [.items[]
          | select(.metadata.ownerReferences[]?.name == $d)
@@ -45,11 +51,11 @@ old_generation_pods() {
   local deploy="$1" new_hash
   new_hash=$(newest_rs "$deploy")
   [ -z "$new_hash" ] && return 0
-  kubectl -n kyverno get pods --no-headers \
+  kubectl -n policies get pods --no-headers \
     | awk -v deploy="$deploy" -v new="$new_hash" '
         index($1, deploy "-") == 1 && $3 == "Running" {print $1}' \
     | while read -r pod; do
-        hash=$(kubectl -n kyverno get pod "$pod" \
+        hash=$(kubectl -n policies get pod "$pod" \
           -o jsonpath='{.metadata.labels.pod-template-hash}')
         [ "$hash" != "$new_hash" ] && echo "$pod"
       done
@@ -88,7 +94,7 @@ kyverno_unblock() {
     deleted=1
   done
   # shellcheck disable=SC2086
-  kubectl -n kyverno delete pod $victims --wait=false
+  kubectl -n policies delete pod $victims --wait=false
   [ "$deleted" = 1 ] && echo "old pods deleted — new pods bind the freed ports; re-run flux_wait"
 }
 

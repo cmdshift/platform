@@ -18,8 +18,22 @@ spec:
   path: .
   prune: true
   wait: true
+  # 2026-09-07: during the thanos-operator-system → monitoring move (#31) the
+  # health check raced the inventory update: it waited on the OLD namespace's
+  # objects (already GC'd) → NotFound → 5m timeout → reconcile failed → the
+  # inventory never refreshed and every 5s retry re-waited on the deleted
+  # namespace. wait: false for one reconcile broke the loop (see
+  # runbooks/local/namespace-migration.md); restored once Ready.
   timeout: 5m
   patches:
+    # 2026-09-07 ns refactor (#31): operators live in their kustomization group's
+    # namespace — every namespaced bundle resource moves from
+    # thanos-operator-system to monitoring, including the bundle's own
+    # Namespace manifest (renamed to converge with the one the namespaces group
+    # owns, so no leftover system namespace). The two ClusterRoleBindings'
+    # subjects must follow or the operator loses RBAC after the move.
+    # SM patches carry explicit targets: target matches the bundle's original
+    # identity; the patch's metadata.namespace is what relocates the resource.
     # kyverno compliance + image pinning (matches the GitRepository ref;
     # quay publishes main-YYYY-MM-DD-COMMIT per commit)
     - patch: |-
@@ -27,7 +41,7 @@ spec:
         kind: Deployment
         metadata:
           name: thanos-operator-controller-manager
-          namespace: thanos-operator-system
+          namespace: monitoring
         spec:
           template:
             spec:
@@ -40,13 +54,15 @@ spec:
                   # request audit 2026-09-06: steady 41Mi against the bundle's
                   # 64Mi request (64%); 80Mi = observed x 1.2. cpu/limits match
                   # the bundle (pinned in case the bundle ref moves)
+                  # 2026-09-07 audit: 85Mi steady = 106% of the 80Mi request —
+                  # 112Mi = P99 x 1.2, limit 1.5x
                   resources:
                     requests:
                       cpu: 10m
-                      memory: 80Mi
+                      memory: 112Mi
                     limits:
                       cpu: 500m
-                      memory: 128Mi
+                      memory: 168Mi
                   # otel-sidecar gate dropped: it injects tracing config
                   # (localhost:4318) without a collector — every thanos
                   # component spams connection-refused ~2900/hr each
@@ -81,6 +97,77 @@ spec:
               volumes:
                 - name: tmp
                   emptyDir: {}
+      target:
+        kind: Deployment
+        name: thanos-operator-controller-manager
+    # SM patches cannot mutate metadata.namespace (kustomize treats it as
+    # selector data, not a merged field — verified against the rendered bundle
+    # 2026-09-07), so every relocation is a JSON6902 namespace replace
+    - patch: |-
+        - op: replace
+          path: /metadata/namespace
+          value: monitoring
+      target:
+        kind: Deployment
+        name: thanos-operator-controller-manager
+    - patch: |-
+        - op: replace
+          path: /metadata/namespace
+          value: monitoring
+      target:
+        kind: ServiceAccount
+        name: thanos-operator-controller-manager
+    - patch: |-
+        - op: replace
+          path: /metadata/namespace
+          value: monitoring
+      target:
+        kind: Service
+        name: thanos-operator-controller-manager-metrics-service
+    - patch: |-
+        - op: replace
+          path: /metadata/namespace
+          value: monitoring
+      target:
+        kind: ServiceMonitor
+        name: thanos-operator-controller-manager-metrics-monitor
+    - patch: |-
+        - op: replace
+          path: /metadata/namespace
+          value: monitoring
+      target:
+        kind: Role
+        name: thanos-operator-leader-election-role
+    - patch: |-
+        - op: replace
+          path: /metadata/namespace
+          value: monitoring
+      target:
+        kind: RoleBinding
+        name: thanos-operator-leader-election-rolebinding
+    # bundle Namespace rename: JSON6902 (a strategic merge can't change a merge key)
+    - patch: |-
+        - op: replace
+          path: /metadata/name
+          value: monitoring
+      target:
+        kind: Namespace
+        name: thanos-operator-system
+    # ClusterRoleBinding subjects: the SA's namespace must follow the move
+    - patch: |-
+        - op: replace
+          path: /subjects/0/namespace
+          value: monitoring
+      target:
+        kind: ClusterRoleBinding
+        name: thanos-operator-manager-rolebinding
+    - patch: |-
+        - op: replace
+          path: /subjects/0/namespace
+          value: monitoring
+      target:
+        kind: ClusterRoleBinding
+        name: thanos-operator-metrics-auth-rolebinding
     # chart/bundle RBAC lacks the events permission the operator needs in
     # managed namespaces
     - patch: |-

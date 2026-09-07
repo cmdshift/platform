@@ -2,7 +2,7 @@ apiVersion: policies.kyverno.io/v1
 kind: PolicyException
 metadata:
   name: allow-local-path-helper-pod
-  namespace: kyverno
+  namespace: policies
 spec:
   policyRefs:
     - name: disallow-capabilities-strict
@@ -13,4 +13,4 @@ spec:
       kind: ValidatingPolicy
   matchConditions:
     - name: match-helper-pod
-      expression: "object.metadata.namespace == 'local-path-storage' && object.metadata.name.startsWith('helper-pod')"
+      expression: "object.metadata.namespace == 'storage' && object.metadata.name.startsWith('helper-pod')"

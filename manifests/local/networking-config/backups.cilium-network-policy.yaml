@@ -1,8 +1,8 @@
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: velero
-  namespace: velero
+  name: backups
+  namespace: backups
 spec:
   endpointSelector: {}
   egress:

@@ -2,7 +2,11 @@ apiVersion: policies.kyverno.io/v1
 kind: PolicyException
 metadata:
   name: allow-velero-security-contexts
-  namespace: kyverno
+  namespace: policies
+  # ns refactor #31: bumped 2026-09-07 to force a re-pick-up (see
+  # allow-privileged-system-worloads.policy-exception.yaml)
+  annotations:
+    platform.cmdshift.io/ns-refactor: "2026-09-07"
 spec:
   policyRefs:
     - name: disallow-capabilities-strict
@@ -18,4 +22,4 @@ spec:
       # velero/node-agent pods by name, plus the temporary data mover pods velero creates
       # for fs-backup/restore — those are named after their PodVolumeBackup/PVR (arbitrary
       # prefix) but always carry the velero.io/pod-volume-backup (or restore) label
-      expression: "object.metadata.namespace == 'velero' && (object.metadata.name.startsWith('velero') || object.metadata.name.startsWith('node-agent') || 'velero.io/pod-volume-backup' in object.metadata.labels || 'velero.io/pod-volume-restore' in object.metadata.labels)"
+      expression: "object.metadata.namespace == 'backups' && (object.metadata.name.startsWith('velero') || object.metadata.name.startsWith('node-agent') || 'velero.io/pod-volume-backup' in object.metadata.labels || 'velero.io/pod-volume-restore' in object.metadata.labels)"

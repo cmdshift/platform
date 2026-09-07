@@ -14,8 +14,8 @@ resource "docker_container" "secrets" {
   }
   entrypoint = ["httpd", "-vvv", "-f", "-h", "/www"]
   upload {
-    file    = "/www/cert-manager/intermediate-ca"
-    content = jsonencode(local.cert_manager.intermediate_ca)
+    file    = "/www/certificates/intermediate-ca"
+    content = jsonencode(local.certificates.intermediate_ca)
   }
   upload {
     file    = "/www/flux-system/bucket-credentials"

@@ -1,8 +1,8 @@
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: kyverno
-  namespace: kyverno
+  name: policies
+  namespace: policies
 spec:
   endpointSelector: {}
   egress:
@@ -17,4 +17,4 @@ spec:
               protocol: TCP
     - fromEndpoints:
         - matchLabels:
-            io.kubernetes.pod.namespace: kyverno
+            io.kubernetes.pod.namespace: policies

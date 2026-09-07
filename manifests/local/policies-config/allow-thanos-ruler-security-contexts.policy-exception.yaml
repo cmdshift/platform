@@ -6,7 +6,7 @@ apiVersion: policies.kyverno.io/v1
 kind: PolicyException
 metadata:
   name: allow-thanos-ruler-security-contexts
-  namespace: kyverno
+  namespace: policies
 spec:
   policyRefs:
     - name: require-resource-limits

@@ -47,6 +47,17 @@ Reference finding (platform#20): the apiserver job alone was 52k of 111k head se
 - flux delivery controllers (source/helm/kustomize) have their own floor — see the sizing section in AGENTS.md; starving them wedges the whole pipeline
 - trend-driven cases: open a tracking issue with the data (platform#20 is the template) — the `ContainerOOMKilled` alert guards the ceiling meanwhile (read alerts at http://mail.cloud.test)
 
+## 7. Landing the changes: valuesFrom ordering (hit 2026-09-07)
+
+Resource bumps are values-only changes → the HelmRelease spec is untouched → helm-controller never re-triggers. The two-step dance, **in this order**:
+
+1. `sync_wait` + `flux_wait` — the *group* kustomization rebuilds the generated `ConfigMap/<release>-values` (the CMs do not exist until this runs).
+2. `helm_wait <ns> <release>` for each changed release — re-triggers helm against the *fresh* CM.
+
+Run `helm_wait` **without** `flux_wait` first and the upgrade re-renders against the OLD ConfigMap data — the HR goes Ready, reports success, and the new values never land (hit twice in the 2026-09-07 audit; the tell is `request_audit` still showing the old requests after a "successful" rollout). CR-managed workloads (Grafana/Alertmanager/Thanos CRs) don't need step 2 — the operator picks up the CR edit on its own reconcile; a `flux reconcile kustomization <group>-config --with-source` forces it. The thanos-operator is a **Kustomization** (bundle + patches), not an HR — its spec is owned by the `monitoring` group, so `flux_wait` then `flux reconcile kustomization thanos-operator --with-source`.
+
+Also: `request_audit`'s read of pod resources reflects the **old** pods until each rollout finishes — daemonsets/statefulsets roll one pod at a time; re-run the audit after the roll completes, not during it.
+
 ---
 
 *Agent entry point: the `resource-sizing` skill in `.agents/skills/resource-sizing/`.*

@@ -2,7 +2,7 @@ apiVersion: policies.kyverno.io/v1
 kind: PolicyException
 metadata:
   name: allow-cilium-system-components
-  namespace: kyverno
+  namespace: policies
 spec:
   policyRefs:
     - name: disallow-capabilities-strict

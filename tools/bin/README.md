@@ -29,6 +29,7 @@ for `rustfs`. macOS date math (`date -v`) assumes darwin.
 | `helm_verify` | render every HelmRelease's values via `helm template` (values-path check) |
 | `sync_wait` | wait until changed manifests have actually landed in the flux bucket |
 | `flux_wait` | reconcile from the root + bounded poll to all-green |
+| `helm_wait` | reconcile one HelmRelease + bounded poll; exits fast on terminal failure |
 | `cr_validate` | server-side dry-run: validate CRs against on-cluster CRD schemas + admission (pre-reconcile) |
 | `pod_status` | pod table with restarts + last exit code/reason (crashloop triage) |
 | `memory_audit` | memory usage-vs-limits table |
@@ -189,10 +190,16 @@ stale reports it lists, then re-prints the fresh summary.
 
 LOCAL-ONLY. Deletes old-generation kyverno pods when a rollout deadlocks on
 hostNetwork ports (each pod claims its node's port; new-generation pod stays
-Pending — AGENTS.md kyverno landmine). All victims deleted in a single
-kubectl call — piecemeal deletion loses the race to the deployment
-controller. No-op exit 0 when nothing is pending. After it runs, re-run
-`flux_wait`.
+Pending — AGENTS.md kyverno landmine). Targets the `policies` namespace
+(2026-09-07 ns refactor). All victims deleted in a single kubectl call —
+piecemeal deletion loses the race to the deployment controller. No-op exit 0
+when nothing is pending. After it runs, re-run `flux_wait`.
+
+Cross-namespace deadlock variant (old release still in a former namespace
+holding the ports — hit live during the ns refactor): this script can't see
+those pods; delete the old DEPLOYMENTS instead (pods alone get replaced by
+the still-running old deployment, which re-grabs the ports). See
+runbooks/local/namespace-migration.md.
 
 ## Observability queries
 
@@ -258,6 +265,18 @@ Polls a velero backup/restore to Completed, echoing the phase. Default 36
 polls × 5s (~3m). Exit 0 = Completed. Exit 1 = Failed/PartiallyFailed
 (terminal — stops early) or timeout, each with a diagnose hint. Exists
 because the velero CLI has no jsonpath output.
+
+### `helm_wait <namespace> <name> [max_polls]`
+
+Reconciles one HelmRelease (`flux reconcile helmrelease --with-source`) and
+waits for Ready, echoing progress. Default 15 polls × 10s (~2.5m). The key
+behavior: the reconcile blocks through helm's install/upgrade timeout +
+retries, so once it returns a `Ready=False` is **terminal** — `helm_wait`
+exits 1 immediately with the HR failure message + diagnose hint instead of
+polling out the window ("immediately broken" detection). Polls only guard
+against status lag. Exit 0 = Ready, 1 = failed/timeout, 2 = usage. Born
+2026-09-07 from the ns-refactor velero move (three waves of the same
+admission-denial diagnosis re-derived by hand before this existed).
 
 ### `rustfs <rc args...>`
 
