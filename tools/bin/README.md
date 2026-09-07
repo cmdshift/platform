@@ -38,6 +38,7 @@ for `rustfs`. macOS date math (`date -v`) assumes darwin.
 | `kyverno_unblock` | unstick kyverno rollouts deadlocked on hostNetwork ports |
 | `prometheus_query` | PromQL with port-forward lifecycle handled |
 | `loki_query` | LogQL with tenant + time math preset |
+| `alloy_components` | dump the alloy components a pod is actually running (config-mismatch triage) |
 | `mailpit` | alert-email subjects from mailpit |
 | `velero_wait` | poll a velero backup/restore to Completed |
 | `rustfs` | rustfs `rc` CLI inside the storage container, alias preset |
@@ -85,10 +86,13 @@ editing and `flux_wait`.
 - Bounded: `SYNC_WAIT_TIMEOUT` (default 120s). Exit 0 converged; exit 1
   timeout with still-stale list + `docker restart sync-cloud-test` hint
 
-### `flux_wait [max_polls]`
+### `flux_wait [max_polls] [--with-source]`
 
 Reconciles the root Kustomization `local --with-source` (4m timeout), then
 polls `flux-system` kustomizations every 10s, echoing the pending list.
+`--with-source` is accepted in any position (implied — the reconcile always
+includes it; docs write both orders). Non-integer caps / unknown flags exit
+2 with usage — a non-integer cap used to silently disable the timeout.
 
 - Default 42 polls (~7m after the reconcile) — sized for the fresh-rebuild
   worst case (~10m)
@@ -188,6 +192,28 @@ svc/thanos-query-main with `--query`) with the lifecycle handled.
 LogQL against svc/loki:3100, tenant `self-monitoring` preset, nanosecond
 time math handled. Default window 1h (m|h|d); prints raw log lines (limit
 100).
+
+- Stream labels are `instance` (`ns/pod:container`), `job`,
+  `service_name`, `detected_level` — **there is no `namespace`/`pod`
+  label**; `{namespace="monitoring"}` legitimately matches nothing. Select
+  with `{instance=~"monitoring/.*"}` instead (the k8s metadata the pack
+  stage produces is embedded in the log line, not promoted to labels)
+
+### `alloy_components [--all] [pod]`
+
+Dumps the component list alloy is actually running, with health state —
+the wedge-triage check for "is alloy running the config I think it is".
+Default: first alloy pod; `--all` = the whole DaemonSet. Exit 0 = all
+components healthy, 1 = any unhealthy/unreachable.
+
+- Tell of a config mismatch (HelmRelease missing `alloy.configMap` —
+  the chart SILENTLY installs its example config, pods healthy, nothing
+  pushed, see cmdshift/platform#27): `discovery.kubernetes` components
+  for nodes/services/endpoints/endpointslices/ingresses appear, and the
+  `loki.*` components are gone
+- Expected live set: `discovery.kubernetes.pods`,
+  `loki.source.kubernetes.pods`, `loki.process.wrap`,
+  `loki.write.endpoint`
 
 ### `mailpit [limit]`
 

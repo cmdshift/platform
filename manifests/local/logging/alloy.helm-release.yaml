@@ -29,6 +29,15 @@ spec:
           # writable /tmp: --storage.path=/tmp/alloy (WAL + positions) below
           - name: tmp
             mountPath: /tmp
+      # config comes from the kustomization-generated alloy-config ConfigMap
+      # (configMapGenerator on config.alloy). Without this block the chart
+      # SILENTLY installs its example config — pods run healthy, push nothing,
+      # and Loki ingests nothing (cmdshift/platform#27, dropped in ddd4f83 by
+      # an edit that overwrote this block with the tmp mount).
+      configMap:
+        create: false
+        name: alloy-config
+        key: config.alloy
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:

@@ -23,9 +23,15 @@ Useful one-liners: `container_cpu_cfs_throttled_periods_total` (throttling), `co
 ## loki_query
 
 ```
-loki_query '{app="loki"}'          # LogQL, tenant self-monitoring preset, default window 1h
+loki_query '{instance=~"logging/loki-0.*"}'   # LogQL, tenant preset, default window 1h
 loki_query '<logql>' 24h
 ```
+
+- Stream labels: `instance` (`ns/pod:container`), `job`, `service_name`,
+  `detected_level` — **no `namespace`/`pod` labels** (k8s metadata is
+  embedded in the log line, not promoted). `{namespace="…"}` matches
+  nothing; select by `instance` prefix
+- Tenant `self-monitoring` preset (alloy's `loki.write` tenant)
 
 ## mailpit
 
@@ -46,7 +52,7 @@ tetra --server-address localhost:54321 tracingpolicy list
 
 - Subcommand is `getevents` (there is no `events`). Global flag `--server-address` goes before the subcommand.
 - Events also stream to container stdout (`kubectl -n security logs ds/tetragon -c export-stdout`) with full k8s metadata; kube-system/host events are filtered from that sink by chart default, gRPC output is not.
-- Caveat: Loki ingestion is currently broken (open issue in `manifests/local/notes.md`) — query events via tetra/logs, not `loki_query`, until fixed.
+- Events are searchable in Loki too: `loki_query '{instance=~"security/tetragon.*"}'` (the `export-stdout` container's JSON lines — was the fallback during the #27 ingestion outage, now primary again).
 
 ## Full detail
 
