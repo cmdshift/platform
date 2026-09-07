@@ -1,0 +1,117 @@
+alertmanager:
+  enabled: false
+defaultRules:
+  disabled:
+    # environmental on Talos-in-Docker: node_timex_sync_status=0 on every
+    # node (no sync flag from the docker VMs) — accepted finding, notes.md
+    NodeClockNotSynchronising: true
+    # kube-proxy targets sit at connection refused until the rebuild lands
+    # metrics-bind-address 0.0.0.0:10249 — cmdshift/platform#23. TargetDown
+    # stays enabled (generic coverage) and is muted in the mail
+    # AlertmanagerConfig for this job only.
+    KubeProxyInstanceUnreachable: true
+prometheusOperator:
+  admissionWebhooks:
+    patch:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
+  resources:
+    requests:
+      cpu: 10m
+      memory: 80Mi
+    limits:
+      cpu: 500m
+      memory: 120Mi
+  prometheusConfigReloader:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 200m
+        memory: 48Mi
+kube-state-metrics:
+  # NSA hardening: explicit non-root uid/gid at container level
+  # (image declares USER "nobody"; pod-level sc already had 65534)
+  containerSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 96Mi
+prometheus:
+  prometheusSpec:
+    retention: 2d
+    # CR-managed Alertmanager (monitoring-config/main.alertmanager.yaml) — the
+    # chart's alertmanager component is disabled, so without this the whole
+    # kubernetes-mixin rule set (PV filling, StatefulSet mismatch, …) fires
+    # into the void. Same endpoint thanos-ruler uses (main.thanos-ruler.yaml).
+    alertingEndpoints:
+      - namespace: monitoring
+        name: alertmanager-operated
+        port: 9093
+        scheme: http
+    # Nil (unset) serviceMonitorSelector + this flag=false = `{}` = select
+    # every ServiceMonitor cluster-wide. The chart default requires a
+    # `release: kube-prometheus-stack` label that only the stack's own SMs
+    # carry, which left kyverno/thanos/velero SMs unscraped. (Setting
+    # serviceMonitorSelector: {} directly doesn't work — the chart template
+    # treats an empty map as falsy and falls back to the release label.)
+    # Curated single-tenant cluster: everything is meant to be scraped,
+    # and future operator SMs (CNPG/RabbitMQ) get picked up automatically.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    externalLabels:
+      cluster: local
+    resources:
+      # sized after observed P99 ~756Mi (working set reached the old 768Mi
+      # request within 6h of bootstrap; ~half of all series are apiserver
+      # request metrics on this CRD-heavy cluster) — request = P99 x 1.2
+      # rounded, limit = 1.5x request. Trend + recurrence playbook:
+      # cmdshift/platform#20
+      requests:
+        # 2026-09-06 overnight: steady 36m against the old 30m request
+        # (120%) — lean per AGENTS.md but honest
+        cpu: 50m
+        memory: 1Gi
+      limits:
+        cpu: 1000m
+        memory: 1536Mi
+    thanos:
+      objectStorageConfig:
+        existingSecret:
+          name: thanos-objstore
+          key: objstore.yaml
+      resources:
+        # 2026-09-06 overnight: 2h block uploads pin the CPU quota — 33% of
+        # CFS periods throttled at only 0.7m average = hard bursts against
+        # the old 200m limit. Memory fits (peak 112Mi vs 192Mi limit)
+        requests:
+          cpu: 10m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 192Mi
+  thanosService:
+    enabled: true
+  thanosServiceMonitor:
+    enabled: true
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 500m
+      memory: 48Mi
+grafana:
+  enabled: false

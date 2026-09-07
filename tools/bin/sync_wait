@@ -31,7 +31,7 @@ if [[ $# -gt 0 ]]; then
   done
 else
   while IFS= read -r f; do paths+=("$f"); done < <(git status --porcelain -- manifests/ \
-    | awk '{status=$1; $1=""; sub(/^ +/, ""); if (status == "D" || status == "M" || status == "A" || status ~ /^R/) print}')
+    | awk '{status=$1; $1=""; sub(/^ +/, ""); if (status == "D" || status == "M" || status == "A" || status ~ /^R/) print; else if (status == "??" && $0 !~ /\/$/) print}')
   [[ ${#paths[@]} -gt 0 ]] || { echo "nothing changed under manifests/ — bucket sync is a no-op"; exit 0; }
 fi
 

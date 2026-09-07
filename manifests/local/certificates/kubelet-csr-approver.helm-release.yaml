@@ -21,11 +21,7 @@ spec:
     remediation:
       retries: 3
       remediateLastFailure: true
-  values:
-    providerRegex: ".*"
-    providerIpPrefixes:
-      - 10.0.0.0/8
-    bypassDnsResolution: true
-    skipDenyStep: true
-    replicas: 1
-    leaderElection: false
+  valuesFrom:
+    - kind: ConfigMap
+      name: kubelet-csr-approver-values
+      valuesKey: values.yaml

@@ -1,7 +1,3 @@
-# trivy-operator helm values — single source of truth, consumed two ways:
-# flux (configMapGenerator here -> HelmRelease valuesFrom) and helm_verify
-# (`helm template --values` against the chart). Pattern from
-# cmdshift/platform#31. Keep rationale comments at the value.
 operator:
   # trivy-server caches trivy-db/java-db on a PVC (local-path, 5Gi): scan
   # jobs hit the server instead of each downloading ~75MB of DB. The built-in
@@ -61,15 +57,21 @@ trivy:
     # cache endpoint needs it (trivy falls back to plain HTTP)
     cache: registry.cloud.test
   # scan-job containers AND the standalone DB-download init container inherit
-  # these (verified in operator source v0.34.0 pkg/plugins/trivy);
-  # provisional — audit after burn-in
+  # these (verified in operator source v0.34.0 pkg/plugins/trivy). Scan-job
+  # pods mirror the TARGET's container list — every container runs a trivy
+  # scanner, so sizing must cover the worst image in the fleet, not the
+  # median. OOMKilled 2026-09-07: cilium-agent DaemonSet scan, killer
+  # (install-cni-binaries scanner) climbed past 372Mi against the old 512Mi
+  # limit; completed scans peak 150-200Mi. 512Mi request = observed P99 x 1.2,
+  # 768Mi limit = 1.5x per the resource-sizing convention; ~23.5Gi/node
+  # allocatable absorbs the transient worst case (6-container cilium scan)
   resources:
     requests:
       cpu: 100m
-      memory: 256Mi
+      memory: 512Mi
     limits:
       cpu: 500m
-      memory: 512Mi
+      memory: 768Mi
   server:
     # PVC-backed cache on the Talos user volume (50GB, thin-provisioned,
     # ~12MB used across all nodes as of adoption; local-path cannot expand a
