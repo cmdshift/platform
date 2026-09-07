@@ -34,3 +34,7 @@ docker exec storage-cloud-test sh -c 'rc alias set main http://localhost:9000 ru
 ```
 
 Velero's objects live under `backups/<backup-name>/` in the `backups` bucket (see [velero-backups.md](velero-backups.md)).
+
+---
+
+*Agent entry point: the `rustfs-ops` skill in `.agents/skills/rustfs-ops/`.*

@@ -1,6 +1,6 @@
 # Local cluster notes (Talos-in-Docker)
 
-Inventory of settings in this tree that are deliberately local-only — the counterpart of `manifests/cloud/notes.md`, which records what to change for the cloud cluster. In-repo markers (`# true in the cloud`, `# remove in the cloud`) flag these at the value; this file is the list with rationale.
+Inventory of settings in this tree that are deliberately local-only — the counterpart of `manifests/cloud/notes.md`, which records what to change for the cloud cluster. In-repo markers (`# true in the cloud`, `# remove in the cloud`) flag these at the value; this file is the list with rationale. Step-by-step procedures live in `runbooks/local/` (and as agent skills in `.agents/skills/`); this file is the decision log.
 
 ## Cilium — `networking/cilium.helm-release.yaml`
 

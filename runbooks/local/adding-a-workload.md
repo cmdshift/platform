@@ -1,6 +1,6 @@
 # Adding a workload
 
-The checklist for deploying anything new to this cluster. The admission requirements are summarized in AGENTS.md (read that section first — everything is Deny mode); this is the step-by-step.
+The checklist for deploying anything new to this cluster. All kyverno ValidatingPolicies run in **Deny** mode — everything below is enforced at admission, not advisory.
 
 ## 1. Sizing (kyverno-checked, convention-checked)
 
@@ -21,7 +21,7 @@ Render and size them — they're admission-checked too:
 helm template <chart> | yq 'select(.kind == "Job")'
 ```
 
-Known-proofed: cert-manager `startupapicheck.resources` (all-lowercase key!), velero `upgradeJobResources`, kube-prometheus-stack `prometheusOperator.admissionWebhooks.patch.resources`. See AGENTS.md's admission section for the rest.
+Known-proofed: cert-manager `startupapicheck.resources` (all-lowercase key!), velero `upgradeJobResources`, kube-prometheus-stack `prometheusOperator.admissionWebhooks.patch.resources`. Full admission-policy context: AGENTS.md.
 
 ## 4. Network policy
 
@@ -53,4 +53,8 @@ yaml_lint                                       # parse-check
 flux_wait                                       # reconcile from the root + poll
 ```
 
-Then the AGENTS.md final checks: kustomizations + helmreleases green, then `policy_report` → failures 0, no stale reports. If the workload exposes metrics: ServiceMonitor (+ `service-monitor` feature where applicable); if it should alert: rules in `monitoring-config/thanos-rules.yaml` (delivered to http://mail.cloud.test).
+Then the final checks: kustomizations + helmreleases green, then `policy_report` → failures 0, no stale reports. If the workload exposes metrics: ServiceMonitor (+ `service-monitor` feature where applicable); if it should alert: rules in `monitoring-config/thanos-rules.yaml` (delivered to http://mail.cloud.test).
+
+---
+
+*Agent entry point: the `add-workload` skill in `.agents/skills/add-workload/`.*

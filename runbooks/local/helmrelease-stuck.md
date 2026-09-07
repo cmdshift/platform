@@ -30,4 +30,8 @@ Also not ladder material: if the release is **kyverno itself** and its pods sit 
 
 ## Context
 
-All 15 HelmReleases have `install/upgrade.remediation.retries: 3` and are version-pinned. Release manifests are persisted in the `sh.helm.release.*` Secrets (1MB cap — see the helm landmine in AGENTS.md if an install fails with `data: Too long`).
+All 15 HelmReleases have `install/upgrade.remediation.retries: 3` and are version-pinned. Release manifests are persisted in the `sh.helm.release.*` Secrets (1MB cap) — an install failing with `data: Too long` is a chart-adoption problem, not a stuck release: see [adopting-a-chart.md](adopting-a-chart.md).
+
+---
+
+*Agent entry point: the `helmrelease-stuck` skill in `.agents/skills/helmrelease-stuck/`.*

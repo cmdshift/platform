@@ -18,6 +18,8 @@ macOS bind mounts occasionally drop inotify DELETE events — the classic sympto
 rustfs ls main/flux --recursive
 ```
 
+Or run `sync_wait`, which compares the changed local files against the bucket and exits with the still-stale list if they don't converge.
+
 Fix for anything stale or missing:
 
 ```
@@ -63,3 +65,7 @@ These are normally managed by the `flux-config` kustomization; a manual edit sti
 - root `deletionPolicy: Orphan` (an accidental delete orphans instead of destroying the tree)
 - `ContainerOOMKilled` alert watches the controllers
 - the terraform bootstrap can always re-create the Bucket + root from scratch on a fresh cluster
+
+---
+
+*Agent entry point: the `pipeline-wedged` skill in `.agents/skills/pipeline-wedged/`.*

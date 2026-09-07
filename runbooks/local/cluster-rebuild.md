@@ -23,7 +23,7 @@ sources → crds → namespaces → certificates → networking (cilium: the lon
 → objects → monitoring → thanos-operator → monitoring-config → backups → logging
 ```
 
-Poll with the usual discipline (see [reconciliation-stuck.md](reconciliation-stuck.md)):
+Watch convergence with `flux_wait`, or poll by hand ([reconciliation-stuck.md](reconciliation-stuck.md) has the triage if something stalls):
 
 ```
 kubectl -n flux-system get kustomizations
@@ -39,7 +39,7 @@ kubectl -n flux-system get kustomizations
 | Velero BSL | `kubectl -n velero get bsl default` | `Available` |
 | Rustfs buckets | `rc ls main/` in the storage container | `flux`, `backups` (auto-provisioned) |
 | Thanos ruler | `kubectl -n monitoring get pods -l app.kubernetes.io/name=thanos-ruler` | 2/2 Running, rule files wired |
-| PolicyReports | see AGENTS.md verification checklist | 0 failures |
+| PolicyReports | `policy_report` | 0 failures |
 
 **Known expected artifact:** the thanos ruler CRs show `ReconcileFailed=True` alongside `ReconcileSuccess=True` (first-minute race before the query service exists; the condition never resets — upstream issue thanos-community/thanos-operator#635). Trust the workloads, not the conditions.
 
@@ -51,3 +51,7 @@ A full destroy/apply wipes everything not in the local manifests:
 - seaweed buckets and their data
 
 If a rebuild stalls partway: [reconciliation-stuck.md](reconciliation-stuck.md) for kustomization failures, [pipeline-wedged.md](pipeline-wedged.md) if manifests stop applying.
+
+---
+
+*Agent entry point: the `cluster-rebuild` skill in `.agents/skills/cluster-rebuild/`.*

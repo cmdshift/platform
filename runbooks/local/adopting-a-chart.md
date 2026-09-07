@@ -53,8 +53,16 @@ helm template <release> <chart> --namespace <ns> -f /tmp/release-values.yaml
 # simulate post-render patches if using them: kubectl kustomize a dir of rendered.yaml + patches
 ```
 
-And per the flux landmine in AGENTS.md: verify any new-to-you API fields against the **on-cluster CRD schema** before pushing.
+And verify any new-to-you API fields against the **on-cluster CRD schema** before pushing — undeclared fields fail the root dry-run and wedge the whole dependency chain:
+
+```
+kubectl get crd <crd> -o jsonpath='{.spec.versions[0].schema.openAPIV3Schema.properties.spec.properties.<field>}'
+```
 
 ## Worked example (thanos-operator)
 
-helm chart attempt → install failed at the 1MB secret cap (its CRDs are ~2.5MB of the manifest) → vendored CRDs (worked, regen burden) → reverted to the repo's `bundle.yaml` via kustomization with three patches (seccomp, image pin, events RBAC). Full rationale comments live in `monitoring/thanos-operator.kustomization.yaml`; the helm-side lesson is the helm landmine in AGENTS.md.
+helm chart attempt → install failed at the 1MB secret cap (its CRDs are ~2.5MB of the manifest) → vendored CRDs (worked, regen burden) → reverted to the repo's `bundle.yaml` via kustomization with three patches (seccomp, image pin, events RBAC). Full rationale comments live in `monitoring/thanos-operator.kustomization.yaml`.
+
+---
+
+*Agent entry point: the `adopt-chart` skill in `.agents/skills/adopt-chart/`.*

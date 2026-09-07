@@ -2,6 +2,8 @@
 
 ## 1. What killed the container?
 
+`pod_status [-n ns]` (tools/bin) gives the triage table up front — phase, restarts, and the last exit code/reason per container. Then:
+
 ```
 kubectl -n <ns> describe pod <pod> | grep -A3 "Last State"
 ```
@@ -44,3 +46,7 @@ Size per the convention in AGENTS.md (request ≈ P99 × 1.2, limit = 1.5 × req
 ## Worked example
 
 velero, 2026-09-05: CrashLoopBackOff, 20 restarts, OOMKilled exit 137, logs end silently right after `Start to prepare repo` (kopia repo preparation). Limit was 132Mi — too small for repo prep. The 3am fs-backup failed as collateral (server kept dying mid-run). Fix: 88Mi/132Mi → 256Mi/512Mi, verified by `Prepare repo complete` in startup logs plus zero restarts past one full crash cycle.
+
+---
+
+*Agent entry point: the `crashloop-investigation` skill in `.agents/skills/crashloop-investigation/`.*
