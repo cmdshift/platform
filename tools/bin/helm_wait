@@ -10,7 +10,7 @@
 # + diagnose hint. Exit 2 = usage error.
 #
 # Polls are only a guard against status lag; they are NOT the failure detector.
-# Provenance: born 2026-09-07 from the ns-refactor (#31) velero move — the
+# Provenance: born from the ns-refactor (#31) velero move — the
 # install was admission-denied 3 waves in a row and each diagnosis round
 # re-derived the same jsonpath polling by hand.
 

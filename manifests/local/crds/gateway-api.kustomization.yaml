@@ -4,7 +4,7 @@ metadata:
   name: gateway-api
   namespace: flux-system
 spec:
-  interval: 1h  # drift-heal only: propagation is event-driven
+  interval: 1h
   retryInterval: 5s
   sourceRef:
     kind: GitRepository

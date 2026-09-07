@@ -6,7 +6,7 @@ metadata:
 spec:
   replicas: 1
   alertmanagerURL: "http://alertmanager-operated.monitoring.svc:9093"
-  # JSON logging: see main.thanos-query.yaml (2026-09-07)
+  # JSON logging: see main.thanos-query.yaml
   additionalArgs:
     - --log.format=json
   queryLabelSelector:
@@ -31,7 +31,7 @@ spec:
   resourceRequirements:
     requests:
       cpu: 10m
-      # 2026-09-07 audit: 56Mi steady = 100% of the old 56Mi request —
+      # audit: 56Mi steady = 100% of the old 56Mi request —
       # 72Mi = P99 x 1.2
       memory: 72Mi
     limits:

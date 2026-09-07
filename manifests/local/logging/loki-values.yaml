@@ -10,7 +10,7 @@ global:
     - "-config.expand-env=true"
     # JSON logging: all platform components log JSON so log lines are
     # field-queryable (`| json` in LogQL) — set at the source, the pipeline
-    # passes lines through unchanged (2026-09-07)
+    # passes lines through unchanged
     - "-log.format=json"
   extraEnvFrom:
     - secretRef:
@@ -57,7 +57,7 @@ gateway:
       memory: 24Mi
   metrics:
     resources:
-      # 2026-09-06 overnight: peak 22.3Mi = 93% of the old 24Mi limit —
+      # overnight: peak 22.3Mi = 93% of the old 24Mi limit —
       # request = P99 x 1.2, limit = 1.5x request
       requests:
         cpu: 10m
@@ -95,8 +95,7 @@ loki:
   compactor:
     retention_enabled: true
     # Loki 3.x retention requires a delete-request store; `s3` names the
-    # chart-generated aws object store — verified in /config + compactor
-    # startup after reconcile
+    # chart-generated object store
     delete_request_store: s3
     # default 2h safe-delete window is production caution; 5m keeps the
     # delete path observable in a test cluster (verify via
@@ -125,9 +124,8 @@ loki:
   resources:
     requests:
       cpu: 15m
-      # 2026-09-07 audit: 296Mi steady = 92% of the old 320Mi request —
-      # 384Mi = P99 x 1.2, limit 1.5x. Still climbing post-WAL-replay
-      # (371 -> 404Mi = 105% of 384Mi): 512Mi = P99 x 1.2, limit 1.5x
+      # audit: steady 296Mi climbing to 404Mi post-WAL-replay —
+      # 512Mi = P99 x 1.2, limit 1.5x
       memory: 512Mi
     limits:
       cpu: 200m
@@ -136,7 +134,7 @@ chunksCache:
   resources:
     requests:
       cpu: 10m
-      # 2026-09-07 audit: 49Mi = 123% of the old 40Mi request and 82% of the
+      # audit: 49Mi = 123% of the old 40Mi request and 82% of the
       # old 60Mi limit — 64Mi = P99 x 1.2, limit 1.5x
       memory: 64Mi
     limits:

@@ -13,7 +13,7 @@ metadata:
 spec:
   # policy-level podSelector: k8s pod processes only. The per-hook Pid NotIn
   # host_ns filter proved insufficient live — runc (host ns, container setup)
-  # still fired setuid/capset events (2026-09-07); podSelector is the documented
+  # still fired setuid/capset events; podSelector is the documented
   # k8s-identity filter and excludes unattributed host processes entirely.
   podSelector:
     matchLabels: {}

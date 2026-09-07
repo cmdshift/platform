@@ -10,8 +10,7 @@ podSecurityContext:
 securityContext:
   runAsUser: 65532
   runAsGroup: 65532
-# JSON logging (2026-09-07): all platform components log JSON so log lines
-# are field-queryable (`| json` in LogQL) — chart renders --zap-encoder
+# JSON logging: see logging/loki-values.yaml (chart renders --zap-encoder)
 logging:
   encoder: json
 resources:

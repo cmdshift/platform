@@ -4,14 +4,13 @@ metadata:
   name: logging
   namespace: flux-system
 spec:
-  # drift-heal only: propagation is event-driven; manual flow = sync_wait + flux_wait
   interval: 1h
   retryInterval: 5s
   dependsOn:
     - name: sources
     - name: secrets-config
-    # was: storage — the StorageClasses split out into storage-config (#35);
-    # loki-values.yaml names storageClassName: local-path
+    # loki-values.yaml names storageClassName: local-path — StorageClasses
+    # live in storage-config (#35)
     - name: storage-config
     - name: monitoring
   sourceRef:

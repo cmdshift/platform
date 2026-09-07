@@ -1,4 +1,3 @@
-# 11-monitoring/prometheus.grafana-datasource.yaml
 apiVersion: grafana.integreatly.org/v1beta1
 kind: GrafanaDatasource
 metadata:

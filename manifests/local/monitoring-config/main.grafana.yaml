@@ -29,7 +29,7 @@ spec:
                   cpu: 200m
                   memory: 480Mi
               env:
-                # JSON logging (2026-09-07): env beats grafana.ini, and the
+                # JSON logging: env beats grafana.ini, and the
                 # operator's validating webhook rejects spec.config.log.console
                 # (strict-decoded vendored type) — [log] format alone is
                 # ignored by grafana 13, so the env override is the only path

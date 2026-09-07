@@ -1,6 +1,5 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-# every yaml in the dir must be registered here — unregistered files get pruned by flux
 # StorageClasses live in ../storage-config (#35) — operator/config split like every other group
 resources:
   - local-path-provisioner.helm-release.yaml

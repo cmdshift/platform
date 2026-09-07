@@ -11,7 +11,7 @@ resources:
   - flux-system.alert.yaml
   - flux-system.provider.yaml
   - prometheus.grafana-datasource.yaml
-  # the dotdc k8s-views dashboards were removed 2026-09-07 (superseded by
+  # the dotdc k8s-views dashboards were removed (superseded by
   # platform-deployment) — they're `url:` pointers to
   # github.com/dotdc/grafana-dashboards-kubernetes; re-add as 10-line CRs
   # (git log has them) whenever a reference view is wanted again
