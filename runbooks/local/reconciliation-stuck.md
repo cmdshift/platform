@@ -2,12 +2,12 @@
 
 When a flux kustomization won't go Ready, or a root reconcile isn't settling.
 
-## Discipline
+## Polling rules
 
-- `flux_wait` (tools/bin) wraps this entire routine: root reconcile + bounded progress poll + exit 0/1
+- `flux_wait` (tools/bin) wraps this entire routine: root reconcile + bounded progress poll, exit 0 when green / 1 on timeout with the pending list
 - Estimate the settle time first, then cap polling at ~2× the estimate. A root reconcile settles in ~2-3m (artifact event → dependency chain at 5s requeue × chain depth + health waits); a fresh cluster bootstrap takes ~10m
-- Poll with bounded `until` loops that **echo progress each iteration**. Test exit codes / existence (`until ! kubectl get <thing> >/dev/null 2>&1; do ...`), not output parsing — kubectl prints "No resources found" to stdout, so `wc -l` checks never match
-- When the cap is hit: stop polling and diagnose. A stuck loop is a real problem, not slowness
+- Poll in short intervals that print what's still pending. When the cap is hit, stop and diagnose — a stuck reconcile is a real problem, not slowness
+- If reconcile behavior is confusing, confirm the edited files actually reached the bucket first (`sync_wait`) — the sync container drops inotify events, so a reconcile can run against a stale artifact
 
 ## Diagnose
 
@@ -46,3 +46,7 @@ Reconcile from the root, never the child (children follow via the dependency cha
 ```
 flux reconcile kustomization local --with-source
 ```
+
+---
+
+*Agent entry point: the `reconcile-stuck` skill in `.agents/skills/reconcile-stuck/`.*

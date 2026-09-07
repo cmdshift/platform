@@ -91,3 +91,7 @@ Validated end-to-end (drill re-run): PVB `Completed` (data mover pod passed admi
 ## Memory history
 
 2026-09-05: the server OOM-looped at 132Mi during kopia repo prep (nightly backup failed as collateral; fixed at 256Mi/512Mi — sizing rationale in the helm release, trend data in cmdshift/platform#20). The `ContainerOOMKilled` alert now watches for regressions (read alerts at http://mail.cloud.test).
+
+---
+
+*Agent entry point: the `velero-ops` skill in `.agents/skills/velero-ops/`.*

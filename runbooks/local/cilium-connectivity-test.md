@@ -108,3 +108,7 @@ Deleting the namespaces removes the CNPs and PSS labels with them. `cilium conne
   kubectl -n kube-system port-forward svc/hubble-relay 4245:80 &
   hubble observe --namespace cilium-test-1 --verdict DROPPED
   ```
+
+---
+
+*Agent entry point: the `cilium-test` skill in `.agents/skills/cilium-test/`.*

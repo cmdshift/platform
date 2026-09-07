@@ -43,5 +43,10 @@ Reference finding (platform#20): the apiserver job alone was 52k of 111k head se
 
 - size per the convention in AGENTS.md (request ≈ P99 × 1.2, limit = 1.5 × request); deliberate deviations get a rationale comment in the manifest (velero runs 2× for kopia spikes)
 - the CPU sibling of this audit is `cpu_audit` (throttled-periods top-N + usage-vs-limits table)
+- the scheduling-side sibling is `request_audit` (usage-vs-**requests** for memory + CPU — containers over 100% of their memory request are first in line for eviction under node pressure, and their scheduling reservation lies)
 - flux delivery controllers (source/helm/kustomize) have their own floor — see the sizing section in AGENTS.md; starving them wedges the whole pipeline
 - trend-driven cases: open a tracking issue with the data (platform#20 is the template) — the `ContainerOOMKilled` alert guards the ceiling meanwhile (read alerts at http://mail.cloud.test)
+
+---
+
+*Agent entry point: the `resource-sizing` skill in `.agents/skills/resource-sizing/`.*
