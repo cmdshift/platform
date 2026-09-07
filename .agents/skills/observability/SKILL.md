@@ -27,10 +27,16 @@ loki_query '{instance=~"logging/loki-0.*"}'   # LogQL, tenant preset, default wi
 loki_query '<logql>' 24h
 ```
 
-- Stream labels: `instance` (`ns/pod:container`), `job`, `service_name`,
-  `detected_level` — **no `namespace`/`pod` labels** (k8s metadata is
-  embedded in the log line, not promoted). `{namespace="…"}` matches
-  nothing; select by `instance` prefix
+- Stream labels: `namespace`, `pod`, `container`, `node` (promoted by the
+  alloy relabel pipeline, 2026-09-07 — same cardinality as `instance`),
+  plus `instance` (`ns/pod:container`), `job`, `service_name`,
+  `detected_level`. Select natively: `{namespace="monitoring",
+  pod=~"grafana-.*"}`; `instance` prefix selectors still work
+- Platform components log **JSON** — kyverno, grafana-operator, seaweedfs-operator,
+  metrics-server and alloy flipped at the source (2026-09-07); the alloy
+  pipeline **normalizes the rest** (logfmt lines → JSON fields; plain-text
+  lines → `{"msg": raw}`), so every line in Loki is JSON. Field queries:
+  `{...} | json | level="error"`. tetragon is JSON-native
 - Tenant `self-monitoring` preset (alloy's `loki.write` tenant)
 
 ## mailpit
@@ -52,7 +58,7 @@ tetra --server-address localhost:54321 tracingpolicy list
 
 - Subcommand is `getevents` (there is no `events`). Global flag `--server-address` goes before the subcommand.
 - Events also stream to container stdout (`kubectl -n security logs ds/tetragon -c export-stdout`) with full k8s metadata; kube-system/host events are filtered from that sink by chart default, gRPC output is not.
-- Events are searchable in Loki too: `loki_query '{instance=~"security/tetragon.*"}'` (the `export-stdout` container's JSON lines — was the fallback during the #27 ingestion outage, now primary again).
+- Events are searchable in Loki too: `loki_query '{namespace="security", pod=~"tetragon-.*"}'` (the `export-stdout` container's JSON lines — was the fallback during the #27 ingestion outage, now primary again).
 
 ## Full detail
 

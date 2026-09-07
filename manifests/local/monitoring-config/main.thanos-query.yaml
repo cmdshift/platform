@@ -13,6 +13,10 @@ spec:
   # vectors forever.
   additionalArgs:
     - --endpoint=dnssrv+_grpc._tcp.kube-prometheus-stack-thanos-discovery.monitoring.svc
+    # JSON logging: all platform components log JSON so log lines are
+    # field-queryable (`| json` in LogQL) — set at the source, the pipeline
+    # passes lines through unchanged (2026-09-07)
+    - --log.format=json
   securityContext:
     # NSA hardening: thanos image runs as nobody; pod-level is the
     # only non-root knob the CRD exposes (no per-container securityContext)

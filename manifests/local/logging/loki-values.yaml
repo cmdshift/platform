@@ -8,6 +8,10 @@ lokiCanary:
 global:
   extraArgs:
     - "-config.expand-env=true"
+    # JSON logging: all platform components log JSON so log lines are
+    # field-queryable (`| json` in LogQL) — set at the source, the pipeline
+    # passes lines through unchanged (2026-09-07)
+    - "-log.format=json"
   extraEnvFrom:
     - secretRef:
         name: loki-s3-credentials

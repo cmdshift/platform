@@ -6,6 +6,9 @@ metadata:
 spec:
   replicas: 1
   alertmanagerURL: "http://alertmanager-operated.monitoring.svc:9093"
+  # JSON logging: see main.thanos-query.yaml (2026-09-07)
+  additionalArgs:
+    - --log.format=json
   queryLabelSelector:
     matchLabels:
       app.kubernetes.io/part-of: thanos

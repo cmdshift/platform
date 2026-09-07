@@ -64,3 +64,11 @@ When a kustomization moves *all* its resources to another namespace in one apply
 ## Migration wave order that worked
 
 storage → objects → monitoring (thanos bundle) → certificates (+ terraform secrets-server path) → secrets (store conditions swap) → backups → policies (sub-waves: exceptions-first, then release+values, then CNP) → delete old namespaces → docs. Secrets-server paths renamed in the same wave as their ExternalSecret (single terraform apply, container recreates, ES keeps last-synced values through the gap).
+
+### A bundle Namespace renamed onto a managed namespace gets its labels pruned (thanos-operator wave)
+
+The thanos-operator `bundle.yaml` ships `Namespace: thanos-operator-system`; #31 renamed it to `monitoring` via JSON6902. Two flux kustomizations (`namespaces` and `thanos-operator`) then apply the **same Namespace as the same SSA field manager** (`kustomize-controller`) — SSA treats an Apply from a manager as authoritative for the fields it owns, so whichever kustomization reconciles last rewrites the label map and **prunes the other's labels**. On the 2026-09-07 rebuild `thanos-operator` went last: the `pod-security.kubernetes.io/enforce: privileged` label vanished and the kps node-exporter DaemonSet was denied by PSS at pod creation (`violates PodSecurity "baseline:latest"` — kubelet admission, invisible to kyverno and to `policy_report`), failing the kps install into uninstall-remediation/Stalled.
+
+Fix (in `monitoring/thanos-operator.kustomization.yaml`): a strategic-merge patch puts the same PSS labels on the bundle's Namespace so both appliers declare the identical load-bearing set — order no longer matters. General rule: **when a kustomization renames a bundle Namespace onto one the `namespaces` group owns, mirror the namespace's load-bearing labels into that kustomization's patch** (or pick a different bundle namespace entirely).
+
+Triage fingerprint: kps install timeout on node-exporter + `FailedCreate` events citing PSS + `kubectl get ns <ns> --show-managed-fields -o json` showing a single `kustomize-controller` Apply entry whose label set is missing the PSS keys.

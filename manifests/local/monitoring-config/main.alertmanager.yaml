@@ -5,6 +5,10 @@ metadata:
   namespace: monitoring
 spec:
   replicas: 1
+  # JSON logging: all platform components log JSON so log lines are
+  # field-queryable (`| json` in LogQL) — set at the source, the pipeline
+  # passes lines through unchanged (2026-09-07)
+  logFormat: json
   # NSA hardening: alertmanager serves HTTP only and its config
   # reload watches mounted files, never the API — the SA token is dead weight
   automountServiceAccountToken: false
