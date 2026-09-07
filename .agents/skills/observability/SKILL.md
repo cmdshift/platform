@@ -35,6 +35,19 @@ mailpit [limit]                    # subjects of the latest alert emails, newest
 
 Alert delivery path: thanos-ruler → alertmanager → mailpit. Alerts land at **http://mail.cloud.test** — use it to confirm a rule fired (e.g. after touching `monitoring-config/thanos-rules.yaml`) or to read `ContainerOOMKilled` events.
 
+## tetra (Tetragon process events)
+
+```sh
+kubectl -n security port-forward ds/tetragon 54321:54321 &   # gRPC is loopback-only on the node
+tetra --server-address localhost:54321 status
+tetra --server-address localhost:54321 getevents -o compact --namespace <ns>   # streams; no --number
+tetra --server-address localhost:54321 tracingpolicy list
+```
+
+- Subcommand is `getevents` (there is no `events`). Global flag `--server-address` goes before the subcommand.
+- Events also stream to container stdout (`kubectl -n security logs ds/tetragon -c export-stdout`) with full k8s metadata; kube-system/host events are filtered from that sink by chart default, gRPC output is not.
+- Caveat: Loki ingestion is currently broken (open issue in `manifests/local/notes.md`) — query events via tetra/logs, not `loki_query`, until fixed.
+
 ## Full detail
 
 [tools/bin/README.md](../../../tools/bin/README.md)

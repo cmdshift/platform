@@ -1,0 +1,33 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: security
+  namespace: security
+spec:
+  endpointSelector: {}
+  egress:
+    # agent watches the k8s API (tetragon.enableK8sAPI); operator manages CRDs/leases
+    - toEntities:
+        - kube-apiserver
+    # agent is hostNetwork — node-local paths resolve via the host entity
+    - toEntities:
+        - host
+    # default-deny CCNP already allows kube-dns :53 for non-kube-system
+    # namespaces, but the agent uses dnsPolicy Default (node resolv.conf), so
+    # keep explicit DNS egress here too
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+          rules:
+            dns:
+              - matchPattern: "*"
+  # no ingress section: this cluster's default-deny is egress-only, and the
+  # metrics ports (2112/2113) must stay scrapeable by Prometheus. The tetra
+  # gRPC listener is loopback-only and does not traverse Cilium.

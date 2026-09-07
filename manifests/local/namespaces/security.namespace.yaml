@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: security
+  labels:
+    # tetragon agent DaemonSet is privileged by design (eBPF, hostNetwork,
+    # hostPath /proc // /sys/fs/bpf // /sys/kernel/tracing) — the kyverno
+    # deviation is scoped by allow-tetragon-security-contexts (security-config)
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/warn: privileged

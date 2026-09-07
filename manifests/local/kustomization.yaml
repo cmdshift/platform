@@ -23,3 +23,5 @@ resources:
   - backups.yaml
   - backups-config.yaml
   - logging.yaml
+  - security.yaml
+  - security-config.yaml

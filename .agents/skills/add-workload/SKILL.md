@@ -43,7 +43,7 @@ Credentials come from the secrets server: payload in `cluster/local/secrets/loca
 
 ## 6. Wiring
 
-- **namespace**: plain manifest in `namespaces/` (prune is deliberately false there)
+- **namespace**: plain manifest in `namespaces/` **and register it in `namespaces/kustomization.yaml`** (explicit resources list — an unregistered file is silently not applied and dependents hang on `namespaces "<name>" not found`); prune is deliberately false there
 - **helm release**: `<thing>/`; **CRs/config**: the matching `<thing>-config/`
 - **CR-managed workloads** (grafana, thanos ×3, alertmanager, seaweed): resources + securityContext go in the **CR spec** (`resourceRequirements`, `securityContext`), not helm values
 - **operator-managed CRs**: add `healthCheckExprs` (CEL) to the owning kustomization — `wait: true` ignores `healthChecks`; copy expressions from https://fluxcd.io/flux/cheatsheets/cel-healthchecks/ and verify fields against the on-cluster CRD schema

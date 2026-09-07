@@ -1,0 +1,29 @@
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: allow-tetragon-security-contexts
+  namespace: kyverno
+spec:
+  policyRefs:
+    - name: disallow-capabilities-strict
+      kind: ValidatingPolicy
+    - name: disallow-host-namespaces
+      kind: ValidatingPolicy
+    - name: disallow-host-path
+      kind: ValidatingPolicy
+    - name: disallow-host-ports
+      kind: ValidatingPolicy
+    - name: disallow-privileged
+      kind: ValidatingPolicy
+    - name: require-run-as-nonroot
+      kind: ValidatingPolicy
+    - name: restrict-seccomp-strict
+      kind: ValidatingPolicy
+  matchConditions:
+    # same shape as allow-cilium-system-components: the agent DaemonSet runs
+    # privileged with host namespaces/hostPaths because eBPF sensors need the
+    # BPF syscall, tracefs, host /proc and /sys/fs/bpf. Prefix match covers the
+    # generated pods (tetragon-xxxxx); the operator Deployment is compliant and
+    # passes the policies either way.
+    - name: match-tetragon
+      expression: "object.metadata.namespace == 'security' && object.metadata.name.startsWith('tetragon')"

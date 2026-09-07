@@ -1,0 +1,22 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: security-config
+  namespace: flux-system
+spec:
+  # drift-heal only: propagation is event-driven; manual flow = sync_wait + flux_wait
+  interval: 1h
+  retryInterval: 5s
+  dependsOn:
+    - name: namespaces
+    - name: networking
+    - name: policies
+  sourceRef:
+    kind: Bucket
+    name: main
+  path: ./manifests/local/security-config
+  # never prune: auto-deleting the tetragon exception would deny the agent
+  # DaemonSet at admission on next restart (same rationale as policies-config)
+  prune: false
+  wait: true
+  timeout: 2m

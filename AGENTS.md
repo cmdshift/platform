@@ -22,7 +22,7 @@ Procedures are agent skills in `.agents/skills/<name>/SKILL.md`, loaded via the 
 | `velero-ops` | backups and restores |
 | `cilium-test` | full-cluster connectivity validation |
 | `cluster-rebuild` | fresh bootstrap from terraform |
-| `observability` | metrics, logs, or alert delivery |
+| `observability` | metrics, logs, tetragon events (tetra), or alert delivery |
 
 The standard loop (`platform-workflow`): rationale-comment check → `yaml_lint` → `helm_verify` → `sync_wait` → `flux_wait` (reconcile from the root) → final checks (`kubectl get helmreleases -A` green, `policy_report` failures 0). Posture scanning (kubescape) was removed 2026-09-06 — single-purpose hardening tools are its replacement; see `manifests/local/notes.md`.
 
