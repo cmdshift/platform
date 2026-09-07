@@ -1,0 +1,25 @@
+# request audit 2026-09-06: chart default request (50Mi) ran at 114% of
+# request in steady state; 120Mi = observed peak x 1.2. cpu/limits are the
+# chart defaults, pinned here so a chart bump can't silently re-shrink them
+resources:
+  requests:
+    cpu: 100m
+    memory: 120Mi
+  limits:
+    cpu: 500m
+    memory: 500Mi
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+# NSA hardening: explicit non-root gid at container level (image
+# is 65532:65532; the pod-level values above left gid implicit)
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+webhook:
+  certManager:
+    enabled: true

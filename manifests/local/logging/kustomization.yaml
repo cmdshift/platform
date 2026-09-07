@@ -12,6 +12,12 @@ configMapGenerator:
       - config.alloy
     options:
       disableNameSuffixHash: true
+  - name: alloy-values
+    namespace: logging
+    files:
+      - values.yaml=alloy-values.yaml
+    options:
+      disableNameSuffixHash: true
   - name: loki-rule
     namespace: logging
     files:
@@ -19,3 +25,9 @@ configMapGenerator:
     options:
       labels:
         loki-rule: "true"
+  - name: loki-values
+    namespace: logging
+    files:
+      - values.yaml=loki-values.yaml
+    options:
+      disableNameSuffixHash: true

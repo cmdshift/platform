@@ -1,0 +1,68 @@
+initContainers:
+  - name: velero-plugin-for-aws
+    image: index.docker.io/velero/velero-plugin-for-aws:v1.14.2
+    volumeMounts:
+      - mountPath: /target
+        name: plugins
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 40m
+        memory: 48Mi
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+# C-0016/C-0046 hardening via the plugin init container's container-level
+# securityContext. The velero chart only exposes securityContext at POD
+# level (and applies it to its CRD-upgrade hook jobs too, where
+# allowPrivilegeEscalation is not a legal pod field — SSA rejects it, helm
+# upgrade fails). Its pod-level runAsUser: 0 default is deliberate (the
+# node-agent needs root), so container-level readOnlyRootFilesystem /
+# caps dropping is not reachable via values — these stay accepted
+# deviations for the velero deployment (kustomize post-render
+# would be the only path; not worth the fight)
+credentials: {}
+resources:
+  # memory sized after OOMKill at the 132Mi limit during kopia repo prep
+  # (nightly fs-backup); limit is 2x request instead of the usual 1.5x to
+  # absorb unified-repo maintenance spikes
+  requests:
+    cpu: 10m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+configuration:
+  backupStorageLocation: null
+  volumeSnapshotLocation: null
+deployNodeAgent: true
+upgradeJobResources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi
+nodeAgent:
+  containerSecurityContext:
+    privileged: true
+  extraArgs:
+    # sizes the temporary data mover pods (see backups-config/node-agent-config.configmap.yaml)
+    - --node-agent-configmap=node-agent-config
+  resources:
+    requests:
+      cpu: 10m
+      # request audit 2026-09-06: busiest node-agent hit 51Mi steady (64%
+      # of the old 80Mi request); 88Mi = observed x 1.2
+      memory: 88Mi
+    limits:
+      cpu: 500m
+      memory: 120Mi
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true

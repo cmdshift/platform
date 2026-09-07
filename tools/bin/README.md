@@ -97,8 +97,10 @@ against a stale artifact fails confusingly. Run between editing and
 `rustfs cat` — `sync_wait`'s file-count match can hide a dropped edit
 (that's why `docker restart sync-cloud-test` remains the deterministic fix).
 
-- No args: every uncommitted change under `manifests/` (from git status);
-  args: specific files (repo-relative or absolute)
+- No args: every uncommitted change under `manifests/` (from git status —
+  modified, added, deleted, renamed **and untracked**; untracked files were
+  silently excluded until 2026-09-07, so newly-created manifests were never
+  checked); args: specific files (repo-relative or absolute)
 - Compares sha256 of each local file against `rustfs cat main/flux/<path>`;
   deleted files converge when the bucket object is gone
 - Bounded: `SYNC_WAIT_TIMEOUT` (default 120s). Exit 0 converged; exit 1

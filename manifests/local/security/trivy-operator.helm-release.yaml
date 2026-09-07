@@ -21,9 +21,6 @@ spec:
     remediation:
       retries: 3
       remediateLastFailure: true
-  # values live in trivy-values.yaml (configMapGenerator in
-  # kustomization.yaml -> valuesFrom) — the valuesFrom pattern from
-  # cmdshift/platform#31; helm_verify renders that file directly
   valuesFrom:
     - kind: ConfigMap
       name: trivy-operator-values

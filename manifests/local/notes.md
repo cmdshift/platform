@@ -160,4 +160,23 @@ Deliberate settings (rationale comments at each value):
 
 **valuesFrom gotcha (issue #31 pattern)**: changing the values ConfigMap does **not** re-trigger the HelmRelease — helm-controller's valuesFrom watch didn't fire (flux 2.19), so the release keeps running the old values until the 1h drift-heal. After values-only changes: `flux reconcile helmrelease <name> -n <ns> --with-source`. The same applies to the operator↔configmap contract: a values change that only touches a ConfigMap rolls pods via the chart's checksum annotations, not by name change.
 
-Session learnings: the sync container dropped an **edit** again (third occurrence — 2026-09-06 ×2, now 2026-09-07 on the helm-release; `sync_wait`'s file-count match hid it — always verify a marker with `rustfs cat` on edit-heavy changes). The Docker port-publisher wedge above cost a debugging round the same session. Sizing is provisional (operator 50m/256Mi → 1000m/1Gi; scan jobs 100m/256Mi → 500m/512Mi) — audit after burn-in per the resource-sizing convention.
+**Scan-job resources (evidence-based, 2026-09-07)**: the DaemonSet/cilium scan OOMKilled — 3 of 6 scanner containers died at the old 512Mi limit (cilium-agent, install-cni-binaries — the killer peaked at 372Mi and was still climbing; completed scans peak 150-200Mi). Scan-job pods mirror the target's container list, so sizing must cover the worst image in the fleet, not the median. Bumped `trivy.resources` 256/512Mi → **512Mi/768Mi** (request = observed P99 × 1.2, limit = 1.5×; ~23.5Gi/node allocatable absorbs the transient 6-container worst case). Verified by forced rescan: all 6 scanners Succeeded at 768Mi.
+
+**Failed scans never requeue (landmine)**: an OOMKilled/failed scan job is TTL-deleted (`scanJobTTL: 10m`), the 120h report cache blocks rescan, and the 5m controller resync does not recreate failed scans — the containers behind the failure are silently unscanned forever. Force a rescan by deleting any one **sibling** VulnerabilityReport of that workload (`kubectl -n <ns> delete vulnerabilityreport daemonset-<ds>-<any-container>`) — the operator then re-scans the whole pod, all containers.
+
+Session learnings: the sync container dropped an **edit** again (third occurrence — 2026-09-06 ×2, now 2026-09-07 on the helm-release; `sync_wait`'s file-count match hid it — always verify a marker with `rustfs cat` on edit-heavy changes). The Docker port-publisher wedge above cost a debugging round the same session. Sizing is provisional (operator 50m/256Mi → 1000m/1Gi) — audit after burn-in per the resource-sizing convention; scan jobs were re-sized from evidence 2026-09-07 (above).
+
+## valuesFrom everywhere (2026-09-07)
+
+All 17 HelmReleases now ship values via **configMapGenerator → `valuesFrom`** (issue cmdshift/platform#31; trivy was the 2026-09-07 pilot). Per release: values live in a plain `<release>-values.yaml` next to the HelmRelease, and the dir's `kustomization.yaml` generates `ConfigMap/<release>-values` (`valuesKey: values.yaml`). `prometheus-operator-crds` is the only release without values — untouched.
+
+Conventions (the inline file comments were deliberately kept terse — this section is the canonical why):
+
+- **`disableNameSuffixHash: true`, set per generator entry** (not a global `generatorOptions:`): `HelmRelease.valuesFrom` is not a kustomize-known name reference, so a content-hash suffix would desync the hand-written reference. helm-controller re-reconciles on configmap data changes anyway, so the hash buys nothing. Per-entry so a future generator that wants hashed names keeps them.
+- **Every yaml in a dir must be registered in its `kustomization.yaml` `resources:`** — values files are the exception (generator inputs, not resources). An unregistered file is silently not built and flux prunes it from the cluster.
+- **Rationale comments move with the values** (they were inline in `spec.values`); only local-only landmine notes stay inline.
+- The `logging/`, `monitoring-config/`, `security/` kustomizations predate this and mix other generators (alloy config, thanos rules) — the values entries follow the same per-entry options style.
+
+Tooling: `helm_verify` resolves `valuesFrom` refs locally (configMapGenerator entry first, literal ConfigMap fallback, unresolved = FAIL) and renders the exact values flux ships. `sync_wait` had a bug fixed this session: untracked files were excluded from its git-status collection, so newly-created manifests were never verified against the bucket (silent gap on add-style changes).
+
+Cloud: adopt the same layout when refactoring `manifests/cloud/` — no local-only settings involved.

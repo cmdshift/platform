@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# every yaml in the dir must be registered here — unregistered files get pruned by flux
+resources:
+  - local-path-immediate.storage-class.yaml
+  - local-path-provisioner.helm-release.yaml
+  - local-path.storage-class.yaml
+configMapGenerator:
+  - name: local-path-provisioner-values
+    namespace: local-path-storage
+    files:
+      - values.yaml=local-path-provisioner-values.yaml
+    options:
+      disableNameSuffixHash: true
