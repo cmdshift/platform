@@ -8,9 +8,9 @@ spec:
   interval: 1h
   retryInterval: 5s
   dependsOn:
+    - name: namespaces
     - name: sources
     - name: crds
-    - name: security-config
   sourceRef:
     kind: Bucket
     name: main

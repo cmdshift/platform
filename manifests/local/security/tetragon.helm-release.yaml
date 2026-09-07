@@ -31,6 +31,9 @@ spec:
       - name: sys-kernel-tracing
         mountPath: /sys/kernel/tracing
     tetragon:
+      # required by the privileges-raise TracingPolicy (uid/gid/caps in exec
+      # events); small overhead, events stay useful for jq filtering
+      enableProcessCred: true
       # labels events so multi-cluster Loki queries stay unambiguous
       clusterName: local-test
       # loopback-only gRPC in the host netns: kubectl port-forward dials

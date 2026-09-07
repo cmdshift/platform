@@ -1,0 +1,112 @@
+# Audit of BPF subsystem interactions: program loads (bpf_check verification),
+# perf_event allocation, bpffs file access (reads/writes/mmaps under
+# /sys/fs/bpf), map creation.
+# From tetragon examples/policylibrary/bpf.yaml, kept close to upstream for
+# easy diffing. On this cluster the expected bpffs/bpf() actors are cilium and
+# tetragon only — any other binary here is anomalous by definition.
+# security_bpf_map_alloc is kept with ignore.callNotFound (renamed to
+# security_bpf_map_create in Linux 6.9; linuxkit 7.0.12 has only the latter —
+# verified in kallsyms; bpf_check, security_perf_event_alloc,
+# security_file_permission, security_mmap_file all present).
+# monitor_only: no enforcement actions.
+# retire: flux prunes this group — deleting the file unloads the sensor.
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: bpf-activity
+spec:
+  kprobes:
+    - call: bpf_check
+      syscall: false
+      args:
+        - index: 1
+          type: bpf_attr
+    - call: security_perf_event_alloc
+      syscall: false
+      args:
+        - index: 0
+          type: perf_event
+    - call: security_bpf_map_alloc # < Linux 6.9 — not on 7.0.12, tolerated
+      syscall: false
+      args:
+        - index: 0
+          type: bpf_map
+      ignore:
+        callNotFound: true
+    - call: security_bpf_map_create # Linux 6.9+
+      syscall: false
+      args:
+        - index: 0
+          type: bpf_map
+      ignore:
+        callNotFound: true
+    - call: security_file_permission
+      syscall: false
+      return: true
+      args:
+        - index: 0
+          type: file
+        - index: 1
+          type: int # 0x04 MAY_READ, 0x02 MAY_WRITE
+      returnArg:
+        index: 0
+        type: int
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: Prefix
+              values:
+                - /sys/fs/bpf
+            - index: 1
+              operator: Equal
+              values:
+                - "4" # MAY_READ
+        - matchArgs:
+            - index: 0
+              operator: Prefix
+              values:
+                - /sys/fs/bpf
+            - index: 1
+              operator: Equal
+              values:
+                - "2" # MAY_WRITE
+    - call: security_mmap_file
+      syscall: false
+      return: true
+      args:
+        - index: 0
+          type: file
+        - index: 1
+          type: uint32 # PROT_READ(0x01) PROT_WRITE(0x02) PROT_EXEC(0x04)
+        - index: 2
+          type: uint32 # mmap flags (MAP_SHARED, ...)
+      returnArg:
+        index: 0
+        type: int
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: Prefix
+              values:
+                - /sys/fs/bpf
+            - index: 1
+              operator: Equal
+              values:
+                - "1" # PROT_READ
+            - index: 2
+              operator: Mask
+              values:
+                - "1" # MAP_SHARED
+        - matchArgs:
+            - index: 0
+              operator: Prefix
+              values:
+                - /sys/fs/bpf
+            - index: 1
+              operator: Mask
+              values:
+                - "2" # PROT_WRITE
+            - index: 2
+              operator: Mask
+              values:
+                - "1" # MAP_SHARED

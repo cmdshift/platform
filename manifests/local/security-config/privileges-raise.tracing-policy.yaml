@@ -1,0 +1,315 @@
+# Pod-side privilege escalation attempts: setuid/setgid family to root, capset
+# raising capabilities, unprivileged user-namespace creation.
+# Adapted from tetragon examples/policylibrary/privileges/privileges-raise.yaml,
+# scoped to non-host PID namespaces: runc/containerd (host ns) legitimately
+# setuid for every pod start — in-container escalation is the signal here.
+# Requires tetragon.enableProcessCred on the release (credentials in events).
+# monitor_only: no enforcement actions — stage-2 candidates after burn-in.
+# retire: flux prunes this group — deleting the file unloads the sensor.
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: privileges-raise
+spec:
+  # policy-level podSelector: k8s pod processes only. The per-hook Pid NotIn
+  # host_ns filter proved insufficient live — runc (host ns, container setup)
+  # still fired setuid/capset events (2026-09-07); podSelector is the documented
+  # k8s-identity filter and excludes unattributed host processes entirely.
+  podSelector:
+    matchLabels: {}
+  kprobes:
+    - call: security_capset
+      syscall: false
+      message: "process changed its capabilities via capset"
+      args:
+        - index: 0
+          type: nop
+        - index: 1
+          type: cred
+        - index: 2
+          type: cap_effective
+        - index: 3
+          type: cap_inheritable
+        - index: 4
+          type: cap_permitted
+      selectors:
+        - matchNamespaces:
+            - namespace: Pid
+              operator: NotIn
+              values:
+                - host_ns
+          matchArgs:
+            - index: 2
+              operator: NotEqual
+              values:
+                - "0"
+          matchActions:
+            - action: Post
+              rateLimit: "1m"
+        - matchNamespaces:
+            - namespace: Pid
+              operator: NotIn
+              values:
+                - host_ns
+          matchArgs:
+            - index: 3
+              operator: NotEqual
+              values:
+                - "0"
+          matchActions:
+            - action: Post
+              rateLimit: "1m"
+        - matchNamespaces:
+            - namespace: Pid
+              operator: NotIn
+              values:
+                - host_ns
+          matchArgs:
+            - index: 4
+              operator: NotEqual
+              values:
+                - "0"
+          matchActions:
+            - action: Post
+              rateLimit: "1m"
+    - call: create_user_ns
+      syscall: false
+      message: "unprivileged process created a user namespace"
+      args:
+        - index: 0
+          type: nop
+      selectors:
+        - matchNamespaces:
+            - namespace: Pid
+              operator: NotIn
+              values:
+                - host_ns
+          matchCapabilities:
+            - type: Effective
+              operator: NotIn
+              values:
+                - CAP_SYS_ADMIN
+    - call: __sys_setuid
+      syscall: false
+      message: "setuid to root"
+      args:
+        - index: 0
+          type: int
+      selectors:
+        - matchNamespaces:
+            - namespace: Pid
+              operator: NotIn
+              values:
+                - host_ns
+          matchArgs:
+            - index: 0
+              operator: Equal
+              values:
+                - "0"
+          matchActions:
+            - action: Post
+              rateLimit: "1m"
+    - call: __sys_setgid
+      syscall: false
+      message: "setgid to root"
+      args:
+        - index: 0
+          type: int
+      selectors:
+        - matchNamespaces:
+            - namespace: Pid
+              operator: NotIn
+              values:
+                - host_ns
+          matchArgs:
+            - index: 0
+              operator: Equal
+              values:
+                - "0"
+          matchActions:
+            - action: Post
+              rateLimit: "1m"
+    - call: __sys_setreuid
+      syscall: false
+      message: "setreuid to root"
+      args:
+        - index: 0
+          type: int
+        - index: 1
+          type: int
+      selectors:
+        - matchNamespaces:
+            - namespace: Pid
+              operator: NotIn
+              values:
+                - host_ns
+          matchArgs:
+            - index: 0
+              operator: Equal
+              values:
+                - "0"
+          matchActions:
+            - action: Post
+              rateLimit: "1m"
+        - matchNamespaces:
+            - namespace: Pid
+              operator: NotIn
+              values:
+                - host_ns
+          matchArgs:
+            - index: 1
+              operator: Equal
+              values:
+                - "0"
+          matchActions:
+            - action: Post
+              rateLimit: "1m"
+    - call: __sys_setregid
+      syscall: false
+      message: "setregid to root"
+      args:
+        - index: 0
+          type: int
+        - index: 1
+          type: int
+      selectors:
+        - matchNamespaces:
+            - namespace: Pid
+              operator: NotIn
+              values:
+                - host_ns
+          matchArgs:
+            - index: 0
+              operator: Equal
+              values:
+                - "0"
+          matchActions:
+            - action: Post
+              rateLimit: "1m"
+        - matchNamespaces:
+            - namespace: Pid
+              operator: NotIn
+              values:
+                - host_ns
+          matchArgs:
+            - index: 1
+              operator: Equal
+              values:
+                - "0"
+          matchActions:
+            - action: Post
+              rateLimit: "1m"
+    - call: __sys_setresuid
+      syscall: false
+      message: "setresuid to root"
+      args:
+        - index: 0
+          type: int
+        - index: 1
+          type: int
+        - index: 2
+          type: int
+      selectors:
+        - matchNamespaces:
+            - namespace: Pid
+              operator: NotIn
+              values:
+                - host_ns
+          matchArgs:
+            - index: 1 # effective uid — noise reduction, per upstream library
+              operator: Equal
+              values:
+                - "0"
+          matchActions:
+            - action: Post
+              rateLimit: "1m"
+        - matchNamespaces:
+            - namespace: Pid
+              operator: NotIn
+              values:
+                - host_ns
+          matchArgs:
+            - index: 2
+              operator: Equal
+              values:
+                - "0"
+          matchActions:
+            - action: Post
+              rateLimit: "1m"
+    - call: __sys_setresgid
+      syscall: false
+      message: "setresgid to root"
+      args:
+        - index: 0
+          type: int
+        - index: 1
+          type: int
+        - index: 2
+          type: int
+      selectors:
+        - matchNamespaces:
+            - namespace: Pid
+              operator: NotIn
+              values:
+                - host_ns
+          matchArgs:
+            - index: 1 # effective gid — noise reduction, per upstream library
+              operator: Equal
+              values:
+                - "0"
+          matchActions:
+            - action: Post
+              rateLimit: "1m"
+        - matchNamespaces:
+            - namespace: Pid
+              operator: NotIn
+              values:
+                - host_ns
+          matchArgs:
+            - index: 2
+              operator: Equal
+              values:
+                - "0"
+          matchActions:
+            - action: Post
+              rateLimit: "1m"
+    - call: __sys_setfsuid
+      syscall: false
+      message: "setfsuid to root"
+      args:
+        - index: 0
+          type: int
+      selectors:
+        - matchNamespaces:
+            - namespace: Pid
+              operator: NotIn
+              values:
+                - host_ns
+          matchArgs:
+            - index: 0
+              operator: Equal
+              values:
+                - "0"
+          matchActions:
+            - action: Post
+              rateLimit: "1m"
+    - call: __sys_setfsgid
+      syscall: false
+      message: "setfsgid to root"
+      args:
+        - index: 0
+          type: int
+      selectors:
+        - matchNamespaces:
+            - namespace: Pid
+              operator: NotIn
+              values:
+                - host_ns
+          matchArgs:
+            - index: 0
+              operator: Equal
+              values:
+                - "0"
+          matchActions:
+            - action: Post
+              rateLimit: "1m"

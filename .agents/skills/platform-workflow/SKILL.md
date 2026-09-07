@@ -17,9 +17,10 @@ The standard loop for every change to `manifests/local/`. Flux v2 deploys everyt
 ```
 yaml_lint          # parse-check all YAML; exits 1 on the first bad file
 helm_verify        # renders every HelmRelease's values via helm template
+cr_validate        # server-side dry-run of CRs against on-cluster CRD schemas
 ```
 
-`helm_verify` catches nil-pointer template errors, but schema-less charts do **not** reject values-key typos — cross-check surprise diffs against the chart's `values.yaml`.
+`helm_verify` catches nil-pointer template errors, but schema-less charts do **not** reject values-key typos — cross-check surprise diffs against the chart's `values.yaml`. `cr_validate` is mandatory for any new/changed CR (TracingPolicy, AlertmanagerConfig,CEL health checks…): kustomize-controller dry-runs the whole group before applying, so one undeclared field blocks every file in the directory and repeats at `retryInterval` forever.
 
 ## 2. Converge the bucket, then reconcile
 
@@ -32,7 +33,7 @@ The sync container drops inotify events (edits included, not just deletes — hi
 
 - `flux_wait` exit 0 = all green; exit 1 = timeout with the pending list + diagnose hint → load the `reconcile-stuck` skill.
 - Edits never reaching the cluster at all → load the `pipeline-wedged` skill.
-- Estimate the reconcile duration first (~2-3m for a root reconcile, ~10m for a fresh rebuild) and cap polling at ~2× that.
+- Observed timing (2026-09-07): a single-group change settles in ~5 polls (~1m); a full-tree reconcile in ~2-3m; a fresh rebuild ~10m. Default cap 42 covers the rebuild worst case — for interactive changes run `flux_wait 15`: a kustomization still pending at ~8 polls is almost always **failing, not slow** — `describe` it instead of waiting out the cap.
 
 ## 3. Final checks
 

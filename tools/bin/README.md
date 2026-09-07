@@ -29,6 +29,7 @@ for `rustfs`. macOS date math (`date -v`) assumes darwin.
 | `helm_verify` | render every HelmRelease's values via `helm template` (values-path check) |
 | `sync_wait` | wait until changed manifests have actually landed in the flux bucket |
 | `flux_wait` | reconcile from the root + bounded poll to all-green |
+| `cr_validate` | server-side dry-run: validate CRs against on-cluster CRD schemas + admission (pre-reconcile) |
 | `pod_status` | pod table with restarts + last exit code/reason (crashloop triage) |
 | `memory_audit` | memory usage-vs-limits table |
 | `cpu_audit` | CPU throttling top-N + usage-vs-limits table |
@@ -89,11 +90,34 @@ editing and `flux_wait`.
 Reconciles the root Kustomization `local --with-source` (4m timeout), then
 polls `flux-system` kustomizations every 10s, echoing the pending list.
 
-- Default 42 polls (~7m after the reconcile)
+- Default 42 polls (~7m after the reconcile) — sized for the fresh-rebuild
+  worst case (~10m)
 - Exit 0: all kustomizations Ready. Exit 1: timeout with pending list +
   diagnose commands
+- **Interactive-change reality check** (observed 2026-09-07): a normal
+  single-group change is green within ~5 polls (~1m). A kustomization still
+  pending past ~8 polls is almost always **failing, not slow** (dry-run
+  rejection, dependency cycle, health check) — stop polling and `describe`
+  instead of waiting out the cap: `flux_wait 15` is a good interactive cap
 - Estimate reconcile duration first and cap the poll at ~2×; a stuck loop is
   a real problem (runbooks/local/reconciliation-stuck.md)
+
+### `cr_validate [-n namespace] <file-or-dir>...`
+
+Validates manifests against the **on-cluster CRD schemas** via server-side
+dry-run apply — nothing persists, but the API validation + admission pipeline
+run for real.
+
+- Catches exactly what wedges a kustomization: "field not declared in schema"
+  (the CRD dry-run gate), wrong kinds, kyverno admission denials (it
+  dry-runs pods/jobs through the real policies too)
+- Run it on any new/changed CR **before** `sync_wait` — kustomize-controller
+  dry-runs the whole group first, so one bad field blocks every file in the
+  directory and repeats at `retryInterval` forever (hit twice with
+  TracingPolicies, 2026-09-07)
+- `-n` overrides the namespace for namespaced objects whose namespace doesn't
+  exist yet; cluster-scoped objects ignore it
+- Exit 0: all PASS. Exit 1: any FAIL (per-file PASS/FAIL printed)
 
 ## Resource sizing audits
 

@@ -25,7 +25,7 @@ Expect **~10 minutes**, progressing through the dependency chain in order:
 sources → crds → namespaces → certificates → networking (cilium: the long pole)
 → flux → flux-config (adopts the Bucket + root) → metrics → policies
 → storage → objects → monitoring → thanos-operator → monitoring-config
-→ backups → logging
+→ backups → logging → security → security-config
 ```
 
 Watch with `flux_wait` (or `kubectl -n flux-system get kustomizations`).
@@ -34,12 +34,14 @@ Watch with `flux_wait` (or `kubectl -n flux-system get kustomizations`).
 
 | Check | Command | Expect |
 |---|---|---|
-| Kustomizations | `kubectl -n flux-system get kustomizations` | 25/25 True |
-| HelmReleases | `kubectl get helmreleases -A` | 15/15 True |
+| Kustomizations | `kubectl -n flux-system get kustomizations` | 27/27 True (incl. security, security-config) |
+| HelmReleases | `kubectl get helmreleases -A` | 16/16 True (incl. security/tetragon) |
+| Tetragon policies | `tetra --server-address localhost:54321 tracingpolicy list` (after `kubectl -n security port-forward ds/tetragon 54321:54321`) | 4 × enabled, monitor_only; FILTERID non-zero for privileges-raise + sensitive-host-paths |
+| Policy load failures | `prometheus_query 'tetragon_tracingpolicy_loaded{state=~"error\|load_error"} > 0'` | empty (the gauge exports zero-valued states too — filter with `> 0`) |
 | flux-config adoption | `kubectl -n flux-system get kustomization local -o json --show-managed-fields` | `kustomize-controller` owns the spec |
 | Velero BSL | `kubectl -n velero get bsl default` | `Available` |
 | Rustfs buckets | `rustfs ls main/` | `flux`, `backups` |
-| Thanos ruler | `kubectl -n monitoring get pods -l app.kubernetes.io/name=thanos-ruler` | 2/2 Running |
+| Thanos ruler | `kubectl -n monitoring get pods -l app.kubernetes.io/name=thanos-ruler` | 1/1 Running (CR sets `replicas: 1`) |
 | PolicyReports | `policy_report` | 0 failures |
 
 **Known expected artifact:** thanos ruler CRs show `ReconcileFailed=True` alongside `ReconcileSuccess=True` (first-minute race before the query service exists; the condition never resets — thanos-community/thanos-operator#635). Trust the workloads, not the conditions.
