@@ -4,7 +4,7 @@
 # ATTACHMENT NOTE: this must be a plain kprobe, not lsmhooks — the linuxkit
 # 7.0.12 kernel ships CONFIG_BPF_LSM=y but its vmlinux BTF lacks the
 # bpf_lsm_* hook symbols, so LSM-hook policies fail to load ("lsm hook
-# security_file_open not found in BTF", agent log 2026-09-07). kprobe attach
+# security_file_open not found in BTF", agent log). kprobe attach
 # to the same symbol works, and fmodret is supported, so stage-2 enforcement
 # via Override stays available.
 # Scoping notes (why the selectors look like this):

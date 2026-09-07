@@ -6,7 +6,7 @@
 # schema", bad kinds, admission-webhook denials) WITHOUT the flux round-trip.
 # Run it on any new/changed CR before sync_wait — the kustomize-controller
 # dry-runs everything first, so one bad field blocks the whole group (observed
-# twice with TracingPolicies, 2026-09-07).
+# twice with TracingPolicies).
 # Exit 0 = all pass, 1 = any FAIL, 2 = usage error.
 
 usage() {

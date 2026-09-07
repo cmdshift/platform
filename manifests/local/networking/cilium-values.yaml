@@ -46,7 +46,7 @@ hubble:
           cpu: 10m
           memory: 48Mi
         limits:
-          # 2026-09-07 audit: 13.6% of CFS periods throttled at the old 100m
+          # audit: 13.6% of CFS periods throttled at the old 100m
           cpu: 200m
           memory: 72Mi
     frontend:
@@ -55,7 +55,7 @@ hubble:
           cpu: 10m
           memory: 16Mi
         limits:
-          # 2026-09-07 audit: 33% of CFS periods throttled at the old 20m
+          # audit: 33% of CFS periods throttled at the old 20m
           cpu: 100m
           memory: 24Mi
 ipam:
@@ -78,9 +78,8 @@ prometheus:
   enabled: true
   serviceMonitor:
     enabled: true
-    # helm-controller renders without API discovery, so the chart's
-    # validate.yaml gate fails unless told the SM CRDs exist — they do
-    # (prometheus-operator-crds release, crds/)
+    # SM CRDs ship via the prometheus-operator-crds release — the chart's
+    # render-time CRD gate needs them declared to pass
     trustCRDsExist: true
 operator:
   prometheus:
@@ -91,25 +90,22 @@ operator:
       cpu: 10m
       memory: 144Mi
     limits:
-      # 2026-09-07 audit: 7.3% of CFS periods throttled at the old 40m —
+      # audit: 7.3% of CFS periods throttled at the old 40m —
       # convention floor for burst headroom
       cpu: 200m
       memory: 216Mi
 resources:
   requests:
     cpu: 50m
-    # request audit 2026-09-06: the busy work node's agent sat at 234Mi
-    # steady (91% of the old 256Mi request); 288Mi = worst-node x 1.2
-    # 2026-09-07 audit (post ns-refactor churn): agents 296-351Mi =
-    # 103-122% of the 288Mi request — 448Mi = worst-node x 1.2, limit 1.5x
+    # audit: agents 296-351Mi (worst node, post ns-refactor churn) —
+    # 448Mi = worst-node x 1.2, limit 1.5x
     memory: 448Mi
   limits:
-    # 2026-09-07 audit: 21.8% of CFS periods throttled at the old 200m —
+    # audit: 21.8% of CFS periods throttled at the old 200m —
     # eBPF/encrypt bursts; generous CPU limit per convention
     cpu: 500m
-    # test-namespace endpoints/identities spiked agents to ~323Mi against
-    # the old 384Mi limit (84%) during a connectivity test run; 512Mi keeps
-    # burst headroom
+    # connectivity-test runs spiked agents to ~323Mi (endpoints/identities) —
+    # limit 1.5x keeps burst headroom
     memory: 672Mi
 rollOutCiliumPods: true
 securityContext:

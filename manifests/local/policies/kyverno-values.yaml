@@ -2,9 +2,7 @@ features:
   policyExceptions:
     enabled: true
     namespace: policies
-  # JSON logging (2026-09-07): all platform components log JSON so log lines
-  # are field-queryable (`| json` in LogQL) — renders as -loggingFormat on all
-  # four controllers. NB: logging nests under features (not config/top-level)
+  # JSON logging: see logging/loki-values.yaml (nests under features here)
   logging:
     format: json
   admissionReports:
@@ -38,7 +36,7 @@ admissionController:
     resources:
       requests:
         cpu: 15m
-        # request audit 2026-09-06: steady 120Mi against the old 200Mi
+        # audit: steady 120Mi against the old 200Mi
         # request; 208Mi = observed peak x 1.2
         memory: 208Mi
       limits:

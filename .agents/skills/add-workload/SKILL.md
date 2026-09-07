@@ -52,7 +52,7 @@ Credentials come from the secrets server: payload in `cluster/local/secrets/loca
 
 ## 7. When admission rejects something you can't fix
 
-Controllers generating non-compliant pods with no config knobs get a **PolicyException** in `policies-config/` — scoped by namespace + name prefix, with a rationale comment. Don't reach for exceptions for workloads you control — fix the workload.
+Controllers generating non-compliant pods with no config knobs get a **PolicyException** in `policies-config/` — scoped by namespace + name prefix, with a rationale comment (AGENTS.md comment rules). Don't reach for exceptions for workloads you control — fix the workload.
 
 ## 8. Verify
 

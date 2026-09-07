@@ -60,7 +60,7 @@ trivy:
   # these (verified in operator source v0.34.0 pkg/plugins/trivy). Scan-job
   # pods mirror the TARGET's container list — every container runs a trivy
   # scanner, so sizing must cover the worst image in the fleet, not the
-  # median. OOMKilled 2026-09-07: cilium-agent DaemonSet scan, killer
+  # median. OOMKilled: cilium-agent DaemonSet scan, killer
   # (install-cni-binaries scanner) climbed past 372Mi against the old 512Mi
   # limit; completed scans peak 150-200Mi. 512Mi request = observed P99 x 1.2,
   # 768Mi limit = 1.5x per the resource-sizing convention; ~23.5Gi/node
@@ -147,7 +147,7 @@ serviceMonitor:
 resources:
   requests:
     cpu: 50m
-    # 2026-09-07 audit (burn-in done): steady ~322Mi, but hourly scan bursts
+    # audit (burn-in done): steady ~322Mi, but hourly scan bursts
     # peak 496Mi = 111% of the 448Mi request — 640Mi = burst-P99 x 1.2;
     # limit stays 1Gi (usage 50% of it)
     memory: 640Mi

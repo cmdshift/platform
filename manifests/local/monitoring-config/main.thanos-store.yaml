@@ -4,7 +4,7 @@ metadata:
   name: main
   namespace: monitoring
 spec:
-  # JSON logging: see main.thanos-query.yaml (2026-09-07)
+  # JSON logging: see main.thanos-query.yaml
   additionalArgs:
     - --log.format=json
   objectStorageConfig:

@@ -5,9 +5,7 @@ metadata:
   namespace: monitoring
 spec:
   replicas: 1
-  # JSON logging: all platform components log JSON so log lines are
-  # field-queryable (`| json` in LogQL) — set at the source, the pipeline
-  # passes lines through unchanged (2026-09-07)
+  # JSON logging: see logging/loki-values.yaml
   logFormat: json
   # NSA hardening: alertmanager serves HTTP only and its config
   # reload watches mounted files, never the API — the SA token is dead weight
@@ -23,7 +21,7 @@ spec:
       cpu: 10m
       memory: 48Mi
     limits:
-      # 2026-09-07 audit: 15.2% of CFS periods throttled at the old 200m —
+      # audit: 15.2% of CFS periods throttled at the old 200m —
       # group-notification bursts; generous CPU limit per convention
       cpu: 500m
       memory: 72Mi

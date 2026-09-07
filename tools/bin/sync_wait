@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Wait until locally-changed manifests have actually landed in the flux
 # bucket — run BEFORE flux_wait. The sync container mirrors via inotify and
-# drops events (documented in AGENTS.md; hit live twice 2026-09-06 on plain
+# drops events (documented in AGENTS.md; hit live twice on plain
 # edits) — a reconcile against a stale artifact fails confusingly or, for a
 # helm release, churns upgrade/rollback cycles.
 #

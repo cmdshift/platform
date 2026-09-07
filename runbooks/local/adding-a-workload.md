@@ -44,7 +44,7 @@ Credentials come from the secrets server: add the payload to `cluster/local/secr
 
 ## 7. When admission rejects something you can't fix
 
-Controllers that generate non-compliant pods with no config knobs (e.g. the thanos-operator's config-reloader sidecar) get a **PolicyException** in `policies-config/`: scoped by namespace + name prefix, with a rationale comment. Don't reach for exceptions for workloads you control — fix the workload.
+Controllers that generate non-compliant pods with no config knobs (e.g. the thanos-operator's config-reloader sidecar) get a **PolicyException** in `policies-config/`: scoped by namespace + name prefix, with a rationale comment (AGENTS.md comment rules). Don't reach for exceptions for workloads you control — fix the workload.
 
 ## 8. Verify
 

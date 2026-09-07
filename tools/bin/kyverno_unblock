@@ -7,16 +7,16 @@
 # new-generation pod stays Pending until the old one is gone (AGENTS.md
 # kyverno landmine). Deletes the old-generation REPLICA SETS.
 #
-# 2026-09-07: this tool used to delete old-generation PODS — that's
+# this tool used to delete old-generation PODS — that's
 # whack-a-mole. The stale RS still wants its replicas, so it respawns a
 # Pending pod, and the deployment controller re-scales the RS back up
 # mid-rollout (each deleted pod came back twice, three controllers deep).
 # Deleting the stale RS removes the pods AND the respawner; the deployment
 # controller never recreates old revisions. Pod deletion is also racy in the
-# single-call sense the 2026-09-05 note below describes — an RS delete is
+# single-call sense the note below describes — an RS delete is
 # atomic per RS and releases its ports the same way.
 #
-# 2026-09-07 (#31 ns refactor): kyverno runs in the `policies` namespace —
+# ns refactor #31: kyverno runs in the `policies` namespace —
 # this script targets it there. Cross-namespace deadlock variant hit live
 # during the move: the OLD namespace's deployments held the ports while the
 # new pods pended — deleting the old DEPLOYMENTS (not just their pods) is the

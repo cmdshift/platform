@@ -24,7 +24,7 @@ policy_report() {
 
   kubectl get policyreports -A -o json > "$reports"
   # cronjobs too — a cronjob's report otherwise reads as permanently stale
-  # once its schedule target is gone (hit live 2026-09-06; the counting
+  # once its schedule target is gone (hit live; the counting
   # itself is generic)
   kubectl get pods,deployments,daemonsets,statefulsets,jobs,cronjobs -A -o json \
     | jq -r '.items[] | "\(.metadata.namespace)\t\(.kind)\t\(.metadata.name)"' | sort -u > "$live"

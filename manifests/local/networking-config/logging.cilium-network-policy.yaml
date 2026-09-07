@@ -1,4 +1,3 @@
-# 04-networking/logging.cilium-network-policy.yaml
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:

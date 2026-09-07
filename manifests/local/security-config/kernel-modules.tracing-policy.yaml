@@ -1,7 +1,7 @@
 # Audit trail of kernel module operations (load attempts, auto-load requests).
 # Adapted from tetragon examples/policylibrary/modules.yaml; do_init_module added
-# for module-name context (local symbol `t` on linuxkit 7.0.12 — verified in
-# kallsyms; free_module is inlined in this kernel build and was dropped).
+# for module-name context (free_module is inlined in this kernel build and was
+# dropped).
 # monitor_only: no enforcement actions — stage 2 flips this to Override+Sigkill
 # (modules-nohost pattern) after a clean burn-in.
 # retire: flux prunes this group — deleting the file unloads the sensor; keep in

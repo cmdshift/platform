@@ -17,14 +17,10 @@ initContainers:
         drop:
           - ALL
 # C-0016/C-0046 hardening via the plugin init container's container-level
-# securityContext. The velero chart only exposes securityContext at POD
-# level (and applies it to its CRD-upgrade hook jobs too, where
-# allowPrivilegeEscalation is not a legal pod field — SSA rejects it, helm
-# upgrade fails). Its pod-level runAsUser: 0 default is deliberate (the
-# node-agent needs root), so container-level readOnlyRootFilesystem /
-# caps dropping is not reachable via values — these stay accepted
-# deviations for the velero deployment (kustomize post-render
-# would be the only path; not worth the fight)
+# securityContext. The chart only exposes securityContext at pod level (its
+# runAsUser: 0 default is deliberate — the node-agent needs root), so
+# container-level readOnlyRootFilesystem / caps dropping is unreachable via
+# values — accepted deviations for the velero deployment (notes.md)
 credentials: {}
 resources:
   # memory sized after OOMKill at the 132Mi limit during kopia repo prep
@@ -37,9 +33,7 @@ resources:
     cpu: 500m
     memory: 512Mi
 configuration:
-  # JSON logging: all platform components log JSON so log lines are
-  # field-queryable (`| json` in LogQL) — set at the source, the pipeline
-  # passes lines through unchanged (2026-09-07)
+  # JSON logging: see logging/loki-values.yaml
   logFormat: json
   backupStorageLocation: null
   volumeSnapshotLocation: null
@@ -60,7 +54,7 @@ nodeAgent:
   resources:
     requests:
       cpu: 10m
-      # request audit 2026-09-06: busiest node-agent hit 51Mi steady (64%
+      # audit: busiest node-agent hit 51Mi steady (64%
       # of the old 80Mi request); 88Mi = observed x 1.2
       memory: 88Mi
     limits:

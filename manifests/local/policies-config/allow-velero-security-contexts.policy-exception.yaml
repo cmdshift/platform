@@ -3,7 +3,7 @@ kind: PolicyException
 metadata:
   name: allow-velero-security-contexts
   namespace: policies
-  # ns refactor #31: bumped 2026-09-07 to force a re-pick-up (see
+  # ns refactor #31: bumped to force a re-pick-up (see
   # allow-privileged-system-worloads.policy-exception.yaml)
   annotations:
     platform.cmdshift.io/ns-refactor: "2026-09-07"

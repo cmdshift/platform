@@ -3,7 +3,7 @@ kind: PolicyException
 metadata:
   name: allow-privileged-system-workloads
   namespace: policies
-  # ns refactor #31: bumped 2026-09-07 to force the kyverno admission engine to
+  # ns refactor #31: bumped to force the kyverno admission engine to
   # re-pick-up the matchConditions update (the generator saw the edit, the
   # admission path kept evaluating the previous expression — storage matched,
   # backups denied with identical CEL)

@@ -1,6 +1,5 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-# every yaml in the dir must be registered here — unregistered files get pruned by flux
 resources:
   - grafana-operator.helm-release.yaml
   - kube-prometheus-stack.helm-release.yaml

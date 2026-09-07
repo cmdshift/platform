@@ -4,7 +4,6 @@ metadata:
   name: security-config
   namespace: flux-system
 spec:
-  # drift-heal only: propagation is event-driven; manual flow = sync_wait + flux_wait
   interval: 1h
   retryInterval: 5s
   dependsOn:
@@ -25,7 +24,7 @@ spec:
   # no wait:true — TracingPolicy CRs have no status/conditions, so a health
   # check can only pass trivially or stall 2m per attempt on a flux discovery
   # hiccup ("no matches for kind" while the CRD demonstrably exists — hit
-  # 2026-09-07, three consecutive 2m timeouts). The real loaded-signal lives in
+  # three consecutive 2m timeouts live). The real loaded-signal lives in
   # the agent: `tetra tracingpolicy list` + the TetragonTracingPolicyLoadFailed
   # alert (thanos-rules tetragon-alerts).
   timeout: 2m

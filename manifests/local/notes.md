@@ -326,3 +326,12 @@ Completed the source-side JSON conversion — every producer with a knob is flip
 Combined with the pipeline normalization (`loki.process.normalize`: **`stage.decolorize`** strips ANSI codes first — preventive, most loggers disable color on non-TTY stdout but the escapes would otherwise end up embedded in JSON string values; JSON lines pass through, logfmt lines convert, plain-text lines fall back to `{"msg": raw}`), **every line in Loki is JSON now**, and the standard k8s properties are labels — `{namespace="monitoring", pod=~"grafana-.*"} | json | level="error"` works everywhere.
 
 `kyverno_unblock` upgraded the same day: deletes stale-generation **ReplicaSets** now, not pods — pod deletion was whack-a-mole (stale RS respawns + the deployment controller re-scales it back mid-rollout; each deleted pod returned twice). The ready pods may belong to the superseded generation — they die with their RS and the current template's pods take the freed ports (brief admission gap is expected; kyverno-webhook failurePolicy=Fail means pod creation pauses for ~30s during the swap).
+
+## Comment-style cleanup (2026-09-07, issue #43)
+
+Swept every inline comment in `manifests/local/**` and `tools/bin/*` scripts against the comment rules now codified in AGENTS.md (Hygiene → Rationale comments):
+
+- **Dates stripped from all comments** — audit comments read `# audit: steady 120Mi …` now; the when/story lives in issue refs. notes.md and runbooks keep their dates (ledgers, not code).
+- **Superseded audit generations collapsed to the latest** (cilium-agent + source/helm/kustomize-controller memory, prometheus cpu/memory) — the current decision + its evidence numbers stay; the bump trail goes.
+- **Tool-mechanics explanations deleted or pointed at their runbook/notes owner** (flux `drift-heal` boilerplate ×~16, `prune`-registration boilerplate ×5, kustomize SM/JSON6902 + SSA field-manager stories in the thanos-operator kustomization, helm-controller CRD-gate, kps chart-template quirk compressed, velero data-mover/hosting-pod mechanics). The kps PSS-label story: runbooks/local/namespace-migration.md + the kps uninstall-remediation entry above.
+- **Kept**: issue/PR refs, `# NSA hardening:` markers, `# remove/true in the cloud` markers, terse port labels, and all date **values** (image tags, the `ns-refactor` annotations, retention `from:`).
