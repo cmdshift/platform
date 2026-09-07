@@ -27,3 +27,28 @@ spec:
     - kind: ConfigMap
       name: seaweedfs-operator-values
       valuesKey: values.yaml
+  # JSON logging (2026-09-07): the chart exposes no args knob for the
+  # manager; zap defaults to the console encoder. Rendered via postRenderers
+  # since the Deployment is chart-owned.
+  postRenderers:
+    - kustomize:
+        patches:
+          - patch: |-
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: seaweedfs-operator
+              spec:
+                template:
+                  spec:
+                    containers:
+                      # container name is seaweedfs-operator (chart's manager
+                      # container) — a "manager" name patch matches nothing
+                      - name: seaweedfs-operator
+                        args:
+                          - --leader-elect
+                          - --metrics-bind-address=:8080
+                          - --zap-encoder=json
+            target:
+              kind: Deployment
+              name: seaweedfs-operator

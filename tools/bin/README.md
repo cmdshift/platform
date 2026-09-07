@@ -226,13 +226,23 @@ make every run (green included) exit 1, breaking any `if`/`until` wrapper.
 
 ### `kyverno_unblock`
 
-LOCAL-ONLY. Deletes old-generation kyverno pods when a rollout deadlocks on
-hostNetwork ports (each pod claims its node's port; new-generation pod stays
-Pending — AGENTS.md kyverno landmine). Targets the `policies` namespace
-(2026-09-07 ns refactor). All victims deleted in a single kubectl call —
-piecemeal deletion loses the race to the deployment controller. Takes no
-args (anything else is a usage error). No-op exit 0
+LOCAL-ONLY. Deletes old-generation kyverno **ReplicaSets** when a rollout
+deadlocks on hostNetwork ports (each pod claims its node's port;
+new-generation pod stays Pending — AGENTS.md kyverno landmine). Targets the
+`policies` namespace (2026-09-07 ns refactor). All victims deleted in a
+single kubectl call — piecemeal deletion loses the race to the deployment
+controller. Takes no args (anything else is a usage error). No-op exit 0
 when nothing is pending. After it runs, re-run `flux_wait`.
+
+**RS deletion, not pod deletion** (2026-09-07): deleting stale-generation
+PODS is whack-a-mole — the stale RS still wants its replicas, so it respawns
+a Pending pod, and the deployment controller re-scales the RS back up
+mid-rollout (each deleted pod came back twice, three controllers deep).
+Deleting the stale RS removes the pods AND the respawner; the deployment
+controller never recreates old revisions. Note the ready pods may belong to
+the superseded generation (the rollout was replacing them anyway) — they die
+with their RS and the current template's pods take the freed ports; a brief
+availability gap is expected.
 
 Cross-namespace deadlock variant (old release still in a former namespace
 holding the ports — hit live during the ns refactor): this script can't see

@@ -11,6 +11,10 @@ defaultRules:
     # AlertmanagerConfig for this job only.
     KubeProxyInstanceUnreachable: true
 prometheusOperator:
+  # JSON logging: all platform components log JSON so log lines are
+  # field-queryable (`| json` in LogQL) — set at the source, the pipeline
+  # passes lines through unchanged (2026-09-07)
+  logFormat: json
   admissionWebhooks:
     patch:
       resources:
@@ -56,6 +60,8 @@ kube-state-metrics:
       memory: 144Mi
 prometheus:
   prometheusSpec:
+    # JSON logging: see prometheusOperator above (2026-09-07)
+    logFormat: json
     retention: 2d
     # CR-managed Alertmanager (monitoring-config/main.alertmanager.yaml) — the
     # chart's alertmanager component is disabled, so without this the whole

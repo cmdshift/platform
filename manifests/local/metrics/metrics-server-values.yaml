@@ -3,6 +3,9 @@ apiService:
 args:
   - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
   - --metric-resolution=15s
+  # JSON logging (2026-09-07): all platform components log JSON so log lines
+  # are field-queryable (`| json` in LogQL) — component-base logging flag
+  - --logging-format=json
 # chart's securityContext is CONTAINER-level; runAsGroup added for NSA
 # hardening (requires explicit container-level uid+gid, not just runAsNonRoot)
 securityContext:

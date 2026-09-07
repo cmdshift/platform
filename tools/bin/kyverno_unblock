@@ -4,23 +4,24 @@
 # LOCAL-ONLY: hostNetwork is a talos-in-docker setting (the "remove in the
 # cloud" values in kyverno.helm-release.yaml). Each kyverno pod claims its
 # node's port, so every worker can host exactly one pod per controller — a
-# new-generation pod stays Pending until the old one is deleted (AGENTS.md
-# kyverno landmine). Deletes the old-generation running pods; no-op exit 0
-# when nothing is pending.
+# new-generation pod stays Pending until the old one is gone (AGENTS.md
+# kyverno landmine). Deletes the old-generation REPLICA SETS.
+#
+# 2026-09-07: this tool used to delete old-generation PODS — that's
+# whack-a-mole. The stale RS still wants its replicas, so it respawns a
+# Pending pod, and the deployment controller re-scales the RS back up
+# mid-rollout (each deleted pod came back twice, three controllers deep).
+# Deleting the stale RS removes the pods AND the respawner; the deployment
+# controller never recreates old revisions. Pod deletion is also racy in the
+# single-call sense the 2026-09-05 note below describes — an RS delete is
+# atomic per RS and releases its ports the same way.
 #
 # 2026-09-07 (#31 ns refactor): kyverno runs in the `policies` namespace —
 # this script targets it there. Cross-namespace deadlock variant hit live
 # during the move: the OLD namespace's deployments held the ports while the
-# new pods pended — deleting the old DEPLOYMENTS (not just their pods) avoids
-# the replacement-pod re-grab race this script's single-call rule exists for.
+# new pods pended — deleting the old DEPLOYMENTS (not just their pods) is the
+# same fix one level up.
 #
-# All victims are deleted in a SINGLE kubectl call. Piecemeal deletion loses
-# the race: while pods go down one at a time, the deployment controller
-# recreates old-generation pods that re-grab the freed host ports before the
-# next victim is cleared (observed 2026-09-05 — two runs flip-flopped the
-# rollout and briefly deleted a new-generation pod). One simultaneous delete
-# frees every controller's port at once, so the pending new-generation pods
-# bind before replacements can be created.
 # Exit 0 = nothing pending or unblock applied; nonzero = kubectl failure.
 
 set -euo pipefail
@@ -35,41 +36,28 @@ pending_pods() {
     | awk '$3 == "Pending" {print $1}'
 }
 
-# deployment name from a pod name (strip pod-hash, then rs-hash)
-pod_deploy() {
+pod_deploy() { # pod name → deployment name (strip pod-hash, then rs-hash)
   local deploy="${1%-*}"
   echo "${deploy%-*}"
 }
 
-# newest ReplicaSet of a deployment = its current pod template
-newest_rs() {
+# all ReplicaSets of $1 EXCEPT its newest (the current pod template).
+# sort_by creationTimestamp: last = the RS the deployment controller is
+# rolling toward; everything older is stale.
+stale_rs() {
   kubectl -n policies get rs -o json \
     | jq -r --arg d "$1" '
         [.items[]
          | select(.metadata.ownerReferences[]?.name == $d)
          | select(.metadata.labels."pod-template-hash" != null)
          | {name: .metadata.name, ts: .metadata.creationTimestamp}]
-        | sort_by(.ts) | last | .name // empty'
-}
-
-# running pods of $1 whose pod-template-hash differs from its newest RS
-old_generation_pods() {
-  local deploy="$1" new_hash
-  new_hash=$(newest_rs "$deploy")
-  [ -z "$new_hash" ] && return 0
-  kubectl -n policies get pods --no-headers \
-    | awk -v deploy="$deploy" -v new="$new_hash" '
-        index($1, deploy "-") == 1 && $3 == "Running" {print $1}' \
-    | while read -r pod; do
-        hash=$(kubectl -n policies get pod "$pod" \
-          -o jsonpath='{.metadata.labels.pod-template-hash}')
-        [ "$hash" != "$new_hash" ] && echo "$pod"
-      done
+        | sort_by(.ts) | .[0:-1][]
+        | .name // empty'
 }
 
 kyverno_unblock() {
   [ $# -eq 0 ] || usage
-  local p pending victims pod old deleted=0
+  local p pending deploy victims rs
   pending=$(pending_pods)
   if [ -z "$pending" ]; then
     echo "kyverno_unblock: no pending kyverno pods — nothing to do"
@@ -78,31 +66,25 @@ kyverno_unblock() {
   victims=""
   for p in $pending; do
     echo "pending: $p"
-    pod="$(pod_deploy "$p")"
-    old=$(old_generation_pods "$pod")
-    if [ -z "$old" ]; then
-      echo "  no old-generation running pod of $pod — not the hostNetwork deadlock; describe the pod"
-      continue
-    fi
-    for o in $old; do
+    deploy="$(pod_deploy "$p")"
+    for rs in $(stale_rs "$deploy"); do
       case " $victims " in
-        *" $o "*) ;;          # already collected
-        *) victims="$victims $o" ;;
+        *" $rs "*) ;;          # already collected
+        *) victims="$victims $rs" ;;
       esac
     done
   done
   if [ -z "$victims" ]; then
-    echo "nothing old-generation left to delete"
+    echo "no stale ReplicaSets to delete — pending pods are newest-generation; describe them"
     return 0
   fi
-  echo "deleting old-generation pods (single call):"
+  echo "deleting stale ReplicaSets (single call; pods die with them):"
   for v in $victims; do
     echo "  $v"
-    deleted=1
   done
   # shellcheck disable=SC2086
-  kubectl -n policies delete pod $victims --wait=false
-  [ "$deleted" = 1 ] && echo "old pods deleted — new pods bind the freed ports; re-run flux_wait"
+  kubectl -n policies delete rs $victims --wait=false
+  echo "stale RSes deleted — ports freed, no respawner left; re-run flux_wait"
 }
 
 kyverno_unblock "$@"

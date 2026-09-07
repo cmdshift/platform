@@ -4,6 +4,9 @@ metadata:
   name: main
   namespace: monitoring
 spec:
+  # JSON logging: see main.thanos-query.yaml (2026-09-07)
+  additionalArgs:
+    - --log.format=json
   objectStorageConfig:
     name: thanos-objstore
     key: objstore.yaml

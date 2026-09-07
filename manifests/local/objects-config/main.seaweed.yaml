@@ -42,8 +42,14 @@ spec:
       memory: 160Mi
     limits:
       # 6% of CFS periods throttled at ~2m average = short write bursts
-      # against the old 200m limit — generous burst room per AGENTS.md
-      cpu: 500m
+      # against the old 200m limit — generous burst room per AGENTS.md.
+      # Bumped 200m->500m for the same reason, then 500m->1000m (2026-09-07):
+      # during vacuum/compaction the volume server throttled at 93% of CFS
+      # periods, wedged with all volumes read-only, and seaweed S3 returned
+      # 500s for hours (loki couldn't flush chunks; master logged "created 0:
+      # Not enough data nodes found!"). Recovered only via the probe-driven
+      # container restart. Same hottest-path logic as the s3 gateway below.
+      cpu: 1000m
       memory: 240Mi
     podSecurityContext:
       runAsNonRoot: true

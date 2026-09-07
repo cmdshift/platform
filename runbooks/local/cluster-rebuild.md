@@ -14,6 +14,26 @@ just cluster apply      # docker network, companions, talos nodes, kubeconfig (.
 just bootstrap apply    # cilium + flux helm releases + the Bucket/root hooks
 ```
 
+### Full destroy + recreate (worked example, 2026-09-07)
+
+The two terraform modules are deliberately asymmetric: `cluster/local` (nodes + companions) has no destroy guards, while `cluster/local/bootstrap` (flux + Bucket/root hooks) carries `lifecycle.prevent_destroy` on the flux state — **`just bootstrap destroy` fails on purpose**. The rebuild flow replaces the cluster underneath the bootstrap state and lets `bootstrap apply` reinstall flux onto it:
+
+```
+just bootstrap destroy -auto-approve     # fails by design (prevent_destroy) — skip it
+just cluster destroy -auto-approve       # ~1m; wipes rustfs + PVCs (see Data implications)
+just cluster apply -auto-approve         # CAN HANG — see below
+# ... 20-30s pause ...
+just bootstrap apply -auto-approve       # ~90s, 4 resources (flux, hooks)
+```
+
+**The `cluster apply` hang recipe** (operator-verified): spawn it in the background, kill it after ~1 minute, wait 20-30 seconds before bootstrapping. Details that bit the 2026-09-07 run:
+
+- Non-interactive shells must pass `-auto-approve` — terraform's plan-approval prompt EOFs without a TTY (`error asking for approval: EOF`) and the recipe dies in 3s.
+- macOS has no `setsid` — background with `just cluster apply -auto-approve > /tmp/cluster-apply.log 2>&1 &`, then `kill $PID` + `pkill -f "chdir=cluster/local apply"`.
+- Poll before killing: this run the apply **finished on its own in 16s** (37 resources). Kill only if it's still running at ~60s.
+- The kill point is expected to be after resource creation — the plan is 37 to add (containers + talos nodes + kubeconfig); flux "reconciles the rest eventually".
+- `just certs` is only needed if `cluster/local/.tmp/tls/` is missing (note: the path is under `cluster/local/.tmp/`, NOT the repo-root `.tmp/`).
+
 Then watch convergence — **expect ~10 minutes**, progressing through the dependency chain in this order:
 
 ```

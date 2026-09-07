@@ -148,6 +148,25 @@ spec:
         kind: RoleBinding
         name: thanos-operator-leader-election-rolebinding
     # bundle Namespace rename: JSON6902 (a strategic merge can't change a merge key)
+    # 2026-09-07: the renamed Namespace must carry the same PSS labels as
+    # namespaces/monitoring.namespace.yaml — both flux kustomizations apply as
+    # the SAME SSA field manager (kustomize-controller), so whichever
+    # reconciles last rewrites the label map and prunes the other's fields.
+    # Without this, a rebuild where thanos-operator reconciles last strips
+    # pod-security enforce=privileged and the kps node-exporter DaemonSet is
+    # denied at PSS admission (hostNetwork/hostPID/hostPath) → install times
+    # out → uninstall remediation (seen live 2026-09-07).
+    - patch: |-
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: thanos-operator-system
+          labels:
+            pod-security.kubernetes.io/enforce: privileged
+            pod-security.kubernetes.io/warn: privileged
+      target:
+        kind: Namespace
+        name: thanos-operator-system
     - patch: |-
         - op: replace
           path: /metadata/name
