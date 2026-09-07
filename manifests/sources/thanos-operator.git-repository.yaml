@@ -7,6 +7,8 @@ spec:
   interval: 12h
   url: https://github.com/thanos-community/thanos-operator
   ref:
-    commit: 49cd11f1f3b11fc099f815da4b3dfce243ffeeb3
+    # 831accd4 (#636): status conditions fixed — sticky ReconcileSuccess/
+    # ReconcileFailed pair replaced by a standard Ready condition
+    commit: 831accd41228c5d1c9a9aab47b2b14009c13407e
   ignore: |
     !/bundle.yaml

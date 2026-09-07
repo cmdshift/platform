@@ -26,3 +26,24 @@ spec:
       kind: Alertmanager
       current: status.conditions.filter(e, e.type == 'Available').all(e, e.status == 'True')
       failed: status.conditions.filter(e, e.type == 'Available').all(e, e.status == 'False')
+    # thanos CRs gate on the operator's Ready condition (single condition since
+    # thanos-community/thanos-operator#636; before it, ReconcileFailed=True was
+    # sticky — #22). NOTE: empty conditions pass vacuously (.all on []) — a CR
+    # the operator hasn't reconciled yet reads Ready here; that's the same
+    # semantics the Grafana/Alertmanager entries have.
+    - apiVersion: monitoring.thanos.io/v1alpha1
+      kind: ThanosQuery
+      current: status.conditions.filter(e, e.type == 'Ready').all(e, e.status == 'True')
+      failed: status.conditions.filter(e, e.type == 'Ready').all(e, e.status == 'False')
+    - apiVersion: monitoring.thanos.io/v1alpha1
+      kind: ThanosRuler
+      current: status.conditions.filter(e, e.type == 'Ready').all(e, e.status == 'True')
+      failed: status.conditions.filter(e, e.type == 'Ready').all(e, e.status == 'False')
+    - apiVersion: monitoring.thanos.io/v1alpha1
+      kind: ThanosStore
+      current: status.conditions.filter(e, e.type == 'Ready').all(e, e.status == 'True')
+      failed: status.conditions.filter(e, e.type == 'Ready').all(e, e.status == 'False')
+    - apiVersion: monitoring.thanos.io/v1alpha1
+      kind: ThanosCompact
+      current: status.conditions.filter(e, e.type == 'Ready').all(e, e.status == 'True')
+      failed: status.conditions.filter(e, e.type == 'Ready').all(e, e.status == 'False')

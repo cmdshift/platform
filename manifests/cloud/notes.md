@@ -54,3 +54,7 @@ Cloud deltas:
 ## valuesFrom pattern (local rollout 2026-09-07, issue cmdshift/platform#31)
 
 All local HelmReleases now ship values via configMapGenerator → `valuesFrom` (per-dir `kustomization.yaml`, per-entry `disableNameSuffixHash`, values in plain `<release>-values.yaml`). When refactoring `manifests/cloud/`, adopt the same layout — canonical why + conventions in `manifests/local/notes.md` → "valuesFrom everywhere". `helm_verify` already resolves `valuesFrom` refs on both clusters.
+
+## thanos-operator status conditions (local upgrade 2026-09-07, issue cmdshift/platform#22)
+
+Upstream thanos-community/thanos-operator#636 replaced the sticky `ReconcileSuccess`/`ReconcileFailed` pair with a single recoverable `Ready` condition. The cloud cluster inherits the fix automatically (the `GitRepository` pin in the shared `manifests/sources/thanos-operator.git-repository.yaml` — commit and quay image tag must be bumped in lockstep on any future bump). Gate the four thanos CR kinds via `healthCheckExprs` on `monitoring-config` the same way (see `manifests/local/notes.md`); the "trust workloads, not conditions" caveat in older runbooks is dead.
