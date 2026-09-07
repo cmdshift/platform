@@ -9,7 +9,16 @@ directory to PATH — invoke as `<name>` inside the repo; otherwise
 
 - Polling is bounded with progress echoes — never a blind sleep. Exit codes
   are the contract (0 = done/green, 1 = timeout or terminal failure with a
-  diagnose hint), so wrap them in `until`/`if` rather than parsing output.
+  diagnose hint, 2 = usage error), so wrap them in `until`/`if` rather than
+  parsing output. A CLI failure inside a wait loop must land in the exit-1
+  diagnose path, never silently kill the script (`set -e` + pipefail on a
+  failed command substitution — hit in `velero_wait`/`helm_wait`).
+- Bad input prints `usage: …` to stderr and exits 2 — every script validates
+  its args (unknown flags, missing values, non-integer counts, nonexistent
+  paths) instead of misbehaving downstream: a typo'd `pod_status -x` used to
+  act as a name prefix, `prometheus_query -r` used to loop forever,
+  `memory_audit abc` silently corrupted the awk comparisons, and a typo'd
+  `yaml_lint` path reported "OK: 0 files parse clean" (cmdshift/platform#34).
 - Units are normalized per-script (`1Gi` silently parses as `1`, and `2`
   CPU cores as `2m`, in naive awk — both bugs cost an hour once).
 - When a task needs more than a round or two of hand-rolled jq/kubectl
@@ -52,7 +61,9 @@ for `rustfs`. macOS date math (`date -v`) assumes darwin.
 Parse-checks every `.yaml` under `path` (default `manifests/local`) with yq.
 The pre-reconcile lint step.
 
-- Exits 1 on the first bad file (prints it + the error); `OK: N files …` when clean
+- Exits 1 if any file fails (prints **all** bad files + errors); `OK: N files …` when clean
+- A nonexistent path is a usage error (exit 2) — it used to report
+  `OK: 0 files parse clean`, reading as green
 - Syntax only — value-path verification is `helm_verify`'s job
 
 ### `helm_verify [path] [release]`
@@ -77,7 +88,21 @@ Values sources, merged in flux order (inline first, refs after, last wins):
   lying about what flux will ship.
 
 - `PASS/FAIL` per release + `OK: N releases render clean`; exit 1 on any
-  failure or missing source CR
+  failure or missing source CR; exit 2 on usage errors (nonexistent path,
+  extra args)
+- **Pinned versions are checked against the repo index before rendering**
+  (v-prefix normalized on both sides — indexes publish `v1.2.3` where
+  HelmReleases pin `1.2.3`; flux resolves identically via semver
+  constraints). Without this, `helm template --version` silently falls back
+  to the *closest* index version with only a warning — a typo'd pin would
+  render the wrong chart and still PASS
+- **Repos are fetched only on a miss**: the check probes the local index
+  first; a miss triggers exactly one scoped `helm repo update` before the
+  verdict, so each unique repo is fetched at most once per run (the old
+  per-release `helm repo add --force-update` wasted a fetch per release and
+  widened the window for transient stale-index reads — external-secrets
+  FAILED a full run with 2.10.0 very much in the upstream index). A failed
+  add/update is a FAIL with a message, not a swallowed `|| true`
 - Gotcha: `helm template` rejects unknown values keys **only** for charts
   shipping a `values.schema.json` (kube-prometheus-stack does; most don't)
   — for schema-less charts this catches nil-pointer template errors, not
@@ -101,7 +126,14 @@ against a stale artifact fails confusingly. Run between editing and
 - No args: every uncommitted change under `manifests/` (from git status —
   modified, added, deleted, renamed **and untracked**; untracked files were
   silently excluded until 2026-09-07, so newly-created manifests were never
-  checked); args: specific files (repo-relative or absolute)
+  checked); args: specific files (repo-relative or absolute) — validated
+  first (nonexistent file, directory, or file unknown to HEAD → usage exit
+  2; without the check a typo'd path hashed as "deleted" and hung until
+  timeout)
+- Renames are tracked on **both sides** (porcelain prints `old -> new` —
+  treating that line as one path used to hang until timeout): the new path
+  must match bucket content, the old path converges when its bucket object
+  is gone
 - Compares sha256 of each local file against `rustfs cat main/flux/<path>`;
   deleted files converge when the bucket object is gone
 - Bounded: `SYNC_WAIT_TIMEOUT` (default 120s). Exit 0 converged; exit 1
@@ -112,8 +144,9 @@ against a stale artifact fails confusingly. Run between editing and
 Reconciles the root Kustomization `local --with-source` (4m timeout), then
 polls `flux-system` kustomizations every 10s, echoing the pending list.
 `--with-source` is accepted in any position (implied — the reconcile always
-includes it; docs write both orders). Non-integer caps / unknown flags exit
-2 with usage — a non-integer cap used to silently disable the timeout.
+includes it; docs write both orders). Non-integer, zero, or unknown args
+exit 2 with usage — a non-integer cap used to silently disable the timeout,
+and `0` used to time out instantly.
 
 - Default 42 polls (~7m after the reconcile) — sized for the fresh-rebuild
   worst case (~10m)
@@ -142,7 +175,8 @@ run for real.
   TracingPolicies, 2026-09-07)
 - `-n` overrides the namespace for namespaced objects whose namespace doesn't
   exist yet; cluster-scoped objects ignore it
-- Exit 0: all PASS. Exit 1: any FAIL (per-file PASS/FAIL printed)
+- Exit 0: all PASS. Exit 1: any FAIL (per-file PASS/FAIL printed); exit 2
+  usage; `-h` prints the header comment block
 
 ## Resource sizing audits
 
@@ -157,14 +191,16 @@ The three siblings — pick by question:
 
 Memory usage-vs-limits table (default 50%), Mi/Gi normalized. Footer counts
 containers with no memory limit — expected 9 (control-plane statics +
-thanos-ruler config-reloader); anything else is a finding.
+thanos-ruler config-reloader); anything else is a finding. Non-numeric
+thresholds are a usage error — they used to silently corrupt the awk
+comparisons.
 
 ### `cpu_audit [threshold_pct]`
 
 CPU sibling. First the silent-killer check: top 10 containers by % of CFS
 periods throttled (1h rate, >5% worth a look — queries prometheus via the
 sibling `prometheus_query`, same dir required). Then usage-vs-CPU-limit
-table (default 50%, millicores normalized).
+table (default 50%, millicores normalized). Same threshold validation.
 
 ### `request_audit [threshold_pct]`
 
@@ -173,7 +209,7 @@ request ≈ P99 × 1.2 (usage ~83% of request); containers ≥100% of their
 memory request are first in line for eviction under node pressure and their
 scheduling reservation lies. Footer: counts over 100% and over the audit
 threshold, plus containers without a memory request (control-plane statics
-expected).
+expected). Same threshold validation.
 
 ## Admission / policy
 
@@ -184,7 +220,9 @@ PolicyReport summary (the AGENTS.md final check): fail/skip/pass counts
 and **stale-report detection** (reports scoped to resources that no longer
 exist — kyverno never retracts them; delete the stale report objects
 directly). Counts pods and controller kinds + jobs. `--clean` deletes the
-stale reports it lists, then re-prints the fresh summary.
+stale reports it lists, then re-prints the fresh summary. Unknown args are
+a usage error. **Exit 0 on a green run** — the trailing `&& echo` used to
+make every run (green included) exit 1, breaking any `if`/`until` wrapper.
 
 ### `kyverno_unblock`
 
@@ -192,7 +230,8 @@ LOCAL-ONLY. Deletes old-generation kyverno pods when a rollout deadlocks on
 hostNetwork ports (each pod claims its node's port; new-generation pod stays
 Pending — AGENTS.md kyverno landmine). Targets the `policies` namespace
 (2026-09-07 ns refactor). All victims deleted in a single kubectl call —
-piecemeal deletion loses the race to the deployment controller. No-op exit 0
+piecemeal deletion loses the race to the deployment controller. Takes no
+args (anything else is a usage error). No-op exit 0
 when nothing is pending. After it runs, re-run `flux_wait`.
 
 Cross-namespace deadlock variant (old release still in a former namespace
@@ -211,6 +250,11 @@ svc/thanos-query-main with `--query`) with the lifecycle handled.
 - default: raw JSON; `-v`: values only; `-c`: compact, one line per series
   with a short label subset (token-cheap vs raw JSON's label noise)
 - `-r 6h`: range query over the last m|h|d, auto-stepped to ~30 points
+  (validated before the port-forward, not after)
+- `-v` and `-c` are mutually exclusive, unknown flags and extra positionals
+  are usage errors — `prometheus_query -r` alone used to **loop forever**
+  (failed `shift 2` left `-r` as the first arg) and `-x` used to be silently
+  swallowed
 - instant queries evaluate series present in the last 5m — a range query is
   the way to see pods that have since been recreated
 
@@ -245,7 +289,8 @@ components healthy, 1 = any unhealthy/unreachable.
 ### `mailpit [limit]`
 
 Subjects of the latest alert emails from http://mail.cloud.test (ruler →
-alertmanager delivery), newest first. Default 10.
+alertmanager delivery), newest first. Default 10; non-numeric/zero limit is
+a usage error (it used to go straight into the API query string).
 
 ## Operations
 
@@ -257,14 +302,20 @@ first step of runbooks/local/crashloop-investigation.md.
 
 - Informational: exit 0 even when crashing (the data is the output)
 - Footer lists restart>0 pods as `kubectl logs --previous` one-liners
-- Exit codes: 0 always (usage errors aside)
+- Exit codes: 0 always (usage errors aside); unknown flags, missing flag
+  values, and multiple name prefixes exit 2 — a typo'd flag used to silently
+  act as the name prefix (empty table, exit 0)
 
 ### `velero_wait backup|restore <name> [max_polls]`
 
 Polls a velero backup/restore to Completed, echoing the phase. Default 36
 polls × 5s (~3m). Exit 0 = Completed. Exit 1 = Failed/PartiallyFailed
 (terminal — stops early) or timeout, each with a diagnose hint. Exists
-because the velero CLI has no jsonpath output.
+because the velero CLI has no jsonpath output. Non-integer/zero max and
+extra args exit 2; a velero CLI failure (missing object, API down) now lands
+in the timeout path with its diagnose hint instead of silently exiting 1
+(`set -e` + pipefail on the failed command substitution used to kill the
+script with no output).
 
 ### `helm_wait <namespace> <name> [max_polls]`
 
@@ -274,7 +325,10 @@ behavior: the reconcile blocks through helm's install/upgrade timeout +
 retries, so once it returns a `Ready=False` is **terminal** — `helm_wait`
 exits 1 immediately with the HR failure message + diagnose hint instead of
 polling out the window ("immediately broken" detection). Polls only guard
-against status lag. Exit 0 = Ready, 1 = failed/timeout, 2 = usage. Born
+against status lag. Exit 0 = Ready, 1 = failed/timeout, 2 = usage
+(non-integer/zero max included). A kubectl failure in the poll (missing HR,
+API down) lands in the timeout path with its diagnose hint instead of
+silently exiting — same `set -e` + pipefail trap as `velero_wait`. Born
 2026-09-07 from the ns-refactor velero move (three waves of the same
 admission-denial diagnosis re-derived by hand before this existed).
 
@@ -282,7 +336,10 @@ admission-denial diagnosis re-derived by hand before this existed).
 
 `rc` CLI passthrough inside the `storage-cloud-test` container, admin alias
 `main` preset. Quirks (rc rm --recursive no-ops, ls needs --recursive,
-buckets auto-provisioned): runbooks/local/rustfs-operations.md.
+buckets auto-provisioned): runbooks/local/rustfs-operations.md. Bare
+invocation is a usage error; a stopped container exits 1 with a message
+pointing at the terraform/docker `storage` stack (docker's generic
+"No such container" otherwise).
 
 ```
 rustfs ls main/flux --recursive

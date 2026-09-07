@@ -16,6 +16,7 @@ resources:
   - policies.yaml
   - policies-config.yaml
   - storage.yaml
+  - storage-config.yaml
   - objects.yaml
   - objects-config.yaml
   - monitoring.yaml

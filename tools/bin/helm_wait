@@ -16,48 +16,54 @@
 
 set -euo pipefail
 
-ns="${1:-}"
-name="${2:-}"
-max="${3:-15}"
-
 usage() {
   echo "usage: helm_wait <namespace> <name> [max_polls]" >&2
   exit 2
 }
 
-[ -n "$name" ] || usage
-case "$ns" in
-  ''|*[!a-z0-9-]*) usage ;;
-esac
-
 hr_jsonpath() {
   kubectl -n "$ns" get helmrelease "$name" -o jsonpath="$1" 2>/dev/null
 }
 
-reconcile_out="$(flux reconcile helmrelease "$name" -n "$ns" --with-source 2>&1 || true)"
-echo "$reconcile_out" | tail -1
-
-n=0
-while :; do
-  status="$(hr_jsonpath '{.status.conditions[?(@.type=="Ready")].status}')"
-  case "$status" in
-    True)
-      echo "helm_wait: $ns/$name Ready"
-      exit 0
-      ;;
-    False)
-      msg="$(hr_jsonpath '{.status.conditions[?(@.type=="Ready")].message}')"
-      echo "helm_wait: $ns/$name failed: ${msg:-<no message>}"
-      echo "diagnose: kubectl -n $ns describe helmrelease $name ; kubectl -n $ns get events --sort-by=.lastTimestamp | tail -10 ; helm_verify"
-      exit 1
-      ;;
+helm_wait() {
+  local ns="${1:-}" name="${2:-}" max="${3:-15}"
+  [ $# -ge 2 ] && [ $# -le 3 ] || usage
+  case "$ns" in
+    ''|*[!a-z0-9-]*) usage ;;
   esac
-  n=$((n + 1))
-  if [ "$n" -ge "$max" ]; then
-    echo "helm_wait: TIMEOUT after $max polls (Ready: ${status:-not-found})"
-    echo "diagnose: kubectl -n $ns describe helmrelease $name ; kubectl -n $ns get events --sort-by=.lastTimestamp | tail -10"
-    exit 1
-  fi
-  echo "[$n/$max] $ns/$name: ${status:-pending}"
-  sleep 10
-done
+  case "$max" in
+    ''|*[!0-9]*|0) usage ;; # non-integer dies in the [ -ge ] test; 0 disables the poll guard
+  esac
+
+  local status msg n=0 reconcile_out
+  reconcile_out="$(flux reconcile helmrelease "$name" -n "$ns" --with-source 2>&1 || true)"
+  echo "$reconcile_out" | tail -1
+
+  while :; do
+    # || true: a kubectl failure (missing HR, API down) must fall into the
+    # timeout path below, not silently kill the script via set -e + pipefail
+    status="$(hr_jsonpath '{.status.conditions[?(@.type=="Ready")].status}' || true)"
+    case "$status" in
+      True)
+        echo "helm_wait: $ns/$name Ready"
+        exit 0
+        ;;
+      False)
+        msg="$(hr_jsonpath '{.status.conditions[?(@.type=="Ready")].message}')"
+        echo "helm_wait: $ns/$name failed: ${msg:-<no message>}"
+        echo "diagnose: kubectl -n $ns describe helmrelease $name ; kubectl -n $ns get events --sort-by=.lastTimestamp | tail -10 ; helm_verify"
+        exit 1
+        ;;
+    esac
+    n=$((n + 1))
+    if [ "$n" -ge "$max" ]; then
+      echo "helm_wait: TIMEOUT after $max polls (Ready: ${status:-not-found})"
+      echo "diagnose: kubectl -n $ns describe helmrelease $name ; kubectl -n $ns get events --sort-by=.lastTimestamp | tail -10"
+      exit 1
+    fi
+    echo "[$n/$max] $ns/$name: ${status:-pending}"
+    sleep 10
+  done
+}
+
+helm_wait "$@"

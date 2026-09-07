@@ -21,8 +21,14 @@
 # rollout and briefly deleted a new-generation pod). One simultaneous delete
 # frees every controller's port at once, so the pending new-generation pods
 # bind before replacements can be created.
+# Exit 0 = nothing pending or unblock applied; nonzero = kubectl failure.
 
 set -euo pipefail
+
+usage() {
+  echo "usage: kyverno_unblock" >&2
+  exit 2
+}
 
 pending_pods() {
   kubectl -n policies get pods --no-headers \
@@ -62,6 +68,7 @@ old_generation_pods() {
 }
 
 kyverno_unblock() {
+  [ $# -eq 0 ] || usage
   local p pending victims pod old deleted=0
   pending=$(pending_pods)
   if [ -z "$pending" ]; then

@@ -37,32 +37,42 @@ fetch_components() { # pod
   return "$rc"
 }
 
-[[ $# -gt 2 ]] && usage
-all=0
-pod=""
-for arg in "$@"; do
-  case "$arg" in
-    --all) all=1 ;;
-    -*) usage ;;
-    *) [ -n "$pod" ] && usage; pod="$arg" ;;
-  esac
-done
+parse_args() { # -> ALL / POD globals
+  [ $# -le 2 ] || usage
+  all=0
+  pod=""
+  local arg
+  for arg in "$@"; do
+    case "$arg" in
+      --all) all=1 ;;
+      -*) usage ;;
+      *) [ -z "$pod" ] || usage; pod="$arg" ;;
+    esac
+  done
+}
 
-if [ "$all" -eq 1 ]; then
-  [ -n "$pod" ] && usage
-  pods=$(kubectl -n logging get pods -l app.kubernetes.io/name=alloy -o name | cut -d/ -f2)
-  [ -n "$pods" ] || { echo "no alloy pods found" >&2; exit 1; }
-else
-  [ -n "$pod" ] || pod=$(kubectl -n logging get pods -l app.kubernetes.io/name=alloy -o name | head -1 | cut -d/ -f2)
-  [ -n "$pod" ] || { echo "no alloy pods found" >&2; exit 1; }
-  pods="$pod"
-fi
+pick_pods() { # -> PODS global; exit 1 when alloy is unreachable
+  if [ "$all" -eq 1 ]; then
+    [ -z "$pod" ] || usage # --all covers the whole DS; a pod arg contradicts it
+    pods=$(kubectl -n logging get pods -l app.kubernetes.io/name=alloy -o name | cut -d/ -f2)
+  else
+    [ -n "$pod" ] || pod=$(kubectl -n logging get pods -l app.kubernetes.io/name=alloy -o name | head -1 | cut -d/ -f2)
+    pods="$pod"
+  fi
+  [ -n "$pods" ] || { echo "no alloy pods found" >&2; return 1; }
+}
 
-rc=0
-for p in $pods; do
-  echo "== $p"
-  out=$(fetch_components "$p") || rc=1
-  printf '%s\n' "$out"
-  if grep -qE $'\t(unhealthy|exited)\t' <<< "$out"; then rc=1; fi
-done
-exit "$rc"
+alloy_components() {
+  parse_args "$@"
+  local p out rc=0
+  pick_pods || return 1
+  for p in $pods; do
+    echo "== $p"
+    out=$(fetch_components "$p") || rc=1
+    printf '%s\n' "$out"
+    if grep -qE $'\t(unhealthy|exited)\t' <<< "$out"; then rc=1; fi
+  done
+  return "$rc"
+}
+
+alloy_components "$@"

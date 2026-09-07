@@ -7,11 +7,17 @@
 # exist (kyverno never retracts unmatched reports — AGENTS.md says delete the
 # stale objects directly). Counts pods AND controller kinds (and jobs, for
 # helm-hook reports) since background scans emit one report per subject.
+# Exit 0 = report printed, 2 = usage error.
 
-clean=false
-[[ "${1:-}" == "--clean" ]] && { clean=true; shift; }
+usage() {
+  echo "usage: policy_report [--clean]" >&2
+  exit 2
+}
 
 policy_report() {
+  local clean=false
+  if [[ "${1:-}" == "--clean" ]]; then clean=true; shift; fi
+  [ $# -eq 0 ] || usage # a silently-ignored arg reads as a successful clean
   local reports live scopes
   reports=$(mktemp); live=$(mktemp); scopes=$(mktemp)
   trap 'rm -f "$reports" "$live" "$scopes"' EXIT
@@ -65,7 +71,10 @@ policy_report() {
   else
     echo "none"
   fi
-  [ "$unscoped" -gt 0 ] && echo "reports without scope: $unscoped"
+  # 'if', not '&&' — a false test here is the function's return value, and a
+  # green run must still exit 0
+  if [ "$unscoped" -gt 0 ]; then echo "reports without scope: $unscoped"; fi
+  return 0
 }
 
 policy_report "$@"

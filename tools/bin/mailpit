@@ -1,9 +1,17 @@
 #!/usr/bin/env bash
 # Mailpit subjects (where alert emails land), newest first.
 #   mailpit [limit]   # default 10
+# Exit 0 = fetched, 2 = usage error.
+
+usage() {
+  echo "usage: mailpit [limit]" >&2
+  exit 2
+}
 
 mailpit() {
+  [ $# -le 1 ] || usage
   local limit="${1:-10}"
+  case "$limit" in ''|*[!0-9]*|0) usage ;; esac # non-numeric goes straight into the API query string
   curl -s --max-time 5 "http://mail.cloud.test/api/v1/messages?limit=$limit" \
     | jq -r '.messages[]? | .Subject[0:120]'
 }

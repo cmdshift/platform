@@ -5,6 +5,8 @@
 #   prometheus_query -c '<promql>'            compact: "<pod=... container=...> vals" per line
 #   prometheus_query -r 6h '<promql>'         range over the last 6h (m|h|d), auto step
 #   prometheus_query --query '<promql>'       against svc/thanos-query-main instead
+# Exit 0 = query ran (check the JSON/values for emptiness), 1 = port-forward
+# never became ready, 2 = usage error.
 
 usage() {
   echo "usage: prometheus_query [-v|-c] [-r 6h] [--query] '<promql>'" >&2
@@ -59,24 +61,30 @@ format_compact() { # one line per series: short label subset + values (token-che
 }
 
 prometheus_query() {
-  local service=kube-prometheus-stack-prometheus mode=instant values=0 compact=0 range= query=
+  local service=kube-prometheus-stack-prometheus mode=instant values=0 compact=0 range='' query=''
+  local start='' end='' step=''
   while [ $# -gt 0 ]; do
     case "$1" in
       -v) values=1; shift ;;
       -c) compact=1; shift ;;
-      -r) range="$2"; mode=range; shift 2 ;;
+      -r) [ -n "${2:-}" ] || usage # '-r' alone: the failed shift leaves $1='-r' forever
+          range="$2"; mode=range; shift 2 ;;
       --query) service=thanos-query-main; shift ;;
-      *) query="$1"; shift ;;
+      -*) usage ;; # an unknown flag would silently be swallowed as/next to the query
+      *) [ -z "$query" ] || usage # one query only — last-one-wins hides the mistake
+         query="$1"; shift ;;
     esac
   done
   [ -n "$query" ] || usage
+  { [ "$values" -eq 0 ] || [ "$compact" -eq 0 ]; } || usage # -v and -c are mutually exclusive
+  if [ "$mode" = range ]; then
+    start=$(range_start "$range") || usage # validate before port-forward, not after
+  fi
 
   port_forward "$service" || return 1
   local url="http://localhost:$PORT_FORWARD_PORT/api/v1/query"
 
   if [ "$mode" = range ]; then
-    local start end step
-    start=$(range_start "$range") || usage
     end=$(date +%s)
     step=$(( (end - start) / 30 )); [ "$step" -lt 60 ] && step=60
     url="http://localhost:$PORT_FORWARD_PORT/api/v1/query_range?start=$start&end=$end&step=$step"

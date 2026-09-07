@@ -5,6 +5,12 @@
 # containers by % of CFS periods throttled (1h rate), via prometheus_query.
 # Then usage-vs-limits table, millicores normalized ("2" cores parses as 2m
 # in naive scripts, the cpu twin of memory_audit's '1Gi' bug).
+# Exit 0 = audited, 2 = usage error.
+
+usage() {
+  echo "usage: cpu_audit [threshold_pct]   # default 50" >&2
+  exit 2
+}
 
 collect_usage() { # ns/pod/container cpu_millicores
   kubectl top pods -A --containers --no-headers \
@@ -39,17 +45,19 @@ throttled() { # top 10 by throttled-periods ratio (1h), via the sibling promethe
 }
 
 cpu_audit() {
+  [ $# -le 1 ] || usage
   local threshold="${1:-50}"
+  case "$threshold" in ''|*[!0-9]*) usage ;; esac # non-numeric silently corrupts the awk comparisons
   echo "== % of CFS periods throttled, 1h rate (top 10; >5% is worth a look) =="
   throttled || echo "  prometheus unreachable — skipping throttle check"
   echo
   echo "== cpu usage vs limit >= ${threshold}% =="
-  local usage limits
-  usage=$(mktemp); limits=$(mktemp)
-  trap 'rm -f "$usage" "$limits"' EXIT
-  collect_usage > "$usage"
-  collect_limits > "$limits"
-  ratios "$usage" "$limits" "$threshold"
+  local ufile lfile # 'usage' would shadow the usage() function
+  ufile=$(mktemp); lfile=$(mktemp)
+  trap 'rm -f "$ufile" "$lfile"' EXIT
+  collect_usage > "$ufile"
+  collect_limits > "$lfile"
+  ratios "$ufile" "$lfile" "$threshold"
   echo "---"
   echo "containers without cpu limits: $(count_unlimited)"
 }

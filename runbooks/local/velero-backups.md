@@ -66,7 +66,7 @@ Expect `0 errors` + ~19 benign `No annotations found ... using restore spec sett
 
 **Data restore — fixed 2026-09-05.** Velero FSB **silently skips hostPath volumes** (node-agent can only reach data staged under `/var/lib/kubelet/pods/<uid>/`, and hostPath PVs — which local-path-provisioner emits by default — are not staged there; the check in `pkg/podvolume/backupper.go` is `pv.Spec.HostPath != nil`, no opt-in flag). The fix is local-path-provisioner's `defaultVolumeType: local` **StorageClass annotation** — `local` PVs ARE staged under the kubelet dir, so FSB works unchanged. Recipe (all in git now):
 
-1. `storage/*.storage-class.yaml` — `defaultVolumeType: local` annotation on both StorageClasses
+1. `storage-config/*.storage-class.yaml` — `defaultVolumeType: local` annotation on both StorageClasses
 2. `backups/velero.helm-release.yaml` — `nodeAgent.extraArgs: [--node-agent-configmap=node-agent-config]`
 3. `backups-config/node-agent-config.configmap.yaml` — `podResources` for the temporary data mover pods (velero 1.15+ runs the kopia data path in hosting pods that are BestEffort by default → denied by `require-resource-limits`)
 4. `policies-config/allow-velero-security-contexts.policy-exception.yaml` — extended to match data mover pods via the `velero.io/pod-volume-backup`/`velero.io/pod-volume-restore` labels (their names derive from the PVB/PVR, no usable prefix)

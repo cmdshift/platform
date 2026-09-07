@@ -1,0 +1,24 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: storage-config
+  namespace: flux-system
+spec:
+  # drift-heal only: propagation is event-driven; manual flow = sync_wait + flux_wait
+  interval: 1h
+  retryInterval: 5s
+  # the StorageClasses moved here from storage/ (#35, X/X-config operator+config
+  # split like every other group). PVC-creating groups (objects, logging, backups)
+  # depend on THIS kustomization, not storage — `storage` Ready no longer implies
+  # the SCs exist now that they live in a separate artifact. Flux prunes the SCs
+  # out of `storage` on the first post-move reconcile (a few seconds of absence;
+  # WaitForFirstConsumer PVCs just pend through the blip).
+  dependsOn:
+    - name: storage
+  sourceRef:
+    kind: Bucket
+    name: main
+  path: ./manifests/local/storage-config
+  prune: true
+  wait: true
+  timeout: 5m

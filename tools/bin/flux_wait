@@ -5,8 +5,13 @@
 # --with-source (implied: the reconcile always includes it) is accepted in
 # any position — documented invocations write both `flux_wait 15` and
 # `flux_wait --with-source`. Exit 0 = all green. Exit 1 = timeout, with the
-# pending list + diagnose hint. Exit 2 = usage error (a non-integer cap
-# would silently disable the timeout).
+# pending list + diagnose hint. Exit 2 = usage error (a non-integer or zero
+# cap would silently disable the timeout).
+
+usage() {
+  echo "usage: flux_wait [max_polls] [--with-source]" >&2
+  exit 2
+}
 
 reconcile() {
   flux reconcile kustomization local --with-source --timeout 4m 2>&1 | tail -1 || true
@@ -43,7 +48,7 @@ flux_wait() {
   for arg in "$@"; do
     case "$arg" in
       --with-source) ;; # implied — reconcile() always reconciles --with-source
-      ''|*[!0-9]*) echo "usage: flux_wait [max_polls] [--with-source]" >&2; exit 2 ;;
+      ''|*[!0-9]*|0) usage ;;
       *) max="$arg" ;;
     esac
   done
