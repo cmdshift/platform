@@ -53,9 +53,11 @@ helm template <release> <chart> --namespace <ns> -f /tmp/release-values.yaml
 
 `helm template` rejects unknown values keys only for charts shipping `values.schema.json` — for schema-less charts this catches template errors, not key typos. And verify any new-to-you API fields against the **on-cluster CRD schema** before pushing (undeclared fields fail the root dry-run and wedge the whole chain).
 
-## Worked example
+## Worked examples
 
 thanos-operator (2026-09-05): helm chart attempt → install failed at the 1MB cap (~2.5MB of embedded CRDs) → vendored CRDs (regen burden) → repo's `bundle.yaml` via kustomization with three patches. Rationale in `monitoring/thanos-operator.kustomization.yaml`.
+
+trivy-operator (2026-09-07): chart 0.36.0 adopted clean (CRDs ship in `crds/`, no hook jobs, 23KB release) but three values keys were **silently ignored** (schema-less chart): `operator.resources` (wants top-level `resources`), `scanJobsConcurrentLimit`/`scanJobTTL` (want `operator.`, not `trivyOperator.`) — caught by inspecting the render, not by helm template. Values now live in a plain values file + configMapGenerator → `valuesFrom` (cmdshift/platform#31 pattern, helm_verify resolves it); operator-generated scan jobs needed the admission shaping trap above. Rationale in `security/trivy-values.yaml` + `manifests/local/notes.md`.
 
 ## Full detail
 

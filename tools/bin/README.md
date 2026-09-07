@@ -56,12 +56,24 @@ The pre-reconcile lint step.
 
 ### `helm_verify [path] [release]`
 
-Renders every HelmRelease's `spec.values` through `helm template` (the
-AGENTS.md "verify values paths" step, automated). Charts resolve from the
-source CRs on the live cluster: HelmRepository → repo index, GitRepository
-(tag/commit) → shallow clone. All helm state lives in a temp dir. An
-optional release-name argument renders just that one (ad-hoc values
-debugging without the full-suite noise).
+Renders every HelmRelease's values through `helm template` (the AGENTS.md
+"verify values paths" step, automated). Charts resolve from the source CRs on
+the live cluster: HelmRepository → repo index, GitRepository (tag/commit) →
+shallow clone. All helm state lives in a temp dir. An optional release-name
+argument renders just that one (ad-hoc values debugging without the
+full-suite noise).
+
+Values sources, merged in flux order (inline first, refs after, last wins):
+
+- `spec.values` inline in the HelmRelease
+- `spec.valuesFrom` ConfigMap refs, resolved **locally** (issue
+  cmdshift/platform#31 pattern): a `configMapGenerator` entry in the
+  release's `kustomization.yaml` — the referenced file (e.g.
+  `values.yaml=trivy-values.yaml`) is a plain values doc that
+  `helm template --values` consumes directly; falls back to a literal
+  `kind: ConfigMap` manifest with a matching name (data key extracted). A
+  ref with no local source is a FAIL, not a skip — the render would be
+  lying about what flux will ship.
 
 - `PASS/FAIL` per release + `OK: N releases render clean`; exit 1 on any
   failure or missing source CR
@@ -69,15 +81,21 @@ debugging without the full-suite noise).
   shipping a `values.schema.json` (kube-prometheus-stack does; most don't)
   — for schema-less charts this catches nil-pointer template errors, not
   key typos. Cross-check surprise diffs against the chart's values.yaml
+  (trivy-operator 0.36.0: `operator.resources` silently ignored — the key
+  is top-level `resources`; `scanJobsConcurrentLimit`/`scanJobTTL` live
+  under `operator.`, not `trivyOperator.`)
 - Needs `helm` + `git` CLIs beyond the shared deps
 
 ### `sync_wait [path...]`
 
 Waits until locally-changed manifests have actually landed in the flux
 bucket. The sync container mirrors via inotify and **drops events** (plain
-edits included — hit twice 2026-09-06, once causing helm upgrade/rollback
-churn); a reconcile against a stale artifact fails confusingly. Run between
-editing and `flux_wait`.
+edits included — hit 2026-09-06 twice and 2026-09-07 once, once causing
+helm upgrade/rollback churn and once silently reverting a fix); a reconcile
+against a stale artifact fails confusingly. Run between editing and
+`flux_wait`, and on edit-heavy changes verify a content marker with
+`rustfs cat` — `sync_wait`'s file-count match can hide a dropped edit
+(that's why `docker restart sync-cloud-test` remains the deterministic fix).
 
 - No args: every uncommitted change under `manifests/` (from git status);
   args: specific files (repo-relative or absolute)

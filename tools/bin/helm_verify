@@ -1,9 +1,18 @@
 #!/usr/bin/env bash
-# Render every HelmRelease's spec.values through `helm template` — the
-# values-path verification step (catches bad values keys/paths before flux
-# ships them to the cluster).
+# Render every HelmRelease's values through `helm template` — the values-path
+# verification step (catches bad values keys/paths before flux ships them to
+# the cluster).
 #   helm_verify [path] [release]   # default: manifests/local, all releases;
 #                                  # a release name renders just that one
+# Values sources, merged in flux order (inline first, valuesFrom refs after —
+# later files override earlier ones):
+#   - spec.values (inline in the HelmRelease)
+#   - spec.valuesFrom ConfigMap refs, resolved locally:
+#       a configMapGenerator entry in the release's kustomization.yaml
+#       (cmdshift/platform#31 pattern — the referenced file is a plain values
+#       doc, e.g. `values.yaml=trivy-values.yaml`), falling back to a literal
+#       kind: ConfigMap manifest with a matching name (data key extracted).
+#       A ref with no local source is a FAIL, not a skip.
 # Chart sources resolve from the live cluster's source CRs
 # (`kubectl get helmrepo,gitrepo -n flux-system`): HelmRepository →
 # `helm repo add` + template from the repo index; GitRepository (tag or
@@ -51,6 +60,31 @@ git_checkout() { # url reftype refvalue dest
   fi
 }
 
+# resolve a valuesFrom ConfigMap ref to a local values file; empty output = unresolved
+resolve_cm_values() { # reldir refname refkey
+  local dir="$1" rname="$2" rkey="$3" entry src=""
+  if [[ -f "$dir/kustomization.yaml" ]]; then
+    entry=$(yq ".configMapGenerator[]? | select(.name == \"$rname\") | .files[]" "$dir/kustomization.yaml" 2>/dev/null \
+      | while IFS= read -r e; do
+          k="${e%%=*}"; v="${e#*=}"
+          if [[ "$e" == *=* ]]; then [[ "$k" == "$rkey" ]] && echo "$v";
+          else [[ "$e" == "$rkey" ]] && echo "$e"; fi
+        done | head -1)
+    [[ -n "$entry" && -f "$dir/$entry" ]] && src="$dir/$entry"
+  fi
+  if [[ -z "$src" ]]; then
+    # fallback: a literal ConfigMap manifest — extract the data key
+    for c in $(grep -rl --include='*.yaml' 'kind: ConfigMap' "$path" 2>/dev/null | sort); do
+      if yq -e 'select(.kind == "ConfigMap" and .metadata.name == "'"$rname"'")' "$c" >/dev/null 2>&1; then
+        yq 'select(.kind == "ConfigMap" and .metadata.name == "'"$rname"'") | .data["'"$rkey"'"]' "$c" > "$tmp/cm-$rname.yaml"
+        [[ -s "$tmp/cm-$rname.yaml" ]] && src="$tmp/cm-$rname.yaml"
+        break
+      fi
+    done
+  fi
+  [[ -n "$src" ]] && echo "$src"
+}
+
 kubever=$(kubectl version -o json 2>/dev/null | jq -r '.serverVersion.gitVersion // empty')
 kube_args=(); [[ -n "$kubever" ]] && kube_args=(--kube-version "$kubever")
 
@@ -78,9 +112,27 @@ for f in $(grep -rl --include='*.yaml' 'kind: HelmRelease' "$path" 2>/dev/null |
       ref="$clone/$chart"
     fi
 
-    yq eval-all -o=json 'select(.kind == "HelmRelease" and .metadata.name == "'"$name"'") | .spec.values // {}' "$f" > "$tmp/values-$name.json"
-    [[ -s "$tmp/values-$name.json" ]] || echo '{}' > "$tmp/values-$name.json"
-    args=("$ref" --namespace "$ns" -f "$tmp/values-$name.json" "${kube_args[@]}")
+    # values: inline first, then valuesFrom refs in declared order
+    vfiles=()
+    inline="$tmp/values-$name-inline.json"
+    yq eval-all -o=json 'select(.kind == "HelmRelease" and .metadata.name == "'"$name"'") | .spec.values // {}' "$f" > "$inline"
+    [[ -s "$inline" ]] || echo '{}' > "$inline"
+    vfiles+=("$inline")
+    unresolved=0
+    while IFS=$'\t' read -r rname rkey; do
+      [[ -z "$rname" ]] && continue
+      src=$(resolve_cm_values "$(dirname "$f")" "$rname" "$rkey")
+      if [[ -z "$src" ]]; then
+        echo "FAIL: $name — valuesFrom ConfigMap/$rname (key '$rkey') has no local source (expected configMapGenerator in $(dirname "$f")/kustomization.yaml or a literal ConfigMap manifest)"
+        unresolved=1
+      else
+        vfiles+=("$src")
+      fi
+    done < <(yq eval-all 'select(.kind == "HelmRelease" and .metadata.name == "'"$name"'") | .spec.valuesFrom[]? | select(.kind == "ConfigMap") | [.name, (.valuesKey // "values.yaml")] | @tsv' "$f")
+    if [[ "$unresolved" -eq 1 ]]; then fail=1; continue; fi
+
+    args=("$ref" --namespace "$ns" "${kube_args[@]}")
+    for v in "${vfiles[@]}"; do args+=(-f "$v"); done
     [[ -n "$version" && "$srcKind" == "HelmRepository" ]] && args+=(--version "$version")
 
     if err=$(helm template "$name" "${args[@]}" 2>&1 >/dev/null); then
