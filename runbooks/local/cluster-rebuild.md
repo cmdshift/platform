@@ -21,7 +21,7 @@ The two terraform modules are deliberately asymmetric: `cluster/local` (nodes + 
 ```
 just bootstrap destroy -auto-approve     # fails by design (prevent_destroy) — skip it
 just cluster destroy -auto-approve       # ~1m; wipes rustfs + PVCs (see Data implications)
-just cluster apply -auto-approve         # CAN HANG — see below
+just cluster apply -auto-approve         # can hang at bootstrap — recovery below
 # ... 20-30s pause ...
 just bootstrap apply -auto-approve       # ~90s, 4 resources (flux, hooks)
 ```
@@ -33,6 +33,29 @@ just bootstrap apply -auto-approve       # ~90s, 4 resources (flux, hooks)
 - Poll before killing: this run the apply **finished on its own in 16s** (37 resources). Kill only if it's still running at ~60s.
 - The kill point is expected to be after resource creation — the plan is 37 to add (containers + talos nodes + kubeconfig); flux "reconciles the rest eventually".
 - `just certs` is only needed if `cluster/local/.tmp/tls/` is missing (note: the path is under `cluster/local/.tmp/`, NOT the repo-root `.tmp/`).
+
+### The bootstrap hang: stale Docker port binding (root-caused 2026-09-07, issue #4)
+
+`talos_machine_bootstrap` used to "hang indefinitely" sometimes. The root cause is **not** the LB, the haproxy config, or a node race — it is Docker Desktop's host port publisher going **stale after rapid container churn**: when `cmd-local-test` is destroyed and recreated within ~a minute, `com.docker.backend` still ACCEPTS host connections on 50000/6443 (SYN-ACK, ESTABLISHED) but black-holes the forward into the VM — no bytes reach the container. Container, node and LB are all perfectly healthy at that point.
+
+The talos provider turns that into the hang: `talos_machine_bootstrap` silently retries every transport error for its **10-minute default create timeout** (final error: `rpc error: code = Unavailable desc = "transport: authentication handshake failed: context deadline exceeded"`). A fresh `terraform apply` right after a clean destroy rarely trips it; back-to-back churn (killed apply → destroy → apply) does. The failure mode is per-container, not per-port — the companions hit the same thing after a Docker Desktop restart ([companion landmine below](#companions-the-caching-registry)).
+
+**Recovery (verified):**
+
+```
+docker restart cmd-local-test                      # re-establishes the binding; takes ~2s
+terraform -chdir=cluster/local apply -auto-approve # only bootstrap + kubeconfig remain; ~seconds
+```
+
+**Diagnostics that nailed it** (the evidence, if it recurs):
+
+- haproxy stats socket: `docker exec cmd-local-test wget -qO- 'http://127.0.0.1:8404/stats;csv'` — during the hang the apid frontend's `stot` (total sessions) stays frozen while the provider retries; after `docker restart` it starts climbing immediately.
+- `lsof -nP -p <provider-pid> | rg 50000` — the provider's socket shows ESTABLISHED to `127.0.0.1:50000` while haproxy never logs the connection.
+- The k8s frontend (6443) keeps serving the kubelet SC-flood from inside the docker network meanwhile — internal traffic is unaffected, only the host→container published path is dead.
+
+**Mitigations now in the tree:** fail-fast `timeouts` on the bootstrap and kubeconfig resources in `nodes/main.tf` (10s each — the healthy path is sub-second; the hang surfaces as a real error in seconds instead of 10 silent minutes); haproxy checks tightened to `inter 1s fall 3 rise 2`, the apid-frontend reject ACL removed (bootstrap must be reachable before every check has risen; the k8s frontend keeps the partial-quorum gate), tunnel timeouts raised to 30m, and the stats socket + tcplog added for diagnosis.
+
+**Multi-ctrl ceiling:** `ctrl_nodes = 3` is verified working (3 ctrl + 4 workers registered, bootstrap + kubeconfig clean, all nodes Ready) but **saturates the Docker VM during the install burst** — ctrl nodes peg 175-200% CPU, etcd write-stalls (`etcdserver: request timed out` across the flux tree), apiserver connections reset mid-write. That is the host machine's CPU/IOPS ceiling, not a software defect; `ctrl_nodes` stays 1 with that rationale. If a beefier host runs 3 ctrl nodes, re-verify the install-burst stall before trusting it.
 
 Then watch convergence — **expect ~10 minutes**, progressing through the dependency chain in this order:
 

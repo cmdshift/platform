@@ -149,6 +149,12 @@ resource "talos_machine_bootstrap" "main" {
   client_configuration = talos_machine_secrets.main.client_configuration
   node                 = local.boot_node
   endpoint             = docker_container.cmd.hostname
+  # The provider's default 10m create timeout silently retries every transport
+  # error; the healthy path is sub-second, so fail fast and surface the real
+  # error (stale Docker port binding — see runbooks/local/cluster-rebuild.md).
+  timeouts = {
+    create = "10s"
+  }
 }
 
 resource "talos_cluster_kubeconfig" "main" {
@@ -158,4 +164,7 @@ resource "talos_cluster_kubeconfig" "main" {
   client_configuration = talos_machine_secrets.main.client_configuration
   node                 = local.boot_node
   endpoint             = var.cmd.hostname
+  timeouts = {
+    create = "10s"
+  }
 }
