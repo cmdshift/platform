@@ -1,0 +1,369 @@
+#!/usr/bin/env bash
+# Run a kube-bench CIS scan on the local cluster as a one-shot Job pair,
+# collecting logs to a timestamped directory, then removing the scaffolding.
+#   bench [--benchmark cis-1.12] [--image aquasec/kube-bench:v0.16.0]
+#         [--keep] [--timeout 720]
+# Four admission/policy layers block the scan pods; all are handled
+# IMPERATIVELY here (applied for the run, deleted after) — deliberately NOT
+# committed as manifests, so the cluster's policy posture stays minimal
+# (cilium_test pattern). Method + full triage ledger:
+# manifests/local/notes.md → "kube-bench CIS scan".
+#   1. kyverno ValidatingPolicies — temp PolicyException in the `policies` ns
+#      (root + hostPath + hostPID are the scan's job; everything else stays
+#      enforced: seccomp, caps, resources, pinned tags)
+#   2. PodSecurity — the temp namespace is labeled privileged
+#   3. cilium default-deny CCNP (egress, cluster-wide) — temp CNP: kube-dns
+#      :53 + cmd.local.test:6443 (image pulls are node-side, bypass pod egress)
+#   4. admin kubeconfig — temp Secret created from $KUBECONFIG (never stored
+#      anywhere else); kubectl audits + the podspec dump use it
+# Talos remaps baked into the Jobs (why lives in the notes entry):
+#   - kubelet config: host /etc/kubernetes/kubelet.yaml -> container
+#     /etc/kubernetes/kubelet-config.yaml (first path in the cfg's kubelet
+#     confs; no cfg editing needed)
+#   - /etc/kubernetes is an emptyDir with ro hostPath children: a hostPath
+#     File mount inside a ro parent fails at runc ("make mountpoint …:
+#     read-only file system")
+#   - control-plane podspecs are served via staticPodURL, not files — the main
+#     container (the kube-bench image ships sh + kubectl) dumps them from the
+#     API into the manifests emptyDir so section 1 file checks read real specs
+#   - NO /var/lib/etcd mount: the kubelet rootfs is curated and doesn't
+#     include it (hostPath fails with "is not a directory" for a directory)
+# Exit codes: 0 scans completed (FAIL counts are scan OUTPUT, not errors);
+#             1 usage; 2 setup failed; 3 scans failed/timed out.
+
+set -euo pipefail
+
+BENCHMARK=cis-1.12
+IMAGE=aquasec/kube-bench:v0.16.0
+KEEP=0
+TIMEOUT=720
+
+usage() {
+  sed -n '2,4p' "$0" | sed 's/^# *//'
+  exit 1
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --benchmark) BENCHMARK=$2; shift 2 ;;
+    --image)     IMAGE=$2; shift 2 ;;
+    --keep)      KEEP=1; shift ;;
+    --timeout)   TIMEOUT=$2; shift 2 ;;
+    -h|--help)   usage ;;
+    *)           usage ;;
+  esac
+done
+
+KC=${KUBECONFIG:-}; KC=${KC%%:*}   # first entry if it's a list
+if [ -z "$KC" ] || [ ! -f "$KC" ]; then
+  KC="$(cd "$(dirname "$0")/../.." && pwd)/cluster/local/.tmp/kubeconfig"
+fi
+if [ ! -f "$KC" ]; then
+  echo "bench: no kubeconfig found (\$KUBECONFIG or cluster/local/.tmp/kubeconfig)" >&2
+  exit 2
+fi
+
+LOGDIR="$(cd "$(dirname "$0")/../.." && pwd)/cluster/local/.tmp/bench-$(date +%Y%m%d-%H%M%S)"
+mkdir -p "$LOGDIR"
+
+# a previous --keep run or crash may have left the namespace terminating
+if kubectl get ns bench-scan -o name 2>/dev/null | grep -q .; then
+  echo "bench: namespace bench-scan still exists (terminating? previous --keep?) — aborting" >&2
+  exit 2
+fi
+
+WORKERS=$(kubectl get nodes -o json 2>/dev/null | python3 -c "
+import json, sys
+nodes = json.load(sys.stdin)['items']
+print(sum(1 for n in nodes if 'node-role.kubernetes.io/control-plane' not in n['metadata'].get('labels', {})))")
+if [ "$WORKERS" -lt 1 ]; then
+  echo "bench: no worker nodes found" >&2
+  exit 2
+fi
+
+cleanup() {
+  if [ "$KEEP" = 1 ]; then
+    echo "bench: --keep set — scaffold left in place; remove with:"
+    echo "  kubectl delete ns bench-scan --wait=false && kubectl -n policies delete policyexceptions.policies.kyverno.io allow-bench"
+  else
+    kubectl delete ns bench-scan --wait=false --ignore-not-found >/dev/null 2>&1 || true
+    kubectl -n policies delete policyexceptions.policies.kyverno.io allow-bench \
+      --ignore-not-found >/dev/null 2>&1 || true
+    echo "bench: scaffolding removed (namespace deleting, exception deleted)"
+  fi
+  echo "bench: logs in $LOGDIR"
+}
+trap cleanup EXIT
+
+kubectl apply -f - >/dev/null <<'EOF'
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bench-scan
+  labels:
+    # scan pods need root + hostPath + hostPID; whole namespace is scaffolding
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/enforce-version: latest
+EOF
+
+kubectl -n bench-scan create secret generic bench-kubeconfig \
+  --from-file=kubeconfig="$KC" >/dev/null
+
+# lives in the standing `policies` ns (cross-ns matchConditions; house shape)
+kubectl -n policies apply -f - >/dev/null <<'EOF'
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: allow-bench
+  namespace: policies
+spec:
+  policyRefs:
+    - name: disallow-host-path
+      kind: ValidatingPolicy
+    - name: disallow-host-namespaces
+      kind: ValidatingPolicy
+    - name: require-run-as-nonroot
+      kind: ValidatingPolicy
+  matchConditions:
+    - name: match-bench-scan
+      expression: "object.metadata.namespace == 'bench-scan' && object.metadata.name.startsWith('bench-')"
+EOF
+
+kubectl -n bench-scan apply -f - >/dev/null <<'EOF'
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: bench-scan
+  namespace: bench-scan
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+          rules:
+            dns:
+              - matchPattern: "*"
+    - toFQDNs:
+        - matchName: cmd.local.test
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+EOF
+
+# quoted heredoc: no host-side expansion — $p and $NODE_NAME expand in-pod;
+# __TOKENS__ are substituted at apply time
+JOBSPEC='apiVersion: batch/v1
+kind: Job
+metadata:
+  name: __NAME__
+  namespace: bench-scan
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 600
+__EXTRA__
+  template:
+    metadata:
+      labels:
+        app: __NAME__
+    spec:
+      hostPID: true
+      automountServiceAccountToken: false
+      restartPolicy: Never
+__PLACEMENT__
+      securityContext:
+        runAsNonRoot: false
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: kube-bench
+          image: __IMAGE__
+          command:
+            - /bin/sh
+            - -c
+            - |
+__PRELUDE__
+              exec kube-bench run --benchmark __BENCHMARK__ --targets __TARGETS__ --include-test-output
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: KUBECONFIG
+              value: /mnt/kubeconfig/kubeconfig
+          volumeMounts:
+            - name: podspecs
+              mountPath: /etc/kubernetes/manifests
+            - name: kubernetes
+              mountPath: /etc/kubernetes
+            - name: pki
+              mountPath: /etc/kubernetes/pki
+              readOnly: true
+            - name: kubelet-kubeconfig
+              mountPath: /etc/kubernetes/kubeconfig-kubelet
+              readOnly: true
+            - name: bootstrap-kubeconfig
+              mountPath: /etc/kubernetes/bootstrap-kubeconfig
+              readOnly: true
+            - name: kubelet-config
+              mountPath: /etc/kubernetes/kubelet-config.yaml
+              readOnly: true
+            - name: kubelet-home
+              mountPath: /var/lib/kubelet
+              readOnly: true
+            - name: kubeconfig
+              mountPath: /mnt/kubeconfig
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            runAsUser: 0
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+      volumes:
+        - name: podspecs
+          emptyDir: {}
+        - name: kubernetes
+          emptyDir: {}
+        - name: pki
+          hostPath:
+            path: /etc/kubernetes/pki
+            type: Directory
+        - name: kubelet-kubeconfig
+          hostPath:
+            path: /etc/kubernetes/kubeconfig-kubelet
+            type: File
+        - name: bootstrap-kubeconfig
+          hostPath:
+            path: /etc/kubernetes/bootstrap-kubeconfig
+            type: File
+        - name: kubelet-config
+          hostPath:
+            path: /etc/kubernetes/kubelet.yaml
+            type: File
+        - name: kubelet-home
+          hostPath:
+            path: /var/lib/kubelet
+            type: Directory
+        - name: kubeconfig
+          secret:
+            secretName: bench-kubeconfig'
+
+# ctrl: dump the three control-plane static-pod specs (served via
+# staticPodURL on Talos, not files) so section 1 file checks read real specs
+CTRL_PRELUDE='              set -e
+              for p in kube-apiserver kube-controller-manager kube-scheduler; do
+                kubectl -n kube-system get pod "$p-$NODE_NAME" -o yaml > "/etc/kubernetes/manifests/$p.yaml"
+              done'
+
+CTRL_PLACEMENT='      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule'
+
+# one pod per worker, forced spread
+WORKER_PLACEMENT='      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: DoesNotExist
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: bench-workers'
+
+apply_job() {
+  local name=$1 targets=$2 prelude=$3 placement=$4 extra=$5
+  # multiline values go through ENVIRON, not -v (BSD awk's -v rejects newlines)
+  printf '%s\n' "$JOBSPEC" \
+    | sed -e "s|__NAME__|$name|g" \
+          -e "s|__IMAGE__|$IMAGE|g" \
+          -e "s|__BENCHMARK__|$BENCHMARK|g" \
+          -e "s|__TARGETS__|$targets|g" \
+    | PRELUDE="$prelude" PLACEMENT="$placement" EXTRA="$extra" \
+      awk '{ sub(/^__PRELUDE__$/, ENVIRON["PRELUDE"]); sub(/^__PLACEMENT__$/, ENVIRON["PLACEMENT"]); sub(/^__EXTRA__$/, ENVIRON["EXTRA"]); print }' \
+    | kubectl apply -f - >/dev/null
+}
+
+# the PolicyException engine pickup lags its creation by seconds (documented);
+# retry the Job apply until admission stops denying
+n=0
+until apply_job bench-ctrl "master,controlplane,etcd,policies,node" "$CTRL_PRELUDE" "$CTRL_PLACEMENT" "" \
+   && apply_job bench-workers "node" "" "$WORKER_PLACEMENT" "  completions: $WORKERS
+  parallelism: $WORKERS"; do
+  n=$((n + 1))
+  if [ "$n" -ge 12 ]; then
+    echo "bench: job admission keeps failing — check PolicyException pickup: kubectl -n policies get policyexceptions.policies.kyverno.io" >&2
+    exit 2
+  fi
+  sleep 5
+done
+
+echo "bench: jobs applied (benchmark $BENCHMARK, image $IMAGE, $WORKERS workers)"
+echo "bench: waiting (cap ${TIMEOUT}s)..."
+
+FAIL=0
+deadline=$((SECONDS + TIMEOUT))
+while :; do
+  C=$(kubectl -n bench-scan get job bench-ctrl -o jsonpath='{.status.succeeded}{" "}{.status.failed}' 2>/dev/null || true)
+  W=$(kubectl -n bench-scan get job bench-workers -o jsonpath='{.status.succeeded}{" "}{.status.failed}' 2>/dev/null || true)
+  read -r CS CF <<<"${C:-0 0}"; read -r WS WF <<<"${W:-0 0}"
+  CS=${CS:-0}; CF=${CF:-0}; WS=${WS:-0}; WF=${WF:-0}
+  if [ "$CS" = 1 ] && [ "$WS" = "$WORKERS" ]; then
+    echo "bench: both jobs complete"
+    break
+  fi
+  if [ "$CF" != 0 ] || [ "$WF" != 0 ]; then
+    echo "bench: job pod failure (ctrl failed=$CF, workers failed=$WF)" >&2
+    FAIL=1
+    break
+  fi
+  if [ "$SECONDS" -ge "$deadline" ]; then
+    echo "bench: TIMEOUT (${TIMEOUT}s) — ctrl succeeded=$CS, workers succeeded=$WS/$WORKERS" >&2
+    kubectl -n bench-scan get pods 2>/dev/null || true
+    FAIL=1
+    break
+  fi
+  sleep 10
+done
+
+kubectl -n bench-scan logs -l job-name=bench-ctrl --prefix --tail=-1 > "$LOGDIR/ctrl.log" 2>&1 || true
+kubectl -n bench-scan logs -l job-name=bench-workers --prefix --tail=-1 > "$LOGDIR/workers.log" 2>&1 || true
+
+if [ "$FAIL" = 1 ]; then
+  echo "bench: logs (may be partial) in $LOGDIR" >&2
+  exit 3
+fi
+
+# dedupe the per-pod summary blocks (4 identical worker pods), keep order
+strip_prefix() { sed -E 's/^\[pod\/[^]]*\]//'; }
+for f in ctrl workers; do
+  echo "== bench: $f summary =="
+  grep -A6 "== Summary" "$LOGDIR/$f.log" | strip_prefix | awk '!seen[$0]++' || true
+done
+echo "bench: FAIL/WARN triage ledger — manifests/local/notes.md → 'kube-bench CIS scan'"

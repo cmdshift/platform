@@ -33,6 +33,12 @@ Keep as-is (validate under real traffic): wireguard encryption, `ipam.mode: kube
 The kubescape operator and all its SecurityExceptions were removed from `manifests/local/` (too heavy for what it delivered; single-purpose hardening tools are the replacement — see `manifests/local/notes.md`). Do **not** reintroduce it in the cloud: the hardening settings it drove (explicit non-root uid/gid, roFS, caps drop, SA-token off) stay in the manifests as NSA-guidance comments, and the accepted-deviations baseline lives in `manifests/local/notes.md` for the replacement tools to audit against.
 - Flux polling: the local cluster loosened the bucket to 5m and kustomization drift-heal to 1h for interactive determinism (single operator, frequent manual `sync_wait` + `flux_wait`). Keep the tighter 1m/10m in the cloud — with multiple operators, frequent drift-heal is the enforcement of everything-in-files.
 
+## kube-bench CIS scan (episodic, first run locally 2026-09-08)
+
+Carry over as-is: kube-bench as an episodic CLI-style one-shot Job (temp scaffolding pattern — privileged PSS namespace + scoped PolicyException, delete after; spec reference in `cluster/local/.tmp/kube-bench-scan/`, method + triage ledger in `manifests/local/notes.md`). Pin the benchmark explicitly — kube-bench releases lag k8s (cis-2.0 covers 1.34–1.35 but isn't in a released kube-bench yet; check `docs/platforms.md` per bump).
+
+Cloud deltas — the scan gets **simpler and more truthful** on non-Talos-in-docker nodes: systemd unit paths, `/var/lib/etcd`, and full `/etc/kubernetes/pki` all exist, so the local false-FAIL map (authorization-config file form excepted — that's Talos defaulting, re-verify there) largely disappears; expect near-zero layout noise. Keep the local ledger's real findings on the radar: `--service-account-extend-token-expiration`, scheduler/controller-manager/kube-proxy bind addresses, `--kubelet-certificate-authority`.
+
 ## Tetragon (local: `manifests/local/security/`, adopted 2026-09-07)
 
 Chart 1.7.1 from the same `cilium` HelmRepository as Cilium — no extra source. Carries over as-is: the release values, the PSS-`privileged` `security` namespace, and the `allow-tetragon-security-contexts` PolicyException scoped to the namespace + `tetragon` prefix (the agent DaemonSet is privileged with host paths `/proc`, `/sys/fs/bpf`, `/sys/kernel/tracing` by design; same shapes exist for cilium/node-exporter today).

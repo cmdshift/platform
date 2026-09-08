@@ -53,6 +53,7 @@ for `rustfs`. macOS date math (`date -v`) assumes darwin.
 | `velero_wait` | poll a velero backup/restore to Completed |
 | `rustfs` | rustfs `rc` CLI inside the storage container, alias preset |
 | `cilium_test` | `cilium connectivity test` with temp admission scaffolding |
+| `bench` | episodic kube-bench CIS scan (one-shot Job pair + temp scaffolding) |
 
 ## GitOps pipeline
 
@@ -369,3 +370,32 @@ disabled (kube-proxy DNAT hides flows from hubble), connectivity-suites-only
 test filter (policy suites' deny expectations union with the required
 allow-all scaffold and can only fail here). Manual procedure + rationale:
 runbooks/local/cilium-connectivity-test.md.
+
+### `bench [--benchmark cis-1.12] [--image aquasec/kube-bench:v0.16.0] [--keep] [--timeout 720]`
+
+Episodic kube-bench CIS scan: applies the temp scaffolding (privileged-PSS
+`bench-scan` namespace, scoped PolicyException `allow-bench` in `policies`,
+temp CNP — kube-dns + `cmd.local.test:6443`, admin-kubeconfig Secret from
+`$KUBECONFIG`), runs two Jobs (ctrl node: sections
+master/controlplane/etcd/policies/node with a Talos podspec dump prelude;
+workers: node section, one pod per worker via anti-affinity), waits, saves
+logs to `cluster/local/.tmp/bench-<ts>/{ctrl,workers}.log`, prints the
+`== Summary ==` blocks, then deletes the scaffolding. Nothing committed as
+manifests (cilium_test pattern). Talos remaps and the full FAIL/WARN triage
+ledger: `manifests/local/notes.md` → "kube-bench CIS scan".
+
+- Exits 0 when both jobs complete (**FAIL counts are scan output, not tool
+  errors** — read the summaries); 1 usage; 2 setup/admission failure; 3 job
+  failure or timeout (partial logs still saved)
+- `--keep` leaves the scaffold up for debugging (cleanup command printed)
+- Job pod failures abort the wait immediately instead of polling to the
+  timeout; ctrl failures usually mean the admission exception didn't get
+  picked up in time (retry is built in — 12×5s) or a kubeconfig/permission
+  problem
+- Benchmark pin matters: kube-bench releases lag k8s (cis-2.0 covers 1.34–1.35
+  but isn't in a released kube-bench yet; cluster is 1.36.4 → cis-1.12).
+  Check kube-bench's docs/platforms.md when bumping
+- Requires `python3` (worker-node count), runs ~3–5 min — launch it in the
+  background and collect results when done
+- Namespace collision guard: aborts if `bench-scan` still exists (previous
+  `--keep` or terminating ns)
