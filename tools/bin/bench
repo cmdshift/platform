@@ -37,65 +37,57 @@ BENCHMARK=cis-1.12
 IMAGE=aquasec/kube-bench:v0.16.0
 KEEP=0
 TIMEOUT=720
+FAIL=0
+LOGDIR=
 
 usage() {
   sed -n '2,4p' "$0" | sed 's/^# *//'
   exit 1
 }
 
-while [ $# -gt 0 ]; do
-  case "$1" in
-    --benchmark) BENCHMARK=$2; shift 2 ;;
-    --image)     IMAGE=$2; shift 2 ;;
-    --keep)      KEEP=1; shift ;;
-    --timeout)   TIMEOUT=$2; shift 2 ;;
-    -h|--help)   usage ;;
-    *)           usage ;;
-  esac
-done
+parse_args() {
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --benchmark) BENCHMARK=$2; shift 2 ;;
+      --image)     IMAGE=$2; shift 2 ;;
+      --keep)      KEEP=1; shift ;;
+      --timeout)   TIMEOUT=$2; shift 2 ;;
+      -h|--help)   usage ;;
+      *)           usage ;;
+    esac
+  done
+}
 
-KC=${KUBECONFIG:-}; KC=${KC%%:*}   # first entry if it's a list
-if [ -z "$KC" ] || [ ! -f "$KC" ]; then
-  KC="$(cd "$(dirname "$0")/../.." && pwd)/cluster/local/.tmp/kubeconfig"
-fi
-if [ ! -f "$KC" ]; then
-  echo "bench: no kubeconfig found (\$KUBECONFIG or cluster/local/.tmp/kubeconfig)" >&2
-  exit 2
-fi
-
-LOGDIR="$(cd "$(dirname "$0")/../.." && pwd)/cluster/local/.tmp/bench-$(date +%Y%m%d-%H%M%S)"
-mkdir -p "$LOGDIR"
+resolve_kubeconfig() {
+  KC=${KUBECONFIG:-}; KC=${KC%%:*}   # first entry if it's a list
+  if [ -z "$KC" ] || [ ! -f "$KC" ]; then
+    KC="$(cd "$(dirname "$0")/../.." && pwd)/cluster/local/.tmp/kubeconfig"
+  fi
+  if [ ! -f "$KC" ]; then
+    echo "bench: no kubeconfig found (\$KUBECONFIG or cluster/local/.tmp/kubeconfig)" >&2
+    exit 2
+  fi
+}
 
 # a previous --keep run or crash may have left the namespace terminating
-if kubectl get ns bench-scan -o name 2>/dev/null | grep -q .; then
-  echo "bench: namespace bench-scan still exists (terminating? previous --keep?) — aborting" >&2
-  exit 2
-fi
-
-WORKERS=$(kubectl get nodes -o json 2>/dev/null | python3 -c "
-import json, sys
-nodes = json.load(sys.stdin)['items']
-print(sum(1 for n in nodes if 'node-role.kubernetes.io/control-plane' not in n['metadata'].get('labels', {})))")
-if [ "$WORKERS" -lt 1 ]; then
-  echo "bench: no worker nodes found" >&2
-  exit 2
-fi
-
-cleanup() {
-  if [ "$KEEP" = 1 ]; then
-    echo "bench: --keep set — scaffold left in place; remove with:"
-    echo "  kubectl delete ns bench-scan --wait=false && kubectl -n policies delete policyexceptions.policies.kyverno.io allow-bench"
-  else
-    kubectl delete ns bench-scan --wait=false --ignore-not-found >/dev/null 2>&1 || true
-    kubectl -n policies delete policyexceptions.policies.kyverno.io allow-bench \
-      --ignore-not-found >/dev/null 2>&1 || true
-    echo "bench: scaffolding removed (namespace deleting, exception deleted)"
+require_clean_state() {
+  if kubectl get ns bench-scan -o name 2>/dev/null | grep -q .; then
+    echo "bench: namespace bench-scan still exists (terminating? previous --keep?) — aborting" >&2
+    exit 2
   fi
-  echo "bench: logs in $LOGDIR"
 }
-trap cleanup EXIT
 
-kubectl apply -f - >/dev/null <<'EOF'
+# workers = all nodes minus the control-plane-labeled ones (existence selector;
+# no python/jq needed)
+worker_count() {
+  local total ctrls
+  total=$(kubectl get nodes -o name 2>/dev/null | wc -l | tr -d ' ')
+  ctrls=$(kubectl get nodes -l node-role.kubernetes.io/control-plane -o name 2>/dev/null | wc -l | tr -d ' ')
+  echo $((total - ctrls))
+}
+
+scaffold_up() {
+  kubectl apply -f - >/dev/null <<'EOF'
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -106,11 +98,11 @@ metadata:
     pod-security.kubernetes.io/enforce-version: latest
 EOF
 
-kubectl -n bench-scan create secret generic bench-kubeconfig \
-  --from-file=kubeconfig="$KC" >/dev/null
+  kubectl -n bench-scan create secret generic bench-kubeconfig \
+    --from-file=kubeconfig="$KC" >/dev/null
 
-# lives in the standing `policies` ns (cross-ns matchConditions; house shape)
-kubectl -n policies apply -f - >/dev/null <<'EOF'
+  # lives in the standing `policies` ns (cross-ns matchConditions; house shape)
+  kubectl -n policies apply -f - >/dev/null <<'EOF'
 apiVersion: policies.kyverno.io/v1
 kind: PolicyException
 metadata:
@@ -129,7 +121,7 @@ spec:
       expression: "object.metadata.namespace == 'bench-scan' && object.metadata.name.startsWith('bench-')"
 EOF
 
-kubectl -n bench-scan apply -f - >/dev/null <<'EOF'
+  kubectl -n bench-scan apply -f - >/dev/null <<'EOF'
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -158,9 +150,11 @@ spec:
             - port: "6443"
               protocol: TCP
 EOF
+}
 
-# quoted heredoc: no host-side expansion — $p and $NODE_NAME expand in-pod;
-# __TOKENS__ are substituted at apply time
+# single Job template; __TOKENS__ substituted in apply_job with native bash
+# replacement (multiline-safe, no sed/awk delimiters to fight). Quoted so $p
+# and $NODE_NAME stay literal here and expand in-pod.
 JOBSPEC='apiVersion: batch/v1
 kind: Job
 metadata:
@@ -298,72 +292,120 @@ WORKER_PLACEMENT='      affinity:
                   app: bench-workers'
 
 apply_job() {
-  local name=$1 targets=$2 prelude=$3 placement=$4 extra=$5
-  # multiline values go through ENVIRON, not -v (BSD awk's -v rejects newlines)
-  printf '%s\n' "$JOBSPEC" \
-    | sed -e "s|__NAME__|$name|g" \
-          -e "s|__IMAGE__|$IMAGE|g" \
-          -e "s|__BENCHMARK__|$BENCHMARK|g" \
-          -e "s|__TARGETS__|$targets|g" \
-    | PRELUDE="$prelude" PLACEMENT="$placement" EXTRA="$extra" \
-      awk '{ sub(/^__PRELUDE__$/, ENVIRON["PRELUDE"]); sub(/^__PLACEMENT__$/, ENVIRON["PLACEMENT"]); sub(/^__EXTRA__$/, ENVIRON["EXTRA"]); print }' \
-    | kubectl apply -f - >/dev/null
+  local name=$1 targets=$2 prelude=$3 placement=$4 extra=$5 spec=$JOBSPEC
+  spec=${spec//__NAME__/$name}
+  spec=${spec//__IMAGE__/$IMAGE}
+  spec=${spec//__BENCHMARK__/$BENCHMARK}
+  spec=${spec//__TARGETS__/$targets}
+  spec=${spec//__PRELUDE__/$prelude}
+  spec=${spec//__PLACEMENT__/$placement}
+  spec=${spec//__EXTRA__/$extra}
+  printf '%s\n' "$spec" | kubectl apply -f - >/dev/null
 }
 
 # the PolicyException engine pickup lags its creation by seconds (documented);
 # retry the Job apply until admission stops denying
-n=0
-until apply_job bench-ctrl "master,controlplane,etcd,policies,node" "$CTRL_PRELUDE" "$CTRL_PLACEMENT" "" \
-   && apply_job bench-workers "node" "" "$WORKER_PLACEMENT" "  completions: $WORKERS
-  parallelism: $WORKERS"; do
-  n=$((n + 1))
-  if [ "$n" -ge 12 ]; then
-    echo "bench: job admission keeps failing — check PolicyException pickup: kubectl -n policies get policyexceptions.policies.kyverno.io" >&2
-    exit 2
-  fi
-  sleep 5
-done
+apply_jobs() {
+  local workers=$1 n=0
+  until apply_job bench-ctrl "master,controlplane,etcd,policies,node" "$CTRL_PRELUDE" "$CTRL_PLACEMENT" "" \
+     && apply_job bench-workers "node" "" "$WORKER_PLACEMENT" "  completions: $workers
+  parallelism: $workers"; do
+    n=$((n + 1))
+    if [ "$n" -ge 12 ]; then
+      echo "bench: job admission keeps failing — check PolicyException pickup: kubectl -n policies get policyexceptions.policies.kyverno.io" >&2
+      return 1
+    fi
+    sleep 5
+  done
+}
 
-echo "bench: jobs applied (benchmark $BENCHMARK, image $IMAGE, $WORKERS workers)"
-echo "bench: waiting (cap ${TIMEOUT}s)..."
+# polls both jobs; fail-fast on pod failure, bounded by TIMEOUT.
+# returns 0 when both reached their expected completions, 1 otherwise
+wait_for_jobs() {
+  local workers=$1 deadline=$((SECONDS + TIMEOUT))
+  local c w cs cf ws wf
+  while :; do
+    c=$(kubectl -n bench-scan get job bench-ctrl -o jsonpath='{.status.succeeded}{" "}{.status.failed}' 2>/dev/null || true)
+    w=$(kubectl -n bench-scan get job bench-workers -o jsonpath='{.status.succeeded}{" "}{.status.failed}' 2>/dev/null || true)
+    read -r cs cf <<<"${c:-0 0}"; read -r ws wf <<<"${w:-0 0}"
+    cs=${cs:-0}; cf=${cf:-0}; ws=${ws:-0}; wf=${wf:-0}
+    if [ "$cs" = 1 ] && [ "$ws" = "$workers" ]; then
+      echo "bench: both jobs complete"
+      return 0
+    fi
+    if [ "$cf" != 0 ] || [ "$wf" != 0 ]; then
+      echo "bench: job pod failure (ctrl failed=$cf, workers failed=$wf)" >&2
+      return 1
+    fi
+    if [ "$SECONDS" -ge "$deadline" ]; then
+      echo "bench: TIMEOUT (${TIMEOUT}s) — ctrl succeeded=$cs, workers succeeded=$ws/$workers" >&2
+      kubectl -n bench-scan get pods 2>/dev/null || true
+      return 1
+    fi
+    sleep 10
+  done
+}
 
-FAIL=0
-deadline=$((SECONDS + TIMEOUT))
-while :; do
-  C=$(kubectl -n bench-scan get job bench-ctrl -o jsonpath='{.status.succeeded}{" "}{.status.failed}' 2>/dev/null || true)
-  W=$(kubectl -n bench-scan get job bench-workers -o jsonpath='{.status.succeeded}{" "}{.status.failed}' 2>/dev/null || true)
-  read -r CS CF <<<"${C:-0 0}"; read -r WS WF <<<"${W:-0 0}"
-  CS=${CS:-0}; CF=${CF:-0}; WS=${WS:-0}; WF=${WF:-0}
-  if [ "$CS" = 1 ] && [ "$WS" = "$WORKERS" ]; then
-    echo "bench: both jobs complete"
-    break
-  fi
-  if [ "$CF" != 0 ] || [ "$WF" != 0 ]; then
-    echo "bench: job pod failure (ctrl failed=$CF, workers failed=$WF)" >&2
-    FAIL=1
-    break
-  fi
-  if [ "$SECONDS" -ge "$deadline" ]; then
-    echo "bench: TIMEOUT (${TIMEOUT}s) — ctrl succeeded=$CS, workers succeeded=$WS/$WORKERS" >&2
-    kubectl -n bench-scan get pods 2>/dev/null || true
-    FAIL=1
-    break
-  fi
-  sleep 10
-done
-
-kubectl -n bench-scan logs -l job-name=bench-ctrl --prefix --tail=-1 > "$LOGDIR/ctrl.log" 2>&1 || true
-kubectl -n bench-scan logs -l job-name=bench-workers --prefix --tail=-1 > "$LOGDIR/workers.log" 2>&1 || true
-
-if [ "$FAIL" = 1 ]; then
-  echo "bench: logs (may be partial) in $LOGDIR" >&2
-  exit 3
-fi
+collect_logs() {
+  kubectl -n bench-scan logs -l job-name=bench-ctrl --prefix --tail=-1 > "$LOGDIR/ctrl.log" 2>&1 || true
+  kubectl -n bench-scan logs -l job-name=bench-workers --prefix --tail=-1 > "$LOGDIR/workers.log" 2>&1 || true
+}
 
 # dedupe the per-pod summary blocks (4 identical worker pods), keep order
-strip_prefix() { sed -E 's/^\[pod\/[^]]*\]//'; }
-for f in ctrl workers; do
-  echo "== bench: $f summary =="
-  grep -A6 "== Summary" "$LOGDIR/$f.log" | strip_prefix | awk '!seen[$0]++' || true
-done
-echo "bench: FAIL/WARN triage ledger — manifests/local/notes.md → 'kube-bench CIS scan'"
+print_summaries() {
+  local f
+  for f in ctrl workers; do
+    echo "== bench: $f summary =="
+    grep -A6 "== Summary" "$LOGDIR/$f.log" | sed -E 's/^\[pod\/[^]]*\]//' | awk '!seen[$0]++' || true
+  done
+  echo "bench: FAIL/WARN triage ledger — manifests/local/notes.md → 'kube-bench CIS scan'"
+}
+
+cleanup() {
+  if [ "$KEEP" = 1 ]; then
+    echo "bench: --keep set — scaffold left in place; remove with:"
+    echo "  kubectl delete ns bench-scan --wait=false && kubectl -n policies delete policyexceptions.policies.kyverno.io allow-bench"
+  else
+    kubectl delete ns bench-scan --wait=false --ignore-not-found >/dev/null 2>&1 || true
+    kubectl -n policies delete policyexceptions.policies.kyverno.io allow-bench \
+      --ignore-not-found >/dev/null 2>&1 || true
+    echo "bench: scaffolding removed (namespace deleting, exception deleted)"
+  fi
+  echo "bench: logs in $LOGDIR"
+}
+
+bench() {
+  parse_args "$@"
+  resolve_kubeconfig
+  require_clean_state
+  local workers
+  workers=$(worker_count)
+  if [ "$workers" -lt 1 ]; then
+    echo "bench: no worker nodes found" >&2
+    exit 2
+  fi
+
+  LOGDIR="$(cd "$(dirname "$0")/../.." && pwd)/cluster/local/.tmp/bench-$(date +%Y%m%d-%H%M%S)"
+  mkdir -p "$LOGDIR"
+
+  trap cleanup EXIT
+  scaffold_up
+
+  if ! apply_jobs "$workers"; then
+    exit 2
+  fi
+  echo "bench: jobs applied (benchmark $BENCHMARK, image $IMAGE, $workers workers)"
+  echo "bench: waiting (cap ${TIMEOUT}s)..."
+
+  if ! wait_for_jobs "$workers"; then
+    FAIL=1
+  fi
+  collect_logs
+  if [ "$FAIL" = 1 ]; then
+    echo "bench: logs (may be partial) in $LOGDIR" >&2
+    exit 3
+  fi
+  print_summaries
+}
+
+bench "$@"

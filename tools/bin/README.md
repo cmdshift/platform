@@ -2,10 +2,17 @@
 
 Helper scripts for the repeated plumbing of this repo. `direnv` adds this
 directory to PATH — invoke as `<name>` inside the repo; otherwise
-`tools/bin/<name>`. Each script is self-contained bash; the observability ones
-(`prometheus_query`, `loki_query`) manage their own port-forward lifecycle.
+`tools/bin/<name>`. Each script is self-contained bash, named for its entry
+function; the observability ones (`prometheus_query`, `loki_query`) manage
+their own port-forward lifecycle.
 
 **Shared conventions:**
+
+- **Pure bash + accepted CLIs only** — no python/ruby/node (or any other
+  interpreter) inside the scripts. If bash+`awk`/`sed`+a CLI can't do it,
+  reconsider the approach; the interpreter dependency always costs the next
+  person (bench's worker-node count started as a python3 one-liner and
+  became `kubectl get nodes` label-selector arithmetic).
 
 - Polling is bounded with progress echoes — never a blind sleep. Exit codes
   are the contract (0 = done/green, 1 = timeout or terminal failure with a
@@ -28,7 +35,9 @@ directory to PATH — invoke as `<name>` inside the repo; otherwise
 
 Dependencies: `kubectl`, `jq`, `yq`, plus `helm`/`git` for `helm_verify`,
 `velero` / `cilium` CLIs for their respective tools, `docker`
-for `rustfs`. macOS date math (`date -v`) assumes darwin.
+for `rustfs`. macOS date math (`date -v`) assumes darwin. Nothing here
+shells out to an interpreter — bash + these CLIs is the whole dependency
+tree.
 
 ## Quick reference
 
@@ -395,7 +404,7 @@ ledger: `manifests/local/notes.md` → "kube-bench CIS scan".
 - Benchmark pin matters: kube-bench releases lag k8s (cis-2.0 covers 1.34–1.35
   but isn't in a released kube-bench yet; cluster is 1.36.4 → cis-1.12).
   Check kube-bench's docs/platforms.md when bumping
-- Requires `python3` (worker-node count), runs ~3–5 min — launch it in the
-  background and collect results when done
+- Runs ~3–5 min — launch it in the background and collect results when done;
+  don't edit the script while a run is executing (bash reads incrementally)
 - Namespace collision guard: aborts if `bench-scan` still exists (previous
   `--keep` or terminating ns)
