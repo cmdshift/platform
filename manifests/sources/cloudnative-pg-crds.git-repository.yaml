@@ -1,0 +1,17 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: cloudnative-pg-crds
+  namespace: flux-system
+spec:
+  interval: 12h
+  url: https://github.com/cloudnative-pg/cloudnative-pg
+  ref:
+    # keep in lockstep with the cloudnative-pg chart version's appVersion —
+    # the CRDs must match the operator's API surface
+    tag: v1.30.0
+  ignore: |
+    /*
+    !/config
+    /config/*
+    !/config/crd

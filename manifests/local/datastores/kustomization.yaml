@@ -1,0 +1,179 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# every resource in this dir targets the datastores namespace — the
+# transformer also fixes CRB subjects and webhook clientConfig refs in the
+# vendored rabbitmq manifests (the HelmReleases' explicit namespace matches,
+# so nothing is clobbered)
+namespace: datastores
+resources:
+  - cloudnative-pg.helm-release.yaml
+  - valkey-operator.helm-release.yaml
+  - cluster-operator.yaml
+  - messaging-topology-operator.yaml
+# upstream config/default ships :latest (admission-denied) — pinned to the
+# vendored render's tag; versioned tags live on ghcr (no v prefix), docker
+# hub's rabbitmqoperator repos lag at 2.19.x
+images:
+  - name: ghcr.io/rabbitmq/cluster-operator
+    newTag: "2.22.5"
+  - name: rabbitmqoperator/messaging-topology-operator
+    newName: ghcr.io/rabbitmq/messaging-topology-operator
+    newTag: "1.20.2"
+patches:
+  # mto's config/manager ships the rabbitmq-system Namespace object — the
+  # namespace transformer doesn't touch Namespace objects, so drop it
+  - patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: rabbitmq-system
+    target:
+      kind: Namespace
+      name: rabbitmq-system
+  # the namespace transformer can't rewrite inside annotation values or
+  # dnsNames, so the cert-manager wiring moves explicitly:
+  # rco's metrics-certs is upstream-broken (placeholder dnsNames, never
+  # mounted) — dropped rather than patched
+  - patch: |-
+      $patch: delete
+      apiVersion: cert-manager.io/v1
+      kind: Certificate
+      metadata:
+        name: metrics-certs
+    target:
+      kind: Certificate
+      name: metrics-certs
+  - patch: |-
+      apiVersion: cert-manager.io/v1
+      kind: Certificate
+      metadata:
+        name: cluster-operator-serving-cert
+      spec:
+        dnsNames:
+          - cluster-operator-webhook-service.datastores.svc
+          - cluster-operator-webhook-service.datastores.svc.cluster.local
+    target:
+      kind: Certificate
+      name: cluster-operator-serving-cert
+  - patch: |-
+      apiVersion: cert-manager.io/v1
+      kind: Certificate
+      metadata:
+        name: messaging-topology-serving-cert
+      spec:
+        dnsNames:
+          - messaging-topology-webhook-service.datastores.svc
+          - messaging-topology-webhook-service.datastores.svc.cluster.local
+    target:
+      kind: Certificate
+      name: messaging-topology-serving-cert
+  - patch: |-
+      apiVersion: cert-manager.io/v1
+      kind: Certificate
+      metadata:
+        name: messaging-topology-metrics-certs
+      spec:
+        dnsNames:
+          - messaging-topology-controller-metrics-service.datastores.svc
+          - messaging-topology-controller-metrics-service.datastores.svc.cluster.local
+    target:
+      kind: Certificate
+      name: messaging-topology-metrics-certs
+  - patch: |-
+      apiVersion: admissionregistration.k8s.io/v1
+      kind: MutatingWebhookConfiguration
+      metadata:
+        name: cluster-operator-mutating-webhook-configuration
+        annotations:
+          cert-manager.io/inject-ca-from: datastores/cluster-operator-serving-cert
+    target:
+      kind: MutatingWebhookConfiguration
+      name: cluster-operator-mutating-webhook-configuration
+  - patch: |-
+      apiVersion: admissionregistration.k8s.io/v1
+      kind: ValidatingWebhookConfiguration
+      metadata:
+        name: cluster-operator-validating-webhook-configuration
+        annotations:
+          cert-manager.io/inject-ca-from: datastores/cluster-operator-serving-cert
+    target:
+      kind: ValidatingWebhookConfiguration
+      name: cluster-operator-validating-webhook-configuration
+  - patch: |-
+      apiVersion: admissionregistration.k8s.io/v1
+      kind: MutatingWebhookConfiguration
+      metadata:
+        name: messaging-topology-mutating-webhook-configuration
+        annotations:
+          cert-manager.io/inject-ca-from: datastores/messaging-topology-serving-cert
+    target:
+      kind: MutatingWebhookConfiguration
+      name: messaging-topology-mutating-webhook-configuration
+  - patch: |-
+      apiVersion: admissionregistration.k8s.io/v1
+      kind: ValidatingWebhookConfiguration
+      metadata:
+        name: messaging-topology-validating-webhook-configuration
+        annotations:
+          cert-manager.io/inject-ca-from: datastores/messaging-topology-serving-cert
+    target:
+      kind: ValidatingWebhookConfiguration
+      name: messaging-topology-validating-webhook-configuration
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: rabbitmq-cluster-operator
+      spec:
+        template:
+          spec:
+            containers:
+              - name: operator
+                # upstream requests==limits (200m/500Mi) — lean request per
+                # convention, upstream memory limit kept
+                resources:
+                  requests:
+                    cpu: 50m
+                    memory: 256Mi
+                  limits:
+                    cpu: 1000m
+                    memory: 500Mi
+    target:
+      kind: Deployment
+      name: rabbitmq-cluster-operator
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: messaging-topology-operator
+      spec:
+        template:
+          spec:
+            containers:
+              - name: manager
+                # upstream 300m request on an idle reconciler — lean per
+                # convention, upstream limits kept
+                resources:
+                  requests:
+                    cpu: 50m
+                    memory: 128Mi
+                  limits:
+                    cpu: 500m
+                    memory: 512Mi
+    target:
+      kind: Deployment
+      name: messaging-topology-operator
+configMapGenerator:
+  - name: cloudnative-pg-values
+    namespace: datastores
+    files:
+      - values.yaml=cloudnative-pg-values.yaml
+    options:
+      disableNameSuffixHash: true
+  - name: valkey-operator-values
+    namespace: datastores
+    files:
+      - values.yaml=valkey-operator-values.yaml
+    options:
+      disableNameSuffixHash: true

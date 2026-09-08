@@ -1,0 +1,13 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: datastores
+  namespace: datastores
+spec:
+  endpointSelector: {}
+  egress:
+    - toEntities:
+        - kube-apiserver
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: datastores

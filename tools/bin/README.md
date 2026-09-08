@@ -149,7 +149,7 @@ against a stale artifact fails confusingly. Run between editing and
 - Bounded: `SYNC_WAIT_TIMEOUT` (default 120s). Exit 0 converged; exit 1
   timeout with still-stale list + `docker restart sync-cloud-test` hint
 
-### `flux_wait [max_polls] [--with-source]`
+### `flux_wait [-c] [max_polls] [--with-source]`
 
 Reconciles the root Kustomization `local --with-source` (4m timeout), then
 polls `flux-system` kustomizations every 10s, echoing the pending list.
@@ -158,10 +158,17 @@ includes it; docs write both orders). Non-integer, zero, or unknown args
 exit 2 with usage — a non-integer cap used to silently disable the timeout,
 and `0` used to time out instantly.
 
+- `-c` — status check only, no reconcile: prints every not-Ready group with
+  its failure message (instant verdict); exit 0 all Ready, 3 still progressing
+- **Fast-fail**: `Ready=False` is a *failed attempt*, not slowness (flux holds
+  Ready=Unknown while progressing) — the loop exits 1 on the first failing
+  group with its message instead of burning the remaining polls; failing
+  groups also print BEFORE the blocking reconcile (a failed group replays its
+  cached error on every trigger)
 - Default 42 polls (~7m after the reconcile) — sized for the fresh-rebuild
   worst case (~10m)
-- Exit 0: all kustomizations Ready. Exit 1: timeout with pending list +
-  diagnose commands
+- Exit 0: all kustomizations Ready. Exit 1: failure or timeout with the
+  message/pending list + diagnose commands
 - **Interactive-change reality check** (observed 2026-09-07): a normal
   single-group change is green within ~5 polls (~1m). A kustomization still
   pending past ~8 polls is almost always **failing, not slow** (dry-run
@@ -337,7 +344,7 @@ in the timeout path with its diagnose hint instead of silently exiting 1
 (`set -e` + pipefail on the failed command substitution used to kill the
 script with no output).
 
-### `helm_wait <namespace> <name> [max_polls]`
+### `helm_wait [-c] <namespace> <name> [max_polls]`
 
 Reconciles one HelmRelease (`flux reconcile helmrelease --with-source`) and
 waits for Ready, echoing progress. Default 15 polls × 10s (~2.5m). The key
@@ -345,12 +352,25 @@ behavior: the reconcile blocks through helm's install/upgrade timeout +
 retries, so once it returns a `Ready=False` is **terminal** — `helm_wait`
 exits 1 immediately with the HR failure message + diagnose hint instead of
 polling out the window ("immediately broken" detection). Polls only guard
-against status lag. Exit 0 = Ready, 1 = failed/timeout, 2 = usage
-(non-integer/zero max included). A kubectl failure in the poll (missing HR,
-API down) lands in the timeout path with its diagnose hint instead of
-silently exiting — same `set -e` + pipefail trap as `velero_wait`. Born
-2026-09-07 from the ns-refactor velero move (three waves of the same
-admission-denial diagnosis re-derived by hand before this existed).
+against status lag.
+
+- `-c` — status check only, no reconcile: instant verdict (exit 0 Ready,
+  1 failed with message, 3 still progressing)
+- The **current failure prints before the blocking reconcile** — a failed
+  release replays its cached error on every trigger, so a repeat failure is
+  legible at t=0 rather than after a full retry cycle
+- Recognizes the **release-storage wedge** ("missing target release for
+  rollback: cannot remediate failed release" — hit live on the aborted
+  kubeblocks install, issue #49): remediation tried to roll back a release
+  whose `sh.helm.release.*` storage secrets are gone. Fix: confirm the
+  release's resources are gone/absent, delete the `sh.helm.release.v1.<name>.*`
+  secrets, re-reconcile. The diagnose hint names it
+- Exit 0 = Ready, 1 = failed/timeout, 2 = usage (non-integer/zero max
+  included). A kubectl failure in the poll (missing HR, API down) lands in
+  the timeout path with its diagnose hint instead of silently exiting — same
+  `set -e` + pipefail trap as `velero_wait`. Born 2026-09-07 from the
+  ns-refactor velero move (three waves of the same admission-denial diagnosis
+  re-derived by hand before this existed).
 
 ### `rustfs <rc args...>`
 

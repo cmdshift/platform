@@ -1,0 +1,26 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: datastores
+  namespace: flux-system
+spec:
+  interval: 1h
+  retryInterval: 5s
+  dependsOn:
+    - name: namespaces
+    - name: sources
+    # CNPG CRDs land via the cnpg-crds child kustomization (crds group,
+    # built from the upstream repo at the pinned tag); no hard ordering vs
+    # the operator — the chart doesn't render-lookup CRDs and the
+    # fail-closed webhooks only fire on CNPG CRs
+    - name: crds
+    # rabbitmq operators' webhook serving certs are cert-manager managed
+    - name: certificates
+    - name: networking
+  sourceRef:
+    kind: Bucket
+    name: main
+  path: ./manifests/local/datastores
+  prune: true
+  wait: true
+  timeout: 10m
