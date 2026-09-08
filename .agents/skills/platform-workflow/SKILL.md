@@ -62,7 +62,7 @@ Rule of thumb: if this session hit a landmine or learned something the hard way,
 
 ## 5. Stop at green — the human commits
 
-Commits and pushes are **human-only** (AGENTS.md Hygiene). When reconcile is green and docs are swept, summarize the change and stop — propose a commit split if it's natural, but never run `git commit`/`git push`; the human reviews the diff and makes history.
+Commit/push by **permission** (AGENTS.md Hygiene). When reconcile is green and docs are swept, summarize the change and propose a commit (message + natural split) — then **ask the human before running `git commit`/`git push`**; the human reviews the diff and approves history.
 
 ## Full detail
 

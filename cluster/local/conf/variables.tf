@@ -20,7 +20,7 @@ variable "internal_hostname" {
 
 variable "ctrl_nodes" {
   type    = number
-  default = 1 # leave set to one for now. something up with the cmd lb.
+  default = 1 # 3-node etcd saturates the Docker VM during the install burst (host CPU/IOPS ceiling); 1 node has no quorum trade-off that matters here
 }
 
 variable "work_nodes" {

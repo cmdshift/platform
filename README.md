@@ -181,4 +181,4 @@ Same body of knowledge, two entry points: humans read the runbooks, agents load 
 
 ### Local Talos Machine Bootstrap
 
-There may be a race condition with node bootup and HAProxy readiness. If cluster creation hangs at `machine_bootstrap` for more than a couple of seconds, destroy and try again. Report if you run into a hanging machine bootstrap locally.
+`talos_machine_bootstrap` can hang when Docker Desktop's host port binding for the cluster endpoint (`cmd-local-test`, ports 50000/6443) goes stale after rapid container churn (destroy → recreate within ~a minute): the host listener still accepts connections but black-holes them into the VM. The terraform provider used to silently retry this for 10 minutes; it now fails fast (3m), and the fix is `docker restart cmd-local-test` followed by a re-apply. Full root cause, diagnostics, and the haproxy stats-socket check: [runbooks/local/cluster-rebuild.md](runbooks/local/cluster-rebuild.md).
