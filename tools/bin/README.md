@@ -2,10 +2,17 @@
 
 Helper scripts for the repeated plumbing of this repo. `direnv` adds this
 directory to PATH — invoke as `<name>` inside the repo; otherwise
-`tools/bin/<name>`. Each script is self-contained bash; the observability ones
-(`prometheus_query`, `loki_query`) manage their own port-forward lifecycle.
+`tools/bin/<name>`. Each script is self-contained bash, named for its entry
+function; the observability ones (`prometheus_query`, `loki_query`) manage
+their own port-forward lifecycle.
 
 **Shared conventions:**
+
+- **Pure bash + accepted CLIs only** — no python/ruby/node (or any other
+  interpreter) inside the scripts. If bash+`awk`/`sed`+a CLI can't do it,
+  reconsider the approach; the interpreter dependency always costs the next
+  person (bench's worker-node count started as a python3 one-liner and
+  became `kubectl get nodes` label-selector arithmetic).
 
 - Polling is bounded with progress echoes — never a blind sleep. Exit codes
   are the contract (0 = done/green, 1 = timeout or terminal failure with a
@@ -28,7 +35,9 @@ directory to PATH — invoke as `<name>` inside the repo; otherwise
 
 Dependencies: `kubectl`, `jq`, `yq`, plus `helm`/`git` for `helm_verify`,
 `velero` / `cilium` CLIs for their respective tools, `docker`
-for `rustfs`. macOS date math (`date -v`) assumes darwin.
+for `rustfs`. macOS date math (`date -v`) assumes darwin. Nothing here
+shells out to an interpreter — bash + these CLIs is the whole dependency
+tree.
 
 ## Quick reference
 
@@ -53,6 +62,7 @@ for `rustfs`. macOS date math (`date -v`) assumes darwin.
 | `velero_wait` | poll a velero backup/restore to Completed |
 | `rustfs` | rustfs `rc` CLI inside the storage container, alias preset |
 | `cilium_test` | `cilium connectivity test` with temp admission scaffolding |
+| `bench` | episodic kube-bench CIS scan (one-shot Job pair + temp scaffolding) |
 
 ## GitOps pipeline
 
@@ -369,3 +379,32 @@ disabled (kube-proxy DNAT hides flows from hubble), connectivity-suites-only
 test filter (policy suites' deny expectations union with the required
 allow-all scaffold and can only fail here). Manual procedure + rationale:
 runbooks/local/cilium-connectivity-test.md.
+
+### `bench [--benchmark cis-1.12] [--image aquasec/kube-bench:v0.16.0] [--keep] [--timeout 720]`
+
+Episodic kube-bench CIS scan: applies the temp scaffolding (privileged-PSS
+`bench-scan` namespace, scoped PolicyException `allow-bench` in `policies`,
+temp CNP — kube-dns + `cmd.local.test:6443`, admin-kubeconfig Secret from
+`$KUBECONFIG`), runs two Jobs (ctrl node: sections
+master/controlplane/etcd/policies/node with a Talos podspec dump prelude;
+workers: node section, one pod per worker via anti-affinity), waits, saves
+logs to `cluster/local/.tmp/bench-<ts>/{ctrl,workers}.log`, prints the
+`== Summary ==` blocks, then deletes the scaffolding. Nothing committed as
+manifests (cilium_test pattern). Talos remaps and the full FAIL/WARN triage
+ledger: `manifests/local/notes.md` → "kube-bench CIS scan".
+
+- Exits 0 when both jobs complete (**FAIL counts are scan output, not tool
+  errors** — read the summaries); 1 usage; 2 setup/admission failure; 3 job
+  failure or timeout (partial logs still saved)
+- `--keep` leaves the scaffold up for debugging (cleanup command printed)
+- Job pod failures abort the wait immediately instead of polling to the
+  timeout; ctrl failures usually mean the admission exception didn't get
+  picked up in time (retry is built in — 12×5s) or a kubeconfig/permission
+  problem
+- Benchmark pin matters: kube-bench releases lag k8s (cis-2.0 covers 1.34–1.35
+  but isn't in a released kube-bench yet; cluster is 1.36.4 → cis-1.12).
+  Check kube-bench's docs/platforms.md when bumping
+- Runs ~3–5 min — launch it in the background and collect results when done;
+  don't edit the script while a run is executing (bash reads incrementally)
+- Namespace collision guard: aborts if `bench-scan` still exists (previous
+  `--keep` or terminating ns)
