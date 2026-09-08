@@ -1,0 +1,9 @@
+# chart default is already admission-clean (pod-level runAsNonRoot +
+# RuntimeDefault seccomp, container-level APE/caps/roFS) and house-convention
+# resources (10m/64Mi req, 500m/128Mi lim) — only the scrape wiring needs values
+metrics:
+  enabled: true
+  # the SM key nests under metrics. — a top-level serviceMonitor: is silently
+  # ignored (schema-less chart, caught by the missing SM on-cluster)
+  serviceMonitor:
+    enabled: true

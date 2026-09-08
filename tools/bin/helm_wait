@@ -3,29 +3,54 @@
 # message when the release is immediately broken (admission denial, helm
 # error, retries exhausted) instead of polling out the full window.
 #   helm_wait <namespace> <name> [max_polls]   # 10s per poll; default 15 (~2.5m)
+#   helm_wait -c <namespace> <name>            # status check only — no
+#                                              # reconcile, instant verdict
 # The `flux reconcile helmrelease --with-source` call blocks through helm's
-# install/upgrade timeout + remediation retries, so once it returns a
-# Ready=False is terminal (nothing re-attempts until the spec/artifact
-# changes). Exit 0 = Ready. Exit 1 = failed — prints the HR failure message
-# + diagnose hint. Exit 2 = usage error.
+# install/upgrade timeout + remediation retries, so the CURRENT failure (if
+# any) is printed BEFORE triggering — a failed release replays its cached
+# error on every trigger, and re-reading it should not cost a full cycle.
+# Exit 0 = Ready. Exit 1 = failed or timeout. Exit 2 = usage. Exit 3 = the
+# -c status check found the release still progressing/pending.
 #
 # Polls are only a guard against status lag; they are NOT the failure detector.
 # Provenance: born from the ns-refactor (#31) velero move — the
 # install was admission-denied 3 waves in a row and each diagnosis round
-# re-derived the same jsonpath polling by hand.
+# re-derived the same jsonpath polling by hand. The pre-trigger status line
+# + wedge hint came from the datastores adoption (#49): a helm-release whose
+# release storage was wedged ("missing target release for rollback") burned
+# a full reconcile cycle per diagnosis round.
 
 set -euo pipefail
 
 usage() {
-  echo "usage: helm_wait <namespace> <name> [max_polls]" >&2
+  echo "usage: helm_wait [-c] <namespace> <name> [max_polls]" >&2
   exit 2
 }
+
+DIAGNOSE_EXTRA=""
 
 hr_jsonpath() {
   kubectl -n "$ns" get helmrelease "$name" -o jsonpath="$1" 2>/dev/null
 }
 
+# prints "<status>|<message>"; fields may be empty
+hr_state() {
+  printf '%s|%s' \
+    "$(hr_jsonpath '{.status.conditions[?(@.type=="Ready")].status}')" \
+    "$(hr_jsonpath '{.status.conditions[?(@.type=="Ready")].message}')"
+}
+
+report_failure() { # <message>
+  echo "helm_wait: $ns/$name failed: ${1:-<no message>}"
+  echo "diagnose: kubectl -n $ns describe helmrelease $name ; kubectl -n $ns get events --sort-by=.lastTimestamp | tail -10 ; helm_verify${DIAGNOSE_EXTRA}"
+}
+
 helm_wait() {
+  local check_only=false
+  if [ "${1:-}" = "-c" ]; then
+    check_only=true
+    shift
+  fi
   local ns="${1:-}" name="${2:-}" max="${3:-15}"
   [ $# -ge 2 ] && [ $# -le 3 ] || usage
   case "$ns" in
@@ -35,9 +60,32 @@ helm_wait() {
     ''|*[!0-9]*|0) usage ;; # non-integer dies in the [ -ge ] test; 0 disables the poll guard
   esac
 
-  local status msg n=0 reconcile_out
+  local status msg n=0 reconcile_out state
+  state="$(hr_state)"
+  status="${state%%|*}"
+  msg="${state#*|}"
+
+  if $check_only; then
+    case "$status" in
+      True)  echo "helm_wait: $ns/$name Ready"; exit 0 ;;
+      False) report_failure "$msg"; exit 1 ;;
+      *)     echo "helm_wait: $ns/$name ${status:-pending}"; exit 3 ;;
+    esac
+  fi
+
+  # a failed release replays its cached error on every trigger — show the
+  # current one up front so a repeat failure is legible at t=0, not after
+  # the blocking reconcile returns
+  [ -n "$status" ] && [ "$status" != "True" ] && \
+    echo "current: $status ${msg:-(no message)}"
+
   reconcile_out="$(flux reconcile helmrelease "$name" -n "$ns" --with-source 2>&1 || true)"
   echo "$reconcile_out" | tail -1
+  # release storage wedge (hit #49): remediation tried to roll back a
+  # release whose storage secret is gone — uninstall recovery, not reconcile
+  if echo "$reconcile_out" | grep -q "missing target release for rollback"; then
+    DIAGNOSE_EXTRA=" ; release storage wedged — delete the sh.helm.release.v1.<name>.* secrets in $ns (resources must be gone/absent first) and re-reconcile"
+  fi
 
   while :; do
     # || true: a kubectl failure (missing HR, API down) must fall into the
@@ -50,8 +98,7 @@ helm_wait() {
         ;;
       False)
         msg="$(hr_jsonpath '{.status.conditions[?(@.type=="Ready")].message}')"
-        echo "helm_wait: $ns/$name failed: ${msg:-<no message>}"
-        echo "diagnose: kubectl -n $ns describe helmrelease $name ; kubectl -n $ns get events --sort-by=.lastTimestamp | tail -10 ; helm_verify"
+        report_failure "$msg"
         exit 1
         ;;
     esac

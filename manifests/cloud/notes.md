@@ -65,3 +65,7 @@ All local HelmReleases now ship values via configMapGenerator → `valuesFrom` (
 ## thanos-operator status conditions (local upgrade 2026-09-07, issue cmdshift/platform#22)
 
 Upstream thanos-community/thanos-operator#636 replaced the sticky `ReconcileSuccess`/`ReconcileFailed` pair with a single recoverable `Ready` condition. The cloud cluster inherits the fix automatically (the `GitRepository` pin in the shared `manifests/sources/thanos-operator.git-repository.yaml` — commit and quay image tag must be bumped in lockstep on any future bump). Gate the four thanos CR kinds via `healthCheckExprs` on `monitoring-config` the same way (see `manifests/local/notes.md`); the "trust workloads, not conditions" caveat in older runbooks is dead.
+
+## datastores group (local 2026-09-08, issue #49)
+
+Local gained a `datastores/` group — cloudnative-pg, rabbitmq cluster + messaging-topology operators (vendored renders of upstream kustomize overlays), valkey-operator. Nothing instantiated yet; no local-only settings inside (all admission-clean installs) — mirror the group when refactoring `manifests/cloud/`, same channels, and reuse the vendored files as-is. KubeBlocks was tried and rejected there (multi-engine operator, not single-purpose — don't resurrect it in the cloud); full rationale in `manifests/local/notes.md`.

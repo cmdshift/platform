@@ -13,6 +13,9 @@ resources:
   - ../../sources/local-path-provisioner.git-repository.yaml
   - ../../sources/velero.helm-repository.yaml
   - ../../sources/seaweedfs-operator.helm-repository.yaml
+  - ../../sources/cloudnative-pg.helm-repository.yaml
+  - ../../sources/cloudnative-pg-crds.git-repository.yaml
+  - ../../sources/valkey.helm-repository.yaml
   - ../../sources/grafana.helm-repository.yaml
   - ../../sources/grafana-community.helm-repository.yaml
   - ../../sources/prometheus-community.helm-repository.yaml

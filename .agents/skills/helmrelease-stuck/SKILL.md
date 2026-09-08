@@ -19,7 +19,7 @@ Also not ladder material: the release is **kyverno itself** and its pods sit Pen
 
 ## Escalation ladder
 
-1. Reconcile — recognize the **terminal-state replay**: once `remediation.retries` is exhausted, every later reconcile replays the cached failure ("terminal error: exceeded maximum retries" in helm-controller logs) without re-attempting, even after the original blocker is fixed. An instant return of the old error = replay, not a fresh attempt. Use `helm_wait <ns> <name>` — it surfaces the HR failure message immediately instead of polling.
+1. Reconcile — recognize the **terminal-state replay**: once `remediation.retries` is exhausted, every later reconcile replays the cached failure ("terminal error: exceeded maximum retries" in helm-controller logs) without re-attempting, even after the original blocker is fixed. An instant return of the old error = replay, not a fresh attempt. Use `helm_wait <ns> <name>` — it surfaces the HR failure message immediately instead of polling; `helm_wait -c <ns> <name>` reads the current state with no reconcile at all.
 2. Clear Stalled + retry counters (forces a genuinely fresh install after a terminal state):
    ```
    flux suspend helmrelease <name> -n <ns> && flux resume helmrelease <name> -n <ns>
@@ -29,6 +29,10 @@ Also not ladder material: the release is **kyverno itself** and its pods sit Pen
    kubectl get secrets -n <ns> -l owner=helm
    helm uninstall <release> -n <ns>
    ```
+
+## Release-storage wedge
+
+`Failed to perform remediation: missing target release for rollback: cannot remediate failed release` — the release's `sh.helm.release.*` storage secrets are gone (deleted by hand, or uninstall remediation removed the rollback target mid-recovery), so every reconcile fails at remediation before helm ever runs. Hit live on the aborted kubeblocks install (issue #49). Fix: confirm the release's resources are gone or absent, `kubectl -n <ns> delete secrets sh.helm.release.v1.<name>.*`, re-reconcile — helm-controller does a fresh install against empty storage. `helm_wait` recognizes the error string and appends this fix to its diagnose hint.
 
 ## Wedged finalizer
 

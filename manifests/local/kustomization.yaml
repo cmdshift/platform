@@ -19,6 +19,7 @@ resources:
   - storage-config.yaml
   - objects.yaml
   - objects-config.yaml
+  - datastores.yaml
   - monitoring.yaml
   - monitoring-config.yaml
   - backups.yaml

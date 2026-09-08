@@ -2,14 +2,27 @@
 # Reconcile from the root and poll until every kustomization is Ready,
 # echoing progress (see AGENTS.md polling discipline).
 #   flux_wait [max_polls] [--with-source]   # 10s per poll; default 42 (~7m)
+#   flux_wait -c                            # status check only — no
+#                                           # reconcile, instant verdict
 # --with-source (implied: the reconcile always includes it) is accepted in
 # any position — documented invocations write both `flux_wait 15` and
-# `flux_wait --with-source`. Exit 0 = all green. Exit 1 = timeout, with the
-# pending list + diagnose hint. Exit 2 = usage error (a non-integer or zero
-# cap would silently disable the timeout).
+# `flux_wait --with-source`. Exit 0 = all green. Exit 1 = failure or
+# timeout, with the pending list + diagnose hint. Exit 2 = usage error (a
+# non-integer or zero cap would silently disable the timeout). Exit 3 = the
+# -c status check found groups still progressing.
+#
+# Fast-fail philosophy (same as helm_wait): Ready=False is a *failed
+# attempt*, not slowness — flux holds Ready=Unknown while a group
+# progresses, so False never self-heals mid-poll. The current failing
+# groups and their messages are printed BEFORE the blocking reconcile
+# (a failed group replays its cached error on every trigger), and the
+# poll loop exits on the first Ready=False instead of burning the
+# remaining polls on a group that cannot recover on its own.
+
+DIAGNOSE="diagnose: kubectl -n flux-system describe kustomization <name> ; kubectl -n flux-system get events --sort-by=.lastTimestamp | tail -10"
 
 usage() {
-  echo "usage: flux_wait [max_polls] [--with-source]" >&2
+  echo "usage: flux_wait [-c] [max_polls] [--with-source]" >&2
   exit 2
 }
 
@@ -22,9 +35,57 @@ pending_kustomizations() {
     | awk '$3 != "True" {printf "%s ", $1}'
 }
 
+# one line per not-Ready group: "<name>: <reason or pending>"
+group_states() {
+  kubectl -n flux-system get kustomizations -o json 2>/dev/null | jq -r '
+    .items[]
+    | select(.status.conditions // [] | map(select(.type == "Ready" and .status == "True")) | length == 0)
+    | (.metadata.name) + "|"
+      + ((.status.conditions // []) | map(select(.type == "Ready")) | first | .message // "" )
+    | gsub("\n"; " ")' | sort
+}
+
+print_states() {
+  local states state
+  states="$(group_states)"
+  if [ -z "$states" ]; then
+    return 1
+  fi
+  while IFS= read -r state; do
+    local name="${state%%|*}" msg="${state#*|}"
+    if [ -n "$msg" ]; then
+      echo "  $name: $msg"
+    else
+      echo "  $name: progressing/pending"
+    fi
+  done <<< "$states"
+  return 0
+}
+
+any_failed() { # prints the failing group's message; rc 0 if any Ready=False
+  kubectl -n flux-system get kustomizations -o json 2>/dev/null | jq -re '
+    [ .items[]
+      | select((.status.conditions // [])
+        | any(.type == "Ready" and .status == "False")) ]
+    | if length > 0 then
+        map((.metadata.name) + ": "
+          + ((.status.conditions // [])
+             | map(select(.type == "Ready")) | first | .message // "<no message>")
+          | gsub("\n"; " "))
+        | join(" ;; ")
+      else empty end' 2>/dev/null
+}
+
 wait_for_green() {
-  local max="$1" n=0 pending
+  local max="$1" n=0 failed
   while :; do
+    failed="$(any_failed)"
+    if [ -n "$failed" ]; then
+      echo "flux_wait: failed: $failed"
+      echo "$DIAGNOSE"
+      return 1
+    fi
+    local pending
     pending="$(pending_kustomizations)"
     if [ -z "$pending" ]; then
       local total
@@ -35,7 +96,7 @@ wait_for_green() {
     n=$((n + 1))
     if [ "$n" -ge "$max" ]; then
       echo "flux_wait: TIMEOUT after $max polls — pending: $pending"
-      echo "diagnose: kubectl -n flux-system describe kustomization <name> ; kubectl -n flux-system get events --sort-by=.lastTimestamp | tail -10"
+      echo "$DIAGNOSE"
       return 1
     fi
     echo "[$n/$max] pending: $pending"
@@ -44,14 +105,33 @@ wait_for_green() {
 }
 
 flux_wait() {
-  local max=42 arg
-  for arg in "$@"; do
-    case "$arg" in
+  local check_only=false max=42 arg
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -c) check_only=true ;;
       --with-source) ;; # implied — reconcile() always reconciles --with-source
       ''|*[!0-9]*|0) usage ;;
-      *) max="$arg" ;;
+      *) max="$1" ;;
     esac
+    shift
   done
+
+  if $check_only; then
+    if print_states; then
+      exit 3
+    fi
+    local total
+    total=$(kubectl -n flux-system get kustomizations --no-headers 2>/dev/null | wc -l | tr -d ' ')
+    echo "flux_wait: all $total kustomizations Ready"
+    exit 0
+  fi
+
+  # pre-trigger snapshot: failing groups replay their cached error on every
+  # trigger — surface it before the blocking reconcile, not after
+  local failed
+  failed="$(any_failed)"
+  [ -n "$failed" ] && echo "current: failed: $failed"
+
   reconcile
   wait_for_green "$max"
 }
