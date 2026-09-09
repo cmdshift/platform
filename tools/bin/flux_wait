@@ -11,13 +11,18 @@
 # non-integer or zero cap would silently disable the timeout). Exit 3 = the
 # -c status check found groups still progressing.
 #
-# Fast-fail philosophy (same as helm_wait): Ready=False is a *failed
-# attempt*, not slowness — flux holds Ready=Unknown while a group
-# progresses, so False never self-heals mid-poll. The current failing
-# groups and their messages are printed BEFORE the blocking reconcile
-# (a failed group replays its cached error on every trigger), and the
-# poll loop exits on the first Ready=False instead of burning the
-# remaining polls on a group that cannot recover on its own.
+# Fast-fail philosophy (same as helm_wait): Ready=False with a *real error*
+# is a failed attempt, not slowness — flux holds Ready=Unknown while a group
+# progresses, so a real failure never self-heals mid-poll, and the poll loop
+# exits on the first one instead of burning the remaining polls. Exception:
+# flux reports dependency-waiting as Ready=False too ("dependency '...' is
+# not ready", "revision is not up to date") — those are the normal
+# tree-cascade states and self-heal the moment the dependency lands, so they
+# are classified as pending, not failure (otherwise every artifact bump
+# fast-fails mid-cascade). Classification is by message pattern (no separate
+# waiting condition type exists). Failing groups still print BEFORE the
+# blocking reconcile (a failed group replays its cached error on every
+# trigger).
 
 DIAGNOSE="diagnose: kubectl -n flux-system describe kustomization <name> ; kubectl -n flux-system get events --sort-by=.lastTimestamp | tail -10"
 
@@ -62,11 +67,16 @@ print_states() {
   return 0
 }
 
-any_failed() { # prints the failing group's message; rc 0 if any Ready=False
+# prints failing groups' messages; rc 0 if any Ready=False that is NOT a
+# dependency-wait state (those are pending — see the header comment)
+failures() {
   kubectl -n flux-system get kustomizations -o json 2>/dev/null | jq -re '
     [ .items[]
       | select((.status.conditions // [])
-        | any(.type == "Ready" and .status == "False")) ]
+        | any(.type == "Ready" and .status == "False"))
+      | select((((.status.conditions // [])
+        | map(select(.type == "Ready")) | first | .message // "")
+        | test("^dependency .* is not ready$|^revision is not up to date$")) | not) ]
     | if length > 0 then
         map((.metadata.name) + ": "
           + ((.status.conditions // [])
@@ -79,7 +89,7 @@ any_failed() { # prints the failing group's message; rc 0 if any Ready=False
 wait_for_green() {
   local max="$1" n=0 failed
   while :; do
-    failed="$(any_failed)"
+    failed="$(failures)"
     if [ -n "$failed" ]; then
       echo "flux_wait: failed: $failed"
       echo "$DIAGNOSE"
@@ -129,7 +139,7 @@ flux_wait() {
   # pre-trigger snapshot: failing groups replay their cached error on every
   # trigger — surface it before the blocking reconcile, not after
   local failed
-  failed="$(any_failed)"
+  failed="$(failures)"
   [ -n "$failed" ] && echo "current: failed: $failed"
 
   reconcile
