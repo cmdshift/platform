@@ -160,11 +160,17 @@ and `0` used to time out instantly.
 
 - `-c` — status check only, no reconcile: prints every not-Ready group with
   its failure message (instant verdict); exit 0 all Ready, 3 still progressing
-- **Fast-fail**: `Ready=False` is a *failed attempt*, not slowness (flux holds
-  Ready=Unknown while progressing) — the loop exits 1 on the first failing
-  group with its message instead of burning the remaining polls; failing
-  groups also print BEFORE the blocking reconcile (a failed group replays its
-  cached error on every trigger)
+- **Fast-fail**: `Ready=False` with a real error is a *failed attempt*, not
+  slowness (flux holds Ready=Unknown while progressing) — the loop exits 1 on
+  the first failing group with its message instead of burning the remaining
+  polls; failing groups also print BEFORE the blocking reconcile (a failed
+  group replays its cached error on every trigger). **Dependency-waiting is
+  not failure**: flux reports `dependency '...' is not ready` and
+  `revision is not up to date` as Ready=False too, but those are the normal
+  tree-cascade states that self-heal when the dependency lands — they stay
+  pending, or every artifact bump would fast-fail mid-cascade (hit live on
+  the tetragon stage-2 flip). Classification is by message pattern (no
+  separate waiting condition type exists in flux's status)
 - Default 42 polls (~7m after the reconcile) — sized for the fresh-rebuild
   worst case (~10m)
 - Exit 0: all kustomizations Ready. Exit 1: failure or timeout with the
