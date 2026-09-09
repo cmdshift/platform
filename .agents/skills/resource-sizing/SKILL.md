@@ -1,6 +1,6 @@
 ---
 name: resource-sizing
-description: Setting or auditing container resources. The sizing convention (lean requests, generous CPU limits, memory request ≈ P99×1.2 / limit 1.5×), the three audit tools (memory_audit, cpu_audit, request_audit), and trend-vs-snapshot interpretation. Use whenever sizing, bumping, or auditing resources.
+description: Setting or auditing container resources. The sizing convention (lean requests, generous CPU limits, memory request ≈ P99×1.2 / limit 1.5×), the audit tools (memory_audit, cpu_audit, request_audit, vpa_recs), and trend-vs-snapshot interpretation. Use whenever sizing, bumping, or auditing resources.
 ---
 
 # Resource sizing
@@ -13,13 +13,16 @@ description: Setting or auditing container resources. The sizing convention (lea
 - **Flux delivery controllers** (source/helm) have their own floor — 1000m CPU / 512Mi-1Gi — or they wedge the whole pipeline.
 - Evidence-based, not defaults: size from audits, not vibes.
 
-## The three audits — pick by question
+## The audits — pick by question
 
 | Tool | Question |
 |---|---|
 | `memory_audit [pct]` | is anything near its **limit**? (usage-vs-limits; footer counts limit-less containers — expected 9) |
 | `cpu_audit [pct]` | same for CPU + the silent-killer check: top-10 by % of CFS periods throttled (>5% worth a look) |
 | `request_audit [pct]` | are **requests** honest for scheduling? (≥100% of memory request = first evicted under node pressure) |
+| `vpa_recs [ns]` | what does **VPA** recommend for this workload? (the recommendation side — P99-shaped candidate requests from the Off-mode VPAs goldilocks maintains) |
+
+A VPA recommendation is a **candidate request, not a drop-in** — cross-check it against the usage audits and the convention above (request ≈ P99 × 1.2, limit = 1.5 × request) before editing manifests. The VPAs are Off mode and maintained automatically by goldilocks for every non-system workload (see `manifests/local/metrics/README.md`) — no per-workload step.
 
 ## Interpretation
 

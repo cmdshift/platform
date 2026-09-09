@@ -1,6 +1,6 @@
 ---
 name: adopt-chart
-description: Adopting or upgrading a helm chart — the 1MB release-secret cap check (measure, don't estimate), CRD split strategies, hook-job sizing, and patching rules for what values can't express. Use before adding a new chart or bumping a version.
+description: Adopting or upgrading a helm chart — the 1MB release-secret cap check (measure, don't estimate), CRD split strategies, hook-job sizing, image-registry mapping against the pull-through cache, and patching rules for what values can't express. Use before adding a new chart or bumping a version.
 ---
 
 # Adopting a chart
@@ -27,7 +27,7 @@ helm template <release> <chart> -f /tmp/values.yaml | wc -c
 
 If too big, pick a strategy:
 - **separate CRD chart** (`prometheus-operator-crds` pattern — cleanest when upstream ships one)
-- **upstream moves CRDs to helm's `crds/` dir** — install-only, never stored in the release secret; file an issue/PR
+- **upstream moves CRDs to helm's `crds/` dir** — install-only, never stored in the release secret; wire with `install.crds: Create` / `upgrade.crds: CreateReplace` on the HelmRelease (the vpa release's shape, cmdshift/platform#62)
 - **vendor rendered CRDs** into `manifests/local/crds/` + `crd.enable: false` — works, but adds a manual regen step on every bump
 - **raw manifests via kustomization** (bundle.yaml) — no secret involved; the thanos-operator's answer
 
@@ -46,6 +46,11 @@ If too big, pick a strategy:
 ## 4. Verify before pushing
 
 `helm_verify [path] [release]` renders the release with the **exact** values flux will ship — `valuesFrom` refs resolved from the configMapGenerator entries, chart fetched from the source CRs; the single-release form is for ad-hoc values debugging. For schema-less charts it catches template errors, not key typos (see §0) — cross-check surprise diffs against the chart's `values.yaml`. When you need to eyeball the full rendered manifest (hook jobs, securityContext placement), `helm template` by hand — with the real values. And run `cr_validate` on any CR the chart/CRDs introduce before pushing; for field-level detail verify new-to-you API fields against the **on-cluster CRD schema** (undeclared fields fail the root dry-run and wedge the whole chain).
+
+## Image-registry traps (pull-through cache)
+
+- **A chart whose default image registry isn't a mapped upstream hard-fails at pull** (kyverno's `reg.kyverno.io` was the live case): the wildcard node mirror + `skipFallback: true` gives every registry not in the angos upstream map a hard image-pull failure — no silent direct-pull fallback. Override to a mapped upstream carrying identical content (`global.image.registry: ghcr.io` — reg.kyverno.io is a vanity proxy of ghcr, same token realm; rationale comment in `manifests/local/policies/kyverno-values.yaml`). Upstream-map mechanics: [runbooks/local/cluster-rebuild.md](../../../runbooks/local/cluster-rebuild.md).
+- **Chart `flags` maps are schema-less — unknown keys are silently dropped** (goldilocks: `--vpa-object-mode` was removed upstream while the values key would have kept flowing): verify flag names against the image's `--help` before wiring — `docker run --rm --entrypoint /goldilocks us-docker.pkg.dev/fairwinds-ops/oss/goldilocks:<tag> controller --help`.
 
 ## Worked examples
 

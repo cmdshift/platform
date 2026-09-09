@@ -34,6 +34,8 @@ just bootstrap apply -auto-approve       # ~90s, 4 resources (flux, hooks)
 - The kill point is expected to be after resource creation — the plan is 37 to add (containers + talos nodes + kubeconfig); flux "reconciles the rest eventually".
 - `just certs` is only needed if `cluster/local/.tmp/tls/` is missing (note: the path is under `cluster/local/.tmp/`, NOT the repo-root `.tmp/`).
 
+The 20-30s pause before `bootstrap apply` is load-bearing: the kube API needs that long after `cluster apply` to accept connections (**nodes Ready ≠ API serving**). A too-early run fails on `kubernetes_namespace_v1.flux_system` (connection refused) — just re-run it: `bootstrap apply` is idempotent and converges whatever the failed attempt partially created.
+
 ### The bootstrap hang: stale Docker port binding (root-caused 2026-09-07, issue #4)
 
 `talos_machine_bootstrap` used to "hang indefinitely" sometimes. The root cause is **not** the LB, the haproxy config, or a node race — it is Docker Desktop's host port publisher going **stale after rapid container churn**: when `cmd-local-test` is destroyed and recreated within ~a minute, `com.docker.backend` still ACCEPTS host connections on 50000/6443 (SYN-ACK, ESTABLISHED) but black-holes the forward into the VM — no bytes reach the container. Container, node and LB are all perfectly healthy at that point.
@@ -86,12 +88,15 @@ kubectl -n flux-system get kustomizations
 
 **Bootstrap race, self-healing:** on a fresh rebuild the ruler CR can fail its first sync (query service not up yet) → `Ready=False (ReconcileError)` on the CR. Since thanos-community/thanos-operator#636 (cmdshift/platform#22) the operator emits a single recoverable `Ready` condition — the next sync flips it `True`; no manual action, just verify it converged. The `monitoring-config` kustomization's `healthCheckExprs` gate the thanos CRs on the same condition.
 
+**First-converge races (expected, all self-heal in seconds):** the ClusterIssuer/`intermediate-ca` can flip Failed→Ready within ~10s (the issuer is evaluated before the CA secret exists), the cnpg-crds kustomization can show `Source is not ready` for one poll window, and kyverno's first image pulls may take a retry round. No manual action — verify convergence at the end.
+
 ## Companions: the caching registry
 
 `just cluster apply` brings up the out-of-cluster companions too, including the **pull-through image cache** (`registry-cloud-test`, terraform module `cluster/local/registry/`):
 
-- **angos** (`ghcr.io/project-angos/angos`) serves `registry.cloud.test` and fronts docker.io, gcr.io, public.ecr.aws, registry.k8s.io, ghcr.io, quay.io, mcr.microsoft.com (upstream map in `registry/locals.tf`)
-- every Talos node's containerd **mirrors all of those upstreams through it** (`nodes/templates/registry-mirror-config.tftpl.yaml`), so after a first fetch, node image pulls never leave the docker network — this is why rebuilds are fast and why chart images should come from registries the cache fronts (anything else, e.g. `mirror.gcr.io`, pulls direct from the internet)
+- **angos** (`ghcr.io/project-angos/angos`) serves `registry.cloud.test` and fronts the upstream map in `registry/locals.tf` (docker.io, gcr.io, public.ecr.aws, registry.k8s.io, ghcr.io, quay.io, mcr.microsoft.com, us-docker.pkg.dev, reg.kyverno.io)
+- every Talos node's containerd runs a **single wildcard mirror** (`RegistryMirrorConfig name: "*"` in `nodes/templates/registry-mirror-config.tftpl.yaml`): requests keep the original `/v2/` path (no overridePath) and carry the upstream host as the OCI Registry Proxying `?ns=` parameter, which angos resolves via each `[repository]`'s `namespace =` declaration — after a first fetch, node image pulls never leave the docker network (this is why rebuilds are fast). **Adding an upstream registry is a `registry_map` entry + `terraform apply`** — the apply recreates the angos container, the `platform-registry-data` cache volume persists, and ns-spelled and path-prefix-spelled requests share the same cache keys. No rebuild: the node machine config never changes
+- **the wildcard is strict** (`skipFallback: true`): any registry not in the angos upstream map **hard-fails at image pull** — there is no silent direct-pull fallback (the old per-registry-map behavior). Chart images must come from mapped registries, or the chart overrides to one that carries the content (kyverno → ghcr.io is the worked example: rationale in `manifests/local/policies/kyverno-values.yaml`)
 - the cache persists in the **`platform-registry-data`** docker volume (mounted at `/data`)
 
 **Landmine — the volume is not terraform-idempotent.** The `null_resource` in `registry/main.tf` runs `docker volume create platform-registry-data` only at CREATE; its trigger is a static string that never re-fires. If the volume is wiped (`docker system prune --volumes`, Docker Desktop reset, disk cleanup), `terraform apply` will **not** recreate it — the registry container just starts with an empty `/data` (silent: images re-download from upstreams, nothing errors). Fix by hand, then recreate the container:
@@ -100,6 +105,8 @@ kubectl -n flux-system get kustomizations
 docker volume create platform-registry-data
 terraform -chdir=cluster/local apply -replace=null_resource.registry_volume
 ```
+
+**Landmine — node machine config never re-lands on apply.** Node containers bake the Talos machine config into their `USERDATA` env with `lifecycle { ignore_changes = [env] }` (`nodes/main.tf`): editing a machine-config template (the registry wildcard migration was exactly this) and running `terraform apply` changes nothing on the running nodes — a **full cluster rebuild** is the only way to land it. Registry-map changes are immune (companion-side config only — that's the point of the wildcard + `?ns=` design).
 
 **Host → companion path:** `*.cloud.test` names resolve to `127.0.10.1`, where Docker Desktop's port publisher listens — that publisher path is the *only* host route into the companion network. If host curls to mail/secrets/s3 hang while the cluster itself works (check `docker logs cloud-test` — internal traffic is unaffected), `docker restart cloud-test` re-establishes the binding (hit 2026-09-07).
 

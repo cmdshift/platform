@@ -131,8 +131,7 @@ module "nodes" {
   ctrl = module.conf.nodes.ctrl
   work = module.conf.nodes.work
   registry = {
-    hostname  = module.conf.registry.services.main.hostname
-    upstreams = module.registry.upstreams
+    hostname = module.conf.registry.services.main.hostname
   }
 }
 

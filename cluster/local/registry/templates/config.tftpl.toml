@@ -11,6 +11,12 @@ root_dir = "/data"
 default = "allow"
 
 %{ for path, registry in registries ~}
+# namespace ties the repository to the OCI proxy ?ns= parameter, so the
+# wildcard Talos mirror (no path prefix) resolves to the same repository —
+# and the same cache — as the path-prefix spelling
+[repository."${path}"]
+namespace = "${registry.name}"
+
 [[repository."${path}".upstream]]
 url = "${registry.remote}"
 %{ endfor ~}

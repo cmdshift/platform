@@ -9,7 +9,7 @@ All kyverno ValidatingPolicies run in **Deny** mode — non-compliant pods/jobs 
 
 ## 1. Sizing
 
-All containers + initContainers need cpu/memory **requests and limits**. Lean requests, generous CPU limits, memory = evidence not vibes → load the `resource-sizing` skill if unsure (its audits: `memory_audit` / `cpu_audit` / `request_audit`).
+All containers + initContainers need cpu/memory **requests and limits**. Lean requests, generous CPU limits, memory = evidence not vibes → load the `resource-sizing` skill if unsure (its audits: `memory_audit` / `cpu_audit` / `request_audit` / `vpa_recs`). Part of the evidence is automatic: goldilocks maintains Off-mode VPAs for every non-system workload, so recommendations already exist — no per-workload step.
 
 ## 2. Security context
 
