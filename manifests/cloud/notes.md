@@ -70,3 +70,9 @@ Upstream thanos-community/thanos-operator#636 replaced the sticky `ReconcileSucc
 ## datastores group (local 2026-09-08, issue #49)
 
 Local gained a `datastores/` group — cloudnative-pg, NATS + NACK (queue stack; replaced the rabbitmq operators, cmdshift/platform#52), valkey-operator. Nothing instantiated yet; no local-only settings inside (all admission-clean installs) — mirror the group when refactoring `manifests/cloud/`, same channels, and reuse the manifests as-is. KubeBlocks was tried and rejected there (multi-engine operator, not single-purpose — don't resurrect it in the cloud); full rationale in `manifests/local/datastores/README.md`.
+
+## Image pulls: caching-registry mechanics are local-only (cmdshift/platform#62)
+
+The pull-through caching registry (angos at `registry.cloud.test`, wildcard containerd mirror in the node machine config) is Talos-in-Docker local-only — cloud nodes pull direct from upstreams: no angos companion, no machine-config mirror. The wildcard's strictness (any registry outside the angos upstream map hard-fails at pull, `skipFallback: true`) therefore does not apply in the cloud; mechanics in `runbooks/local/cluster-rebuild.md`.
+
+- **kyverno `global.image.registry: ghcr.io`** (override of the chart's reg.kyverno.io default; rationale comment in `manifests/local/policies/kyverno-values.yaml`): harmless in the cloud — a registry override works the same without the cache, and ghcr is the real upstream behind reg.kyverno.io anyway.

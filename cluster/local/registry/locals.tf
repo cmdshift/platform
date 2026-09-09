@@ -28,6 +28,14 @@ locals {
       name   = "mcr.microsoft.com"
       remote = "https://mcr.microsoft.com"
     }
+    gar = {
+      name   = "us-docker.pkg.dev"
+      remote = "https://us-docker.pkg.dev"
+    }
+    kyverno = {
+      name   = "reg.kyverno.io"
+      remote = "https://reg.kyverno.io"
+    }
   }
 
   registry_volume_name = "platform-registry-data"

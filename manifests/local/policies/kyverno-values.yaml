@@ -2,6 +2,12 @@ features:
   policyExceptions:
     enabled: true
     namespace: policies
+# chart default is reg.kyverno.io, a vanity proxy of ghcr (its token realm is
+# ghcr.io/token) — but the caching proxy's pull-through to it fails silently
+# (angos_pull_through_total miss, 404 served) while ghcr.io works; same content
+global:
+  image:
+    registry: ghcr.io
   # JSON logging: see logging/loki-values.yaml (nests under features here)
   logging:
     format: json

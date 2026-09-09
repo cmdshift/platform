@@ -1,12 +1,10 @@
 locals {
   ports = {
-    k8s    = 6443
-    apid   = 50000
-    trustd = 50001
+    k8s  = 6443
+    apid = 50000
   }
 
-  public_endpoint  = "https://${var.cmd.hostname}:${local.ports.k8s}"
-  private_endpoint = "https://${var.cmd.private_ip}:${local.ports.k8s}"
+  public_endpoint = "https://${var.cmd.hostname}:${local.ports.k8s}"
 
   cluster_machine_patch = templatefile("${path.module}/templates/cluster.tftpl.yaml", {
     public_endpoint = local.public_endpoint
@@ -33,7 +31,6 @@ locals {
 
   registry_mirror_config_patch = templatefile("${path.module}/templates/registry-mirror-config.tftpl.yaml", {
     registry_hostname = var.registry.hostname
-    upstreams         = var.registry.upstreams
   })
 
   user_volume_config_patch = file("${path.module}/files/user-volume-config.yaml")
