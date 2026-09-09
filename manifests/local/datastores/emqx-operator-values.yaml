@@ -1,0 +1,18 @@
+# the chart packages its ~1.42MB of CRDs in templates/ — over the 1MB
+# release-secret cap; skipCRDs is the chart's own knob (install.crds only
+# governs a crds/ dir, which this chart doesn't have) — the CRDs land via
+# the emqx-operator-crds kustomization (crds group) instead (cmdshift/platform#64)
+skipCRDs: true
+image:
+  tag: "2.3.2"
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - "ALL"
+  seccompProfile:
+    type: RuntimeDefault

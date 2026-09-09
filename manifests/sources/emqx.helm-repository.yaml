@@ -1,8 +1,8 @@
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
 metadata:
-  name: nats
+  name: emqx
   namespace: flux-system
 spec:
   interval: 12h
-  url: https://nats-io.github.io/k8s/helm/charts/
+  url: https://repos.emqx.io/charts

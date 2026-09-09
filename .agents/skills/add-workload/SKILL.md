@@ -26,7 +26,7 @@ Admission-checked too — render and size them before the first install:
 helm template <chart> | yq 'select(.kind == "Job")'
 ```
 
-Known-proofed: cert-manager `startupapicheck.resources` (all-lowercase key!), velero `upgradeJobResources`, kube-prometheus-stack `prometheusOperator.admissionWebhooks.patch.resources`.
+Known-proofed: cert-manager `startupapicheck.resources` (all-lowercase key!), velero `upgradeJobResources`, kube-prometheus-stack `prometheusOperator.admissionWebhooks.patch.resources`. The no-knob case: emqx-operator's pre-upgrade Job renders zero resources with no values knob — fixed with HelmRelease postRenderers SMP on its `cleanup` container (cmdshift/platform#64).
 
 **Operator-GENERATED pods are admission-checked as well** (trivy-operator scan jobs are the live example): an operator that spawns jobs/pods with no resources, no securityContext, or a root-declaring image gets them denied at admission — and the failure is often *silent* (scans just never run). Prefer chart values that shape generated pods (`trivyOperator.scanJobPodTemplatePodSecurityContext` etc.); note `runAsUser` must be set explicitly when the image declares `USER root` **or ships no USER directive at all** (every NATS-stack image) — `runAsNonRoot` alone fails the kubelet image-USER check. Reserve PolicyExceptions for what values can't express (tetragon agent).
 
