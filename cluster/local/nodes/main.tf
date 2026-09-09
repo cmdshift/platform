@@ -113,9 +113,46 @@ resource "docker_container" "work" {
   }
 }
 
+# Converges running nodes to the generated machine config (talosctl
+# apply-config) — the iteration path for template changes. USERDATA on the
+# containers is first-boot only; once a node has a config applied it persists
+# in the /system/state volume, so template changes propagate here without
+# recreating containers (cmdshift/platform#73).
+resource "talos_machine_configuration_apply" "ctrl" {
+  for_each = docker_container.ctrl
+
+  client_configuration        = talos_machine_secrets.main.client_configuration
+  machine_configuration_input = data.talos_machine_configuration.ctrl.machine_configuration
+  node                        = [for n in each.value.networks_advanced : n.ipv4_address if n.name == var.net.private_network_id][0]
+  endpoint                    = local.local_api_ip
+  apply_mode                  = "auto"
+  # the provider silently retries transport errors within the create timeout —
+  # 2m covers a fresh node's apid coming up while keeping a down node a fast,
+  # visible failure instead of the 10m default
+  timeouts = {
+    create = "2m"
+  }
+}
+
+resource "talos_machine_configuration_apply" "work" {
+  for_each = docker_container.work
+
+  client_configuration        = talos_machine_secrets.main.client_configuration
+  machine_configuration_input = data.talos_machine_configuration.work.machine_configuration
+  node                        = [for n in each.value.networks_advanced : n.ipv4_address if n.name == var.net.private_network_id][0]
+  endpoint                    = local.local_api_ip
+  apply_mode                  = "auto"
+  # applies route through the ctrl node's apid (no host ports on workers), so
+  # the ctrl applies must have run first
+  depends_on = [talos_machine_configuration_apply.ctrl]
+  timeouts = {
+    create = "2m"
+  }
+}
+
 resource "talos_machine_bootstrap" "main" {
   depends_on = [
-    docker_container.ctrl
+    talos_machine_configuration_apply.ctrl
   ]
   client_configuration = talos_machine_secrets.main.client_configuration
   node                 = local.boot_node
@@ -125,6 +162,24 @@ resource "talos_machine_bootstrap" "main" {
   # error (stale Docker port binding — see runbooks/local/cluster-rebuild.md).
   timeouts = {
     create = "10s"
+  }
+}
+
+# The apply doesn't return until every node's Talos services (etcd, apid,
+# kubelet) answer — on fresh installs the read defers past etcd bootstrap via
+# depends_on. K8s-level checks stay off: CNI (cilium) comes from the separate
+# bootstrap state, so node/pod checks can't pass yet at this point in the flow.
+data "talos_cluster_health" "main" {
+  client_configuration = talos_machine_secrets.main.client_configuration
+  endpoints            = [local.local_api_ip]
+  control_plane_nodes  = [for ip, c in docker_container.ctrl : ip]
+  worker_nodes         = [for ip, c in docker_container.work : ip]
+  skip_kubernetes_checks = true
+  depends_on = [
+    talos_machine_bootstrap.main
+  ]
+  timeouts = {
+    read = "5m"
   }
 }
 

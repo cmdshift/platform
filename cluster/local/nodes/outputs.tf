@@ -2,21 +2,16 @@ output "public_endpoint" {
   value = local.public_endpoint
 }
 
+# workers only — the internal haproxy frontends the Gateway, whose hostNetwork
+# listeners bind on k8s-role/work nodes; the ctrl would sit permanently
+# check-down in the backends
 output "servers" {
-  value = concat(
-    [
-      for ip, node in docker_container.ctrl : {
-        name = node.name
-        ipv4 = ip
-      }
-    ],
-    [
-      for ip, node in docker_container.work : {
-        name = node.name
-        ipv4 = ip
-      }
-    ]
-  )
+  value = [
+    for ip, node in docker_container.work : {
+      name = node.name
+      ipv4 = ip
+    }
+  ]
 }
 
 output "boot_node" {
