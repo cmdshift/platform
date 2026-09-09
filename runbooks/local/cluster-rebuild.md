@@ -19,11 +19,14 @@ just bootstrap apply    # cilium + flux helm releases + the Bucket/root hooks
 The two terraform modules are deliberately asymmetric: `cluster/local` (nodes + companions) has no destroy guards, while `cluster/local/bootstrap` (flux + Bucket/root hooks) carries `lifecycle.prevent_destroy` on the flux state — **`just bootstrap destroy` fails on purpose**. The rebuild flow replaces the cluster underneath the bootstrap state and lets `bootstrap apply` reinstall flux onto it:
 
 ```
-just bootstrap destroy -auto-approve     # fails by design (prevent_destroy) — skip it
+just bootstrap destroy -auto-approve     # fails by design (prevent_destroy) — the plan
+                                         # error ("Instance cannot be destroyed") IS the
+                                         # guard, not a problem; skip straight to the next line
 just cluster destroy -auto-approve       # ~1m; wipes rustfs + PVCs (see Data implications)
 just cluster apply -auto-approve         # can hang at bootstrap — recovery below
 # ... 20-30s pause ...
-just bootstrap apply -auto-approve       # ~90s, 4 resources (flux, hooks)
+just bootstrap apply -auto-approve       # ~90s, 4 resources (flux, hooks); idempotent —
+                                         # re-run if the API wasn't accepting yet
 ```
 
 **The `cluster apply` hang recipe** (operator-verified): spawn it in the background, kill it after ~1 minute, wait 20-30 seconds before bootstrapping. Details that bit the 2026-09-07 run:
@@ -38,26 +41,26 @@ The 20-30s pause before `bootstrap apply` is load-bearing: the kube API needs th
 
 ### The bootstrap hang: stale Docker port binding (root-caused 2026-09-07, issue #4)
 
-`talos_machine_bootstrap` used to "hang indefinitely" sometimes. The root cause is **not** the LB, the haproxy config, or a node race — it is Docker Desktop's host port publisher going **stale after rapid container churn**: when `cmd-local-test` is destroyed and recreated within ~a minute, `com.docker.backend` still ACCEPTS host connections on 50000/6443 (SYN-ACK, ESTABLISHED) but black-holes the forward into the VM — no bytes reach the container. Container, node and LB are all perfectly healthy at that point.
+`talos_machine_bootstrap` used to "hang indefinitely" sometimes. The root cause is **not** the (former) LB, a node race, or the network — it is Docker Desktop's host port publisher going **stale after rapid container churn**: when a port-publishing container is destroyed and recreated within ~a minute, `com.docker.backend` still ACCEPTS host connections on 50000/6443 (SYN-ACK, ESTABLISHED) but black-holes the forward into the VM — no bytes reach the container. Container, node and everything else are perfectly healthy at that point.
 
 The talos provider turns that into the hang: `talos_machine_bootstrap` silently retries every transport error for its **10-minute default create timeout** (final error: `rpc error: code = Unavailable desc = "transport: authentication handshake failed: context deadline exceeded"`). A fresh `terraform apply` right after a clean destroy rarely trips it; back-to-back churn (killed apply → destroy → apply) does. The failure mode is per-container, not per-port — the companions hit the same thing after a Docker Desktop restart ([companion landmine below](#companions-the-caching-registry)).
 
-**Recovery (verified):**
+Since cmdshift/platform#54 there is no API LB: the published ports (6443/50000, host loopback only) live on the **ctrl node container itself**, so a stale binding puts the recovery on that container — restarting it is a node reboot (API blip, etcd restart; flux re-converges, nothing is lost):
 
 ```
-docker restart cmd-local-test                      # re-establishes the binding; takes ~2s
-terraform -chdir=cluster/local apply -auto-approve # only bootstrap + kubeconfig remain; ~seconds
+docker restart $(docker ps -q --filter name=ctrl-local-test)  # re-establishes the binding; ~30s to Ready
+terraform -chdir=cluster/local apply -auto-approve            # only bootstrap + kubeconfig remain; ~seconds
 ```
 
-**Diagnostics that nailed it** (the evidence, if it recurs):
+**Diagnostics** (the evidence, if it recurs — the former haproxy stats socket is gone with the LB):
 
-- haproxy stats socket: `docker exec cmd-local-test wget -qO- 'http://127.0.0.1:8404/stats;csv'` — during the hang the apid frontend's `stot` (total sessions) stays frozen while the provider retries; after `docker restart` it starts climbing immediately.
-- `lsof -nP -p <provider-pid> | rg 50000` — the provider's socket shows ESTABLISHED to `127.0.0.1:50000` while haproxy never logs the connection.
-- The k8s frontend (6443) keeps serving the kubelet SC-flood from inside the docker network meanwhile — internal traffic is unaffected, only the host→container published path is dead.
+- `curl -skf --max-time 3 https://127.0.0.1:6443/version` from the host — hang/black-hole = dead binding; 401 = publisher alive (it can't 401 unless bytes reach the API server)
+- `lsof -nP -p <provider-pid> | rg 50000` — the provider's socket shows ESTABLISHED to `127.0.0.1:50000` while the node never logs the connection
+- the API keeps serving kubelet traffic from inside the docker network meanwhile — internal traffic is unaffected, only the host→container published path is dead
 
-**Mitigations now in the tree:** fail-fast `timeouts` on the bootstrap and kubeconfig resources in `nodes/main.tf` (10s each — the healthy path is sub-second; the hang surfaces as a real error in seconds instead of 10 silent minutes); haproxy checks tightened to `inter 1s fall 3 rise 2`, the apid-frontend reject ACL removed (bootstrap must be reachable before every check has risen; the k8s frontend keeps the partial-quorum gate), tunnel timeouts raised to 30m, and the stats socket + tcplog added for diagnosis.
+**Mitigations now in the tree:** fail-fast `timeouts` on the bootstrap and kubeconfig resources in `nodes/main.tf` (10s each — the healthy path is sub-second; the hang surfaces as a real error in seconds instead of 10 silent minutes).
 
-**Multi-ctrl ceiling:** `ctrl_nodes = 3` is verified working (3 ctrl + 4 workers registered, bootstrap + kubeconfig clean, all nodes Ready) but **saturates the Docker VM during the install burst** — ctrl nodes peg 175-200% CPU, etcd write-stalls (`etcdserver: request timed out` across the flux tree), apiserver connections reset mid-write. That is the host machine's CPU/IOPS ceiling, not a software defect; `ctrl_nodes` stays 1 with that rationale. If a beefier host runs 3 ctrl nodes, re-verify the install-burst stall before trusting it.
+**Multi-ctrl ceiling (historical, knob removed in cmdshift/platform#54):** `ctrl_nodes = 3` was verified working (3 ctrl + 4 workers registered, all nodes Ready) but **saturated the Docker VM during the install burst** — ctrl nodes pegged 175-200% CPU, etcd write-stalled (`etcdserver: request timed out` across the flux tree), apiserver connections reset mid-write. That is the host machine's CPU/IOPS ceiling, not a software defect; the ctrl node is now a **single fixed entry** (no count knob, no LB — one backend needs neither). If a beefier host ever wants 3 ctrl nodes, that's a terraform change plus re-verifying the install-burst stall.
 
 Then watch convergence — **expect ~10 minutes**, progressing through the dependency chain in this order:
 
@@ -79,16 +82,19 @@ kubectl -n flux-system get kustomizations
 | Check | Command | Expect |
 |---|---|---|
 | Kustomizations | `flux_wait -c` | exit 0, all Ready |
-| HelmReleases | `kubectl get helmreleases -A` | 17/17 True (per-release: `helm_wait -c <ns> <name>`) |
+| HelmReleases | `kubectl get helmreleases -A` | all True (per-release: `helm_wait -c <ns> <name>`) |
 | flux-config adoption | `kubectl -n flux-system get kustomization local -o json --show-managed-fields` | `kustomize-controller` owns the spec |
 | Velero BSL | `kubectl -n backups get bsl default` | `Available` |
 | Rustfs buckets | `rustfs ls main/` | `flux`, `backups` (auto-provisioned) |
-| Thanos ruler | `kubectl -n monitoring get pods -l app.kubernetes.io/name=thanos-ruler` | 2/2 Running, rule files wired |
+| Thanos ruler | `kubectl -n monitoring get pods -l app.kubernetes.io/name=thanos-ruler` | 1/1 Running (CR sets `replicas: 1`) |
 | PolicyReports | `policy_report` | 0 failures |
+| Host API path | `curl -skf --max-time 3 https://127.0.0.1:6443/version` | 401 (publisher alive; kubeconfig server = 127.0.0.1:6443) |
+| Browser paths | `curl -s -o /dev/null -w '%{http_code}' http://mail.cloud.test` | 200 (s3 → 403 = auth challenge, also fine) |
+| Ingress | `curl -s -o /dev/null -w '%{http_code}' http://local.test` | **503 until cmdshift/platform#70 lands** — the Gateway path has never been verified green locally |
 
 **Bootstrap race, self-healing:** on a fresh rebuild the ruler CR can fail its first sync (query service not up yet) → `Ready=False (ReconcileError)` on the CR. Since thanos-community/thanos-operator#636 (cmdshift/platform#22) the operator emits a single recoverable `Ready` condition — the next sync flips it `True`; no manual action, just verify it converged. The `monitoring-config` kustomization's `healthCheckExprs` gate the thanos CRs on the same condition.
 
-**First-converge races (expected, all self-heal in seconds):** the ClusterIssuer/`intermediate-ca` can flip Failed→Ready within ~10s (the issuer is evaluated before the CA secret exists), the cnpg-crds kustomization can show `Source is not ready` for one poll window, and kyverno's first image pulls may take a retry round. No manual action — verify convergence at the end.
+**First-converge races (expected, all self-heal in seconds-to-minutes; verified again 2026-09-09):** the ClusterIssuer/`intermediate-ca` can flip Failed→Ready within ~10s (the issuer is evaluated before the CA secret exists); the Seaweed CR reports `Volume: 0/1 ready` for a minute or two while the volume server registers with the master; the Alertmanager CR sits at `NoPodReady` for ~40-60s while its StatefulSet pod initializes — this one trips the `monitoring-config` health check and is the recurring rebuild blip tracked in cmdshift/platform#69; the cnpg-crds kustomization can show `Source is not ready` for one poll window; kyverno's first image pulls may take a retry round. No manual action — verify convergence at the end.
 
 ## Companions: the caching registry
 
@@ -117,9 +123,9 @@ Restarting Docker Desktop (memory bump, Docker update, host reboot) stops **all*
 ```
 # companions first — dns + registry are what the nodes need to boot clean
 docker start $(docker ps -a --format '{{.Names}}' | rg 'cloud-test$')
-# API LB + tooling, control plane (etcd), then workers — the -xxxx suffix is
+# ingress LB, then control plane (etcd), then workers — the -xxxx suffix is
 # terraform-random per cluster, so match the name pattern
-docker start local-test cmd-local-test
+docker start local-test
 docker start $(docker ps -a --format '{{.Names}}' | rg '^ctrl-local-test')
 docker start $(docker ps -a --format '{{.Names}}' | rg '^work-local-test')
 ```

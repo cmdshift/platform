@@ -20,11 +20,11 @@ just bootstrap apply    # cilium + flux helm releases + the Bucket/root hooks
 ```
 
 **Destroy + recreate from scratch (operator recipe):**
-1. `just bootstrap destroy` **fails by design** — `lifecycle.prevent_destroy` guards the flux state (bucket_credentials, helm_release.flux, …). That's the point: the cluster module is destroyed *underneath* the bootstrap state, and `bootstrap apply` reinstalls flux onto the fresh cluster.
+1. `just bootstrap destroy` **always fails** — `lifecycle.prevent_destroy` guards the flux state (bucket_credentials, helm_release.flux, …), and the plan error ("Instance cannot be destroyed") IS that guard, not a problem to fix. Skip it (or run it and ignore the failure); the cluster module is destroyed *underneath* the bootstrap state and `bootstrap apply` reinstalls flux onto the fresh cluster.
 2. `just cluster destroy -auto-approve` (~1m, wipes rustfs + PVCs per data implications).
-3. `just cluster apply -auto-approve` (~45s at 1 ctrl node). **If it hangs at `talos_machine_bootstrap`**: root cause is a stale Docker Desktop port binding after container churn — host listener accepts but black-holes into the VM (not the LB, not a node race). Recovery: kill the apply, `docker restart cmd-local-test`, re-run the apply — only bootstrap + kubeconfig remain and they land in seconds. The provider now fails fast (10s timeouts) instead of its old silent 10m retry. Verify with the haproxy stats socket: `docker exec cmd-local-test wget -qO- 'http://127.0.0.1:8404/stats;csv'` — apid frontend `stot` climbing = binding alive. Non-interactive shells MUST pass `-auto-approve` (the approval prompt EOFs otherwise).
+3. `just cluster apply -auto-approve` (~45s at 1 ctrl node). **If it hangs at `talos_machine_bootstrap`**: root cause is a stale Docker Desktop port binding after container churn — host listener accepts but black-holes into the VM (not the node, not a race). Recovery: kill the apply, `docker restart $(docker ps -q --filter name=ctrl-local-test)` (node reboot, ~30s to Ready), re-run the apply — only bootstrap + kubeconfig remain and they land in seconds. The provider now fails fast (10s timeouts) instead of its old silent 10m retry. Verify with `curl -skf --max-time 3 https://127.0.0.1:6443/version` — 401 = binding alive. Non-interactive shells MUST pass `-auto-approve` (the approval prompt EOFs otherwise).
 4. `just bootstrap apply -auto-approve` (~90s; 4 resources). The kube API needs **20-30s after `cluster apply`** to accept connections (nodes Ready ≠ API serving) — a bootstrap apply run too early fails on the first kubernetes resource (e.g. `kubernetes_namespace_v1.flux_system` connection refused). Wait ~30s and **re-run: bootstrap apply is idempotent**, the retry converges whatever the failed attempt partially created.
-5. Everything reconciles eventually — the dependency chain below takes ~10m; the trivy cold-start race pod (below) is expected.
+5. Everything reconciles eventually — the dependency chain below takes ~10m; the trivy cold-start race pod (below) is expected. First-converge blips that self-heal (ClusterIssuer, Seaweed volume 0/1, Alertmanager NoPodReady — the recurring one, cmdshift/platform#69) are catalogued in the runbook's verification section.
 
 Expect **~10 minutes**, progressing through the dependency chain in order:
 
@@ -42,13 +42,14 @@ Watch with `flux_wait` (interactive cap ~15), or `flux_wait -c` for an instant n
 | Check | Command | Expect |
 |---|---|---|
 | Kustomizations | `flux_wait -c` | exit 0, all Ready |
-| HelmReleases | `kubectl get helmreleases -A` | 15/15 True (incl. security/tetragon); per-release: `helm_wait -c <ns> <name>` |
+| HelmReleases | `kubectl get helmreleases -A` | all True; per-release: `helm_wait -c <ns> <name>` |
 | Tetragon policies | `tetra --server-address localhost:54321 tracingpolicy list` (after `kubectl -n security port-forward ds/tetragon 54321:54321`) | 4 × enabled, monitor_only; FILTERID non-zero for privileges-raise + sensitive-host-paths |
 | Policy load failures | `prometheus_query 'tetragon_tracingpolicy_loaded{state=~"error\|load_error"} > 0'` | empty (the gauge exports zero-valued states too — filter with `> 0`) |
 | flux-config adoption | `kubectl -n flux-system get kustomization local -o json --show-managed-fields` | `kustomize-controller` owns the spec |
 | Velero BSL | `kubectl -n backups get bsl default` | `Available` |
 | Rustfs buckets | `rustfs ls main/` | `flux`, `backups` |
 | Thanos ruler | `kubectl -n monitoring get pods -l app.kubernetes.io/name=thanos-ruler` | 1/1 Running (CR sets `replicas: 1`) |
+| Host API path | `curl -skf --max-time 3 https://127.0.0.1:6443/version` | 401 = publisher alive |
 | Trivy scan pod | `kubectl -n security get pods` | one `scan-vulnerabilityreport-*` pod in `Error` is EXPECTED (see below); all later scans `Completed`, VulnerabilityReports accumulating |
 | PolicyReports | `policy_report` | 0 failures |
 
