@@ -71,6 +71,10 @@ Upstream thanos-community/thanos-operator#636 replaced the sticky `ReconcileSucc
 
 Local gained a `datastores/` group — cloudnative-pg, valkey-operator, emqx-operator (MQTT broker operator; replaced the NATS + NACK queue stack, cmdshift/platform#64, which had replaced the rabbitmq operators, cmdshift/platform#52). Nothing instantiated yet; no local-only settings inside (all admission-clean installs) — mirror the group when refactoring `manifests/cloud/`, same channels, and reuse the manifests as-is (the emqx install is the CNPG CRD pattern: chart `skipCRDs: true` + the `emqx-operator-crds` child kustomization, whose GitRepository tag must be bumped in lockstep with the chart version). KubeBlocks was tried and rejected there (multi-engine operator, not single-purpose — don't resurrect it in the cloud); full rationale in `manifests/local/datastores/README.md`.
 
+## Bootstrap module (when added)
+
+Replicate the local bootstrap's readiness gate (cmdshift/platform#72): a `data "http"` poll of the kube API endpoint (CA-pinned) gating the first kubernetes/helm resources, so apply blocks in plan until the API serves instead of relying on a manual wait-and-re-run after node provisioning.
+
 ## Image pulls: caching-registry mechanics are local-only (cmdshift/platform#62)
 
 The pull-through caching registry (angos at `registry.cloud.test`, wildcard containerd mirror in the node machine config) is Talos-in-Docker local-only — cloud nodes pull direct from upstreams: no angos companion, no machine-config mirror. The wildcard's strictness (any registry outside the angos upstream map hard-fails at pull, `skipFallback: true`) therefore does not apply in the cloud; mechanics in `runbooks/local/cluster-rebuild.md`.

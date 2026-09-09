@@ -101,7 +101,7 @@ Pod DNS: kube-dns → talos hostDNS (`forwardKubeDNSToHost`) → coredns. Compan
 ## Terraform roots
 
 1. `cluster/local` — network, companions, talos nodes, secrets, kubeconfig/talosconfig (`.tmp/`). Outputs `bootstrap` (k8s client config + flux bucket credentials)
-2. `cluster/local/bootstrap` — reads that output via local remote state; installs cilium + flux and the helm-hook Bucket/root Kustomization (flux-config force-adopts them on first reconcile). Carries `lifecycle.prevent_destroy` — `just bootstrap destroy` always fails by design
+2. `cluster/local/bootstrap` — reads that output via local remote state; gates on an apiserver readiness poll before applying resources (cmdshift/platform#72); installs cilium + flux and the helm-hook Bucket/root Kustomization (flux-config force-adopts them on first reconcile). Carries `lifecycle.prevent_destroy` — `just bootstrap destroy` always fails by design
 
 Companion state is disposable except the angos cache volume (see the registry landmine in the runbook). Node machine configs are baked into the container env with `ignore_changes` — template edits need a full rebuild, never just `apply`.
 
