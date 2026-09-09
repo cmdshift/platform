@@ -25,6 +25,8 @@ resource "docker_container" "local" {
     external = 443
     ip       = "127.0.0.1"
   }
+  memory      = 256
+  memory_swap = 256
   upload {
     file = "/usr/local/etc/haproxy/haproxy.cfg"
     content = templatefile("${path.module}/templates/haproxy.tftpl.cfg", {

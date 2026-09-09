@@ -4,7 +4,7 @@ resource "docker_image" "mailpit" {
   pull_triggers = [data.docker_registry_image.mailpit.sha256_digest]
 }
 
-resource "docker_container" "secrets" {
+resource "docker_container" "mail" {
   name         = var.name
   image        = docker_image.mailpit.name
   network_mode = "bridge"
@@ -12,4 +12,6 @@ resource "docker_container" "secrets" {
     name         = var.net.private_network_id
     ipv4_address = var.net.private_ip
   }
+  memory      = 256
+  memory_swap = 256
 }

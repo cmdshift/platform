@@ -18,11 +18,6 @@ variable "internal_hostname" {
   default = "local.test"
 }
 
-variable "ctrl_nodes" {
-  type    = number
-  default = 1 # 3-node etcd saturates the Docker VM during the install burst (host CPU/IOPS ceiling); 1 node has no quorum trade-off that matters here
-}
-
 variable "work_nodes" {
   type    = number
   default = 4 # leave set to 4 for now. cilium/kyverno forces host network

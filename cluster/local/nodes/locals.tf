@@ -4,18 +4,23 @@ locals {
     apid = 50000
   }
 
-  public_endpoint = "https://${var.cmd.hostname}:${local.ports.k8s}"
+  # host-side API identity: the ctrl container publishes k8s/apid on the host
+  # loopback; the cluster endpoint itself is the ctrl node IP (nodes reach it
+  # L2-direct on the private network)
+  local_api_ip    = "127.0.0.1"
+  ctrl_ip         = cidrhost(var.net.ctrl_cidr, 1)
+  public_endpoint = "https://${local.ctrl_ip}:${local.ports.k8s}"
 
   cluster_machine_patch = templatefile("${path.module}/templates/cluster.tftpl.yaml", {
     public_endpoint = local.public_endpoint
-    cmd_hostname    = var.cmd.hostname
-    cmd_private_ip  = var.cmd.private_ip
+    local_api_ip    = local.local_api_ip
+    ctrl_ip         = local.ctrl_ip
     ctrl_cidr       = var.net.ctrl_cidr
   })
 
   base_machine_patch = templatefile("${path.module}/templates/base.tftpl.yaml", {
-    cmd_hostname   = var.cmd.hostname
-    cmd_private_ip = var.cmd.private_ip
+    local_api_ip   = local.local_api_ip
+    ctrl_ip        = local.ctrl_ip
     ctrl_cidr      = var.net.ctrl_cidr
     work_cidr      = var.net.work_cidr
     dns_private_ip = var.dns.private_ip

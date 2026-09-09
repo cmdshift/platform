@@ -22,6 +22,8 @@ resource "docker_container" "sync" {
     name         = var.net.private_network_id
     ipv4_address = var.net.private_ip
   }
+  memory      = 64
+  memory_swap = 64
   upload {
     file       = "/tmp/mirror.sh"
     content    = file("${path.module}/scripts/mirror.sh")

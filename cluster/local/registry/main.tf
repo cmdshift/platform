@@ -27,6 +27,8 @@ resource "docker_container" "registry" {
     container_path = "/data"
     volume_name    = null_resource.registry_volume.triggers.volume_name
   }
+  memory      = 256
+  memory_swap = 256
   upload {
     file = "/etc/angos/config.toml"
     content = templatefile("${path.module}/templates/config.tftpl.toml", {

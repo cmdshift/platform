@@ -21,13 +21,6 @@ variable "dns" {
   })
 }
 
-variable "cmd" {
-  type = object({
-    hostname   = string
-    private_ip = string
-  })
-}
-
 variable "ctrl" {
   type = map(object({
     name = string
