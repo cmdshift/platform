@@ -10,6 +10,7 @@ resources:
   - ../../sources/external-secrets.helm-repository.yaml
   - ../../sources/fluxcd-community.helm-repository.yaml
   - ../../sources/metrics-server.helm-repository.yaml
+  - ../../sources/fairwinds.helm-repository.yaml
   - ../../sources/local-path-provisioner.git-repository.yaml
   - ../../sources/velero.helm-repository.yaml
   - ../../sources/seaweedfs-operator.helm-repository.yaml

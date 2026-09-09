@@ -15,9 +15,9 @@ namespaces → sources → crds → secrets → secrets-config → certificates 
 → backups → backups-config → logging → security → security-config
 ```
 
-Groups without a README are self-explanatory: `crds/` (vendored/child-kustomization CRDs, `prune: false`), `sources/` (HelmRepository/GitRepository pins), `namespaces/` (namespace manifests — **explicit resources list in `kustomization.yaml`; an unregistered `*.namespace.yaml` is silently inert**), `metrics/` (metrics-server).
+Groups without a README are self-explanatory: `crds/` (vendored/child-kustomization CRDs, `prune: false`), `sources/` (HelmRepository/GitRepository pins), `namespaces/` (namespace manifests — **explicit resources list in `kustomization.yaml`; an unregistered `*.namespace.yaml` is silently inert**).
 
-Group READMEs: [networking](networking/README.md) · [policies](policies/README.md) · [secrets](secrets/README.md) · [certificates](certificates/README.md) · [storage](storage/README.md) · [objects](objects/README.md) · [datastores](datastores/README.md) · [monitoring](monitoring/README.md) · [backups](backups/README.md) · [logging](logging/README.md) · [security](security/README.md) · [flux](flux/README.md)
+Group READMEs: [networking](networking/README.md) · [metrics](metrics/README.md) · [policies](policies/README.md) · [secrets](secrets/README.md) · [certificates](certificates/README.md) · [storage](storage/README.md) · [objects](objects/README.md) · [datastores](datastores/README.md) · [monitoring](monitoring/README.md) · [backups](backups/README.md) · [logging](logging/README.md) · [security](security/README.md) · [flux](flux/README.md)
 
 ## Conventions
 

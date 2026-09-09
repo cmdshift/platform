@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# VPA recommendations vs current requests — the EVIDENCE side of sizing.
+# Companion to memory_audit/cpu_audit (the usage side): goldilocks maintains
+# an Off-mode VPA per workload (vpa + goldilocks in metrics/, see
+# manifests/local/metrics/README.md) and the VPA recommender fills
+# status.recommendation from metrics-server history. A recommendation is a
+# candidate request (P99-shaped), not a drop-in — cross-check against the
+# usage audits and the sizing convention (resource-sizing skill) before
+# editing manifests. Positive delta = recommendation ABOVE current request
+# (under-provisioned), negative = below (over-provisioned).
+#   vpa_recs [namespace]   # optional single-namespace filter
+# Exit 0 = audited, 2 = usage or kubectl error.
+
+usage() {
+  echo "usage: vpa_recs [namespace]   # optional single-namespace filter" >&2
+  exit 2
+}
+
+[ $# -le 1 ] || usage
+NS="${1:-}"
+ns_args=(-A); [ -n "$NS" ] && ns_args=(-n "$NS")
+
+# one row per container with a recommendation: key + target + uncapped marker;
+# a VPA with no recommendation yet emits a single "(all)" pending row
+collect_vpa() {
+  kubectl get vpa "${ns_args[@]}" -o json | jq -r '
+    .items[]
+    | .metadata.namespace as $ns
+    | (.spec.targetRef.kind + "/" + .spec.targetRef.name) as $wl
+    | [(.status.recommendation.containerRecommendations // [])[]]
+    | if length == 0 then
+        [($ns + "/" + $wl + "/(all)"), "-", "-", ""]
+      else
+        .[]
+        | [($ns + "/" + $wl + "/" + .containerName),
+           (.target.cpu // "-"), (.target.memory // "-"),
+           (if .target.cpu == .uncappedTarget.cpu and .target.memory == .uncappedTarget.memory
+            then "" else "*" end)]
+      end
+    | @tsv' | sort -t "$(printf '\t')" -k1,1
+}
+
+# current requests from the workload controllers (the join side)
+collect_requests() {
+  kubectl get deployment,statefulset,daemonset "${ns_args[@]}" -o json | jq -r '
+    .items[]
+    | .metadata.namespace as $ns
+    | (.kind + "/" + .metadata.name) as $wl
+    | .spec.template.spec.containers[]?
+    | [($ns + "/" + $wl + "/" + .name),
+       (.resources.requests.cpu // "-"),
+       (.resources.requests.memory // "-")]
+    | @tsv' | sort -t "$(printf '\t')" -k1,1
+}
+
+tmp_vpa=$(mktemp); tmp_req=$(mktemp)
+trap 'rm -f "$tmp_vpa" "$tmp_req"' EXIT
+collect_vpa > "$tmp_vpa" || exit 2
+collect_requests > "$tmp_req" || exit 2
+
+# excludes mirror goldilocks controller.flags.exclude-namespaces — workloads
+# there have no VPAs by design, so they don't count as gaps
+GAP=$(join -v2 -t "$(printf '\t')" -1 1 -2 1 "$tmp_vpa" \
+      < <(grep -vE $'^(kube-system|flux-system)/' "$tmp_req") \
+      | wc -l | tr -d ' ')
+
+join -t "$(printf '\t')" -j 1 "$tmp_vpa" "$tmp_req" | awk -F'\t' '
+  function cnum(q) {  # cpu quantity → millicores ("" handles "-")
+    if (q == "-") return -1
+    if (q ~ /n$/) { sub(/n$/, "", q); return q / 1000000 }
+    if (q ~ /u$/) { sub(/u$/, "", q); return q * 1000 }
+    if (q ~ /m$/) { sub(/m$/, "", q); return q + 0 }
+    return q * 1000
+  }
+  function mnum(q) {  # memory quantity → Mi (VPA emits raw bytes)
+    if (q == "-") return -1
+    if (q ~ /Ki$/) { sub(/Ki$/, "", q); return q / 1024 }
+    if (q ~ /Mi$/) { sub(/Mi$/, "", q); return q + 0 }
+    if (q ~ /Gi$/) { sub(/Gi$/, "", q); return q * 1024 }
+    if (q ~ /K$/)  { sub(/K$/, "", q);  return q / 1024 }
+    if (q ~ /M$/)  { sub(/M$/, "", q);  return q + 0 }
+    if (q ~ /G$/)  { sub(/G$/, "", q);  return q * 1024 }
+    return q / 1048576
+  }
+  function fmt(req, tgt, unit) {
+    if (tgt < 0) return "pending"
+    if (req < 0) return sprintf("%.0f%s (no req)", tgt, unit)
+    return sprintf("%.0f%s → %.0f%s  %+d%%", req, unit, tgt, unit, (tgt - req) / req * 100)
+  }
+  {
+    split($1, p, "/")  # ns / kind / name / container
+    tc = cnum($2); tm = mnum($3); rc = cnum($5); rm = mnum($6)
+    cpus = (rc == 0) ? (tc < 0 ? "pending" : sprintf("%.0fm (no req)", tc)) : fmt(rc, tc, "m")
+    mems = (rm == 0) ? (tm < 0 ? "" : sprintf("%.0fMi (no req)", tm)) : fmt(rm, tm, "Mi")
+    printf "%-13s %-42s %-18s %-32s %s%s\n", p[1], p[2] "/" p[3], p[4], cpus, mems, $4
+  }'
+
+echo "---"
+echo "pending = recommender has no recommendation yet (fresh VPA or no metrics history)"
+echo "* = uncappedTarget differs from target (resourcePolicy caps in play)"
+echo "workload containers without a VPA (kube-system/flux-system excluded): $GAP"

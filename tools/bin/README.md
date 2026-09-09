@@ -53,6 +53,7 @@ tree.
 | `memory_audit` | memory usage-vs-limits table |
 | `cpu_audit` | CPU throttling top-N + usage-vs-limits table |
 | `request_audit` | usage-vs-requests table, memory + CPU (scheduling side) |
+| `vpa_recs` | VPA recommendations vs current requests (sizing evidence side) |
 | `policy_report` | PolicyReport summary + stale-report detection (`--clean` deletes them) |
 | `kyverno_unblock` | unstick kyverno rollouts deadlocked on hostNetwork ports |
 | `prometheus_query` | PromQL with port-forward lifecycle handled |
@@ -233,6 +234,20 @@ memory request are first in line for eviction under node pressure and their
 scheduling reservation lies. Footer: counts over 100% and over the audit
 threshold, plus containers without a memory request (control-plane statics
 expected). Same threshold validation.
+
+### `vpa_recs [namespace]`
+
+VPA recommendations vs current requests — the **evidence** side of sizing
+(request_audit/memory_audit are the usage side; a VPA target is a P99-shaped
+candidate request, not a drop-in — cross-check against the audits and the
+sizing convention). One row per container: `req → target  Δ%` for CPU and
+memory, from the Off-mode VPAs goldilocks maintains (metrics/ group) joined
+against the workload controllers' current requests. Footer explains
+`pending` (no recommendation yet) and `*` (uncapped differs from target);
+counts workload containers without a VPA (kube-system/flux-system excluded,
+mirroring the goldilocks exclude list). Optional namespace filter. Exit 0 =
+audited, 2 = usage or kubectl error. Dashboard (port-forward):
+`kubectl -n kube-system port-forward svc/goldilocks-dashboard 8080:80`.
 
 ## Admission / policy
 
