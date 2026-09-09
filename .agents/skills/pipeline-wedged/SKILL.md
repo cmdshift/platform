@@ -5,20 +5,17 @@ description: Manifest edits are not reaching the cluster — workloads keep runn
 
 # GitOps pipeline wedge
 
-The chain: local file → sync container (`rc mirror --overwrite --remove` + inotify) → `flux` bucket on rustfs → `Bucket/main` source → root `Kustomization/local` → children. Find the break stage by stage.
+The chain: local file → sync container (full `rc mirror --overwrite --remove` every 5s) → `flux` bucket on rustfs → `Bucket/main` source → root `Kustomization/local` → children. Find the break stage by stage.
 
 ## 1. Sync container
 
 ```
+docker ps                           # is sync-cloud-test even up?
 docker logs sync-cloud-test --since 10m
 rustfs ls main/flux --recursive     # compare against the local tree
 ```
 
-Classic symptom: edits propagate but **deletions** don't (macOS bind mounts drop inotify delete events; edits get dropped too). Fix for anything stale or missing:
-
-```
-docker restart sync-cloud-test      # startup runs a full --remove mirror — deterministic
-```
+No dropped-event symptom exists anymore — the mirror is a full `--remove` re-mirror every 5s and self-heals missed changes in one pass (cmdshift/platform#55: macOS bind mounts drop inotify events). Logs are silent when healthy; `mirror failed; retrying` = rustfs down or bad credentials. A stale bucket = container stopped (`docker restart sync-cloud-test` restarts the loop) or rustfs down (stage 2).
 
 ## 2. Bucket source
 

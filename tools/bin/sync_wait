@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Wait until locally-changed manifests have actually landed in the flux
-# bucket — run BEFORE flux_wait. The sync container mirrors via inotify and
-# drops events (documented in AGENTS.md; hit live twice on plain
-# edits) — a reconcile against a stale artifact fails confusingly or, for a
-# helm release, churns upgrade/rollback cycles.
+# bucket — run BEFORE flux_wait. The sync mirror is a ≤5s poll and the
+# Bucket source pulls on its own schedule, so reconciling without sync_wait
+# can still race a fresh edit — a reconcile against a stale artifact fails
+# confusingly or, for a helm release, churns upgrade/rollback cycles.
 #
 #   sync_wait                  # wait for every uncommitted change under manifests/
 #   sync_wait <path>...        # wait for specific files (repo-relative or absolute)
@@ -11,7 +11,7 @@
 # Compares sha256 of each local file against `rustfs cat main/flux/<path>`
 # (deleted files: converged when the bucket object is gone). Bounded poll
 # (SYNC_WAIT_TIMEOUT, default 120s) echoing progress; exit 0 = converged,
-# 1 = timeout (still-stale files listed + restart hint), 2 = usage.
+# 1 = timeout (still-stale files listed + diagnose hint), 2 = usage.
 #
 # Nothing to do (no changes) exits 0 immediately.
 
@@ -97,7 +97,7 @@ sync_wait() {
     if (( $(date +%s) - START > TIMEOUT )); then
       echo "sync_wait: TIMEOUT after ${TIMEOUT}s — still stale in bucket:"
       sed 's/^/  /' <<< "$pending"
-      echo "hint: docker restart sync-cloud-test forces a full re-mirror (runbooks/local/pipeline-wedged.md)"
+      echo "hint: check the sync + storage containers per runbooks/local/pipeline-wedged.md — the mirror poll self-heals, so a timeout means the sync container is stopped or rustfs is down"
       exit 1
     fi
     echo "sync_wait: waiting on $(wc -l <<< "$pending") file(s): $(tr '\n' ' ' <<< "$pending")"

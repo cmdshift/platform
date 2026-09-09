@@ -4,7 +4,7 @@ The flux v2 controllers themselves + `flux-config/` (the `Bucket/main` source an
 
 ## Source of truth chain
 
-Local file → sync container (inotify `rc mirror --overwrite --remove`) → `flux` bucket on rustfs → `Bucket/main` → root `Kustomization/local` → children in dependency order. Pipeline mechanics and wedge recovery: [runbooks/local/pipeline-wedged.md](../../runbooks/local/pipeline-wedged.md).
+Local file → sync container (full `rc mirror --overwrite --remove` re-mirror every 5s) → `flux` bucket on rustfs → `Bucket/main` → root `Kustomization/local` → children in dependency order. Pipeline mechanics and wedge recovery: [runbooks/local/pipeline-wedged.md](../../runbooks/local/pipeline-wedged.md).
 
 ## flux-config owns the pipeline's own objects
 

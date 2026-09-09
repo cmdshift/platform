@@ -43,10 +43,10 @@ Bar to clear: if this session hit a landmine, cost a debugging round, or produce
 
 ## How changes propagate
 
-Local file → docker sync container (`rc mirror --overwrite --remove` + inotify) → S3 bucket `flux` on **rustfs** (out-of-cluster, terraform/docker `storage` container, endpoint `s3.cloud.test`) → flux `Bucket` source (`main`, 5m interval) → `Kustomization/local` (root) → child kustomizations in dependency order.
+Local file → docker sync container (full `rc mirror --overwrite --remove` re-mirror every 5s) → S3 bucket `flux` on **rustfs** (out-of-cluster, terraform/docker `storage` container, endpoint `s3.cloud.test`) → flux `Bucket` source (`main`, 5m interval) → `Kustomization/local` (root) → child kustomizations in dependency order.
 
 - Child kustomization intervals are **drift-heal only** (1h; the thanos-operator's is 24h) — propagation is event-driven (artifact change + `dependsOn` requeue at 5s), so loosened intervals cost nothing in latency. Loosened from 10m/1m for interactive determinism: the 1m bucket poll could publish a half-mirrored artifact mid-edit and set the whole chain applying it. The manual flow (`sync_wait` + `flux_wait --with-source`) forces an immediate pull; the bootstrap twin's 1m intervals keep the one-shot rebuild fast until flux-config adopts. **Do not suspend** kustomizations — a suspended tree reconciles nothing on rebuild, breaking the one-shot requirement. `retryInterval` is 5s everywhere
-- macOS bind mounts occasionally drop inotify events (deletes, sometimes edits) — if a change doesn't propagate (check with `rustfs ls main/flux --recursive`), `docker restart sync-cloud-test` forces a full `--remove` re-mirror. Full wedge triage: the `pipeline-wedged` skill
+- The sync container polls instead of watching — a full `--remove` re-mirror every 5s, so a dropped change self-heals within one pass (cmdshift/platform#55: macOS bind mounts drop inotify events, deletes and edits alike; the old inotify watcher's dropped-event wedge class is gone). If a change doesn't propagate (compare with `rustfs ls main/flux --recursive`), the sync container is stopped (`docker ps`; logs are silent when healthy, `mirror failed; retrying` means rustfs is down or credentials are bad) or rustfs itself is down. Full wedge triage: the `pipeline-wedged` skill
 
 ## Admission policy (read this before adding any workload)
 
