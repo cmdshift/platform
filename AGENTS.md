@@ -23,6 +23,7 @@ Procedures are agent skills in `.agents/skills/<name>/SKILL.md`, loaded via the 
 | `cilium-test` | full-cluster connectivity validation |
 | `cluster-rebuild` | fresh bootstrap from terraform |
 | `observability` | metrics, logs, tetragon events (tetra), or alert delivery |
+| `docs-sweep` | docs need updating for the change (landmine hit, decision made, or pre-commit/PR) — dispatched as a background subagent so the session isn't blocked |
 
 The standard loop (`platform-workflow`): rationale-comment check → `yaml_lint` → `helm_verify` → `sync_wait` → `flux_wait` (reconcile from the root) → final checks (`kubectl get helmreleases -A` green, `policy_report` failures 0). Posture scanning (kubescape) was removed — single-purpose hardening tools are its replacement; see `manifests/local/README.md`.
 
