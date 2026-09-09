@@ -14,8 +14,6 @@ spec:
     # the operator — the chart doesn't render-lookup CRDs and the
     # fail-closed webhooks only fire on CNPG CRs
     - name: crds
-    # rabbitmq operators' webhook serving certs are cert-manager managed
-    - name: certificates
     - name: networking
   sourceRef:
     kind: Bucket

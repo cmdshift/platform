@@ -1,0 +1,71 @@
+# Provisional sizing — audit after burn-in (resource-sizing skill)
+config:
+  jetstream:
+    enabled: true
+    fileStore:
+      pvc:
+        size: 2Gi
+
+# the nats images ship no USER directive — runAsNonRoot needs an explicit UID
+podTemplate:
+  merge:
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+
+container:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  merge:
+    securityContext:
+      runAsUser: 65534
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]
+
+reloader:
+  merge:
+    securityContext:
+      runAsUser: 65534
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
+
+promExporter:
+  enabled: true
+  podMonitor:
+    enabled: true
+  merge:
+    securityContext:
+      runAsUser: 65534
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
+
+# debug-only pod (pre-wired nats CLI) — nothing instantiated justifies it;
+# flip back on if a queue workload needs in-cluster CLI debugging. Upstream
+# nats-box also ships a non-idempotent bootstrap (crashloops on restart at
+# runAsNonRoot) that we'd have to carry a command override for.
+natsBox:
+  enabled: false

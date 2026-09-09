@@ -1,0 +1,25 @@
+# Provisional sizing — audit after burn-in (resource-sizing skill)
+jetstream:
+  nats:
+    url: nats://nats.datastores.svc:4222
+
+# the jetstream-controller image ships no USER directive — runAsNonRoot
+# needs an explicit UID
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: [ALL]
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
