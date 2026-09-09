@@ -126,13 +126,13 @@ Values sources, merged in flux order (inline first, refs after, last wins):
 ### `sync_wait [path...]`
 
 Waits until locally-changed manifests have actually landed in the flux
-bucket. The sync container mirrors via inotify and **drops events** (plain
-edits included — hit repeatedly, once causing
-helm upgrade/rollback churn and once silently reverting a fix); a reconcile
-against a stale artifact fails confusingly. Run between editing and
-`flux_wait`, and on edit-heavy changes verify a content marker with
-`rustfs cat` — `sync_wait`'s file-count match can hide a dropped edit
-(that's why `docker restart sync-cloud-test` remains the deterministic fix).
+bucket. The sync mirror is a ≤5s polling re-mirror (cmdshift/platform#55 —
+the old inotify watcher dropped events, so polling replaced it) and the
+Bucket source pulls on its own 5m schedule, so reconciling without
+`sync_wait` can still run against an artifact older than the edit — it
+fails confusingly or, for a helm release, churns upgrade/rollback. Run
+between editing and `flux_wait`; a `rustfs cat` content-marker spot-check
+is optional insurance, not a dropped-edit defense.
 
 - No args: every uncommitted change under `manifests/` (from git status —
   modified, added, deleted, renamed **and untracked**; untracked files were
@@ -148,7 +148,9 @@ against a stale artifact fails confusingly. Run between editing and
 - Compares sha256 of each local file against `rustfs cat main/flux/<path>`;
   deleted files converge when the bucket object is gone
 - Bounded: `SYNC_WAIT_TIMEOUT` (default 120s). Exit 0 converged; exit 1
-  timeout with still-stale list + `docker restart sync-cloud-test` hint
+  timeout with still-stale list + hint to check the sync container (stopped?)
+  and storage container (rustfs down?) — the poll self-heals, so a timeout is
+  never a dropped event
 
 ### `flux_wait [-c] [max_polls] [--with-source]`
 

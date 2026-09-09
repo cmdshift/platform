@@ -2,17 +2,20 @@
 
 Symptoms: manifest edits stop reaching the cluster. Workloads keep running — nothing is being applied or pruned.
 
-The chain: local file → sync container (inotify mirror) → `flux` bucket on rustfs → Bucket source (polls 1m) → root Kustomization `local` → children.
+The chain: local file → sync container (full re-mirror every 5s) → `flux` bucket on rustfs → Bucket source (polls 5m) → root Kustomization `local` → children.
 
 ## Find the break
 
 ### 1. Sync container
 
+The container no longer watches for changes — it re-mirrors the whole tree (`rc mirror --overwrite --remove`) every 5s (cmdshift/platform#55: macOS bind mounts drop inotify events, deletes and edits alike, so a poll that self-heals every pass replaced the watcher). A stale bucket therefore can't come from a dropped event: either the container isn't running or rustfs is unreachable.
+
 ```
+docker ps                              # is sync-cloud-test even up?
 docker logs sync-cloud-test --since 10m
 ```
 
-macOS bind mounts occasionally drop inotify DELETE events — the classic symptom is edits propagate but deletions don't. Verify the bucket against the local tree:
+Success is **silent** (both rc calls print a success line every pass — empty logs are the healthy signature). Repeated `mirror failed; retrying` lines mean rustfs is down or credentials are bad — fix the `storage-cloud-test` container or the secrets, not the sync container. Verify the bucket against the local tree:
 
 ```
 rustfs ls main/flux --recursive
@@ -20,13 +23,7 @@ rustfs ls main/flux --recursive
 
 Or run `sync_wait`, which compares the changed local files against the bucket and exits with the still-stale list if they don't converge.
 
-Fix for anything stale or missing:
-
-```
-docker restart sync-cloud-test
-```
-
-(the startup script runs a full `--remove` mirror, which is deterministic)
+`docker restart sync-cloud-test` is recovery for a stopped or crashed container (it restarts the mirror loop, which re-establishes the rustfs alias and converges the bucket). A running container needs no restart — the poll converges a missed change within one 5s pass.
 
 ### 2. Bucket source
 

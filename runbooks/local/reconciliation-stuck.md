@@ -7,7 +7,7 @@ When a flux kustomization won't go Ready, or a root reconcile isn't settling.
 - `flux_wait` (tools/bin) wraps this entire routine: root reconcile + bounded progress poll, exit 0 when green / 1 on timeout with the pending list
 - Estimate the settle time first, then cap polling at ~2× the estimate. A root reconcile settles in ~2-3m (artifact event → dependency chain at 5s requeue × chain depth + health waits); a fresh cluster bootstrap takes ~10m
 - Poll in short intervals that print what's still pending. When the cap is hit, stop and diagnose — a stuck reconcile is a real problem, not slowness
-- If reconcile behavior is confusing, confirm the edited files actually reached the bucket first (`sync_wait`) — the sync container drops inotify events, so a reconcile can run against a stale artifact
+- If reconcile behavior is confusing, confirm the edited files actually reached the bucket first (`sync_wait`) — the sync mirror is a ≤5s poll, so a reconcile can briefly run against a stale artifact
 
 ## Diagnose
 
