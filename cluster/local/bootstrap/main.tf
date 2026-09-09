@@ -44,7 +44,8 @@ resource "helm_release" "cilium" {
       }
       k8sServiceHost       = "localhost"
       k8sServicePort       = 7445
-      kubeProxyReplacement = false # true in the cloud
+      # gateway-api controller prerequisite (cmdshift/platform#70)
+      kubeProxyReplacement = true
       l2announcements = {
         enabled = true
       }
