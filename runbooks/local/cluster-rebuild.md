@@ -24,12 +24,11 @@ just bootstrap destroy -auto-approve     # fails by design (prevent_destroy) —
                                          # guard, not a problem; skip straight to the next line
 just cluster destroy -auto-approve       # ~1m; wipes rustfs + PVCs (see Data implications)
 just cluster apply -auto-approve         # can hang at bootstrap — recovery below
-# ... 20-30s pause ...
-just bootstrap apply -auto-approve       # ~90s, 4 resources (flux, hooks); idempotent —
-                                         # re-run if the API wasn't accepting yet
+just bootstrap apply -auto-approve       # ~90s incl. the API-up gate (cmdshift/platform#72);
+                                         # blocks in plan polling the kube API until it answers
 ```
 
-**The `cluster apply` hang recipe** (operator-verified): spawn it in the background, kill it after ~1 minute, wait 20-30 seconds before bootstrapping. Details that bit the 2026-09-07 run:
+**The `cluster apply` hang recipe** (operator-verified): spawn it in the background, kill it after ~1 minute, then bootstrap straight away — the bootstrap apply readiness gate absorbs the API-up window (no manual wait). Details that bit the 2026-09-07 run:
 
 - Non-interactive shells must pass `-auto-approve` — terraform's plan-approval prompt EOFs without a TTY (`error asking for approval: EOF`) and the recipe dies in 3s.
 - macOS has no `setsid` — background with `just cluster apply -auto-approve > /tmp/cluster-apply.log 2>&1 &`, then `kill $PID` + `pkill -f "chdir=cluster/local apply"`.
@@ -37,9 +36,9 @@ just bootstrap apply -auto-approve       # ~90s, 4 resources (flux, hooks); idem
 - The kill point is expected to be after resource creation — the plan is 37 to add (containers + talos nodes + kubeconfig); flux "reconciles the rest eventually".
 - `just certs` is only needed if `cluster/local/.tmp/tls/` is missing (note: the path is under `cluster/local/.tmp/`, NOT the repo-root `.tmp/`).
 
-The 20-30s pause before `bootstrap apply` is load-bearing: the kube API needs that long after `cluster apply` to accept connections (**nodes Ready ≠ API serving**). A too-early run fails on `kubernetes_namespace_v1.flux_system` (connection refused) — just re-run it: `bootstrap apply` is idempotent and converges whatever the failed attempt partially created.
+The API-up window is now enforced by terraform itself (cmdshift/platform#72): the bootstrap module polls `${local.k8s_client_config.host}/version` with a CA-pinned `data "http"` readiness check (`request_timeout_ms = 3000`, `retry` 60 × 1s) gating `kubernetes_namespace_v1.flux_system` and `helm_release.cilium` (the flux release gates transitively) — `bootstrap apply` blocks in plan until the kube API answers, then applies; no blind sleep, no re-run (**nodes Ready ≠ API serving** is the poll's problem now, not the operator's). The gate is deliberately loose — any HTTP response over a CA-valid TLS handshake counts as ready (live unauthenticated probes return **401**, anonymous auth disabled — not the 403 the issue predicted), so it is robust to auth-policy changes across talos upgrades, and the CA pin already proves endpoint identity. Numbers: 60 × 1s ≈ 60s of refused-window budget, ~2× the observed 20-30s window — **PENDING validation of the live window on the next rebuild** (verified only at the extremes: healthy cluster plans instantly, `No changes`; closed port fails in ~2s, "giving up after 4 attempt(s): connection refused"). A hung connection — the stale-binding failure mode accepts then black-holes — costs +3s per attempt: worst case ~4m to a clear bounded error instead of an unbounded hang; if the gate times out, suspect the stale binding and run [the recovery below](#the-bootstrap-hang-stale-docker-port-binding-root-caused-2026-09-07-cmdshiftplatform4). Plan-time caveats from the same mechanism: on a down cluster `bootstrap destroy` fails at the data-source read before the `prevent_destroy` guard fires (same verdict — skip it anyway), and `terraform plan` polls ~60s before erroring.
 
-### The bootstrap hang: stale Docker port binding (root-caused 2026-09-07, issue #4)
+### The bootstrap hang: stale Docker port binding (root-caused 2026-09-07, cmdshift/platform#4)
 
 `talos_machine_bootstrap` used to "hang indefinitely" sometimes. The root cause is **not** the (former) LB, a node race, or the network — it is Docker Desktop's host port publisher going **stale after rapid container churn**: when a port-publishing container is destroyed and recreated within ~a minute, `com.docker.backend` still ACCEPTS host connections on 50000/6443 (SYN-ACK, ESTABLISHED) but black-holes the forward into the VM — no bytes reach the container. Container, node and everything else are perfectly healthy at that point.
 

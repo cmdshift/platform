@@ -1,4 +1,7 @@
 resource "helm_release" "cilium" {
+  depends_on = [
+    data.http.kube_apiserver
+  ]
   name             = "cilium"
   repository       = "https://helm.cilium.io"
   chart            = "cilium"
@@ -64,6 +67,9 @@ resource "kubernetes_namespace_v1" "flux_system" {
   metadata {
     name = "flux-system"
   }
+  depends_on = [
+    data.http.kube_apiserver
+  ]
   lifecycle {
     ignore_changes  = all
     prevent_destroy = true
