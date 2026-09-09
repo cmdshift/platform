@@ -6,6 +6,8 @@ namespace: datastores
 resources:
   - cloudnative-pg.helm-release.yaml
   - valkey-operator.helm-release.yaml
+  - nats.helm-release.yaml
+  - nack.helm-release.yaml
 configMapGenerator:
   - name: cloudnative-pg-values
     namespace: datastores
@@ -17,5 +19,17 @@ configMapGenerator:
     namespace: datastores
     files:
       - values.yaml=valkey-operator-values.yaml
+    options:
+      disableNameSuffixHash: true
+  - name: nats-values
+    namespace: datastores
+    files:
+      - values.yaml=nats-values.yaml
+    options:
+      disableNameSuffixHash: true
+  - name: nack-values
+    namespace: datastores
+    files:
+      - values.yaml=nack-values.yaml
     options:
       disableNameSuffixHash: true
