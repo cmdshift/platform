@@ -3,7 +3,7 @@ alertmanager:
 defaultRules:
   disabled:
     # environmental on Talos-in-Docker: node_timex_sync_status=0 on every
-    # node (no sync flag from the docker VMs) — accepted finding, notes.md
+    # node (no sync flag from the docker VMs) — accepted finding
     NodeClockNotSynchronising: true
     # kube-proxy targets sit at connection refused until the rebuild lands
     # metrics-bind-address 0.0.0.0:10249 — cmdshift/platform#23. TargetDown

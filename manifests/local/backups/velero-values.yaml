@@ -20,7 +20,7 @@ initContainers:
 # securityContext. The chart only exposes securityContext at pod level (its
 # runAsUser: 0 default is deliberate — the node-agent needs root), so
 # container-level readOnlyRootFilesystem / caps dropping is unreachable via
-# values — accepted deviations for the velero deployment (notes.md)
+# values — accepted deviations for the velero deployment (manifests/local/README.md)
 credentials: {}
 resources:
   # memory sized after OOMKill at the 132Mi limit during kopia repo prep

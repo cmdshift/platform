@@ -4,7 +4,7 @@ The checklist for deploying anything new to this cluster. All kyverno Validating
 
 ## 1. Sizing (kyverno-checked, convention-checked)
 
-All containers + initContainers need cpu/memory requests and limits. Size per the convention in AGENTS.md: lean requests, generous CPU limits for bursts, memory = evidence not vibes. If unsure of usage, size conservatively and revisit with the audit in [crashloop-investigation.md](crashloop-investigation.md).
+All containers + initContainers need cpu/memory requests and limits. Size per the convention in AGENTS.md: lean requests, generous CPU limits for bursts, memory = evidence not vibes. If unsure of usage, size conservatively and revisit with the audits (`memory_audit` / `cpu_audit` / `request_audit` — procedure in [memory-sizing-audit.md](memory-sizing-audit.md)).
 
 ## 2. Security context (kyverno-checked)
 
@@ -50,10 +50,12 @@ Controllers that generate non-compliant pods with no config knobs (e.g. the than
 
 ```
 yaml_lint                                       # parse-check
+helm_verify                                     # values render check (HelmReleases)
+cr_validate <file-or-dir>                       # server-side dry-run of new/changed CRs
 flux_wait                                       # reconcile from the root + poll
 ```
 
-Then the final checks: kustomizations + helmreleases green, then `policy_report` → failures 0, no stale reports. If the workload exposes metrics: ServiceMonitor (+ `service-monitor` feature where applicable); if it should alert: rules in `monitoring-config/thanos-rules.yaml` (delivered to http://mail.cloud.test).
+Then the final checks: helmreleases green (`helm_wait -c <ns> <name>` per release), `policy_report` → failures 0, no stale reports. If the workload exposes metrics: ServiceMonitor (+ `service-monitor` feature where applicable), verified with `prometheus_query 'up{namespace="<ns>"}'`; if it should alert: rules in `monitoring-config/thanos-rules.yaml`, delivery confirmed with `mailpit` (http://mail.cloud.test).
 
 ---
 

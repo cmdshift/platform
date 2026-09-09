@@ -40,7 +40,7 @@ spec:
             - port: "4954"
               protocol: TCP
     # trivy: all image/DB pulls go through the angos caching registry
-    # (registry.cloud.test, plain HTTP :80 — see notes.md companions) — scan
+    # (registry.cloud.test, plain HTTP :80 — see manifests/local/README.md) — scan
     # jobs pull scanned images through it via the chart's registry.mirror
     # rewrite, trivy-server pulls trivy-db the same way. world:443 stays as
     # the fallback for upstreams outside the cache's map

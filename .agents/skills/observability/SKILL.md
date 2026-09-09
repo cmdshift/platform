@@ -33,12 +33,12 @@ loki_query -c 'sum by (x) (count_over_time(...))'  # labels per series + latest 
   without it
 
 - Stream labels: `namespace`, `pod`, `container`, `node` (promoted by the
-  alloy relabel pipeline, 2026-09-07 — same cardinality as `instance`),
+  alloy relabel pipeline — same cardinality as `instance`),
   plus `instance` (`ns/pod:container`), `job`, `service_name`,
   `detected_level`. Select natively: `{namespace="monitoring",
   pod=~"grafana-.*"}`; `instance` prefix selectors still work
 - Platform components log **JSON** — kyverno, grafana-operator, seaweedfs-operator,
-  metrics-server and alloy flipped at the source (2026-09-07); the alloy
+  metrics-server and alloy flipped at the source; the alloy
   pipeline **normalizes the rest** (logfmt lines → JSON fields; plain-text
   lines → `{"msg": raw}`), so every line in Loki is JSON. Field queries:
   `{...} | json | level="error"`. tetragon is JSON-native
@@ -64,7 +64,7 @@ tetra --server-address localhost:54321 tracingpolicy list
 - Subcommand is `getevents` (there is no `events`). Global flag `--server-address` goes before the subcommand. There is no `--policy` filter flag in 1.7 — pipe the compact output through grep.
 - Events also stream to container stdout (`kubectl -n security logs ds/tetragon -c export-stdout`) with full k8s metadata; kube-system/host events are filtered from that sink by chart default, gRPC output is not.
 - Events are searchable in Loki too: `loki_query '{namespace="security", pod=~"tetragon-.*"}'` (the `export-stdout` container's JSON lines — was the fallback during the #27 ingestion outage, now primary again).
-- **Stream labels are the EXPORTER's** (`pod="tetragon-*"`) — the event's workload namespace/pod/binary/policy are INSIDE the JSON (`process_kprobe.policy_name`, `process_kprobe.process.pod.namespace`, ...); extract with dot-path `json` stages, don't select the workload's namespace. Policies need a `podSelector` for their events to reach this sink at all (see notes.md stage-2 landmines).
+- **Stream labels are the EXPORTER's** (`pod="tetragon-*"`) — the event's workload namespace/pod/binary/policy are INSIDE the JSON (`process_kprobe.policy_name`, `process_kprobe.process.pod.namespace`, ...); extract with dot-path `json` stages, don't select the workload's namespace. Policies need a `podSelector` for their events to reach this sink at all (see `security/README.md`).
 
 ## Full detail
 

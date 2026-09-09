@@ -126,7 +126,7 @@ Values sources, merged in flux order (inline first, refs after, last wins):
 
 Waits until locally-changed manifests have actually landed in the flux
 bucket. The sync container mirrors via inotify and **drops events** (plain
-edits included — hit 2026-09-06 twice and 2026-09-07 once, once causing
+edits included — hit repeatedly, once causing
 helm upgrade/rollback churn and once silently reverting a fix); a reconcile
 against a stale artifact fails confusingly. Run between editing and
 `flux_wait`, and on edit-heavy changes verify a content marker with
@@ -135,7 +135,7 @@ against a stale artifact fails confusingly. Run between editing and
 
 - No args: every uncommitted change under `manifests/` (from git status —
   modified, added, deleted, renamed **and untracked**; untracked files were
-  silently excluded until 2026-09-07, so newly-created manifests were never
+  silently excluded before the fix, so newly-created manifests were never
   checked); args: specific files (repo-relative or absolute) — validated
   first (nonexistent file, directory, or file unknown to HEAD → usage exit
   2; without the check a typo'd path hashed as "deleted" and hung until
@@ -169,7 +169,7 @@ and `0` used to time out instantly.
   worst case (~10m)
 - Exit 0: all kustomizations Ready. Exit 1: failure or timeout with the
   message/pending list + diagnose commands
-- **Interactive-change reality check** (observed 2026-09-07): a normal
+- **Interactive-change reality check**: a normal
   single-group change is green within ~5 polls (~1m). A kustomization still
   pending past ~8 polls is almost always **failing, not slow** (dry-run
   rejection, dependency cycle, health check) — stop polling and `describe`
@@ -189,7 +189,7 @@ run for real.
 - Run it on any new/changed CR **before** `sync_wait` — kustomize-controller
   dry-runs the whole group first, so one bad field blocks every file in the
   directory and repeats at `retryInterval` forever (hit twice with
-  TracingPolicies, 2026-09-07)
+  TracingPolicies)
 - `-n` overrides the namespace for namespaced objects whose namespace doesn't
   exist yet; cluster-scoped objects ignore it
 - Exit 0: all PASS. Exit 1: any FAIL (per-file PASS/FAIL printed); exit 2
@@ -246,12 +246,12 @@ make every run (green included) exit 1, breaking any `if`/`until` wrapper.
 LOCAL-ONLY. Deletes old-generation kyverno **ReplicaSets** when a rollout
 deadlocks on hostNetwork ports (each pod claims its node's port;
 new-generation pod stays Pending — AGENTS.md kyverno landmine). Targets the
-`policies` namespace (2026-09-07 ns refactor). All victims deleted in a
+`policies` namespace (ns refactor, cmdshift/platform#31). All victims deleted in a
 single kubectl call — piecemeal deletion loses the race to the deployment
 controller. Takes no args (anything else is a usage error). No-op exit 0
 when nothing is pending. After it runs, re-run `flux_wait`.
 
-**RS deletion, not pod deletion** (2026-09-07): deleting stale-generation
+**RS deletion, not pod deletion**: deleting stale-generation
 PODS is whack-a-mole — the stale RS still wants its replicas, so it respawns
 a Pending pod, and the deployment controller re-scales the RS back up
 mid-rollout (each deleted pod came back twice, three controllers deep).
@@ -372,14 +372,14 @@ against status lag.
   legible at t=0 rather than after a full retry cycle
 - Recognizes the **release-storage wedge** ("missing target release for
   rollback: cannot remediate failed release" — hit live on the aborted
-  kubeblocks install, issue #49): remediation tried to roll back a release
+  kubeblocks install, cmdshift/platform#49): remediation tried to roll back a release
   whose `sh.helm.release.*` storage secrets are gone. Fix: confirm the
   release's resources are gone/absent, delete the `sh.helm.release.v1.<name>.*`
   secrets, re-reconcile. The diagnose hint names it
 - Exit 0 = Ready, 1 = failed/timeout, 2 = usage (non-integer/zero max
   included). A kubectl failure in the poll (missing HR, API down) lands in
   the timeout path with its diagnose hint instead of silently exiting — same
-  `set -e` + pipefail trap as `velero_wait`. Born 2026-09-07 from the
+  `set -e` + pipefail trap as `velero_wait`. Born from the
   ns-refactor velero move (three waves of the same admission-denial diagnosis
   re-derived by hand before this existed).
 
@@ -422,7 +422,7 @@ workers: node section, one pod per worker via anti-affinity), waits, saves
 logs to `cluster/local/.tmp/bench-<ts>/{ctrl,workers}.log`, prints the
 `== Summary ==` blocks, then deletes the scaffolding. Nothing committed as
 manifests (cilium_test pattern). Talos remaps and the full FAIL/WARN triage
-ledger: `manifests/local/notes.md` → "kube-bench CIS scan".
+ledger: `manifests/local/security/README.md`.
 
 - Exits 0 when both jobs complete (**FAIL counts are scan output, not tool
   errors** — read the summaries); 1 usage; 2 setup/admission failure; 3 job

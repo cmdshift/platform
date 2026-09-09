@@ -2,11 +2,17 @@
 
 The out-of-cluster S3 (docker container `storage-cloud-test`, endpoint `s3.cloud.test` via haproxy). The `rc` CLI runs **inside that container** — there is no host-side client.
 
-## Setup (per exec)
+## Setup
+
+Use the **`rustfs` wrapper** (`tools/bin/rustfs`, on PATH in a direnv shell) — it execs into the storage container with the admin alias `main` preset:
 
 ```
-docker exec storage-cloud-test sh -c 'rc alias set main http://localhost:9000 rustfsadmin rustfsadmin && rc <command>'
+rustfs ls main/flux --recursive
+rustfs cat main/flux/manifests/local/README.md
+rustfs object remove main/backups/<key>
 ```
+
+Without the wrapper (bare environment): `docker exec storage-cloud-test sh -c 'rc alias set main http://localhost:9000 rustfsadmin rustfsadmin && rc <command>'`
 
 ## CLI quirks (learned the hard way)
 
@@ -30,7 +36,7 @@ Notable object: `bundle.yaml` (rendered CRDs + manager for the thanos-operator k
 ## Verify bucket contents
 
 ```
-docker exec storage-cloud-test sh -c 'rc alias set main http://localhost:9000 rustfsadmin rustfsadmin >/dev/null 2>&1; rc ls main/flux --recursive' | head
+rustfs ls main/flux --recursive
 ```
 
 Velero's objects live under `backups/<backup-name>/` in the `backups` bucket (see [velero-backups.md](velero-backups.md)).

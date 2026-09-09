@@ -11,20 +11,16 @@ When a flux kustomization won't go Ready, or a root reconcile isn't settling.
 
 ## Diagnose
 
-1. **Which one is stuck?**
+0. **Instant verdict**: `flux_wait -c` — no reconcile, prints every not-Ready kustomization with its failure message (exit 0 all Ready, 3 still progressing). Most diagnoses start and end here.
+
+1. **Which one is stuck, and why?**
    ```
    kubectl -n flux-system get kustomizations
-   ```
-   The status column carries the immediate message — e.g. `dependency 'flux-system/networking' is not ready` means look at *that* kustomization, not this one.
-
-2. **Why did its reconcile fail?**
-   ```
    kubectl -n flux-system describe kustomization <name>
    ```
-   - the Ready condition's reason and message
-   - last applied vs last attempted revision: **attempted advancing while applied stalls = the apply/dry-run is failing**
+   The status column carries the immediate message — e.g. `dependency 'flux-system/networking' is not ready` means look at *that* kustomization, not this one. `describe` adds what `flux_wait -c` doesn't show: the Ready condition's reason and message, and last applied vs last attempted revision — **attempted advancing while applied stalls = the apply/dry-run is failing**.
 
-3. **What do the events say?**
+2. **What do the events say?**
    ```
    kubectl -n flux-system get events --sort-by=.lastTimestamp | tail -10
    ```
@@ -32,7 +28,7 @@ When a flux kustomization won't go Ready, or a root reconcile isn't settling.
 
 ## Common causes (all observed on this cluster)
 
-- **"field not declared in schema"** — a manifest uses a CRD field the on-cluster CRD doesn't declare. The root dry-run rejects it and the whole dependency chain wedges. Verify the field against the on-cluster CRD schema before pushing: `kubectl get crd <crd> -o jsonpath='{.spec.versions[0].schema.openAPIV3Schema.properties.spec.properties.<field>}'`
+- **"field not declared in schema"** — a manifest uses a CRD field the on-cluster CRD doesn't declare. The root dry-run rejects it and the whole dependency chain wedges. `cr_validate` catches this in seconds pre-push; for field-level detail verify against the on-cluster CRD schema: `kubectl get crd <crd> -o jsonpath='{.spec.versions[0].schema.openAPIV3Schema.properties.spec.properties.<field>}'`
 - **admission webhook denied** — kyverno rejected a pod/job; events show `admission webhook ... denied the request: Policy <name> failed`. Size the workload or add a scoped PolicyException (`policies-config/`), per the admission-policy section of AGENTS.md
 - **missing dependsOn target** — a kustomization references one that was deleted or renamed; the error names the target
 - **health timeout** — `wait: true` + `healthCheckExprs` waiting on a CR that never reports healthy; check the CR's status and its operator's logs

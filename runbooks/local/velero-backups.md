@@ -13,8 +13,8 @@ kubectl -n backups get backups
 Expect `pvcs-YYYYMMDD030015`-style entries with `Completed`. Since 2026-09-05 the nightly also captures volume data (local-path `local` PVs): `kubectl -n backups get podvolumebackups -l velero.io/backup-name=<name>` should list one per PVC-backed pod — **empty means the data path broke again** (hostPath regression or the PolicyException/configmap got dropped). If `Failed`:
 
 1. `kubectl -n backups describe backup <name> | tail -40` and `kubectl -n backups logs deploy/velero --tail=200 | grep -i error`
-2. Check the velero pod for restarts (`OOMKilled` history: the server needs 256Mi+ for kopia repo prep — see the sizing comment in `backups/velero.helm-release.yaml`)
-3. Confirm the BSL is `Available` and the rustfs `backups` bucket exists (`rc ls main/` in the storage container)
+2. Check the velero pod for restarts via `pod_status -n backups velero` (OOMKilled history: the server needs 256Mi+ for kopia repo prep — see the sizing comment in `backups/velero.helm-release.yaml`)
+3. Confirm the BSL is `Available` and the rustfs `backups` bucket exists (`rustfs ls main/`)
 
 ## Run a test backup
 

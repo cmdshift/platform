@@ -9,7 +9,7 @@ All kyverno ValidatingPolicies run in **Deny** mode — non-compliant pods/jobs 
 
 ## 1. Sizing
 
-All containers + initContainers need cpu/memory **requests and limits**. Lean requests, generous CPU limits, memory = evidence not vibes → load the `resource-sizing` skill if unsure.
+All containers + initContainers need cpu/memory **requests and limits**. Lean requests, generous CPU limits, memory = evidence not vibes → load the `resource-sizing` skill if unsure (its audits: `memory_audit` / `cpu_audit` / `request_audit`).
 
 ## 2. Security context
 
@@ -61,7 +61,7 @@ yaml_lint
 flux_wait
 ```
 
-Then: helmreleases green, `policy_report` failures 0 (skips = exceptions; `--clean` for stale reports). If the workload exposes metrics: ServiceMonitor (+ trust-CRDs flag where the chart needs it); if it should alert: rules in `monitoring-config/thanos-rules.yaml` → alerts land at http://mail.cloud.test.
+Then: helmreleases green (`helm_wait -c <ns> <name>` per release), `policy_report` failures 0 (skips = exceptions; `--clean` for stale reports). If the workload exposes metrics: ServiceMonitor (+ trust-CRDs flag where the chart needs it), then verify scraping landed with `prometheus_query 'up{namespace="<ns>"}'`; if it logs and should ship to Loki, confirm with `loki_query '{namespace="<ns>"}'` (`-c` for a compact series list); if it should alert: rules in `monitoring-config/thanos-rules.yaml` → alerts land at http://mail.cloud.test (`mailpit`).
 
 ## Full detail
 

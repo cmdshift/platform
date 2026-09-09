@@ -48,9 +48,14 @@ For the kustomization-over-raw-manifests path:
 ## 4. Verify before pushing
 
 ```
-# render with the EXACT release values (extract them from the HelmRelease yaml)
+helm_verify [path] [release]      # renders the release with the EXACT values flux will ship
+                                  # (resolves valuesFrom refs + chart from source CRs locally)
+```
+
+Use the single-release form (`helm_verify manifests/local/<group> <release>`) for ad-hoc values debugging. When you need to eyeball the full rendered manifest (hook jobs, securityContext placement), render by hand — but render with the real values, not reconstructed ones:
+
+```
 helm template <release> <chart> --namespace <ns> -f /tmp/release-values.yaml
-# simulate post-render patches if using them: kubectl kustomize a dir of rendered.yaml + patches
 ```
 
 And verify any new-to-you API fields against the **on-cluster CRD schema** before pushing — undeclared fields fail the root dry-run and wedge the whole dependency chain:

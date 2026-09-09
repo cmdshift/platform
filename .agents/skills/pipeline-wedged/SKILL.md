@@ -14,7 +14,7 @@ docker logs sync-cloud-test --since 10m
 rustfs ls main/flux --recursive     # compare against the local tree
 ```
 
-Classic symptom: edits propagate but **deletions** don't (macOS bind mounts drop inotify delete events; edits have been dropped too — 2026-09-06, twice). Fix for anything stale or missing:
+Classic symptom: edits propagate but **deletions** don't (macOS bind mounts drop inotify delete events; edits get dropped too). Fix for anything stale or missing:
 
 ```
 docker restart sync-cloud-test      # startup runs a full --remove mirror — deterministic
@@ -31,7 +31,8 @@ Ready=False = source-controller can't fetch: bad credentials (`bucket-credential
 ## 3. Root kustomization
 
 ```
-kubectl -n flux-system get kustomization local
+flux_wait -c                                        # failing groups + messages, no reconcile
+kubectl -n flux-system get kustomization local      # or describe for the full condition
 ```
 
 Bucket Ready but root not reconciling = apply failure → load the `reconcile-stuck` skill.

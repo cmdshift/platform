@@ -17,7 +17,7 @@ A silent exit with nothing in the logs is almost always an OOMKill — the proce
 
 ## 2. Kyverno or workload?
 
-If admission denied the pod, its template violates a policy (requests/limits, `runAsNonRoot`, seccomp, capabilities, `:latest`). Fix the workload if it's ours. If a controller/operator generates non-compliant pods with no config knobs (e.g. the thanos-operator's config-reloader sidecar), add a **scoped PolicyException** in `policies-config/*.policy-exception.yaml` — namespace + name-prefix matching, with a rationale comment (AGENTS.md comment rules).
+`pod_status` shows the exit reason; `policy_report` summarizes admission verdicts (failures > 0 = denials in play). If admission denied the pod, its template violates a policy (requests/limits, `runAsNonRoot`, seccomp, capabilities, `:latest`). Fix the workload if it's ours. If a controller/operator generates non-compliant pods with no config knobs (e.g. the thanos-operator's config-reloader sidecar), add a **scoped PolicyException** in `policies-config/*.policy-exception.yaml` — namespace + name-prefix matching, with a rationale comment (AGENTS.md comment rules).
 
 ## 3. Memory: limit too low, or a leak?
 
@@ -36,7 +36,7 @@ Size per convention (request ≈ P99 × 1.2, limit = 1.5 × request; deliberate 
 
 ## Worked example
 
-velero, 2026-09-05: 20 restarts, OOMKilled exit 137, logs ended silently right after `Start to prepare repo` (kopia). 88Mi/132Mi → 256Mi/512Mi, verified by `Prepare repo complete` plus zero restarts past one full cycle.
+velero: 20 restarts, OOMKilled exit 137, logs ended silently right after `Start to prepare repo` (kopia). 88Mi/132Mi → 256Mi/512Mi, verified by `Prepare repo complete` plus zero restarts past one full cycle.
 
 ## Full detail
 

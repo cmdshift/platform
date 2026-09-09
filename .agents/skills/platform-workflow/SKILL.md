@@ -29,32 +29,33 @@ sync_wait          # wait until edited manifests actually landed in the flux buc
 flux_wait          # reconcile root kustomization local --with-source + bounded poll
 ```
 
-The sync container drops inotify events (edits included, not just deletes — hit twice 2026-09-06), so reconciling without `sync_wait` can apply a stale artifact. For edit-heavy sessions, spot-check with `rustfs cat <key> | grep <marker>`.
+The sync container drops inotify events (edits included, not just deletes), so reconciling without `sync_wait` can apply a stale artifact. For edit-heavy sessions, spot-check with `rustfs cat <key> | grep <marker>`.
 
 - `flux_wait` exit 0 = all green; exit 1 = a failing group (fast-fail: `Ready=False` is a failed attempt, not slowness — the loop exits on the first one with its message) or timeout with the pending list + diagnose hint → load the `reconcile-stuck` skill. `flux_wait -c` / `helm_wait -c <ns> <name>` give instant no-reconcile verdicts when you just want current state.
-- **valuesFrom releases (issue #31 pattern)**: a values-only change (ConfigMap edit, HelmRelease spec untouched) does not re-trigger helm-controller. Ordering matters: `flux_wait` FIRST (the group kustomization rebuilds the generated `ConfigMap/<release>-values`), THEN `helm_wait <ns> <name>` per changed release. `helm_wait` without the preceding `flux_wait` re-renders against the OLD ConfigMap — the HR goes Ready and the values never land (hit twice 2026-09-07; the tell is `request_audit` still showing old requests after a "green" rollout). `helm_wait` also exits fast with the HR failure message when the release is terminally broken (retries exhausted → reconciles replay the cached failure instead of re-attempting). CR-managed workloads pick up CR edits on the operator's own reconcile — force with `flux reconcile kustomization <group>-config --with-source`.
+- **valuesFrom releases (cmdshift/platform#31 pattern)**: a values-only change (ConfigMap edit, HelmRelease spec untouched) does not re-trigger helm-controller. Ordering matters: `flux_wait` FIRST (the group kustomization rebuilds the generated `ConfigMap/<release>-values`), THEN `helm_wait <ns> <name>` per changed release. `helm_wait` without the preceding `flux_wait` re-renders against the OLD ConfigMap — the HR goes Ready and the values never land (the tell is `request_audit` still showing old requests after a "green" rollout). `helm_wait` also exits fast with the HR failure message when the release is terminally broken (retries exhausted → reconciles replay the cached failure instead of re-attempting). CR-managed workloads pick up CR edits on the operator's own reconcile — force with `flux reconcile kustomization <group>-config --with-source`.
 - Edits never reaching the cluster at all → load the `pipeline-wedged` skill.
-- Observed timing (2026-09-07): a single-group change settles in ~5 polls (~1m); a full-tree reconcile in ~2-3m; a fresh rebuild ~10m. Default cap 42 covers the rebuild worst case — for interactive changes run `flux_wait 15`: a kustomization still pending at ~8 polls is almost always **failing, not slow** — `describe` it instead of waiting out the cap.
+- Observed timing: a single-group change settles in ~5 polls (~1m); a full-tree reconcile in ~2-3m; a fresh rebuild ~10m. Default cap 42 covers the rebuild worst case — for interactive changes run `flux_wait 15`: a kustomization still pending at ~8 polls is almost always **failing, not slow** — `describe` it instead of waiting out the cap.
 
 ## 3. Final checks
 
 ```
-kubectl get helmreleases -A      # every release True
+kubectl get helmreleases -A      # every release True (per-release check: helm_wait -c <ns> <name>)
 policy_report                    # failures: 0 expected (skips = PolicyExceptions); lists stale reports for gone resources
 ```
 
-Posture scanning (kubescape) was removed 2026-09-06 — single-purpose hardening tools are its replacement (see `manifests/local/notes.md` for the accepted-deviations baseline those tools will audit against).
+Posture scanning (kubescape) was removed — single-purpose hardening tools are its replacement (see `manifests/local/README.md` for the accepted-deviations baseline those tools will audit against).
 
 ## Hard rule: no live patches
 
-Never fix drift with `kubectl edit` / `talosctl patch` / `docker exec` mutations — change the manifest (or terraform template) and reconcile. The one documented exception is editing the root `Kustomization/local` / `Bucket/main` themselves during a pipeline wedge (see the `pipeline-wedged` skill). If a fix needs a rebuild, note the pending state in `manifests/local/notes.md`.
+Never fix drift with `kubectl edit` / `talosctl patch` / `docker exec` mutations — change the manifest (or terraform template) and reconcile. The one documented exception is editing the root `Kustomization/local` / `Bucket/main` themselves during a pipeline wedge (see the `pipeline-wedged` skill). If a fix needs a rebuild, note the pending state in `CHANGELOG.md` or the tracking issue.
 
 ## 4. Docs maintenance before commit/PR
 
-Docs are part of the change — a change isn't ready to commit or PR until the docs it made stale are updated in the same branch. Sweep all four surfaces:
+Docs are part of the change — a change isn't ready to commit or PR until the docs it made stale are updated in the same branch. Sweep the surfaces:
 
-- `manifests/local/notes.md` (+ `manifests/cloud/notes.md`) — local-only settings + rationale, session learnings, cloud deltas
-- `runbooks/local/` — changed procedures, new gotchas, worked examples
+- `CHANGELOG.md` — dated learnings, incident narratives, follow-ups (append an entry; ref `cmdshift/platform#N`)
+- `manifests/local/<group>/README.md` — group-level decisions the change touched (keep current)
+- `runbooks/local/` — changed procedures, new gotchas, incident post-mortems
 - `.agents/skills/*/SKILL.md` — sync any skill whose trigger/steps/traps changed (this one included)
 - `tools/bin/README.md` — new/changed helper scripts: args, defaults, exit codes
 

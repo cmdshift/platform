@@ -1,0 +1,26 @@
+# policies
+
+Kyverno (admission policy engine) + `policies-config/` (the PolicyException registry). Kyverno runs in the `policies` namespace per the namespace convention and reads PolicyExceptions from there (`features.policyExceptions.namespace: policies`).
+
+## Deliberately local-only settings
+
+- **`hostNetwork: true` on all 4 controllers** (`# remove in the cloud`) — docker host ports; also the cause of the rollout-deadlock landmine below.
+- **PSS `privileged` labels on the `policies` namespace** (`# remove in the cloud`).
+- **`backgroundScanInterval: 1h`** — 5m caused a reports-controller CPU ramp (cmdshift/platform#17).
+
+## Admission policy
+
+All 11 ValidatingPolicies run in **Deny** mode; requirements and the workload checklist live in [AGENTS.md](../../AGENTS.md) and [runbooks/local/adding-a-workload.md](../../runbooks/local/adding-a-workload.md). Policies autogen to controllers but **not ReplicaSets** (avoids old-RS noise); old PolicyReports for unmatched resources are never retracted — delete stale report objects directly if needed.
+
+## PolicyException registry (`policies-config/`)
+
+Scoped by namespace + name prefix; each needs a keep/drop decision for the cloud — don't blanket-copy the directory. Covers: hostNetwork kyverno, privileged velero node-agents + data-mover pods, cilium, node-exporter, alloy host-logs, local-path helper pod, thanos-ruler config-reloader sidecar, tetragon agent (security namespace), kube-system system components.
+
+## Kyverno landmines (all cost debugging rounds)
+
+- **Rollout deadlock on hostNetwork ports**: new-generation pods stay Pending while every node hosts an old-generation hostNetwork pod. `kyverno_unblock` deletes the stale-generation **ReplicaSets** — pod deletion is whack-a-mole (the stale RS respawns and the deployment controller re-scales it). If the old release still lives in a former namespace, delete its **deployments** instead (cross-ns edition, hit live in the namespace refactor).
+- **`admissionController.container.resources` is nested** (unlike background/cleanup/reports).
+- **`config.webhooks` is a map** — a list is silently dropped by the helm merge.
+- **PolicyException CEL updates can lag in the admission engine** even after the generator logs them — bump the object (annotation via manifest) to force re-pick-up.
+- **`features.logging.format: json`** is the JSON-logging knob — it nests under `features:`; top-level `logging:` and `config.logging:` both render `text` silently.
+- Helm hook jobs are admission-checked too; the `kyverno-scale-to-zero` uninstall hook can wedge an HR deletion (finalizer story in the `helmrelease-stuck` skill).
