@@ -1,0 +1,20 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: emqx-operator-crds
+  namespace: flux-system
+spec:
+  interval: 1h
+  retryInterval: 5s
+  dependsOn:
+    - name: sources
+  sourceRef:
+    kind: GitRepository
+    name: emqx-operator-crds
+    namespace: flux-system
+  path: ./config/crd
+  # never prune: upstream CRD churn between releases would delete every
+  # Emqx/Rebalance CR — same rule as the crds kustomization
+  prune: false
+  wait: true
+  timeout: 2m

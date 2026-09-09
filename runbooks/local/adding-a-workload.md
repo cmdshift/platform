@@ -21,7 +21,7 @@ Render and size them — they're admission-checked too:
 helm template <chart> | yq 'select(.kind == "Job")'
 ```
 
-Known-proofed: cert-manager `startupapicheck.resources` (all-lowercase key!), velero `upgradeJobResources`, kube-prometheus-stack `prometheusOperator.admissionWebhooks.patch.resources`. Full admission-policy context: AGENTS.md.
+Known-proofed: cert-manager `startupapicheck.resources` (all-lowercase key!), velero `upgradeJobResources`, kube-prometheus-stack `prometheusOperator.admissionWebhooks.patch.resources`. The no-knob case: emqx-operator's pre-upgrade Job renders zero resources with no values knob — fixed with HelmRelease postRenderers SMP on its `cleanup` container (cmdshift/platform#64). Full admission-policy context: AGENTS.md.
 
 ## 4. Network policy
 

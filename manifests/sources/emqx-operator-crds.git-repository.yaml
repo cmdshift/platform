@@ -1,0 +1,17 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: emqx-operator-crds
+  namespace: flux-system
+spec:
+  interval: 12h
+  url: https://github.com/emqx/emqx-operator
+  ref:
+    # keep in lockstep with the emqx-operator chart version —
+    # the CRDs must match the operator's API surface
+    tag: 2.3.2
+  ignore: |
+    /*
+    !/config
+    /config/*
+    !/config/crd
