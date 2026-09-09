@@ -21,4 +21,4 @@ spec:
       kind: ValidatingPolicy
   matchConditions:
     - name: match-system-components
-      expression: "object.metadata.namespace == 'kube-system' && (object.metadata.name.startsWith('kube-apiserver-') || object.metadata.name.startsWith('kube-controller-manager-') || object.metadata.name.startsWith('kube-scheduler-') || object.metadata.name.startsWith('kube-proxy') || object.metadata.name.startsWith('coredns'))"
+      expression: "object.metadata.namespace == 'kube-system' && (object.metadata.name.startsWith('kube-apiserver-') || object.metadata.name.startsWith('kube-controller-manager-') || object.metadata.name.startsWith('kube-scheduler-') || object.metadata.name.startsWith('coredns'))"

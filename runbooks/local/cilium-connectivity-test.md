@@ -78,8 +78,8 @@ EOF
   done
 }
 
-# --flow-validation=disabled: kube-proxy DNATs service IPs before cilium sees
-# them, so hubble can't match what the CLI searches for (see Notes)
+# --flow-validation=disabled: monitor aggregation hides DNS flows from
+# hubble, so the CLI's flow matcher can't match what it searches for (see Notes)
 cilium connectivity test --flow-validation=disabled &
 TEST_PID=$!
 while kill -0 "$TEST_PID" 2>/dev/null; do scaffold; sleep 2; done
@@ -97,9 +97,9 @@ Deleting the namespaces removes the CNPs and PSS labels with them. `cilium conne
 
 ## Notes
 
-- **Run with `--flow-validation=disabled`** (the wrapper adds it automatically). This cluster runs kube-proxy (`kubeProxyReplacement: false`), so service ClusterIPs are DNAT'd before packets reach cilium — hubble never sees the service IP the CLI's flow matcher searches for — and monitor aggregation hides DNS flows. The resulting `DNS request ... not found` / `SYN ... dst=<service-ip> not found` spam is the *matcher* failing, not the datapath; the curls themselves complete (full handshakes in the flow dumps below the errors).
+- **Run with `--flow-validation=disabled`** (the wrapper adds it automatically). Cilium monitor aggregation hides DNS flows, so hubble can never match the flows the CLI's matcher searches for — the resulting `DNS request ... not found` / `SYN ... dst=<service-ip> not found` spam is the *matcher* failing, not the datapath; the curls themselves complete (full handshakes in the flow dumps below the errors). (The historical rationale — kube-proxy DNAT'ing service IPs before cilium saw them — died with the KPR cutover, cmdshift/platform#70: cilium now sees service IPs itself.)
 - **The wrapper defaults to the connectivity suites only** (`no-policies`, `health`, `host-entity-*`, `pod-to-pod-*`, `node-to-node-encryption`, `no-unexpected-packet-drops`, ...). The policy suites (`deny-all`, `*-l7`, `tls-sni`, `to-fqdns`, `to-cidr-*`, the `ccnp` namespaces) deploy their own deny policies and verify enforcement — on this cluster they can only fail, because the allow-all scaffold (required by the cluster's egress default-deny CCNP) unions with their policies and defeats every deny expectation. The policy engine is exercised for real by the workload CNPs day-to-day. Pass an explicit `--test ...` to run anything else.
-- **`check-log-errors` is excluded** because its only matches are benign on talos-in-docker: the docker-host kernel lacks `CONFIG_INET_DIAG_DESTROY` (socket-termination on backend deletion degrades gracefully), and the `bpf-lb-sock` warning is expected with `kubeProxyReplacement: false`. Both appear at bootstrap, once.
+- **`check-log-errors` is excluded** because its only match is benign on talos-in-docker: the docker-host kernel lacks `CONFIG_INET_DIAG_DESTROY` (socket-termination on backend deletion degrades gracefully — observed live in agent logs during the KPR rollout, still expected). Appears at bootstrap, once. (The old second match — the `bpf-lb-sock` warning expected with `kubeProxyReplacement: false` — is gone with KPR=true, cmdshift/platform#70.)
 - A failed run leaves artifacts behind — the next run then fails with `serviceaccounts "echo-same-node" already exists`. Clean up (step 3) before re-running (the wrapper waits out deleting namespaces automatically).
 - The CLI's `--namespace-labels` flag can pre-label the main test namespace, but it does not cover the mid-run `cilium-test-ccnp*` namespaces — the loop is the reliable mechanism.
 - Ignore the `Warning: would violate PodSecurity "restricted:latest"` lines during deployment: that's warn/audit-level noise (namespace is privileged-labeled), not a block.

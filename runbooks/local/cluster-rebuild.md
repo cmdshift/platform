@@ -11,8 +11,11 @@ Tear the Talos-in-Docker cluster down and bring it back from terraform alone. Va
 
 ```
 just cluster apply      # docker network, companions, talos nodes, kubeconfig (.tmp/kubeconfig)
+                        # health-gated: returns only when every node's Talos services answer (below)
 just bootstrap apply    # cilium + flux helm releases + the Bucket/root hooks
 ```
+
+`cluster apply` gates itself on node health (cmdshift/platform#73): a `data "talos_cluster_health"` read makes the apply return only when every node's Talos services (etcd, apid, kubelet) answer. `skip_kubernetes_checks = true` is REQUIRED — CNI (cilium) comes from the separate bootstrap state, so k8s-level checks (node Ready, kube-dns) can't pass at that stage of a fresh install — and `depends_on = [talos_machine_bootstrap.main]` defers the read past etcd bootstrap on fresh installs (a plan-time read would deadlock). Plan-time behavior is validated on the live cluster; the fresh-install deferred-read path is reasoning-validated only — pending next-rebuild validation. The cmdshift/platform#72 bootstrap API gate is unchanged and stays — separate state, near-instant once the health gate has passed.
 
 ### Full destroy + recreate (worked example, 2026-09-07)
 
@@ -54,6 +57,9 @@ terraform -chdir=cluster/local apply -auto-approve            # only bootstrap +
 **Diagnostics** (the evidence, if it recurs — the former haproxy stats socket is gone with the LB):
 
 - `curl -skf --max-time 3 https://127.0.0.1:6443/version` from the host — hang/black-hole = dead binding; 401 = publisher alive (it can't 401 unless bytes reach the API server)
+- **Isolate wiring from publisher** (2026-09-09, the local-test 80/443 wedge): if the container's own frontend answers from inside — `docker exec <container> sh -c 'printf "GET / HTTP/1.0\r\n\r\n" | nc -w3 127.0.0.1 <port>'` — the container wiring is proven and only the host→container published path is dead
+- **The wedge can outlive container-level recovery** (seen on `local-test` 80/443 after the cmdshift/platform#70 rebuild): `docker restart`, a terraform-recreate of the container, and a `docker network disconnect/connect` cycle each re-registered the binding (`docker port` correct, host TCP accepts, request bytes sent) but the forward stayed dead — while the SAME `com.docker.backend` process served healthy forwards for other containers (6443 answered 401 throughout). Escalation ladder: container restart → terraform recreate → network reconnect → **Docker Desktop restart** (the rung that finally cleared it — container-level recoveries never did)
+- **`SSL_ERROR_SYSCALL` is not a stale binding** (seen right after a ctrl-container restart, 2026-09-09): TCP connects but the TLS handshake fails with `SSL_ERROR_SYSCALL` while the API server boots (~60s) — publisher alive, API still coming up. A stale binding is a silent hang/timeout with no TLS stage at all. Don't restart twice based on the SSL_ERROR_SYSCALL state — wait out the boot.
 - `lsof -nP -p <provider-pid> | rg 50000` — the provider's socket shows ESTABLISHED to `127.0.0.1:50000` while the node never logs the connection
 - the API keeps serving kubelet traffic from inside the docker network meanwhile — internal traffic is unaffected, only the host→container published path is dead
 
@@ -89,7 +95,7 @@ kubectl -n flux-system get kustomizations
 | PolicyReports | `policy_report` | 0 failures |
 | Host API path | `curl -skf --max-time 3 https://127.0.0.1:6443/version` | 401 (publisher alive; kubeconfig server = 127.0.0.1:6443) |
 | Browser paths | `curl -s -o /dev/null -w '%{http_code}' http://mail.cloud.test` | 200 (s3 → 403 = auth challenge, also fine) |
-| Ingress | `curl -s -o /dev/null -w '%{http_code}' http://local.test` | **503 until cmdshift/platform#70 lands** — the Gateway path has never been verified green locally |
+| Ingress | `curl -s -o /dev/null -w '%{http_code} loc=%header{location}' http://local.test` | **301** → `https://local.test:443/` (the redirect route; `server: envoy` header proves the Gateway path; 503 = haproxy backends down). `https://local.test` → **404** (no service routes; TLS passthrough to the Gateway) |
 
 **Bootstrap race, self-healing:** on a fresh rebuild the ruler CR can fail its first sync (query service not up yet) → `Ready=False (ReconcileError)` on the CR. Since thanos-community/thanos-operator#636 (cmdshift/platform#22) the operator emits a single recoverable `Ready` condition — the next sync flips it `True`; no manual action, just verify it converged. The `monitoring-config` kustomization's `healthCheckExprs` gate the thanos CRs on the same condition.
 
@@ -111,7 +117,10 @@ docker volume create platform-registry-data
 terraform -chdir=cluster/local apply -replace=null_resource.registry_volume
 ```
 
-**Landmine — node machine config never re-lands on apply.** Node containers bake the Talos machine config into their `USERDATA` env with `lifecycle { ignore_changes = [env] }` (`nodes/main.tf`): editing a machine-config template (the registry wildcard migration was exactly this) and running `terraform apply` changes nothing on the running nodes — a **full cluster rebuild** is the only way to land it. Registry-map changes are immune (companion-side config only — that's the point of the wildcard + `?ns=` design).
+**Node machine config iteration is apply, not rebuild** (cmdshift/platform#73 — supersedes the old "template edits need a full rebuild" rule). `nodes/main.tf` carries `talos_machine_configuration_apply` resources (ctrl + work) that converge running nodes to the generated config (`apply_mode = "auto"` — reboots only if a config change demands it): editing a machine-config template + `terraform apply` lands it without recreating containers. The `USERDATA` env the containers boot from stays first-boot-only (`lifecycle { ignore_changes = [env] }`) — an applied config persists in the `/system/state` docker volume, which is what makes the apply path authoritative. Two landmines:
+
+- **Endpoint**: the talos provider defaults the apply resource's `endpoint` to the node's private IP — unroutable from macOS, the create hangs in silent transport-retry. Keep `endpoint = 127.0.0.1` (the host-published ctrl apid) with `node` = the target's private IP; worker applies route through the ctrl node's apid and depend on the ctrl applies. Same pattern as the bootstrap/kubeconfig resources.
+- Registry-map changes remain companion-side config only (angos container recreate) — no node machine config involved, immune by design.
 
 **Host → companion path:** `*.cloud.test` names resolve to `127.0.10.1`, where Docker Desktop's port publisher listens — that publisher path is the *only* host route into the companion network. If host curls to mail/secrets/s3 hang while the cluster itself works (check `docker logs cloud-test` — internal traffic is unaffected), `docker restart cloud-test` re-establishes the binding (hit 2026-09-07).
 

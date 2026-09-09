@@ -18,7 +18,7 @@ prometheus_query --query 'count(kube_pod_container_status_restarts_total)'   # t
 - Port-forward lifecycle handled; defaults to `svc/kube-prometheus-stack-prometheus:9090`, `--query` switches to thanos-query.
 - Instant queries only see series present in the last 5m — use `-r` to see pods that have since been recreated.
 
-Useful one-liners: `container_cpu_cfs_throttled_periods_total` (throttling), `container_memory_working_set_bytes` (memory trends), `prometheus_tsdb_head_series` (cardinality), `up{job="kube-proxy"}` (scrape health).
+Useful one-liners: `container_cpu_cfs_throttled_periods_total` (throttling), `container_memory_working_set_bytes` (memory trends), `prometheus_tsdb_head_series` (cardinality), `up` (scrape health — the old `up{job="kube-proxy"}` example died with the kube-proxy removal, cmdshift/platform#70).
 
 ## loki_query
 

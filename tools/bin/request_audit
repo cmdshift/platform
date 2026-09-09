@@ -78,7 +78,7 @@ request_audit() {
   echo "---"
   echo "memory usage over 100% of request: $(count_mem_over "$mem_req" "$mem_use" 100)"
   echo "memory usage over 80% of request (audit threshold): $(count_mem_over "$mem_req" "$mem_use" 80)"
-  echo "containers without memory request: $(count_no_request memory) (control-plane statics + kube-proxy are expected)"
+  echo "containers without memory request: $(count_no_request memory) (control-plane statics are expected)"
 }
 
 request_audit "$@"

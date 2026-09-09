@@ -5,11 +5,10 @@ defaultRules:
     # environmental on Talos-in-Docker: node_timex_sync_status=0 on every
     # node (no sync flag from the docker VMs) — accepted finding
     NodeClockNotSynchronising: true
-    # kube-proxy targets sit at connection refused until the rebuild lands
-    # metrics-bind-address 0.0.0.0:10249 — cmdshift/platform#23. TargetDown
-    # stays enabled (generic coverage) and is muted in the mail
-    # AlertmanagerConfig for this job only.
-    KubeProxyInstanceUnreachable: true
+# kube-proxy removed from the cluster (cilium KPR, cmdshift/platform#70) —
+# drops the dead-target ServiceMonitor and its rule set
+kubeProxy:
+  enabled: false
 prometheusOperator:
   # JSON logging: see logging/loki-values.yaml
   logFormat: json

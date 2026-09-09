@@ -20,7 +20,7 @@ The script normalizes Mi/Gi — `1Gi` silently parses as `1` in naive scripts (t
 
 ## 3. Containers without limits
 
-Folded into `memory_audit`'s footer. Expected on this cluster: **9** — eight control-plane statics (apiserver, scheduler, controller-manager, kube-proxy ×5) plus the thanos-ruler config-reloader (PolicyException'd, ~18Mi). Anything else is a finding.
+Folded into `memory_audit`'s footer. Expected on this cluster: **4** — three control-plane statics (apiserver, scheduler, controller-manager) plus the thanos-ruler config-reloader (PolicyException'd, ~18Mi). kube-proxy ×5 used to make it 9 but left with the cilium KPR cutover (cmdshift/platform#70). Anything else is a finding.
 
 ## 4. Trend, not snapshot
 
