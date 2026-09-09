@@ -1,0 +1,26 @@
+# HTTP→HTTPS redirect for local.test / *.local.test. Attached to the two HTTP
+# listeners only (parentRefs + sectionName) — attaching to the HTTPS listeners
+# too would 301 https→https in a loop. No port set: cilium/envoy render the
+# scheme-implied 443 (shown explicitly in the Location header, hidden by
+# browsers) — which is the host-facing port (the haproxy forwards it to the
+# 30443 listeners).
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: local-test-redirect
+  namespace: default
+spec:
+  parentRefs:
+    - name: local-test
+      sectionName: http
+    - name: local-test
+      sectionName: http-wildcard
+  hostnames:
+    - local.test
+    - "*.local.test"
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
