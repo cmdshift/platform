@@ -14,8 +14,8 @@ cluster:
     endpoint: ${public_endpoint}
   apiServer:
     certSANs:
-      - ${cmd_hostname}
-      - ${cmd_private_ip}
+      - ${local_api_ip}
+      - ${ctrl_ip}
   network:
     cni:
       name: none

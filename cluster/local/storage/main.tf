@@ -31,6 +31,9 @@ resource "docker_container" "storage" {
     name         = var.net.private_network_id
     ipv4_address = var.net.private_ip
   }
+  # observed peak 287Mi
+  memory      = 1024
+  memory_swap = 1024
   entrypoint = [
     "/tmp/entrypoint.sh"
   ]

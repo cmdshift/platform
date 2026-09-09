@@ -23,14 +23,24 @@ output "boot_node" {
   value = local.boot_node
 }
 
+# The talos provider derives the embedded API address from the cluster
+# endpoint (ctrl node IP — only routable inside the private network); host-side
+# consumers (kubectl, the bootstrap terraform providers) must go through the
+# loopback-published ports instead.
+locals {
+  local_api_endpoint = "https://${local.local_api_ip}:${local.ports.k8s}"
+}
+
 output "kubeconfig" {
-  value = talos_cluster_kubeconfig.main.kubeconfig_raw
+  value = replace(talos_cluster_kubeconfig.main.kubeconfig_raw, local.public_endpoint, local.local_api_endpoint)
 }
 
 output "k8s_client_config" {
-  value = talos_cluster_kubeconfig.main.kubernetes_client_configuration
+  value = merge(talos_cluster_kubeconfig.main.kubernetes_client_configuration, {
+    host = local.local_api_endpoint
+  })
 }
 
 output "talosconfig" {
-  value = replace(data.talos_client_configuration.main.talos_config, var.cmd.private_ip, var.cmd.hostname)
+  value = data.talos_client_configuration.main.talos_config
 }

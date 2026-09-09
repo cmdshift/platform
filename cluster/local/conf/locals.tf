@@ -6,7 +6,6 @@ locals {
 
 locals {
   network_cidr = "10.0.0.0/8"
-  cmd_cidr     = "10.0.8.0/24"
   ctrl_cidr    = "10.0.16.0/24"
   work_cidr    = "10.0.32.0/24"
   local_cidr   = "10.0.64.0/24"
@@ -14,9 +13,12 @@ locals {
 }
 
 locals {
+  # single fixed control plane node — 3-node etcd saturates the Docker VM
+  # during the install burst (host CPU/IOPS ceiling); 1 node has no quorum
+  # trade-off that matters here, so there is no LB and no node count knob
+  # (cmdshift/platform#54)
   ctrl_nodes = {
-    for n in range(var.ctrl_nodes) :
-    cidrhost(local.ctrl_cidr, n + 1) => {
+    (cidrhost(local.ctrl_cidr, 1)) = {
       name = join("-", ["ctrl", local.internal_name])
     }
   }

@@ -21,7 +21,6 @@ output "cluster_name" {
 output "net" {
   value = {
     network_cidr = local.network_cidr
-    cmd_cidr     = local.cmd_cidr
     ctrl_cidr    = local.ctrl_cidr
     work_cidr    = local.work_cidr
   }
@@ -123,10 +122,6 @@ output "sync" {
 
 output "nodes" {
   value = {
-    cmd = {
-      private_ip = cidrhost(local.cmd_cidr, 1)
-      hostname   = join(".", ["cmd", var.internal_hostname])
-    }
     ctrl = local.ctrl_nodes
     work = local.work_nodes
   }

@@ -12,6 +12,8 @@ resource "docker_container" "secrets" {
     name         = var.net.private_network_id
     ipv4_address = var.net.private_ip
   }
+  memory      = 64
+  memory_swap = 64
   entrypoint = ["httpd", "-vvv", "-f", "-h", "/www"]
   upload {
     file    = "/www/certificates/intermediate-ca"

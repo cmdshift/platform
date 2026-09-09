@@ -158,7 +158,7 @@ Bootstrap the GitOps sync (cilium + flux + the pipeline's own Bucket/root object
 just bootstrap apply
 ```
 
-Expect roughly **10 minutes** of one-shot convergence — no manual intervention. Watch it with `kubectl -n flux-system get kustomizations`; the full verification checklist (25 kustomizations, 15 HelmReleases, velero BSL, ...) is in `runbooks/local/cluster-rebuild.md`.
+Expect roughly **10 minutes** of one-shot convergence — no manual intervention. Watch it with `kubectl -n flux-system get kustomizations`; the full verification checklist and topology map (`cluster/local/ARCHITECTURE.md`) are in `runbooks/local/cluster-rebuild.md`.
 
 Inspect the cluster:
 
@@ -181,4 +181,4 @@ Same body of knowledge, two entry points: humans read the runbooks, agents load 
 
 ### Local Talos Machine Bootstrap
 
-`talos_machine_bootstrap` can hang when Docker Desktop's host port binding for the cluster endpoint (`cmd-local-test`, ports 50000/6443) goes stale after rapid container churn (destroy → recreate within ~a minute): the host listener still accepts connections but black-holes them into the VM. The terraform provider used to silently retry this for 10 minutes; it now fails fast (3m), and the fix is `docker restart cmd-local-test` followed by a re-apply. Full root cause, diagnostics, and the haproxy stats-socket check: [runbooks/local/cluster-rebuild.md](runbooks/local/cluster-rebuild.md).
+`talos_machine_bootstrap` can hang when Docker Desktop's host port binding for the cluster endpoint (the ctrl node container, ports 50000/6443, host loopback only) goes stale after rapid container churn (destroy → recreate within ~a minute): the host listener still accepts connections but black-holes them into the VM. The terraform provider used to silently retry this for 10 minutes; it now fails fast, and the fix is `docker restart $(docker ps -q --filter name=ctrl-local-test)` (a node reboot) followed by a re-apply. Full root cause and diagnostics: [runbooks/local/cluster-rebuild.md](runbooks/local/cluster-rebuild.md).

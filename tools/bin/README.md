@@ -438,14 +438,16 @@ runbooks/local/cilium-connectivity-test.md.
 
 Episodic kube-bench CIS scan: applies the temp scaffolding (privileged-PSS
 `bench-scan` namespace, scoped PolicyException `allow-bench` in `policies`,
-temp CNP — kube-dns + `cmd.local.test:6443`, admin-kubeconfig Secret from
-`$KUBECONFIG`), runs two Jobs (ctrl node: sections
-master/controlplane/etcd/policies/node with a Talos podspec dump prelude;
-workers: node section, one pod per worker via anti-affinity), waits, saves
-logs to `cluster/local/.tmp/bench-<ts>/{ctrl,workers}.log`, prints the
-`== Summary ==` blocks, then deletes the scaffolding. Nothing committed as
-manifests (cilium_test pattern). Talos remaps and the full FAIL/WARN triage
-ledger: `manifests/local/security/README.md`.
+temp CNP — kube-dns + the house `kube-apiserver` entity, admin-kubeconfig
+Secret from `$KUBECONFIG` with the server rewritten from `127.0.0.1:6443` to
+`kubernetes.default.svc:443` — in-pod, `127.0.0.1` would hit the pod loopback),
+runs two Jobs
+(ctrl node: sections master/controlplane/etcd/policies/node with a Talos
+podspec dump prelude; workers: node section, one pod per worker via
+anti-affinity), waits, saves logs to `cluster/local/.tmp/bench-<ts>/{ctrl,workers}.log`,
+prints the `== Summary ==` blocks, then deletes the scaffolding. Nothing
+committed as manifests (cilium_test pattern). Talos remaps and the full
+FAIL/WARN triage ledger: `manifests/local/security/README.md`.
 
 - Exits 0 when both jobs complete (**FAIL counts are scan output, not tool
   errors** — read the summaries); 1 usage; 2 setup/admission failure; 3 job
