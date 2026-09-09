@@ -18,7 +18,7 @@ kubectl -n backups get podvolumebackups -l velero.io/backup-name=<name>
 
 Expect `pvcs-YYYYMMDD030015`-style `Completed` entries, and **one PodVolumeBackup per PVC-backed pod** — empty means the data path broke (hostPath regression, or the PolicyException / `node-agent-config` configmap got dropped).
 
-If `Failed`: describe the backup (`tail -40`), grep velero logs for errors, check velero pod restarts (server needs 256Mi+ for kopia repo prep), confirm BSL `Available` and the rustfs `backups` bucket exists.
+If `Failed`: describe the backup (`tail -40`), grep velero logs for errors, check velero pod restarts via `pod_status -n backups velero` (server needs 256Mi+ for kopia repo prep), confirm BSL `Available` and the rustfs `backups` bucket exists (`rustfs ls main/`).
 
 ## Deleting — the resurrection trap
 
@@ -26,7 +26,7 @@ If `Failed`: describe the backup (`tail -40`), grep velero logs for errors, chec
 
 ## Restores
 
-Two validated shapes (2026-09-05 drill):
+Two validated shapes (drill):
 
 - **Object restore with namespace mapping** (`--namespace-mappings cert-manager:cert-manager-drill`) — expect `0 errors` + ~19 benign warnings; clone controllers crash-loop on leader election against live originals (not a defect).
 - **Data restore** — FSB silently skips hostPath volumes; the StorageClasses carry `defaultVolumeType: local` so **new** PVCs get `local` PVs and are volume-data protected. The `node-agent-config` configmap ships **with the release in `backups/`** — if node-agent pods Error-loop at startup, check `kubectl -n backups get cm node-agent-config` (velero exits if the flag's configmap is missing).

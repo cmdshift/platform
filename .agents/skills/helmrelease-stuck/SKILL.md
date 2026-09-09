@@ -36,7 +36,7 @@ Also not ladder material: the release is **kyverno itself** and its pods sit Pen
 
 ## Wedged finalizer
 
-An HR deletion that hangs on `finalizers.fluxcd.io` means the uninstall is stuck (hit live 2026-09-07: the old release's `kyverno-scale-to-zero` hook retried forever against already-deleted deployments). Clearing the finalizer (`kubectl patch hr <name> -n <ns> --type=merge -p '{"metadata":{"finalizers":null}}'`) skips the uninstall — safe when the remaining work is namespace-scoped garbage that dies with the old namespace and chart CRDs are not GC'd by helm-controller anyway. Check cluster-scoped release objects (webhook configs) survive/are recreated before clearing.
+An HR deletion that hangs on `finalizers.fluxcd.io` means the uninstall is stuck (hit live: the old release's `kyverno-scale-to-zero` hook retried forever against already-deleted deployments). Clearing the finalizer (`kubectl patch hr <name> -n <ns> --type=merge -p '{"metadata":{"finalizers":null}}'`) skips the uninstall — safe when the remaining work is namespace-scoped garbage that dies with the old namespace and chart CRDs are not GC'd by helm-controller anyway. Check cluster-scoped release objects (webhook configs) survive/are recreated before clearing.
 
 ## Context
 

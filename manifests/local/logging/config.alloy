@@ -1,6 +1,6 @@
 logging {
   level  = "info"
-  // JSON logging (2026-09-07): all platform components log JSON so log lines
+  // JSON logging: all platform components log JSON so log lines
   // are field-queryable (`| json` in LogQL) — alloy's own lines included
   format = "json"
 }

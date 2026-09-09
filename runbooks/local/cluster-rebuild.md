@@ -66,7 +66,7 @@ sources → crds → namespaces → certificates → networking (cilium: the lon
 → backups → logging
 ```
 
-Watch convergence with `flux_wait`, or poll by hand ([reconciliation-stuck.md](reconciliation-stuck.md) has the triage if something stalls):
+Watch convergence with `flux_wait` (interactive cap ~15) or `flux_wait -c` for an instant no-reconcile verdict; the triage if something stalls is [reconciliation-stuck.md](reconciliation-stuck.md):
 
 ```
 kubectl -n flux-system get kustomizations
@@ -76,11 +76,11 @@ kubectl -n flux-system get kustomizations
 
 | Check | Command | Expect |
 |---|---|---|
-| Kustomizations | `kubectl -n flux-system get kustomizations` | 27/27 True |
-| HelmReleases | `kubectl get helmreleases -A` | 17/17 True |
+| Kustomizations | `flux_wait -c` | exit 0, all Ready |
+| HelmReleases | `kubectl get helmreleases -A` | 17/17 True (per-release: `helm_wait -c <ns> <name>`) |
 | flux-config adoption | `kubectl -n flux-system get kustomization local -o json --show-managed-fields` | `kustomize-controller` owns the spec |
 | Velero BSL | `kubectl -n backups get bsl default` | `Available` |
-| Rustfs buckets | `rc ls main/` in the storage container | `flux`, `backups` (auto-provisioned) |
+| Rustfs buckets | `rustfs ls main/` | `flux`, `backups` (auto-provisioned) |
 | Thanos ruler | `kubectl -n monitoring get pods -l app.kubernetes.io/name=thanos-ruler` | 2/2 Running, rule files wired |
 | PolicyReports | `policy_report` | 0 failures |
 

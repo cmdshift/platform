@@ -23,7 +23,7 @@ trivy:
   # hardening testbed; keeps reports actionable-poor but information-rich
   ignoreUnfixed: false
   # ALL pull paths go through the angos caching registry (registry.cloud.test,
-  # the cluster's pull-through cache — see notes.md companions section):
+  # the cluster's pull-through cache — see manifests/local/README.md):
   # - tool + operator images are kubelet-pulled, so the node containerd mirror
   #   catches them — but only for registries in the upstream map; mirror.gcr.io
   #   (chart default) is NOT in it, docker.io is

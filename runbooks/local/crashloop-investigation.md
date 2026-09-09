@@ -37,7 +37,7 @@ prometheus_query -c -r 6h 'container_memory_working_set_bytes{namespace="<ns>",c
 
 For prometheus specifically, also check series count and cardinality by job (`prometheus_tsdb_head_series`, `topk(10, count by (job)({__name__=~".+"}))` via `prometheus_query`) — memory growth usually tracks series growth.
 
-The `ContainerOOMKilled` alert (ruler → alertmanager → mailpit) catches ceiling hits that go unnoticed in logs. **Alerts are readable at http://mail.cloud.test.**
+The `ContainerOOMKilled` alert (ruler → alertmanager → mailpit) catches ceiling hits that go unnoticed in logs. **Alerts are readable at http://mail.cloud.test (`mailpit`).**
 
 ## 4. Fix and verify
 

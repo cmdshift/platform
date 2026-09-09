@@ -7,7 +7,7 @@
 # IMPERATIVELY here (applied for the run, deleted after) — deliberately NOT
 # committed as manifests, so the cluster's policy posture stays minimal
 # (cilium_test pattern). Method + full triage ledger:
-# manifests/local/notes.md → "kube-bench CIS scan".
+# manifests/local/security/README.md ("kube-bench").
 #   1. kyverno ValidatingPolicies — temp PolicyException in the `policies` ns
 #      (root + hostPath + hostPID are the scan's job; everything else stays
 #      enforced: seccomp, caps, resources, pinned tags)
@@ -358,7 +358,7 @@ print_summaries() {
     echo "== bench: $f summary =="
     grep -A6 "== Summary" "$LOGDIR/$f.log" | sed -E 's/^\[pod\/[^]]*\]//' | awk '!seen[$0]++' || true
   done
-  echo "bench: FAIL/WARN triage ledger — manifests/local/notes.md → 'kube-bench CIS scan'"
+  echo "bench: FAIL/WARN triage ledger — manifests/local/security/README.md"
 }
 
 cleanup() {

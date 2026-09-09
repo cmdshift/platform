@@ -5,7 +5,7 @@ description: Fresh terraform bootstrap of the Talos-in-Docker cluster — the ju
 
 # Cluster rebuild (fresh bootstrap)
 
-Validated 2026-09-05: the whole platform converges in **one shot, no manual intervention** — bootstrap helm hooks create the pipeline's own Bucket + root Kustomization, and the flux tree takes it from there.
+Validated end-to-end: the whole platform converges in **one shot, no manual intervention** — bootstrap helm hooks create the pipeline's own Bucket + root Kustomization, and the flux tree takes it from there.
 
 ## Prerequisites
 
@@ -19,7 +19,7 @@ just cluster apply      # docker network, companions, talos nodes, kubeconfig (.
 just bootstrap apply    # cilium + flux helm releases + the Bucket/root hooks
 ```
 
-**Destroy + recreate from scratch (2026-09-07, operator recipe):**
+**Destroy + recreate from scratch (operator recipe):**
 1. `just bootstrap destroy` **fails by design** — `lifecycle.prevent_destroy` guards the flux state (bucket_credentials, helm_release.flux, …). That's the point: the cluster module is destroyed *underneath* the bootstrap state, and `bootstrap apply` reinstalls flux onto the fresh cluster.
 2. `just cluster destroy -auto-approve` (~1m, wipes rustfs + PVCs per data implications).
 3. `just cluster apply -auto-approve` (~45s at 1 ctrl node). **If it hangs at `talos_machine_bootstrap`**: root cause is a stale Docker Desktop port binding after container churn — host listener accepts but black-holes into the VM (not the LB, not a node race). Recovery: kill the apply, `docker restart cmd-local-test`, re-run the apply — only bootstrap + kubeconfig remain and they land in seconds. The provider now fails fast (10s timeouts) instead of its old silent 10m retry. Verify with the haproxy stats socket: `docker exec cmd-local-test wget -qO- 'http://127.0.0.1:8404/stats;csv'` — apid frontend `stot` climbing = binding alive. Non-interactive shells MUST pass `-auto-approve` (the approval prompt EOFs otherwise).
@@ -35,14 +35,14 @@ sources → crds → namespaces → certificates → networking (cilium: the lon
 → backups → logging → security → security-config
 ```
 
-Watch with `flux_wait` (or `kubectl -n flux-system get kustomizations`).
+Watch with `flux_wait` (interactive cap ~15), or `flux_wait -c` for an instant no-reconcile verdict.
 
 ## Post-rebuild verification
 
 | Check | Command | Expect |
 |---|---|---|
-| Kustomizations | `kubectl -n flux-system get kustomizations` | 28/28 True (incl. security, security-config, storage-config) |
-| HelmReleases | `kubectl get helmreleases -A` | 15/15 True (incl. security/tetragon) |
+| Kustomizations | `flux_wait -c` | exit 0, all Ready |
+| HelmReleases | `kubectl get helmreleases -A` | 15/15 True (incl. security/tetragon); per-release: `helm_wait -c <ns> <name>` |
 | Tetragon policies | `tetra --server-address localhost:54321 tracingpolicy list` (after `kubectl -n security port-forward ds/tetragon 54321:54321`) | 4 × enabled, monitor_only; FILTERID non-zero for privileges-raise + sensitive-host-paths |
 | Policy load failures | `prometheus_query 'tetragon_tracingpolicy_loaded{state=~"error\|load_error"} > 0'` | empty (the gauge exports zero-valued states too — filter with `> 0`) |
 | flux-config adoption | `kubectl -n flux-system get kustomization local -o json --show-managed-fields` | `kustomize-controller` owns the spec |
@@ -54,7 +54,7 @@ Watch with `flux_wait` (or `kubectl -n flux-system get kustomizations`).
 
 **Bootstrap race, self-healing:** on a fresh rebuild the ruler CR can fail its first sync (query service not up yet) → `Ready=False (ReconcileError)` on the CR. Since thanos-community/thanos-operator#636 the operator emits a single recoverable `Ready` condition — the next sync flips it `True`; no manual action, verify it converged (cmdshift/platform#22).
 
-**Trivy cold-start race (expected, mostly self-healing):** the operator's Deployment goes ready ~16s before its first scan job, but the `trivy-server-0` StatefulSet (cache server, same release) starts ~75s later — the first job (the cluster-SBOM scan) dies with `dial tcp trivy-service:4954: connect: connection refused`. The operator deletes the failed job (30s retry delay) and all *workload* scans re-run fine; `dependsOn: networking` would NOT fix this — the race is between two resources of one helm release, and networking is Ready long before. The one artifact that does NOT self-heal: the `ClusterSbomReport` stays status-less (the operator treats its server-side cached SBOM as valid and won't re-scan until the report TTL/server cache expires). Nothing consumes that report locally — leave it, or delete it + restart the operator (note: a restart alone does NOT regenerate it; 2026-09-07 session).
+**Trivy cold-start race (expected, mostly self-healing):** the operator's Deployment goes ready ~16s before its first scan job, but the `trivy-server-0` StatefulSet (cache server, same release) starts ~75s later — the first job (the cluster-SBOM scan) dies with `dial tcp trivy-service:4954: connect: connection refused`. The operator deletes the failed job (30s retry delay) and all *workload* scans re-run fine; `dependsOn: networking` would NOT fix this — the race is between two resources of one helm release, and networking is Ready long before. The one artifact that does NOT self-heal: the `ClusterSbomReport` stays status-less (the operator treats its server-side cached SBOM as valid and won't re-scan until the report TTL/server cache expires). Nothing consumes that report locally — leave it, or delete it + restart the operator (note: a restart alone does NOT regenerate it).
 
 ## Data implications
 

@@ -1,0 +1,40 @@
+# monitoring
+
+kube-prometheus-stack (prometheus), grafana-operator, thanos-operator (bundle), prometheus-operator-crds + `monitoring-config/` (CR-managed components, thanos ruler rules, alert routing, dashboards).
+
+## What's CR-managed vs helm values
+
+- **grafana (`Grafana` CR), thanos query/compact/store/ruler (`Thanos*` CRs), alertmanager (`Alertmanager` CR)** → `monitoring-config/`. Resources/securityContext go in the CR specs (`resourceRequirements`, `securityContext`, per-component `podSecurityContext`/`containerSecurityContext`).
+- The kps chart's alertmanager component is **disabled** (Alertmanager is CR-managed) — consequence: the Prometheus CR's `spec.alerting` must point at `alertmanager-operated.monitoring:9093` via `alertingEndpoints`, or the entire kubernetes-mixin rule set is evaluated but **never delivered** (only thanos-ruler alerts would reach mailpit). Same endpoint pattern as `main.thanos-ruler.yaml`.
+- `prometheusSpec.serviceMonitorSelectorNilUsesHelmValues: false` is load-bearing — the chart default required a `release:` label only the stack's own SMs carried, leaving kyverno/thanos/velero SMs unscraped. Chart gotchas: `serviceMonitorSelector: {}` directly **doesn't work** (empty map is falsy → falls back to the release label), and cilium's `validate.yaml` gate refuses to render SMs without `prometheus.serviceMonitor.trustCRDsExist: true` (safe: prometheus-operator-crds ships the CRDs). Per-chart SM key shapes differ (alloy top-level, loki under `monitoring:`, cilium needs `metrics.enabled` too) — verify each by rendering with `helm_verify`.
+
+## thanos-operator: bundle, not chart
+
+Deployed from the repo's `bundle.yaml` via Kustomization — the helm chart embeds ~2.5MB of CRDs and blows helm's 1MB release-secret cap (strategy ladder: [runbooks/local/adopting-a-chart.md](../../runbooks/local/adopting-a-chart.md)). GitRepository commit and quay image tag (`main-YYYY-MM-DD-<shortsha>`) bump in lockstep.
+
+- **Status conditions are the health signal** since thanos-community/thanos-operator#636: a single recoverable `Ready` condition (the old sticky `ReconcileSuccess`/`ReconcileFailed` pair could read True simultaneously). `monitoring-config.yaml` gates all four thanos CR kinds via `healthCheckExprs` on `Ready`. Semantics: empty conditions pass vacuously; a denied StatefulSet (missing resources) flips the CR to `Ready=False` within seconds — recipe for verifying operator condition behavior: scratch `ThanosStore` without `resourceRequirements` (needs `spec.shardingStrategy` too), watch denial → recovery.
+- **Bundle Namespace label clobber**: the bundle ships `Namespace: thanos-operator-system`, renamed onto `monitoring`; both `namespaces` and `thanos-operator` apply it as the same SSA field manager, so the load-bearing PSS labels are mirrored into the kustomization's strategic-merge patch (otherwise whichever reconciles last prunes them — kps node-exporter then dies on PSS admission, invisible to kyverno). Full mechanism: [runbooks/local/namespace-migration.md](../../runbooks/local/namespace-migration.md).
+
+## Ruler alerting
+
+- **Ruler alerting depends on the query seeing the prometheus head** — the sidecar endpoint is wired manually via `additionalArgs` in `main.thanos-query.yaml` (label-based discovery can't see the chart-managed discovery service). If ruler rules silently never fire, check `prometheus_query --query 'count(kube_pod_container_status_restarts_total)'` against the query svc — empty means the head path is broken again.
+- **Store-path stale-IP window** (not a CNP block): a stale SRV-resolved store pod IP makes the query fail WHOLE requests (even head-only rules) until it re-resolves — ruler logs `no query API server reachable`; dial-test the store IP from the query pod (`wget http://<store-ip>:10902/-/ready`) before suspecting policy.
+- Alert delivery: ruler → alertmanager (CR) → mailpit (**http://mail.cloud.test**). AlertmanagerConfig child-route `matchers` are structured `{name, value}` objects, not PromQL strings; receiver names that look like YAML nulls must be quoted — both hit live in `mail.alertmanager-config.yaml`.
+- kube-proxy metrics need the terraform `metrics-bind-address` arg + the monitoring CNP's 10249 egress rule ([networking/README.md](../networking/README.md)).
+
+## Dashboards
+
+`platform-deployment.grafana-dashboard.yaml` is the in-repo pattern: JSON in `platform-deployment.dashboard.json`, wired via configMapGenerator (`disableNameSuffixHash: true`) + `spec.configMapRef`; `url:` reserved for mirrored upstream dashboards. **The operator does not watch the ConfigMap** — JSON edits propagate on resync (`resyncPeriod: 5m` + `contentCacheDuration: "0s"`; the field is a string); metadata-only CR changes are filtered out, bump a `spec` field to force propagation. The log-filter strip is a markdown text panel whose preset links set `var-log_filter` via URL (Grafana pins variables to the toolbar; URL-param links are the only mid-canvas filter control).
+
+**PromQL landmines against kube-state-metrics v2** (all verified live, all cost debugging rounds):
+
+- `kube_pod_spec_volumes_persistent_volume_claim*s*_info` — v2.20 emits `persistentvolumeclaims` (no underscores); the v1 name is absent.
+- `kube_replicaset_owner` has no `deployment` label — Deployment→pod mapping needs `label_replace` overwriting `owner_name` with the RS name to line up the join keys (quoted label args).
+- **Chained vector joins silently return empty** — the second `on()` group must be parenthesized; `sum by` must keep the outer join key. No error anywhere; panels just render empty.
+- **Grafana `label_values()` variable queries are selector-only** (`/api/v1/series match[]`) — joins fail with a parse error and dependent panels silently show nothing; chain hidden selector-only variables instead (order in `templating.list` matters). Panel queries are unaffected.
+- The deployment variable uses a sentinel (`includeAll` + `allValue: "__none__"`) — Grafana auto-selects the first value of a query variable, so an empty `current` doesn't stay empty.
+- Logs panel takes a full LogQL pipeline via a textbox (`{...} $log_query`); the html-mode preset strip needs `GF_PANELS_DISABLE_SANITIZE_HTML=true` (repo-authored content only).
+
+## JSON logging knobs (monitoring components)
+
+prometheus `prometheusSpec.logFormat: json`, prometheus-operator `logFormat: json`, alertmanager CR `spec.logFormat: json`, thanos CRs `additionalArgs: [--log.format=json]` (verified against on-cluster CRDs), grafana `GF_LOG_CONSOLE_FORMAT=json` env (**the operator's webhook rejects `spec.config.log.console`**, and grafana 13 ignores `[log] format` — the knob is `[log.console]`, override via env). Full sweep table: [logging/README.md](../logging/README.md).

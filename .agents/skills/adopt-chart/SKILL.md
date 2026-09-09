@@ -45,21 +45,15 @@ If too big, pick a strategy:
 
 ## 4. Verify before pushing
 
-Render with the **exact** release values extracted from the HelmRelease yaml:
-
-```
-helm template <release> <chart> --namespace <ns> -f /tmp/release-values.yaml
-```
-
-`helm template` rejects unknown values keys only for charts shipping `values.schema.json` — for schema-less charts this catches template errors, not key typos. And verify any new-to-you API fields against the **on-cluster CRD schema** before pushing (undeclared fields fail the root dry-run and wedge the whole chain).
+`helm_verify [path] [release]` renders the release with the **exact** values flux will ship — `valuesFrom` refs resolved from the configMapGenerator entries, chart fetched from the source CRs; the single-release form is for ad-hoc values debugging. For schema-less charts it catches template errors, not key typos (see §0) — cross-check surprise diffs against the chart's `values.yaml`. When you need to eyeball the full rendered manifest (hook jobs, securityContext placement), `helm template` by hand — with the real values. And run `cr_validate` on any CR the chart/CRDs introduce before pushing; for field-level detail verify new-to-you API fields against the **on-cluster CRD schema** (undeclared fields fail the root dry-run and wedge the whole chain).
 
 ## Worked examples
 
-thanos-operator (2026-09-05): helm chart attempt → install failed at the 1MB cap (~2.5MB of embedded CRDs) → vendored CRDs (regen burden) → repo's `bundle.yaml` via kustomization with three patches. Rationale in `monitoring/thanos-operator.kustomization.yaml`.
+thanos-operator: helm chart attempt → install failed at the 1MB cap (~2.5MB of embedded CRDs) → vendored CRDs (regen burden) → repo's `bundle.yaml` via kustomization with three patches. Rationale in `monitoring/thanos-operator.kustomization.yaml`.
 
-trivy-operator (2026-09-07): chart 0.36.0 adopted clean (CRDs ship in `crds/`, no hook jobs, 23KB release) but three values keys were **silently ignored** (schema-less chart): `operator.resources` (wants top-level `resources`), `scanJobsConcurrentLimit`/`scanJobTTL` (want `operator.`, not `trivyOperator.`) — caught by inspecting the render, not by helm template. Values now live in a plain values file + configMapGenerator → `valuesFrom` (cmdshift/platform#31 pattern, helm_verify resolves it); operator-generated scan jobs needed the admission shaping trap above. Rationale in `security/trivy-values.yaml` + `manifests/local/notes.md`.
+trivy-operator: chart 0.36.0 adopted clean (CRDs ship in `crds/`, no hook jobs, 23KB release) but three values keys were **silently ignored** (schema-less chart): `operator.resources` (wants top-level `resources`), `scanJobsConcurrentLimit`/`scanJobTTL` (want `operator.`, not `trivyOperator.`) — caught by inspecting the render, not by helm template. Values now live in a plain values file + configMapGenerator → `valuesFrom` (cmdshift/platform#31 pattern, helm_verify resolves it); operator-generated scan jobs needed the admission shaping trap above. Rationale in `security/trivy-values.yaml` + `security/README.md`.
 
-## Operator-adoption traps (datastores group, issue #49)
+## Operator-adoption traps (datastores group, cmdshift/platform#49)
 
 - **Chart renders > 1MB because CRDs ship in `templates/`** (cloudnative-pg): `crds.create: false` + a child Kustomization (crds group, `prune: false`) building the upstream repo's `config/crd` at a pinned tag — upstream-tracked beats vendoring (no regen burden, bump = tag ref). Verify the build is load-restrictor-safe (no `../` refs) and semantically identical to the chart's CRDs before switching (runbooks/local/adopting-a-chart.md).
 
@@ -67,7 +61,7 @@ trivy-operator (2026-09-07): chart 0.36.0 adopted clean (CRDs ship in `crds/`, n
 - **Versioned image tags may live only on one registry, with different prefixes**: rabbitmq's `:latest` is on ghcr AND docker hub, but versioned tags are ghcr-only and **without the `v` prefix** (`2.22.5`, not `v2.22.5`); docker hub's `rabbitmqoperator` repos lag releases. `ErrImagePull ... not found` on a freshly pinned tag = check the registry's real tag list before touching anything else.
 - **Charts that `lookup` their own CRDs at render time** (kubeblocks): helm-controller renders without API discovery, so a chart whose templates `lookup` an API it doesn't ship fails install unless the CRDs are established first — by a separate crds chart (`prometheus-operator-crds` pattern), vendored CRDs in the `crds` group, or a `crds/` dir (helm install-only, the valkey-operator's shape).
 - **Hardcoded admission-incompliant initContainers** (kubeblocks `tools` init: resources present, securityContext absent, no values knob): fix with HelmRelease `postRenderers` (kustomize SMP on the named initContainer). Verify the post-rendered output locally first — an SMP that silently matches nothing reproduces the exact admission denial.
-- **KubeBlocks — aborted, not adopted** (issue #49): multi-engine operator (2 Deployments + 28 CRDs + inert Addon CRs + a dataprotection controller) rejected as not single-purpose enough; replaced by the valkey-operator. The abort left the 28 CRDs on-cluster (crds group is prune:false) — deleted manually like the kubescape removal. When rejecting an operator, sweep CRDs + operator-created CRs by hand; helm uninstall does not remove CRDs.
+- **KubeBlocks — aborted, not adopted** (cmdshift/platform#49): multi-engine operator (2 Deployments + 28 CRDs + inert Addon CRs + a dataprotection controller) rejected as not single-purpose enough; replaced by the valkey-operator. The abort left the 28 CRDs on-cluster (crds group is prune:false) — deleted manually like the kubescape removal. When rejecting an operator, sweep CRDs + operator-created CRs by hand; helm uninstall does not remove CRDs.
 
 ## Full detail
 
