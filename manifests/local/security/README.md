@@ -4,11 +4,11 @@ Tetragon (runtime, eBPF) + trivy-operator (static posture) + `security-config/` 
 
 ## Kernel intel (linuxkit 7.0.12, Docker Desktop VM)
 
-Check the kernel before adopting any tool in this class — the cost of not doing it is a startup-dead DaemonSet on every node:
+Check the kernel before adopting any tool in this class — the cost of not doing it is a startup-dead DaemonSet on every node. Node-targeted talosctl commands need an explicit `-n <node-ip>` (the talosconfig context sets no default node; `talosctl config get-contexts` shows the gap, kubectl `get nodes -o wide` the IPs):
 
 - **fanotify permission events are unavailable** (`CONFIG_FANOTIFY_ACCESS_PERMISSIONS=n`, `docker run alpine zcat /proc/config.gz`) — killed the kubescape node-agent's container watcher at startup on every node; the init is unconditional, so no partial-enable workaround. This killed kubescape (cmdshift/platform#24).
-- **eBPF tools are proven viable**: `CONFIG_DEBUG_INFO_BTF=y` (+ `/sys/kernel/btf/vmlinux`), `KPROBES`/`KPROBE_EVENTS`, `FTRACE_SYSCALLS`, `TRACEPOINTS` — verify via `talosctl read /proc/config.gz | zcat | grep BTF` (no extra container needed).
-- **`CONFIG_BPF_LSM=y` is not proof of LSM-hook support**: the vmlinux BTF lacks `bpf_lsm_*` hook symbols, so `lsmhooks:` policies fail to load ("lsm hook security_file_open not found in BTF"). Ritual: `talosctl read /proc/kallsyms | grep -wE "[Tt] (<symbols>)"` **before** writing the policy, then `cr_validate` before `sync_wait`. Plain kprobes on the same symbols work, and `fmodret: true` is supported, so Override stays available via kprobes. Inlined symbols (`free_module`) don't attach; local `t` symbols (`do_init_module`) do.
+- **eBPF tools are proven viable**: `CONFIG_DEBUG_INFO_BTF=y` (+ `/sys/kernel/btf/vmlinux`), `KPROBES`/`KPROBE_EVENTS`, `FTRACE_SYSCALLS`, `TRACEPOINTS` — verify via `talosctl -n <node> read /proc/config.gz | zcat | grep BTF` (no extra container needed).
+- **`CONFIG_BPF_LSM=y` is not proof of LSM-hook support**: the vmlinux BTF lacks `bpf_lsm_*` hook symbols, so `lsmhooks:` policies fail to load ("lsm hook security_file_open not found in BTF"). Ritual: `talosctl -n <node> read /proc/kallsyms | grep -wE "[Tt] (<symbols>)"` **before** writing the policy, then `cr_validate` before `sync_wait`. Plain kprobes on the same symbols work, and `fmodret: true` is supported, so Override stays available via kprobes. Inlined symbols (`free_module`) don't attach; local `t` symbols (`do_init_module`) do.
 
 ## Tetragon
 
