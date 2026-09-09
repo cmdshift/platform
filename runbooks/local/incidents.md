@@ -12,6 +12,27 @@ Incidents documented in their owning runbooks (kept there for context):
 
 ---
 
+## Gateway-API ingress born dead (cmdshift/platform#70)
+
+**Symptom**: the `cilium` GatewayClass and the `local-test` Gateway both sat "Waiting for controller" indefinitely; agent logs carried zero GatewayClass activity; the internal haproxy answered 503. Found during the #54 rebuild (2026-09-09) but pre-existing — nothing in that change touched cilium values, the Gateway, or the LB.
+
+**Root cause**: the bootstrap pinned `kubeProxyReplacement=false` — cilium's Gateway API controller requires KPR and refuses the GatewayClass, logging exactly `Gateway API support requires kube-proxy-replacement enabled`. The KPR=false flip (+ Talos `proxy.disabled=false`) had landed as an unexplained drive-by in c4a6077 (2026-08-31, the kyverno-policies commit — the same commit that introduced the Gateway manifest): no CHANGELOG entry, no issue, and it inverted the docs-recommended 2026-08-26 pairing (KPR=true + proxy.disabled=true). The Gateway path was never green — it was born into the dead window.
+
+**Fix chain** (each step gated on the previous):
+
+1. `kubeProxyReplacement: true` in the cilium values (+ bootstrap parity) — **and this alone was not enough**: a values-only helm upgrade updates the `cilium-config` ConfigMap and rolls the agent DaemonSets (`rollOutCiliumPods`), but the cilium-operator Deployment's pod template is unchanged, so the operator process kept the old `--kube-proxy-replacement='false'` startup flag and the GatewayClass stayed unclaimed until `kubectl -n kube-system rollout restart deploy/cilium-operator` (mounted-config reload). The tell: the values can be right while the process is stale — check the operator's actual startup args before assuming a values change landed.
+2. Talos `proxy.disabled: true` — Talos stops *rendering* kube-proxy but never deletes the already-applied DaemonSet (the ManifestApplyController applies, never prunes), so convergence needed a one-time `kubectl -n kube-system delete ds kube-proxy`. The machine config applied live with no reboot (cluster.proxy changes are live-appliable).
+
+**Ordering hazard (dodged)**: kube-proxy must not disappear before cilium KPR=true is live — the ClusterIP DNAT gap would make coredns (a ClusterIP service) unreachable and flux could reconcile nothing: a deadlock. Sequence used: values flip → agents healthy → machine config.
+
+**Secondary find during verification**: `curl https://local.test` failed with `tlsv1 alert protocol version` — the internal haproxy's `web_tls` frontend/backend inherited `mode http` from `defaults main` and parsed the TLS ClientHello as HTTP, mangling the handshake. Fixed to `mode tcp` passthrough (the Gateway terminates TLS) + `timeout server 10m` (the defaults' 10s client/server timeout would cut idle TLS connections). :80 was unaffected (plain HTTP through to envoy).
+
+**Tells for next time**:
+
+- "Waiting for controller" on a GatewayClass → grep the cilium-operator logs for the prerequisite message first, then check the operator process's actual startup flags (`kubectl -n kube-system get deploy cilium-operator -o yaml`), not just the values.
+- A DaemonSet the platform "removed" (Talos stops rendering it) keeps running — removed rendered manifests need a one-time manual delete; rendered-manifest apply never prunes.
+- Any kube-proxy ↔ cilium-KPR ordering-sensitive change: cut cilium over first, remove kube-proxy second.
+
 ## Loki zero-ingestion (cmdshift/platform#27)
 
 **Symptom**: since the rebuild Loki ingested nothing — `loki_ingester_chunks_created_total 0`, 24h-empty queries — with clean logs everywhere. Pods healthy, no errors anywhere.

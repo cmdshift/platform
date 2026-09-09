@@ -21,7 +21,7 @@ Bigger caveat first: local-path is node-local with no replication — a lost nod
 
 What must change vs the local helm release:
 
-- `kubeProxyReplacement: false` → **`true`** (explicitly marked in-repo: "true in the cloud") — BPF-based service routing instead of kube-proxy; on real Talos VMs the chart default (probe-based auto) is fine, but pin it.
+- `kubeProxyReplacement: true` is **no longer a delta** — true everywhere since cmdshift/platform#70 (it's the cilium Gateway API controller prerequisite; locally the bootstrap-era `false` blocked the GatewayClass from ever claiming). In the cloud, pair it with the Talos side the same way: `proxy.disabled: true` in the machine config, then a one-time `kubectl -n kube-system delete ds kube-proxy` — Talos stops rendering kube-proxy but never deletes the already-applied DaemonSet. Ordering: KPR live first, kube-proxy removal second (the ClusterIP DNAT gap between the two makes coredns unreachable and flux deadlocks). A values-only helm upgrade does NOT restart cilium-operator — restart the deployment after the upgrade or the process keeps old startup flags.
 - `k8sServiceHost: localhost` / `k8sServicePort: 7445` → the real control-plane endpoint (Talos cluster/API VIP or a proper LB). The local values point at the per-node docker haproxy (`cluster/local/nodes/main.tf`) and exist because cilium must reach the API before pod networking exists — a bootstrap chicken-and-egg that doesn't apply on real VMs.
 - `cgroup.autoMount.enabled: false` + `hostRoot` → drop; that's a Talos-in-docker container quirk. Use chart defaults on real nodes.
 - `gatewayAPI.hostNetwork: true` (+ `k8s-role/work` node match) → normal non-hostNetwork gateway API listeners fronted by a cloud LB. The local form exists to publish LB ports on the docker host.
@@ -37,7 +37,7 @@ The kubescape operator and all its SecurityExceptions were removed from `manifes
 
 Carry over as-is: kube-bench as an episodic CLI-style one-shot Job (temp scaffolding pattern — privileged PSS namespace + scoped PolicyException, delete after; spec reference in `cluster/local/.tmp/kube-bench-scan/`, method + triage ledger in `manifests/local/security/README.md`). Pin the benchmark explicitly — kube-bench releases lag k8s (cis-2.0 covers 1.34–1.35 but isn't in a released kube-bench yet; check `docs/platforms.md` per bump).
 
-Cloud deltas — the scan gets **simpler and more truthful** on non-Talos-in-docker nodes: systemd unit paths, `/var/lib/etcd`, and full `/etc/kubernetes/pki` all exist, so the local false-FAIL map (authorization-config file form excepted — that's Talos defaulting, re-verify there) largely disappears; expect near-zero layout noise. Keep the local ledger's real findings on the radar: `--service-account-extend-token-expiration`, scheduler/controller-manager/kube-proxy bind addresses, `--kubelet-certificate-authority`.
+Cloud deltas — the scan gets **simpler and more truthful** on non-Talos-in-docker nodes: systemd unit paths, `/var/lib/etcd`, and full `/etc/kubernetes/pki` all exist, so the local false-FAIL map (authorization-config file form excepted — that's Talos defaulting, re-verify there) largely disappears; expect near-zero layout noise. Keep the local ledger's real findings on the radar: `--service-account-extend-token-expiration`, scheduler/controller-manager bind addresses, `--kubelet-certificate-authority`. (The 4.3.1 kube-proxy metrics finding dropped out with the kube-proxy removal — cilium KPR=true, cmdshift/platform#70.)
 
 ## Tetragon (local: `manifests/local/security/`, adopted 2026-09-07)
 

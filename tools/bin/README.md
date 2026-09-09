@@ -216,8 +216,9 @@ The three siblings — pick by question:
 ### `memory_audit [threshold_pct]`
 
 Memory usage-vs-limits table (default 50%), Mi/Gi normalized. Footer counts
-containers with no memory limit — expected 9 (control-plane statics +
-thanos-ruler config-reloader); anything else is a finding. Non-numeric
+containers with no memory limit — expected 4 (three control-plane statics +
+the thanos-ruler config-reloader; kube-proxy ×5 left with the cilium KPR
+cutover, cmdshift/platform#70); anything else is a finding. Non-numeric
 thresholds are a usage error — they used to silently corrupt the awk
 comparisons.
 
@@ -429,7 +430,10 @@ labels + allow-all CNPs on every `cilium-test*` namespace — a scaffold loop
 keeps applying them mid-run because the ccnp suites create namespaces
 partway through). Nothing is committed as manifests, so the cluster's policy
 posture stays minimal. Default args added unless overridden: flow-validation
-disabled (kube-proxy DNAT hides flows from hubble), connectivity-suites-only
+disabled (cilium monitor aggregation hides DNS flows, so hubble can never
+match what the CLI's flow matcher looks for — the resulting `not found` spam
+is the matcher, not the datapath; the old kube-proxy-DNAT rationale is gone
+since cilium KPR=true, cmdshift/platform#70), connectivity-suites-only
 test filter (policy suites' deny expectations union with the required
 allow-all scaffold and can only fail here). Manual procedure + rationale:
 runbooks/local/cilium-connectivity-test.md.

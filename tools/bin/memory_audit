@@ -2,7 +2,7 @@
 # Memory usage-vs-limits audit across all containers.
 #   memory_audit [threshold_pct]   # default 50
 # Normalizes Mi/Gi (the classic bug: '1Gi' parses as 1 in naive awk).
-# Footer: containers with no memory limit — expected 9 (control-plane
+# Footer: containers with no memory limit — expected 4 (control-plane
 # statics + thanos-ruler config-reloader); anything else is a finding.
 # Exit 0 = audited, 2 = usage error.
 
@@ -49,7 +49,7 @@ memory_audit() {
   collect_limits > "$lfile"
   ratios "$ufile" "$lfile" "$threshold"
   echo "---"
-  echo "containers without memory limits: $(count_unlimited) (expected: 9 — control-plane statics + thanos-ruler config-reloader)"
+  echo "containers without memory limits: $(count_unlimited) (expected: 4 — control-plane statics + thanos-ruler config-reloader)"
 }
 
 memory_audit "$@"

@@ -25,9 +25,9 @@ Failure signatures if a layer changes: creation denied (kyverno), `FailedCreate`
 
 ## Wrapper defaults (and why)
 
-- `--flow-validation=disabled` — this cluster runs kube-proxy, so service ClusterIPs are DNAT'd before cilium sees them; the resulting `DNS request ... not found` / `SYN ... dst=<service-ip> not found` spam is the *matcher* failing, not the datapath.
+- `--flow-validation=disabled` — cilium monitor aggregation hides DNS flows, so hubble can never match what the CLI looks for; the resulting `DNS request ... not found` / `SYN ... dst=<service-ip> not found` spam is the *matcher* failing, not the datapath. (The old kube-proxy-DNAT rationale is gone since cilium KPR=true, cmdshift/platform#70 — cilium sees service IPs itself now.)
 - **connectivity suites only** — policy suites (`deny-all`, `*-l7`, `to-fqdns`, ...) deploy their own deny policies whose expectations union with the required allow-all scaffold and can only fail here. Pass explicit `--test ...` to run anything else.
-- `check-log-errors` excluded — its only matches are benign on talos-in-docker (missing `CONFIG_INET_DIAG_DESTROY`, `bpf-lb-sock` warning with `kubeProxyReplacement: false`).
+- `check-log-errors` excluded — its only match is benign on talos-in-docker (missing `CONFIG_INET_DIAG_DESTROY`; observed live in agent logs during the KPR rollout). The old `bpf-lb-sock` expected-warning match is gone with KPR=true.
 
 ## Gotchas
 

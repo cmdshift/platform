@@ -20,7 +20,7 @@ Deployed from the repo's `bundle.yaml` via Kustomization — the helm chart embe
 - **Ruler alerting depends on the query seeing the prometheus head** — the sidecar endpoint is wired manually via `additionalArgs` in `main.thanos-query.yaml` (label-based discovery can't see the chart-managed discovery service). If ruler rules silently never fire, check `prometheus_query --query 'count(kube_pod_container_status_restarts_total)'` against the query svc — empty means the head path is broken again.
 - **Store-path stale-IP window** (not a CNP block): a stale SRV-resolved store pod IP makes the query fail WHOLE requests (even head-only rules) until it re-resolves — ruler logs `no query API server reachable`; dial-test the store IP from the query pod (`wget http://<store-ip>:10902/-/ready`) before suspecting policy.
 - Alert delivery: ruler → alertmanager (CR) → mailpit (**http://mail.cloud.test**). AlertmanagerConfig child-route `matchers` are structured `{name, value}` objects, not PromQL strings; receiver names that look like YAML nulls must be quoted — both hit live in `mail.alertmanager-config.yaml`.
-- kube-proxy metrics need the terraform `metrics-bind-address` arg + the monitoring CNP's 10249 egress rule ([networking/README.md](../networking/README.md)).
+- kube-proxy is gone from the cluster (cilium KPR=true + Talos `proxy.disabled`, cmdshift/platform#70) — kps runs `kubeProxy.enabled: false` (chart 89.2.1 single switch: drops the dead-target ServiceMonitor and the kube-proxy rule set). The old terraform `metrics-bind-address` arg (cmdshift/platform#23) and the monitoring CNP's 10249 egress rule are deleted with it.
 
 ## Dashboards
 

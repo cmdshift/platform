@@ -17,7 +17,7 @@ description: Setting or auditing container resources. The sizing convention (lea
 
 | Tool | Question |
 |---|---|
-| `memory_audit [pct]` | is anything near its **limit**? (usage-vs-limits; footer counts limit-less containers — expected 9) |
+| `memory_audit [pct]` | is anything near its **limit**? (usage-vs-limits; footer counts limit-less containers — expected 4: control-plane statics + thanos-ruler reloader, cmdshift/platform#70) |
 | `cpu_audit [pct]` | same for CPU + the silent-killer check: top-10 by % of CFS periods throttled (>5% worth a look) |
 | `request_audit [pct]` | are **requests** honest for scheduling? (≥100% of memory request = first evicted under node pressure) |
 | `vpa_recs [ns]` | what does **VPA** recommend for this workload? (the recommendation side — P99-shaped candidate requests from the Off-mode VPAs goldilocks maintains) |

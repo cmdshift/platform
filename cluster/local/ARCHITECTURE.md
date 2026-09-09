@@ -30,7 +30,7 @@ flowchart TB
       subgraph nodes["talos node containers"]
         direction LR
         CP["ctrl 10.0.16.1\napiserver :6443 · apid :50000"]
-        WK["work ×4 · 10.0.32.1-4\ncilium envoy hostNet :30080/30443 (unclaimed, #70)"]
+        WK["work ×4 · 10.0.32.1-4\ncilium envoy hostNet :30080/30443 (Gateway listeners, cmdshift/platform#70)"]
       end
       LB["internal haproxy (local-test)\n10.0.64.1 → nodePorts 30080/30443"]
     end
@@ -68,7 +68,7 @@ The control plane is a **single fixed node** — there is no API LB and no ctrl-
 - Cluster endpoint (baked into certs/machine configs): `https://10.0.16.1:6443` — nodes reach it L2-direct
 - Host access: the ctrl container publishes `6443`/`50000` on **`127.0.0.1` only** (not LAN-reachable)
 - **The talos provider embeds the cluster endpoint as the kubeconfig/talosconfig host** — `talos_cluster_kubeconfig.endpoint` is only the fetch path. `nodes/outputs.tf` rewrites `kubeconfig` and `k8s_client_config.host` to `https://127.0.0.1:6443`; kubectl and the bootstrap terraform providers depend on that rewrite. In-cluster consumers must NOT use `127.0.0.1` (pod loopback) — `tools/bin/bench` rewrites the mounted kubeconfig's server to `kubernetes.default.svc:443` (a standard apiserver cert SAN; egress via the house `kube-apiserver` CNP entity)
-- talosctl reaches **worker** apids through the ctrl node's apid proxying, same as it did through the LB
+- talosctl reaches **worker** apids through the ctrl node's apid proxying, same as it did through the LB. The nodes module's `talos_machine_configuration_apply` resources follow the same loopback pattern (`endpoint` = 127.0.0.1, `node` = the target's private IP, worker applies routed through the ctrl apid) — the provider's private-IP default hangs in silent transport-retry from the macOS host
 
 ## DNS
 
@@ -100,10 +100,10 @@ Pod DNS: kube-dns → talos hostDNS (`forwardKubeDNSToHost`) → coredns. Compan
 
 ## Terraform roots
 
-1. `cluster/local` — network, companions, talos nodes, secrets, kubeconfig/talosconfig (`.tmp/`). Outputs `bootstrap` (k8s client config + flux bucket credentials)
+1. `cluster/local` — network, companions, talos nodes, secrets, kubeconfig/talosconfig (`.tmp/`); apply gated on `talos_cluster_health` (returns only when every node's etcd/apid/kubelet answer; kubernetes checks stay off — CNI comes from the bootstrap state, cmdshift/platform#73). Outputs `bootstrap` (k8s client config + flux bucket credentials)
 2. `cluster/local/bootstrap` — reads that output via local remote state; gates on an apiserver readiness poll before applying resources (cmdshift/platform#72); installs cilium + flux and the helm-hook Bucket/root Kustomization (flux-config force-adopts them on first reconcile). Carries `lifecycle.prevent_destroy` — `just bootstrap destroy` always fails by design
 
-Companion state is disposable except the angos cache volume (see the registry landmine in the runbook). Node machine configs are baked into the container env with `ignore_changes` — template edits need a full rebuild, never just `apply`.
+Companion state is disposable except the angos cache volume (see the registry landmine in the runbook). Node containers bake the machine config into the container env first-boot-only (`ignore_changes = [env]`), but template edits now converge via the nodes module's `talos_machine_configuration_apply` resources — `terraform apply` applies config to the running nodes without recreating them (cmdshift/platform#73); the applied config persists in the `/system/state` docker volume.
 
 ## Memory budget (docker-level limits)
 
@@ -115,4 +115,4 @@ Every container carries a `memory` limit with swap disabled (`memory_swap = memo
 
 - **Cluster→companion traffic keeps the haproxy hop** (cmdshift/platform#54): pointing coredns at direct service IPs would touch ~8 manifest files plus the node mirror config, lose the `:80` normalization, and save one sub-millisecond L2 hop. The proxy is also the only host-browser route (single published port + wildcard DNS).
 - **In-cluster kubeconfig consumers use `kubernetes.default.svc:443`**, not node IPs — no hard-coded addresses, standard cert SANs, house CNP entity.
-- **Gateway-API ingress is currently dead locally** (cmdshift/platform#70): cilium never claims the GatewayClass while the bootstrap pins `kubeProxyReplacement=false` — a documented prerequisite. The internal LB answers 503 until that lands.
+- **Gateway-API ingress lives locally** (cmdshift/platform#70): cilium runs `kubeProxyReplacement: true` and kube-proxy is gone (Talos `proxy.disabled: true` + a one-time DaemonSet delete — rendered-manifest apply never prunes). The internal haproxy fronts the Gateway's hostNetwork listeners, which bind on the k8s-role/work nodes only — the `servers` output feeding it is workers-only (the ctrl sat permanently check-down). Its `web_tls` frontend/backend is `mode tcp` passthrough — the Gateway terminates TLS; inherited `mode http` mangled the ClientHello (`tlsv1 alert protocol version` from curl), and the defaults' 10s timeout would cut idle TLS connections (`timeout server 10m`). Zero HTTPRoutes renders as a 404 from envoy — that is the healthy-empty state; 503 means the haproxy backends are down.

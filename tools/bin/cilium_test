@@ -81,10 +81,12 @@ EOF
 
 cilium_test() {
   local args=("$@")
-  # flow validation off: this cluster runs kube-proxy (kubeProxyReplacement:
-  # false) so service-IP SYNs are DNAT'd before cilium sees them, and monitor
-  # aggregation hides DNS flows — hubble can never match what the CLI looks
-  # for. The datapath tests themselves still run; only flow matching is skipped.
+  # flow validation off: cilium monitor aggregation hides DNS flows — hubble
+  # can never match what the CLI looks for. The resulting "not found" spam is
+  # the matcher failing, not the datapath. (The old kube-proxy-DNAT rationale
+  # is gone since cilium KPR=true, cmdshift/platform#70 — cilium sees service
+  # IPs itself now.) The datapath tests themselves still run; only flow
+  # matching is skipped.
   if ! printf '%s\n' "${args[@]}" 2>/dev/null | grep -q -- '--flow-validation'; then
     args+=(--flow-validation=disabled)
   fi
@@ -93,9 +95,10 @@ cilium_test() {
   # enforcement — on this cluster their deny expectations union with the required
   # allow-all scaffold (the cluster's own egress default-deny CCNP forces it), so
   # they can only fail here; the policy engine is exercised for real by the
-  # workload CNPs 24/7. check-log-errors is excluded because its two matches are
-  # benign on talos-in-docker (kernel lacks CONFIG_INET_DIAG_DESTROY; the
-  # bpf-lb-sock warning is expected with kubeProxyReplacement: false).
+  # workload CNPs 24/7. check-log-errors is excluded because its one match is
+  # benign on talos-in-docker (the kernel lacks CONFIG_INET_DIAG_DESTROY —
+  # observed live in the agent logs during the KPR rollout; the old
+  # bpf-lb-sock expected-warning match is gone with KPR=true).
   if ! printf '%s\n' "${args[@]}" 2>/dev/null | grep -q -- '--test'; then
     args+=(--test='^(health|no-policies|host-entity-egress|host-entity-ingress|pod-to-itself-via-service|pod-to-pod-no-frag|pod-to-pod-encryption-v2|pod-to-pod-with-l7-policy-encryption-v2|node-to-node-encryption|no-unexpected-packet-drops|policy-local-cluster-egress)')
   fi
