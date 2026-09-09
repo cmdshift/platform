@@ -19,27 +19,25 @@ tetragon:
   # non-loopback TCP listeners.
   grpc:
     address: "localhost:54321"
-  # provisional — audit after burn-in per the resource-sizing convention
-  # (request ~= P99 x 1.2, limit 1.5x; event processing is burst-heavy)
+  # request ~= P99 x 1.2 (per-node P99 477-524Mi over 5h), limit 1.5x (#28).
+  # Working set is a warmup ramp to ~430Mi then a GC sawtooth (380-540Mi,
+  # returns to baseline) — not a leak: the data cache is capacity-bounded
+  # (cap 1024, ~14 entries). Zero CFS throttling, ringbuf loss 0, program
+  # overhead 0.
   resources:
     requests:
       cpu: 50m
-      # audit: baseline 400-430Mi with a 497Mi spike against the
-      # old 128Mi request (312-338% — first evicted under node pressure) and
-      # a 97%-of-limit burst. request = P99 x 1.2 rounded to 512Mi; limit
-      # 1.5x. Rising-baseline watch: re-audit at 24h — if it keeps climbing
-      # at steady state it's a leak (eventcache ruled out: 70-94 entries),
-      # not churn.
-      memory: 512Mi
+      memory: 640Mi
     limits:
       cpu: 1000m
-      memory: 768Mi
+      memory: 960Mi
   prometheus:
     serviceMonitor:
       enabled: true # agent metrics :2112
 # hubble-export-stdout sidecar: streams events to container stdout -> alloy -> Loki
 export:
-  # provisional — audit after burn-in
+  # audited: near-idle at burn-in (single-digit data events/min cluster-wide);
+  # 16Mi/64Mi holds
   resources:
     requests:
       cpu: 10m

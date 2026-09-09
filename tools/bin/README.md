@@ -285,17 +285,28 @@ svc/thanos-query-main with `--query`) with the lifecycle handled.
 - instant queries evaluate series present in the last 5m — a range query is
   the way to see pods that have since been recreated
 
-### `loki_query '<logql>' [duration]`
+### `loki_query [-c] '<logql>' [duration]`
 
 LogQL against svc/loki:3100, tenant `self-monitoring` preset, nanosecond
-time math handled. Default window 1h (m|h|d); prints raw log lines (limit
-100).
+time math handled. Default window 1h (m|h|d). Default prints raw log lines;
+`-c` prints one line per series (`labels: latest-value`, sorted by value
+desc) — the only way to see aggregation group labels, which the default
+output drops.
 
-- Stream labels are `instance` (`ns/pod:container`), `job`,
-  `service_name`, `detected_level` — **there is no `namespace`/`pod`
-  label**; `{namespace="monitoring"}` legitimately matches nothing. Select
-  with `{instance=~"monitoring/.*"}` instead (the k8s metadata the pack
-  stage produces is embedded in the log line, not promoted to labels)
+- **LANDMINE — tetragon events carry the EXPORTER's labels**: all event
+  streams live under `{namespace="security", pod="tetragon-*"}`; the event's
+  own workload namespace/pod is INSIDE the JSON
+  (`process_exec.process.pod.namespace`, `process_kprobe.process.binary`,
+  `process_kprobe.policy_name`, `process_kprobe.message`). Per-workload
+  breakdowns need `| json x="process_kprobe.process.binary" | x != ``
+  extraction, never a stream selector on the workload's namespace. (Selecting
+  `{namespace="security"}` bare also matches trivy scan-job streams in that
+  namespace — thousands of lines of noise.)
+- The Loki `json` parser flattens nested leaves (`process_kprobe_message`);
+  dot-path EXPRESSIONS (`json message="process_kprobe.message"`) are the way
+  to extract a nested field into a named label.
+- A malformed query surfaces as jq "parse error" on the 400 body — re-check
+  the LogQL before debugging the data.
 
 ### `alloy_components [--all] [pod]`
 

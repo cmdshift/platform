@@ -1,10 +1,21 @@
 #!/usr/bin/env bash
 # LogQL query against loki, with the platform tenant and time math preset.
-#   loki_query '<logql>' [duration]   # duration e.g. 30m 4h 2d; default 1h
+#   loki_query '<logql>' [duration]    # duration e.g. 30m 4h 2d; default 1h
+#   loki_query -c '<logql>' [duration] # compact: "<labels>: <latest value>" per
+#                                      # series, sorted by value desc — for
+#                                      # aggregations, whose group labels are the
+#                                      # only way to tell result series apart
 # Prints raw log lines. The tenant is "self-monitoring" (see config.alloy).
+#
+# LANDMINE: tetragon event streams carry the EXPORTER's labels
+# ({namespace="security", pod="tetragon-*"}), not the workload's — the event's
+# own namespace/pod live inside the JSON (process_exec.pod.namespace,
+# process_kprobe.process.pod.namespace, ...). Per-workload breakdowns need
+# `| json ns="process_exec.pod.namespace" | ns=~"..."` extraction, never a
+# stream selector on the workload's namespace.
 
 usage() {
-  echo "usage: loki_query '<logql>' [duration]" >&2
+  echo "usage: loki_query [-c] '<logql>' [duration]" >&2
   exit 2
 }
 
@@ -30,7 +41,28 @@ port_forward() {
   done
 }
 
+format_compact() { # one line per series: short label subset + latest value; a
+  # malformed query surfaces here as an empty Loki `.data` — check for zero
+  # output before believing a "no events" verdict
+  jq -r '
+    def kept: ["instance","namespace","pod","container","job","service_name","detected_level"];
+    .data.result | sort_by(-(((.values // [["","0"]]) | last | .[1] | tonumber?) // 0))[]?
+    | (.metric // {}) as $m
+    | ([kept[] | select($m[.] != null) | "\(.)=\($m[.])"]) as $picked
+    | (if ($picked | length) > 0 then $picked | join(" ")
+      else $m | to_entries | map("\(.key)=\(.value)") | join(",") end) as $l
+    | "\($l): \(.values | last | .[1] // "")"'
+}
+
 loki_query() {
+  local compact=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -c) compact=1; shift ;;
+      -*) usage ;;
+      *)  break ;;
+    esac
+  done
   [ -n "${1:-}" ] || usage
   local query="$1" duration="${2:-1h}"
   local start
@@ -46,7 +78,7 @@ loki_query() {
     --data-urlencode "start=${start}000000000" \
     --data-urlencode "end=${end}000000000" \
     --data-urlencode "limit=100" \
-    | jq -r '.data.result[]? | .values[] | .[1]'
+    | if [ "$compact" = 1 ]; then format_compact; else jq -r '.data.result[]? | .values[] | .[1]'; fi
 }
 
 loki_query "$@"
