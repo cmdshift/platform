@@ -1,0 +1,84 @@
+# Exec deny-list, flux-system — stage-2 flip #2 (issue #28 ladder). Enforced
+# without a monitor stream (the issue's gate assumed one): static evidence
+# substitutes for it — every container in the operator namespaces runs its
+# image entrypoint directly (binary + args, zero shells/interpreters/net-
+# tools), no CronJobs, and the bootstrap "hooks" are helm.sh/hook annotations
+# on the Bucket/Kustomization objects, not Jobs — nothing shell-exec'ing at
+# steady state or rebuild.
+# Scoping is pod labels, NOT namespaces: the tetragon 1.7.1 CRD's
+# matchNamespaces only supports kernel NS types (no "Kube" — cr_validate
+# caught the attempt), so the podSelector is the only k8s scoping surface.
+# Per-namespace policies keep kill-event attribution exact. flux pods carry
+# only app=<controller>: the list is explicit and a future flux controller
+# must be added here to come into scope.
+# Deliberate behavior change: `kubectl exec ... sh` debug shells in these
+# pods are killed too — diagnose via the observability stack or a temporary
+# policy-mode: monitor flip.
+# security_bprm_check verified present (T) in node kallsyms per the
+# kernel-intel ritual (security/README.md); adapted from the tetragon docs
+# exec-enforcement pattern (kprobe + arg0 file + Prefix + Sigkill).
+# retire: flux prunes this group — deleting the file unloads the sensor.
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: exec-deny-list-flux-system
+spec:
+  # with enable-policy-filter on the agent, policies without a podSelector
+  # don't reach the export sink; the label scope is also the enforcement scope
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - helm-controller
+          - kustomize-controller
+          - notification-controller
+          - source-controller
+  # list-of-{name,value} form; valid values are "enforce"/"monitor" —
+  # option-value trap: security/README.md
+  options:
+    - name: policy-mode
+      value: enforce
+  kprobes:
+    - call: security_bprm_check
+      syscall: false
+      # type: file passes cr_validate (schema-valid) but silently never
+      # enforces — arg0 is struct linux_binprm *, the agent only logs a
+      # load-time validation warning and the matcher never fires;
+      # linux_binprm is the working type and resolves the REQUESTED path
+      # (busybox /bin/sh symlink to /bin/busybox still matches /bin/sh)
+      args:
+        - index: 0
+          type: linux_binprm
+      message: "exec of denied binary in operator namespace"
+      selectors:
+        - # Prefix matches by path prefix; no legit binary in these pods
+          # shares a prefix with the deny list
+          matchArgs:
+            - index: 0
+              operator: Prefix
+              values:
+                - /bin/sh
+                - /bin/bash
+                - /bin/dash
+                - /bin/ash
+                - /bin/zsh
+                - /usr/bin/sh
+                - /usr/bin/bash
+                - /usr/bin/dash
+                - /usr/bin/zsh
+                - /usr/bin/python
+                - /usr/bin/perl
+                - /usr/bin/ruby
+                - /usr/bin/node
+                - /usr/bin/env
+                - /usr/bin/nc
+                - /bin/nc
+                - /usr/bin/socat
+                - /bin/socat
+                - /usr/bin/wget
+                - /bin/wget
+                - /usr/bin/curl
+                - /bin/curl
+          matchActions:
+            - action: Sigkill
