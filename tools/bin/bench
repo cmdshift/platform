@@ -13,7 +13,7 @@
 #      enforced: seccomp, caps, resources, pinned tags)
 #   2. PodSecurity — the temp namespace is labeled privileged
 #   3. cilium default-deny CCNP (egress, cluster-wide) — temp CNP: kube-dns
-#      :53 + cmd.local.test:6443 (image pulls are node-side, bypass pod egress)
+#      :53 + kube-apiserver entity (image pulls are node-side, bypass pod egress)
 #   4. admin kubeconfig — temp Secret created from $KUBECONFIG (never stored
 #      anywhere else); kubectl audits + the podspec dump use it
 # Talos remaps baked into the Jobs (why lives in the notes entry):
@@ -98,8 +98,16 @@ metadata:
     pod-security.kubernetes.io/enforce-version: latest
 EOF
 
+  # the admin kubeconfig's server is the host loopback (127.0.0.1 — the
+  # published port on the ctrl container); in-pod that would hit the pod's own
+  # loopback, so rewrite it to the in-cluster API service name (443 → apiserver
+  # 6443; the serving cert carries the kubernetes.default.svc SANs, and
+  # egress to it is the house `kube-apiserver` CNP entity — no node IPs here)
+  local bench_kc; bench_kc=$(mktemp)
+  sed 's#server: https://127.0.0.1:6443#server: https://kubernetes.default.svc:443#' "$KC" > "$bench_kc"
   kubectl -n bench-scan create secret generic bench-kubeconfig \
-    --from-file=kubeconfig="$KC" >/dev/null
+    --from-file=kubeconfig="$bench_kc" >/dev/null
+  rm -f "$bench_kc"
 
   # lives in the standing `policies` ns (cross-ns matchConditions; house shape)
   kubectl -n policies apply -f - >/dev/null <<'EOF'
@@ -143,12 +151,8 @@ spec:
           rules:
             dns:
               - matchPattern: "*"
-    - toFQDNs:
-        - matchName: cmd.local.test
-      toPorts:
-        - ports:
-            - port: "6443"
-              protocol: TCP
+    - toEntities:
+        - kube-apiserver
 EOF
 }
 
