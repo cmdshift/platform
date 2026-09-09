@@ -70,11 +70,14 @@ prometheus:
         name: alertmanager-operated
         port: 9093
         scheme: http
-    # select every ServiceMonitor cluster-wide: the chart default's
+    # select every ServiceMonitor/PodMonitor cluster-wide: the chart default's
     # `release:` label gate left kyverno/thanos/velero SMs unscraped, and an
     # empty serviceMonitorSelector: {} is treated as falsy by the chart template.
-    # Future operator SMs (CNPG/RabbitMQ) get picked up automatically.
+    # Future operator SMs (CNPG) get picked up automatically.
     serviceMonitorSelectorNilUsesHelmValues: false
+    # same gate applies to PodMonitors — the nats chart's exporter PodMonitor
+    # (datastores) was the first and landed unscraped until this was set
+    podMonitorSelectorNilUsesHelmValues: false
     externalLabels:
       cluster: local
     resources:

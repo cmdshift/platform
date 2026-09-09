@@ -28,7 +28,7 @@ helm template <chart> | yq 'select(.kind == "Job")'
 
 Known-proofed: cert-manager `startupapicheck.resources` (all-lowercase key!), velero `upgradeJobResources`, kube-prometheus-stack `prometheusOperator.admissionWebhooks.patch.resources`.
 
-**Operator-GENERATED pods are admission-checked as well** (trivy-operator scan jobs are the live example): an operator that spawns jobs/pods with no resources, no securityContext, or a root-declaring image gets them denied at admission — and the failure is often *silent* (scans just never run). Prefer chart values that shape generated pods (`trivyOperator.scanJobPodTemplatePodSecurityContext` etc.); note `runAsUser` must be set explicitly when the image declares `USER root` — `runAsNonRoot` alone fails the kubelet image-USER check. Reserve PolicyExceptions for what values can't express (tetragon agent).
+**Operator-GENERATED pods are admission-checked as well** (trivy-operator scan jobs are the live example): an operator that spawns jobs/pods with no resources, no securityContext, or a root-declaring image gets them denied at admission — and the failure is often *silent* (scans just never run). Prefer chart values that shape generated pods (`trivyOperator.scanJobPodTemplatePodSecurityContext` etc.); note `runAsUser` must be set explicitly when the image declares `USER root` **or ships no USER directive at all** (every NATS-stack image) — `runAsNonRoot` alone fails the kubelet image-USER check. Reserve PolicyExceptions for what values can't express (tetragon agent).
 
 ## 4. Network policy
 
