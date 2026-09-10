@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Reconcile from the root and poll until every kustomization is Ready,
 # echoing progress (see AGENTS.md polling discipline).
-#   flux_wait [max_polls] [--with-source]   # 10s per poll; default 42 (~7m)
+#   flux_wait [max_polls] [--with-source]   # default 42; 5s sleep per poll
 #   flux_wait -c                            # status check only — no
 #                                           # reconcile, instant verdict
 # --with-source (implied: the reconcile always includes it) is accepted in
@@ -11,18 +11,20 @@
 # non-integer or zero cap would silently disable the timeout). Exit 3 = the
 # -c status check found groups still progressing.
 #
-# Fast-fail philosophy (same as helm_wait): Ready=False with a *real error*
-# is a failed attempt, not slowness — flux holds Ready=Unknown while a group
-# progresses, so a real failure never self-heals mid-poll, and the poll loop
-# exits on the first one instead of burning the remaining polls. Exception:
-# flux reports dependency-waiting as Ready=False too ("dependency '...' is
-# not ready", "revision is not up to date") — those are the normal
-# tree-cascade states and self-heal the moment the dependency lands, so they
-# are classified as pending, not failure (otherwise every artifact bump
-# fast-fails mid-cascade). Classification is by message pattern (no separate
-# waiting condition type exists). Failing groups still print BEFORE the
-# blocking reconcile (a failed group replays its cached error on every
-# trigger).
+# Poll loop: reconcile, sleep 5s (the reconcile is synchronous — flux has
+# already applied by the time it returns; the sleep lets the tree start
+# cascading), then poll. Each poll first greps for REAL failures: Ready=False
+# with a message that is not a dependency-wait state. Dependency-wait
+# messages are matched UNANCHORED as substrings ("is not ready",
+# "revision is not up to date") — flux composes them freely
+# ("dependency 'x/monitoring' revision is not up to date") and anchored
+# regexes misclassified the composite as a real failure, aborting the loop
+# mid-cascade (cmdshift/platform#58 session). A real failure never self-heals
+# mid-poll (flux holds Ready=Unknown while a group progresses), so the loop
+# exits on the first one with the diagnose hint instead of burning the
+# remaining polls. Otherwise the pending list prints and the loop re-sleeps.
+# Failing groups still print BEFORE the blocking reconcile (a failed group
+# replays its cached error on every trigger).
 
 DIAGNOSE="diagnose: kubectl -n flux-system describe kustomization <name> ; kubectl -n flux-system get events --sort-by=.lastTimestamp | tail -10"
 
@@ -67,23 +69,32 @@ print_states() {
   return 0
 }
 
-# prints failing groups' messages; rc 0 if any Ready=False that is NOT a
-# dependency-wait state (those are pending — see the header comment)
+# dependency-wait states self-heal the moment the dependency lands — they are
+# pending, not failure. Matched as unanchored substrings: flux composes the
+# two phrasings into one message ("dependency 'x/y' revision is not up to
+# date") and an anchored match on either alone misclassifies it.
+is_dependency_wait() {
+  case "$1" in
+    *"is not ready"*|*"revision is not up to date"*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# prints real failing groups' messages; rc 0 if any Ready=False that is NOT
+# a dependency-wait state (see is_dependency_wait)
 failures() {
-  kubectl -n flux-system get kustomizations -o json 2>/dev/null | jq -re '
-    [ .items[]
-      | select((.status.conditions // [])
-        | any(.type == "Ready" and .status == "False"))
-      | select((((.status.conditions // [])
-        | map(select(.type == "Ready")) | first | .message // "")
-        | test("^dependency .* is not ready$|^revision is not up to date$")) | not) ]
-    | if length > 0 then
-        map((.metadata.name) + ": "
-          + ((.status.conditions // [])
-             | map(select(.type == "Ready")) | first | .message // "<no message>")
-          | gsub("\n"; " "))
-        | join(" ;; ")
-      else empty end' 2>/dev/null
+  local states state name msg
+  states="$(group_states)" || return 1
+  local out=""
+  while IFS= read -r state; do
+    name="${state%%|*}" msg="${state#*|}"
+    # Ready=False with an empty message is a transitioning group, not a real
+    # failure — classified as pending
+    if [ -n "$msg" ] && ! is_dependency_wait "$msg"; then
+      out+="${out:+ ;; }$name: ${msg:-<no message>}"
+    fi
+  done <<< "$states"
+  [ -n "$out" ] && printf '%s\n' "$out"
 }
 
 wait_for_green() {
@@ -110,7 +121,7 @@ wait_for_green() {
       return 1
     fi
     echo "[$n/$max] pending: $pending"
-    sleep 10
+    sleep 5
   done
 }
 
@@ -143,6 +154,7 @@ flux_wait() {
   [ -n "$failed" ] && echo "current: failed: $failed"
 
   reconcile
+  sleep 5
   wait_for_green "$max"
 }
 

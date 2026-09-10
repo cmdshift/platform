@@ -156,7 +156,7 @@ is optional insurance, not a dropped-edit defense.
 ### `flux_wait [-c] [max_polls] [--with-source]`
 
 Reconciles the root Kustomization `local --with-source` (4m timeout), then
-polls `flux-system` kustomizations every 10s, echoing the pending list.
+polls `flux-system` kustomizations every 5s, echoing the pending list.
 `--with-source` is accepted in any position (implied — the reconcile always
 includes it; docs write both orders). Non-integer, zero, or unknown args
 exit 2 with usage — a non-integer cap used to silently disable the timeout,
@@ -174,7 +174,13 @@ and `0` used to time out instantly.
   tree-cascade states that self-heal when the dependency lands — they stay
   pending, or every artifact bump would fast-fail mid-cascade (hit live on
   the tetragon stage-2 flip). Classification is by message pattern (no
-  separate waiting condition type exists in flux's status)
+  separate waiting condition type exists in flux's status) — **unanchored
+  substring match**: flux composes the two phrasings freely
+  (`dependency 'x/monitoring' revision is not up to date`) and the original
+  anchored regex classified that composite as a real failure, aborting the
+  loop mid-cascade (cost a debugging round, cmdshift/platform#58 session).
+  Ready=False with an *empty* message is a transitioning group — also
+  pending, not failure
 - Default 42 polls (~7m after the reconcile) — sized for the fresh-rebuild
   worst case (~10m)
 - Exit 0: all kustomizations Ready. Exit 1: failure or timeout with the
