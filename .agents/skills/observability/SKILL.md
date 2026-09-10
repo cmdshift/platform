@@ -62,6 +62,7 @@ tetra --server-address localhost:54321 tracingpolicy list
 ```
 
 - Subcommand is `getevents` (there is no `events`). Global flag `--server-address` goes before the subcommand. There is no `--policy` filter flag in 1.7 — pipe the compact output through grep.
+- **bprm_check enforcement events (exec deny-lists) are pod-less**: they render in compact as `❓ syscall <node> /usr/bin/runc security_bprm_check` (attributed to the pre-exec runc fork — looks like runc noise) and never reach Loki (exporter drops namespace=""). Use `tetra getevents -o json` and grep `process_kprobe.policy_name` to see them fully; the alert surface is `tetragon_policy_events_total` (see `security/README.md`).
 - Events also stream to container stdout (`kubectl -n security logs ds/tetragon -c export-stdout`) with full k8s metadata; kube-system/host events are filtered from that sink by chart default, gRPC output is not.
 - Events are searchable in Loki too: `loki_query '{namespace="security", pod=~"tetragon-.*"}'` (the `export-stdout` container's JSON lines — was the fallback during the #27 ingestion outage, now primary again).
 - **Stream labels are the EXPORTER's** (`pod="tetragon-*"`) — the event's workload namespace/pod/binary/policy are INSIDE the JSON (`process_kprobe.policy_name`, `process_kprobe.process.pod.namespace`, ...); extract with dot-path `json` stages, don't select the workload's namespace. Policies need a `podSelector` for their events to reach this sink at all (see `security/README.md`).

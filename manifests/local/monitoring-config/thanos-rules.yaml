@@ -58,14 +58,25 @@ groups:
           summary: "Tetragon on {{ $labels.pod }} ({{ $labels.node }}) has a tracing policy in {{ $labels.state }} — a policy file may be invalid or use a hook this kernel lacks"
       - alert: TetragonEnforcementKill
         expr: |
-          increase(tetragon_kill_events_total[10m]) > 0
+          increase(tetragon_policy_events_total{policy=~"kernel-modules|exec-deny-list-.*"}[10m]) > 0
         labels:
           severity: critical
         annotations:
-          summary: "Tetragon enforcement killed a process on {{ $labels.pod }} ({{ $labels.node }}) — check tetra getevents for the policy and binary"
-        # tetragon_kill_events_total materializes on the first enforcement
-        # event (stage 2) — until then the series is absent and this alert
-        # stays inactive by design, arming exactly when enforcement goes live
+          summary: "Tetragon enforcement fired (policy {{ $labels.policy }}) — check `tetra getevents -o json` and per-node `tetra tracingpolicy list` NENFORCE for the policy and binary"
+        # tetragon_kill_events_total does not exist in any tetragon release
+        # (verified against the source of v1.7.1 and upstream's metrics
+        # reference, cmdshift/platform#57) — the real signal is
+        # tetragon_policy_events_total, which materializes on the first
+        # enforcement event. bprm_check deny-list events carry EMPTY
+        # namespace/pod labels (enforcement fires pre-exec, the documented
+        # init-exec gap applies to attribution), and the exporter denylist
+        # drops namespace="" events, so Loki never sees them — tetra gRPC
+        # (-o json; compact renders them as "❓ syscall <node> runc
+        # security_bprm_check") and this alert are the kill-event surfaces
+        # on 1.7.1. The 1.8.0 chart bump (cmdshift/platform#59) upgrades
+        # this to tetragon_tracingpolicy_selector_actions_total
+        # {action=~"signal|override"} (BPF-side, per-action, unaffected by
+        # event attribution).
   - name: trivy-alerts
     rules:
       - alert: TrivyCriticalImageVulnerabilities

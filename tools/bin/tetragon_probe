@@ -1,0 +1,157 @@
+#!/usr/bin/env bash
+# Tetragon enforcement probe: verifies a deny-list policy actually kills.
+#   tetragon_probe <policy-name>
+# The documented ritual (security/README.md "collateral check", flip gates in
+# cmdshift/platform#28/#60): schedule a probe pod that matches the policy's
+# podSelector, exec /bin/sh inside it, expect the enforcement kill, and read
+# the BPF counters before/after.
+#
+# What this automates (each step cost a debugging round somewhere):
+#   - the probe label is derived from the TracingPolicy's OWN podSelector
+#     (flux-system pods carry only app=<controller>, so the probe must copy
+#     the exact key/value or it lands out of scope silently);
+#   - the probe is PINNED to the same node as the queried agent via nodeName
+#     — NPOST/NENFORCE are per-node counters, a mismatched node reads 0;
+#   - a random local port is used for the tetra gRPC forward (54321 on the
+#     host is a likely collision while any other forward is live);
+#   - image maps through the LOCAL pull-through cache (registry.cloud.test)
+#     — cloud needs the direct docker.io spelling (bench's kubeconfig
+#     rewrite is the same local-only mechanic);
+#   - busybox ships no USER directive: runAsNonRoot needs the explicit
+#     runAsUser (kubelet image-USER check, add-workload landmine);
+#   - the compact tetra output misrenders bprm_check kills as host runc
+#     noise (cmdshift/platform#57) — the checked surfaces are the exit code,
+#     the tetra counters, and tetragon_policy_events_total.
+#
+# Output: exec exit code, NPOST/NENFORCE/NMONITOR deltas, metric delta.
+#   exit 137 + NENFORCE +1 = enforcement kill confirmed
+#   exit 0  = no match / policy in monitor (check NMONITOR delta)
+#   exit 255 with "exec: errno" = Override(EACCES)
+# Exit 0 = probe ran (interpret the numbers), 1 = setup failure, 2 = usage.
+
+set -euo pipefail
+
+NS=security
+IMAGE=registry.cloud.test/docker/library/busybox:1.37.0
+GRPC_PORT=54321
+
+usage() {
+  echo "usage: tetragon_probe <policy-name>" >&2
+  exit 2
+}
+
+cleanup() {
+  if [ -n "${PROBE_POD:-}" ]; then
+    kubectl -n flux-system delete pod "$PROBE_POD" --wait=false --ignore-not-found >/dev/null 2>&1 || true
+  fi
+  if [ -n "${PF_PID:-}" ]; then
+    kill "$PF_PID" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT
+
+# read the policy's podSelector and derive one matching label (key=value).
+# In-expressions: any value matches; pick the first. matchLabels: first entry.
+probe_label() { # policy
+  kubectl get tracingpolicy "$1" -o json | jq -er '
+    .spec.podSelector // empty
+    | if .matchLabels then
+        (.matchLabels | to_entries[0] | "\(.key)=\(.value)")
+      else
+        ([.matchExpressions[]? | select(.operator == "In")
+          | "\(.key)=\(.values[0])"] | first) // empty
+      end' 2>/dev/null
+}
+
+tetra_counters() { # policy -> "NPOST NENFORCE NMONITOR"
+  tetra --server-address "localhost:$LOCAL_PORT" tracingpolicy list 2>/dev/null \
+    | awk -v p="$1" '$2 == p {print $(NF-2), $(NF-1), $NF}'
+}
+
+metric_value() { # policy -> tetragon_policy_events_total sum (empty -> 0)
+  prometheus_query "sum(tetragon_policy_events_total{policy=\"$1\"})" 2>/dev/null \
+    | jq -r '[.data.result[]?.value[1] | tonumber] | add // 0' 2>/dev/null || echo 0
+}
+
+[ $# -eq 1 ] || usage
+POLICY="$1"
+
+kubectl get tracingpolicy "$POLICY" >/dev/null 2>&1 || {
+  echo "tetragon_probe: tracingpolicy $POLICY not found" >&2; exit 1; }
+command -v tetra >/dev/null 2>&1 || {
+  echo "tetragon_probe: tetra not on PATH" >&2; exit 1; }
+
+LABEL="$(probe_label "$POLICY" || true)"
+echo "policy: $POLICY  probe label: ${LABEL:-<none>}"
+
+AGENT="$(kubectl -n "$NS" get pods -l app.kubernetes.io/name=tetragon \
+  --no-headers | awk '$2 ~ /^[0-9]+\/[0-9]+$/ && $3=="Running" {print $1; exit}')"
+[ -n "$AGENT" ] || { echo "tetragon_probe: no Ready agent pod" >&2; exit 1; }
+NODE="$(kubectl -n "$NS" get pod "$AGENT" -o jsonpath='{.spec.nodeName}')"
+echo "agent: $AGENT on node $NODE"
+
+LOCAL_PORT=$(jot -r 1 20000 29999 2>/dev/null || echo 29123)
+kubectl -n "$NS" port-forward "pod/$AGENT" "$LOCAL_PORT:$GRPC_PORT" >/dev/null 2>&1 &
+PF_PID=$!
+trap cleanup EXIT
+i=0
+until tetra --server-address "localhost:$LOCAL_PORT" status >/dev/null 2>&1; do
+  i=$((i + 1)); [ "$i" -gt 20 ] && {
+    echo "tetragon_probe: gRPC forward never became ready" >&2; exit 1; }
+  sleep 0.5
+done
+
+BEFORE="$(tetra_counters "$POLICY")"
+[ -n "$BEFORE" ] || { echo "tetragon_probe: policy not loaded on $NODE" >&2; exit 1; }
+BASE_METRIC="$(metric_value "$POLICY")"
+
+PROBE_POD="tetragon-probe-$$"
+cat <<EOF | kubectl apply -f - >/dev/null
+apiVersion: v1
+kind: Pod
+metadata:
+  name: $PROBE_POD
+  namespace: flux-system
+  labels:
+$( [ -n "$LABEL" ] && echo "    $(echo "$LABEL" | cut -d= -f1): $(echo "$LABEL" | cut -d= -f2-)" )
+spec:
+  nodeName: $NODE
+  restartPolicy: Never
+  containers:
+    - name: probe
+      image: $IMAGE
+      command: ["sleep", "120"]
+      resources:
+        requests: {cpu: 10m, memory: 16Mi}
+        limits: {cpu: 100m, memory: 64Mi}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile: {type: RuntimeDefault}
+        capabilities: {drop: ["ALL"]}
+EOF
+
+i=0
+until [ "$(kubectl -n flux-system get pod "$PROBE_POD" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)" = "True" ]; do
+  i=$((i + 1)); [ "$i" -gt 90 ] && {
+    echo "tetragon_probe: probe pod never became Ready — describe it (admission/PSS)" >&2
+    kubectl -n flux-system describe pod "$PROBE_POD" 2>/dev/null | tail -5 >&2
+    exit 1; }
+  sleep 1
+done
+
+RC=0
+kubectl -n flux-system exec "$PROBE_POD" -- /bin/sh -c "echo probe" || RC=$?
+
+sleep 2
+AFTER="$(tetra_counters "$POLICY")"
+END_METRIC="$(metric_value "$POLICY")"
+
+echo "---"
+echo "exec exit code: $RC   (137 = Sigkill, 255+errno = Override, 0 = no match / monitor)"
+echo "tetra counters (NPOST NENFORCE NMONITOR): before [$BEFORE] after [$AFTER]"
+if [ -n "$BASE_METRIC" ] && [ -n "$END_METRIC" ]; then
+  echo "tetragon_policy_events_total: $BASE_METRIC -> $END_METRIC"
+else
+  echo "tetragon_policy_events_total: unavailable (prometheus down?) — tetra counters are the check"
+fi
