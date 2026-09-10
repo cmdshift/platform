@@ -56,6 +56,7 @@ tree.
 | `vpa_recs` | VPA recommendations vs current requests (sizing evidence side) |
 | `policy_report` | PolicyReport summary + stale-report detection (`--clean` deletes them) |
 | `kyverno_unblock` | unstick kyverno rollouts deadlocked on hostNetwork ports |
+| `tetragon_probe` | verify a deny-list TracingPolicy kills: labeled probe pod + counter deltas |
 | `prometheus_query` | PromQL with port-forward lifecycle handled |
 | `loki_query` | LogQL with tenant + time math preset |
 | `alloy_components` | dump the alloy components a pod is actually running (config-mismatch triage) |
@@ -421,6 +422,34 @@ rustfs ls main/flux --recursive
 rustfs object remove main/backups/<key>
 rustfs mirror --remove /tmp/manifests/ main/flux/manifests/
 ```
+
+### `tetragon_probe <policy-name>`
+
+Verifies a deny-list TracingPolicy actually enforces — the documented
+collateral-check ritual (`manifests/local/security/README.md`, flip gates in
+cmdshift/platform#28/#60) as one command: derives the probe label from the
+policy's **own podSelector** (matchLabels or first In-expression), picks a
+Ready tetragon agent, deploys a busybox probe **pinned to the same node**
+(NPOST/NENFORCE are per-node counters — a mismatched node reads 0),
+execs `/bin/sh` inside it, and prints the exit code plus before/after
+`tetra tracingpolicy list` counters and `tetragon_policy_events_total`.
+
+- Interpret: exit 137 + NENFORCE +1 = kill confirmed; exit 0 = no match or
+  monitor mode (NMONITOR delta); exit 255 with an errno = Override(EACCES)
+- The `tetragon_policy_events_total` line **lags one prometheus scrape**
+  (up to ~60s) — the immediate check is the exit code + tetra counters
+- Landmines baked in (each cost a round): the probe label must copy the
+  policy's exact selector or the probe silently lands out of scope; the
+  node pinning (see above); a random local port for the tetra gRPC forward
+  (54321 on the host collides while any other forward lives); busybox has
+  no USER directive so `runAsNonRoot` needs the explicit `runAsUser`
+  (kubelet check); bprm_check kill events are pod-less and misrender in
+  tetra compact output (cmdshift/platform#57) — this metric + `tetra -o
+  json` are the event surfaces, Loki never sees them
+- Exits 0 when the probe ran (the numbers are the output — interpret them);
+  1 setup failure (policy missing/not loaded, no agent, forward or probe
+  pod never ready); 2 usage. The probe pod is deleted on exit; a leftover
+  pod from a crashed run is `tetragon-probe-<pid>` in flux-system
 
 ### `cilium_test [args...]`
 
