@@ -59,6 +59,7 @@ groups:
       - alert: TetragonEnforcementKill
         expr: |
           increase(tetragon_policy_events_total{policy=~"kernel-modules|exec-deny-list-.*"}[10m]) > 0
+        for: 5m
         labels:
           severity: critical
         annotations:
@@ -76,7 +77,11 @@ groups:
         # on 1.7.1. The 1.8.0 chart bump (cmdshift/platform#59) upgrades
         # this to tetragon_tracingpolicy_selector_actions_total
         # {action=~"signal|override"} (BPF-side, per-action, unaffected by
-        # event attribution).
+        # event attribution). for: 5m absorbs one-shot counter spikes — a
+        # cluster rebuild's bootstrap generates 3-5 runc-fork kills in the
+        # deny-list namespaces, which previously paged critical and
+        # self-resolved minutes later (cmdshift/platform#60); a sustained
+        # kill stream still fires within ~5m.
   - name: trivy-alerts
     rules:
       - alert: TrivyCriticalImageVulnerabilities
