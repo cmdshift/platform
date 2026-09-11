@@ -219,6 +219,9 @@ run for real.
   TracingPolicies)
 - `-n` overrides the namespace for namespaced objects whose namespace doesn't
   exist yet; cluster-scoped objects ignore it
+- It validates **CRs only** — raw-YAML files folded into a ConfigMap via
+  configMapGenerator (e.g. `thanos-rules.yaml`) fail with "apiVersion not set";
+  those go through `yaml_lint` instead
 - Exit 0: all PASS. Exit 1: any FAIL (per-file PASS/FAIL printed); exit 2
   usage; `-h` prints the header comment block
 
