@@ -35,9 +35,16 @@ their own port-forward lifecycle.
 
 Dependencies: `kubectl`, `jq`, `yq`, plus `helm`/`git` for `helm_verify`,
 `velero` / `cilium` CLIs for their respective tools, `docker`
-for `rustfs`. macOS date math (`date -v`) assumes darwin. Nothing here
-shells out to an interpreter — bash + these CLIs is the whole dependency
-tree.
+for `rustfs`. The full toolchain installs on both supported hosts via
+`brew bundle --file=tools/Brewfile` (Homebrew on macOS, Linuxbrew on
+Linux). Host-portable: the time math in `loki_query`/`prometheus_query`
+is bash arithmetic off `date +%s` (both darwin and GNU) — never `date -v`
+(darwin-only) or `date -d` (GNU-only), and non-integer durations are
+rejected before the arithmetic (a float inside `$(( ))` is fatal in
+non-interactive bash — the script would abort before `|| usage` fires).
+The random-port picks use `jot` with a fixed fallback where it's missing.
+Nothing here shells out to an interpreter — bash + these CLIs is the
+whole dependency tree.
 
 ## Quick reference
 

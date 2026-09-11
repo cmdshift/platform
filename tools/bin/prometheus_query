@@ -13,13 +13,16 @@ usage() {
   exit 2
 }
 
-range_start() { # e.g. 6h -> epoch seconds
+range_start() { # e.g. 6h -> epoch seconds; bash math off `date +%s` (portable —
+  # BSD `date -v` is darwin-only, GNU `date -d` is linux-only, +%s is both)
   case "$1" in
-    *m) date -v-"${1%m}"M +%s ;;
-    *h) date -v-"${1%h}"H +%s ;;
-    *d) date -v-"${1%d}"d +%s ;;
+    [0-9]*m) n=${1%m}; u=60 ;;
+    [0-9]*h) n=${1%h}; u=3600 ;;
+    [0-9]*d) n=${1%d}; u=86400 ;;
     *)  return 1 ;;
   esac
+  case "$n" in *[!0-9]*|'') return 1 ;; esac # a float here aborts the script in $(( )) before `|| usage` can fire
+  echo $(( $(date +%s) - n * u ))
 }
 
 port_forward() { # service_name — sets PORT_FORWARD_PORT / PORT_FORWARD_PID

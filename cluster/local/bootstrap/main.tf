@@ -5,7 +5,9 @@ resource "helm_release" "cilium" {
   name             = "cilium"
   repository       = "https://helm.cilium.io"
   chart            = "cilium"
-  version          = "1.20.1"
+  # pre-release: 1.20.x crashes at startup on kernel 7.2 hosts — the FnSetRetval
+  # probe fails verification (cilium/cilium#48016); revisit when 1.20.2 ships
+  version          = "1.21.0-pre.2"
   namespace        = "kube-system"
   create_namespace = false
   values = [
@@ -37,6 +39,10 @@ resource "helm_release" "cilium" {
         }
         ui = {
           enabled = true
+          # chart 1.21-pre nil-pointers when hubble.ui.httpRoute is absent
+          httpRoute = {
+            enabled = false
+          }
         }
       }
       ipam = {

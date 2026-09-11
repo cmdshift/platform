@@ -11,11 +11,10 @@ Tear the Talos-in-Docker cluster down and bring it back from terraform alone. Va
 
 ```
 just cluster apply      # docker network, companions, talos nodes, kubeconfig (.tmp/kubeconfig)
-                        # health-gated: returns only when every node's Talos services answer (below)
-just bootstrap apply    # cilium + flux helm releases + the Bucket/root hooks
+just bootstrap apply    # cilium + flux helm releases + the Bucket/root hooks (API-up gated)
 ```
 
-`cluster apply` gates itself on node health (cmdshift/platform#73): a `data "talos_cluster_health"` read makes the apply return only when every node's Talos services (etcd, apid, kubelet) answer. `skip_kubernetes_checks = true` is REQUIRED — CNI (cilium) comes from the separate bootstrap state, so k8s-level checks (node Ready, kube-dns) can't pass at that stage of a fresh install — and `depends_on = [talos_machine_bootstrap.main]` defers the read past etcd bootstrap on fresh installs (a plan-time read would deadlock). Plan-time behavior is validated on the live cluster; the fresh-install deferred-read path is reasoning-validated only — pending next-rebuild validation. The cmdshift/platform#72 bootstrap API gate is unchanged and stays — separate state, near-instant once the health gate has passed.
+`cluster apply` is **not** health-gated: it returns after the machine-config applies + bootstrap, with no node-health read. The `talos_cluster_health` gate added in cmdshift/platform#73 was removed as redundant (its "pending next-rebuild validation" question resolved by removal, not validation) — the cmdshift/platform#72 bootstrap API gate is the readiness gate: `bootstrap apply` blocks in plan until the kube API answers (below), so `cluster apply` needs no health wait of its own.
 
 ### Full destroy + recreate (worked example, 2026-09-07)
 
@@ -34,16 +33,18 @@ just bootstrap apply -auto-approve       # ~90s incl. the API-up gate (cmdshift/
 **The `cluster apply` hang recipe** (operator-verified): spawn it in the background, kill it after ~1 minute, then bootstrap straight away — the bootstrap apply readiness gate absorbs the API-up window (no manual wait). Details that bit the 2026-09-07 run:
 
 - Non-interactive shells must pass `-auto-approve` — terraform's plan-approval prompt EOFs without a TTY (`error asking for approval: EOF`) and the recipe dies in 3s.
-- macOS has no `setsid` — background with `just cluster apply -auto-approve > /tmp/cluster-apply.log 2>&1 &`, then `kill $PID` + `pkill -f "chdir=cluster/local apply"`.
+- macOS has no `setsid` (Linux hosts do) — background with `just cluster apply -auto-approve > /tmp/cluster-apply.log 2>&1 &`, then `kill $PID` + `pkill -f "chdir=cluster/local apply"`.
 - Poll before killing: this run the apply **finished on its own in 16s** (37 resources). Kill only if it's still running at ~60s.
 - The kill point is expected to be after resource creation — the plan is 37 to add (containers + talos nodes + kubeconfig); flux "reconciles the rest eventually".
 - `just certs` is only needed if `cluster/local/.tmp/tls/` is missing (note: the path is under `cluster/local/.tmp/`, NOT the repo-root `.tmp/`).
 
 The API-up window is now enforced by terraform itself (cmdshift/platform#72): the bootstrap module polls `${local.k8s_client_config.host}/version` with a CA-pinned `data "http"` readiness check (`request_timeout_ms = 3000`, `retry` 60 × 1s) gating `kubernetes_namespace_v1.flux_system` and `helm_release.cilium` (the flux release gates transitively) — `bootstrap apply` blocks in plan until the kube API answers, then applies; no blind sleep, no re-run (**nodes Ready ≠ API serving** is the poll's problem now, not the operator's). The gate is deliberately loose — any HTTP response over a CA-valid TLS handshake counts as ready (live unauthenticated probes return **401**, anonymous auth disabled — not the 403 the issue predicted), so it is robust to auth-policy changes across talos upgrades, and the CA pin already proves endpoint identity. Numbers: 60 × 1s ≈ 60s of refused-window budget, ~2× the observed 20-30s window — **PENDING validation of the live window on the next rebuild** (verified only at the extremes: healthy cluster plans instantly, `No changes`; closed port fails in ~2s, "giving up after 4 attempt(s): connection refused"). A hung connection — the stale-binding failure mode accepts then black-holes — costs +3s per attempt: worst case ~4m to a clear bounded error instead of an unbounded hang; if the gate times out, suspect the stale binding and run [the recovery below](#the-bootstrap-hang-stale-docker-port-binding-root-caused-2026-09-07-cmdshiftplatform4). Plan-time caveats from the same mechanism: on a down cluster `bootstrap destroy` fails at the data-source read before the `prevent_destroy` guard fires (same verdict — skip it anyway), and `terraform plan` polls ~60s before erroring.
 
-### The bootstrap hang: stale Docker port binding (root-caused 2026-09-07, cmdshift/platform#4)
+### The bootstrap hang: stale Docker port binding (root-caused 2026-09-07, cmdshift/platform#4) — macOS/Docker Desktop hosts
 
 `talos_machine_bootstrap` used to "hang indefinitely" sometimes. The root cause is **not** the (former) LB, a node race, or the network — it is Docker Desktop's host port publisher going **stale after rapid container churn**: when a port-publishing container is destroyed and recreated within ~a minute, `com.docker.backend` still ACCEPTS host connections on 50000/6443 (SYN-ACK, ESTABLISHED) but black-holes the forward into the VM — no bytes reach the container. Container, node and everything else are perfectly healthy at that point.
+
+This failure class is **Docker-Desktop-specific**: it lives in the VM publisher path, which Linux/Docker Engine hosts don't have (docker bridges are host-routable natively, ports published directly by dockerd) — unobserved there. Everything below describes the macOS host.
 
 The talos provider turns that into the hang: `talos_machine_bootstrap` silently retries every transport error for its **10-minute default create timeout** (final error: `rpc error: code = Unavailable desc = "transport: authentication handshake failed: context deadline exceeded"`). A fresh `terraform apply` right after a clean destroy rarely trips it; back-to-back churn (killed apply → destroy → apply) does. The failure mode is per-container, not per-port — the companions hit the same thing after a Docker Desktop restart ([companion landmine below](#companions-the-caching-registry)).
 
@@ -110,7 +111,7 @@ kubectl -n flux-system get kustomizations
 - **the wildcard is strict** (`skipFallback: true`): any registry not in the angos upstream map **hard-fails at image pull** — there is no silent direct-pull fallback (the old per-registry-map behavior). Chart images must come from mapped registries, or the chart overrides to one that carries the content (kyverno → ghcr.io is the worked example: rationale in `manifests/local/policies/kyverno-values.yaml`)
 - the cache persists in the **`platform-registry-data`** docker volume (mounted at `/data`)
 
-**Landmine — the volume is not terraform-idempotent.** The `null_resource` in `registry/main.tf` runs `docker volume create platform-registry-data` only at CREATE; its trigger is a static string that never re-fires. If the volume is wiped (`docker system prune --volumes`, Docker Desktop reset, disk cleanup), `terraform apply` will **not** recreate it — the registry container just starts with an empty `/data` (silent: images re-download from upstreams, nothing errors). Fix by hand, then recreate the container:
+**Landmine — the volume is not terraform-idempotent.** The `null_resource` in `registry/main.tf` runs `docker volume create platform-registry-data` only at CREATE; its trigger is a static string that never re-fires. If the volume is wiped (`docker system prune --volumes`, a Docker Desktop reset on macOS, disk cleanup on any host), `terraform apply` will **not** recreate it — the registry container just starts with an empty `/data` (silent: images re-download from upstreams, nothing errors). Fix by hand, then recreate the container:
 
 ```
 docker volume create platform-registry-data
@@ -119,14 +120,14 @@ terraform -chdir=cluster/local apply -replace=null_resource.registry_volume
 
 **Node machine config iteration is apply, not rebuild** (cmdshift/platform#73 — supersedes the old "template edits need a full rebuild" rule). `nodes/main.tf` carries `talos_machine_configuration_apply` resources (ctrl + work) that converge running nodes to the generated config (`apply_mode = "auto"` — reboots only if a config change demands it): editing a machine-config template + `terraform apply` lands it without recreating containers. The `USERDATA` env the containers boot from stays first-boot-only (`lifecycle { ignore_changes = [env] }`) — an applied config persists in the `/system/state` docker volume, which is what makes the apply path authoritative. Two landmines:
 
-- **Endpoint**: the talos provider defaults the apply resource's `endpoint` to the node's private IP — unroutable from macOS, the create hangs in silent transport-retry. Keep `endpoint = 127.0.0.1` (the host-published ctrl apid) with `node` = the target's private IP; worker applies route through the ctrl node's apid and depend on the ctrl applies. Same pattern as the bootstrap/kubeconfig resources.
+- **Endpoint**: the talos provider defaults the apply resource's `endpoint` to the node's private IP — unroutable from the macOS host (Linux hosts route the docker bridge directly, but the loopback pattern is host-shape-independent and keeps `nodes/outputs.tf`'s rewrite uniform), the create hangs in silent transport-retry. Keep `endpoint = 127.0.0.1` (the host-published ctrl apid) with `node` = the target's private IP; worker applies route through the ctrl node's apid and depend on the ctrl applies. Same pattern as the bootstrap/kubeconfig resources.
 - Registry-map changes remain companion-side config only (angos container recreate) — no node machine config involved, immune by design.
 
-**Host → companion path:** `*.cloud.test` names resolve to `127.0.10.1`, where Docker Desktop's port publisher listens — that publisher path is the *only* host route into the companion network. If host curls to mail/secrets/s3 hang while the cluster itself works (check `docker logs cloud-test` — internal traffic is unaffected), `docker restart cloud-test` re-establishes the binding (hit 2026-09-07).
+**Host → companion path:** `*.cloud.test` names resolve to `127.0.10.1`, which lands on the container port publisher. On macOS that's Docker Desktop's port publisher and the **only** host route into the companion network; on Linux the same published ports are served natively by dockerd (no VM forward — the stale-binding failure class below doesn't apply). If host curls to mail/secrets/s3 hang while the cluster itself works (check `docker logs cloud-test` — internal traffic is unaffected), `docker restart cloud-test` re-establishes the binding (hit 2026-09-07, macOS host).
 
-## Docker Desktop restart (no rebuild)
+## Daemon restart (no rebuild)
 
-Restarting Docker Desktop (memory bump, Docker update, host reboot) stops **all** containers — the Talos nodes included — but wipes nothing: node state, etcd, PVCs, volumes and the flux bucket all persist in the VM disk. Full destroy/apply is NOT needed; restart the containers in dependency order:
+Restarting the docker daemon (no rebuild) stops **all** containers — the Talos nodes included — but wipes nothing: node state, etcd, PVCs, volumes and the flux bucket all persist in volumes/disks, not in process memory. On macOS this is the **Docker Desktop restart** (memory bump, Docker update, host reboot — state lives in the VM disk); on Linux it's **`systemctl restart docker`** — the containers' data lives in `/var/lib/docker` on the host, and a `systemctl restart docker` (or per-container restarts) does not restart the host. Full destroy/apply is NOT needed in either case; restart the containers in dependency order:
 
 ```
 # companions first — dns + registry are what the nodes need to boot clean
@@ -138,9 +139,9 @@ docker start $(docker ps -a --format '{{.Names}}' | rg '^ctrl-local-test')
 docker start $(docker ps -a --format '{{.Names}}' | rg '^work-local-test')
 ```
 
-Validated 2026-09-07 (15.6→23.4GiB memory bump): nodes rejoin and go Ready in ~1 min (kubelet restarts all pods in place), the sync container re-mirrors the bucket on startup, and the flux tree re-converges in ~2 min (`flux_wait 10`; a few kustomizations pending while workloads resettle is normal). `kubectl`/`talosctl` need no changes — the vmnet IPs are static from terraform. A worker stuck `NotReady` past ~2 min is still booting Talos, not wedged — re-check before diagnosing. Verify with the post-rebuild table above.
+Validated 2026-09-07 on macOS (15.6→23.4GiB Docker Desktop memory bump): nodes rejoin and go Ready in ~1 min (kubelet restarts all pods in place), the sync container re-mirrors the bucket on startup, and the flux tree re-converges in ~2 min (`flux_wait 10`; a few kustomizations pending while workloads resettle is normal). `kubectl`/`talosctl` need no changes — the container IPs are static from terraform (macOS routes them through the VM's vmnet; Linux hosts reach the docker bridge directly). A worker stuck `NotReady` past ~2 min is still booting Talos, not wedged — re-check before diagnosing. Verify with the post-rebuild table above.
 
-Note: the docker daemon kills containers with SIGKILL (exit 137) on shutdown — harmless. And the node alerts (DiskIO/PageFaults) that fire during heavy scan floods **clear with the restart**, since the fault pressure lives inside the VM's RAM budget — raising that budget is the lever when they recur.
+Note: the docker daemon kills containers with SIGKILL (exit 137) on shutdown — harmless. And the node alerts (DiskIO/PageFaults) that fire during heavy scan floods **clear with the restart** on macOS hosts, since the fault pressure lives inside the VM's 24Gi RAM budget — raising that budget is the lever when they recur (on Linux hosts the same limits run against the host's RAM, so the budget lever is a host-sizing question, not a VM knob).
 
 ## Data implications
 

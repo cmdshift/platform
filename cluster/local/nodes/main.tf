@@ -165,24 +165,6 @@ resource "talos_machine_bootstrap" "main" {
   }
 }
 
-# The apply doesn't return until every node's Talos services (etcd, apid,
-# kubelet) answer — on fresh installs the read defers past etcd bootstrap via
-# depends_on. K8s-level checks stay off: CNI (cilium) comes from the separate
-# bootstrap state, so node/pod checks can't pass yet at this point in the flow.
-data "talos_cluster_health" "main" {
-  client_configuration = talos_machine_secrets.main.client_configuration
-  endpoints            = [local.local_api_ip]
-  control_plane_nodes  = [for ip, c in docker_container.ctrl : ip]
-  worker_nodes         = [for ip, c in docker_container.work : ip]
-  skip_kubernetes_checks = true
-  depends_on = [
-    talos_machine_bootstrap.main
-  ]
-  timeouts = {
-    read = "5m"
-  }
-}
-
 resource "talos_cluster_kubeconfig" "main" {
   depends_on = [
     talos_machine_bootstrap.main

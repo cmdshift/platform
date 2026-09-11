@@ -9,7 +9,9 @@ spec:
   chart:
     spec:
       chart: cilium
-      version: 1.20.1
+      # pre-release: 1.20.x crashes at startup on kernel 7.2 hosts (cilium/cilium#48016);
+      # must match the bootstrap pin or adoption downgrades back to a broken release
+      version: 1.21.0-pre.2
       sourceRef:
         kind: HelmRepository
         name: cilium

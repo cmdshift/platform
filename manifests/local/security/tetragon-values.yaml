@@ -7,6 +7,10 @@ extraHostPathMounts:
   - name: sys-kernel-tracing
     mountPath: /sys/kernel/tracing
 tetragon:
+  # kernel 7.2 rejects kprobe_multi attach for Override actions on
+  # security_kernel_module_request (upstream hint: --disable-kprobe-multi)
+  extraArgs:
+    disable-kprobe-multi: "true"
   # required by the privileges-raise TracingPolicy (uid/gid/caps in exec
   # events); small overhead, events stay useful for jq filtering
   enableProcessCred: true
