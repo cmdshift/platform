@@ -1,15 +1,24 @@
 #!/usr/bin/env bash
-# Prometheus query with port-forward lifecycle handled.
+# Prometheus query with the port-forward lifecycle handled: a per-service
+# forward is started once and SHARED across invocations via a lock file
+# (${TMPDIR:-/tmp}/prometheus_query.<service>.forward, "<pid> <port>") —
+# rapid loops stop churning listeners, and a wedged/dead forward is evicted
+# and replaced on the next call. A not-ready prometheus (WAL replay) is
+# waited out (bounded 2m): the ready check distinguishes "forward up, server
+# not ready" (HTTP non-200) from "forward dead" (refused/timeout). `--stop`
+# evicts the shared forwards. The lifecycle is duplicated in loki_query —
+# keep the two in lockstep.
 #   prometheus_query '<promql>'              instant, raw JSON
 #   prometheus_query -v '<promql>'            values only (value + labels, or ts value)
 #   prometheus_query -c '<promql>'            compact: "<pod=... container=...> vals" per line
 #   prometheus_query -r 6h '<promql>'         range over the last 6h (m|h|d), auto step
 #   prometheus_query --query '<promql>'       against svc/thanos-query-main instead
-# Exit 0 = query ran (check the JSON/values for emptiness), 1 = port-forward
-# never became ready, 2 = usage error.
+#   prometheus_query --stop                   evict the shared forwards
+# Exit 0 = query ran (check the JSON/values for emptiness), 1 = forward
+# failed to establish or the server stayed not-ready for 2m, 2 = usage error.
 
 usage() {
-  echo "usage: prometheus_query [-v|-c] [-r 6h] [--query] '<promql>'" >&2
+  echo "usage: prometheus_query [-v|-c] [-r 6h] [--query] '<promql>' | prometheus_query --stop" >&2
   exit 2
 }
 
@@ -25,17 +34,99 @@ range_start() { # e.g. 6h -> epoch seconds; bash math off `date +%s` (portable �
   echo $(( $(date +%s) - n * u ))
 }
 
+# --- shared port-forward lifecycle (duplicated in loki_query — keep in lockstep) ---
+
+LOCK_DIR="${TMPDIR:-/tmp}"
+
+http_answer() { # url — exit 0 once any HTTP response arrives; curl exit 0 covers
+  # 200 AND 503, while refused/timeout exit non-zero — that distinction is
+  # what separates "still binding" from "server not ready"
+  curl -s --max-time 2 -o /dev/null "$1"
+}
+
+http_200() { # url
+  [ "$(curl -s --max-time 2 -o /dev/null -w '%{http_code}' "$1")" = 200 ]
+}
+
+is_port_forward() { # pid — the recorded PID must still name a port-forward before
+  # we reuse or kill it (PID recycling would otherwise reuse/kill a stranger)
+  ps -p "$1" -o command= 2>/dev/null | grep -q port-forward
+}
+
+stop_forwards() { # evict every forward this tool has recorded
+  local lock pid port
+  for lock in "$LOCK_DIR"/prometheus_query.*.forward; do
+    [ -f "$lock" ] || continue
+    read -r pid port < "$lock" 2>/dev/null || true
+    if [ "${pid:-}" ] && is_port_forward "$pid"; then
+      kill "$pid" 2>/dev/null && echo "stopped forward pid=$pid port=$port"
+    fi
+    rm -f "$lock"
+  done
+}
+
 port_forward() { # service_name — sets PORT_FORWARD_PORT / PORT_FORWARD_PID
-  local i=0
-  PORT_FORWARD_PORT=$(jot -r 1 20000 29999 2>/dev/null || echo 29123)
-  kubectl -n monitoring port-forward "svc/$1" "$PORT_FORWARD_PORT:9090" >/dev/null 2>&1 &
-  PORT_FORWARD_PID=$!
-  trap 'kill $PORT_FORWARD_PID 2>/dev/null' EXIT
-  until curl -s --max-time 2 "http://localhost:$PORT_FORWARD_PORT/-/ready" >/dev/null 2>&1; do
+  local service=$1 lock i pid port attempt
+  lock="$LOCK_DIR/prometheus_query.$service.forward"
+  unset PORT_FORWARD_PID PORT_FORWARD_PORT
+  if [ -f "$lock" ]; then
+    read -r pid port < "$lock" 2>/dev/null
+    if [ "${pid:-}" ] && [ "${port:-}" ] && kill -0 "$pid" 2>/dev/null \
+       && is_port_forward "$pid"; then
+      PORT_FORWARD_PID=$pid
+      PORT_FORWARD_PORT=$port
+    else # stale lock: evict a genuine forward, forget a recycled PID
+      if [ "${pid:-}" ] && is_port_forward "$pid"; then kill "$pid" 2>/dev/null; fi
+      rm -f "$lock"
+    fi
+  fi
+  if [ -z "${PORT_FORWARD_PORT:-}" ]; then
+    # fresh forward; one restart when kubectl dies (transient bind collision —
+    # random-port collisions are rare but cheaper to retry than to fail)
+    for attempt in 1 2; do
+      PORT_FORWARD_PORT=$((20000 + RANDOM % 1000))
+      kubectl -n monitoring port-forward "svc/$service" "$PORT_FORWARD_PORT:9090" >/dev/null 2>&1 &
+      PORT_FORWARD_PID=$!
+      i=0
+      until http_answer "http://localhost:$PORT_FORWARD_PORT/-/ready"; do
+        i=$((i + 1))
+        kill -0 "$PORT_FORWARD_PID" 2>/dev/null || break
+        [ "$i" -gt 20 ] && { echo "port-forward failed to establish" >&2; return 1; }
+        sleep 0.5
+      done
+      kill -0 "$PORT_FORWARD_PID" 2>/dev/null && break
+    done
+    kill -0 "$PORT_FORWARD_PID" 2>/dev/null || { echo "port-forward failed to establish" >&2; return 1; }
+  else
+    # reused forward: bounded liveness probe before trusting it — a wedged
+    # kubectl keeps its PID while the port stops answering
+    i=0
+    until http_answer "http://localhost:$PORT_FORWARD_PORT/-/ready"; do
+      i=$((i + 1))
+      [ "$i" -gt 12 ] && {
+        kill "$PORT_FORWARD_PID" 2>/dev/null
+        rm -f "$lock"
+        port_forward "$service" # evict → fresh start (recursion depth 1: the lock is gone)
+        return
+      }
+      sleep 0.5
+    done
+  fi
+  # ready budget: HTTP 503 here is the server not ready (WAL replay) — wait it
+  # out; only a dead forward fails immediately. On expiry the forward is
+  # recorded anyway, so the next call rides the same one.
+  i=0
+  while ! http_200 "http://localhost:$PORT_FORWARD_PORT/-/ready"; do
+    kill -0 "$PORT_FORWARD_PID" 2>/dev/null || { echo "port-forward failed to establish" >&2; return 1; }
     i=$((i + 1))
-    [ "$i" -gt 20 ] && { echo "port-forward never became ready" >&2; return 1; }
+    [ "$i" -gt 240 ] && {
+      echo "prometheus not ready after 2m — likely WAL replay; retry shortly" >&2
+      printf '%s %s\n' "$PORT_FORWARD_PID" "$PORT_FORWARD_PORT" > "$lock"
+      return 1
+    }
     sleep 0.5
   done
+  printf '%s %s\n' "$PORT_FORWARD_PID" "$PORT_FORWARD_PORT" > "$lock"
 }
 
 format_values() {
@@ -102,5 +193,11 @@ prometheus_query() {
     echo
   fi
 }
+
+if [ "${1:-}" = "--stop" ]; then
+  [ $# -eq 1 ] || usage
+  stop_forwards
+  exit 0
+fi
 
 prometheus_query "$@"
