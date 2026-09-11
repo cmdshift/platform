@@ -14,6 +14,8 @@ The live release is the flux **HelmRelease** `kube-system/cilium` (helm storage 
 
 The cloud deltas are spelled out in [manifests/cloud/notes.md](../../cloud/notes.md) (the old in-repo `# remove in the cloud` / `# true in the cloud` markers are gone — the KPR/proxy.disabled deltas they marked resolved in cmdshift/platform#70; this list is the remaining inventory):
 
+- **`version: 1.21.0-pre.2`** — pre-release pin: cilium 1.20.x crashes at agent startup on the Linux host's kernel 7.2 (`failed to probe helper … FnSetRetval for program type CGroupSock` — the verifier rejects `bpf_set_retval#187: R1 is not a scalar`, cilium/cilium#48016). Pinned in BOTH places — the bootstrap helm_release in `cluster/local/bootstrap/main.tf` AND this HelmRelease — and the two must move in **lockstep** (mirrors the thanos-operator's commit↔image-tag rule): flux adoption converges the live release to the HelmRelease's pin, so a stale bootstrap pin silently downgrades on the next reconcile. Revisit when the fix ships in a 1.20.x patch. Cloud runs the latest stable 1.20.x — this pin is a local kernel-7.2 workaround ([manifests/cloud/notes.md](../../cloud/notes.md)).
+- **`hubble.ui.httpRoute.enabled: false`** — chart 1.21-pre nil-pointers when the key is absent (install dies); the explicit `false` is the workaround, set in both this values file and the bootstrap values.
 - **`k8sServiceHost: localhost` / `k8sServicePort: 7445`** — cilium must reach the API server before pod networking/in-cluster DNS exists; 7445 is the per-node docker haproxy fronting the control plane (`cluster/local/nodes/main.tf`). A bootstrap chicken-and-egg that doesn't exist on real VMs.
 - **`cgroup.autoMount.enabled: false` + `hostRoot`** — running-inside-a-container quirk.
 - **`gatewayAPI.hostNetwork: true`** on `k8s-role/work` nodes — publishes LB ports on the docker host. Cloud: normal listeners fronted by a cloud LB.
@@ -24,7 +26,7 @@ Keep as-is (validate under real traffic in the cloud): wireguard encryption, `ip
 ## Network policy model
 
 - Cluster-wide **egress** default-deny CCNP (`networking-config/default-deny.cilium-clusterwide-network-policy.yaml`), kube-system exempt; every namespace gets a CNP in `networking-config/` carved out for its needs. New workloads: copy the closest house pattern (`kube-apiserver` egress, intra-ns, `toFQDNs` for `*.cloud.test` companions) — checklist in the `add-workload` skill.
-- **`*.cloud.test` resolves via the Docker Desktop port publisher** — if host curls to companions time out but cluster traffic works, restart `cloud-test` (see cluster-rebuild runbook), not a CNP problem.
+- **`*.cloud.test` resolves via the container port publisher** (Docker Desktop's `com.docker.backend` VM forward on macOS hosts; native docker port publishing on Linux hosts — same published ports, no VM indirection). If host curls to companions time out but cluster traffic works, restart `cloud-test` (see cluster-rebuild runbook) — a macOS/Docker-Desktop stale-binding symptom, unobserved on Linux hosts.
 
 ## Gotchas
 

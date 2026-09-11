@@ -13,6 +13,8 @@ helm repo add <name> <url> && helm repo update
 
 Name it the same as the HelmRepository CR it will get in `sources/`. Then: `helm search repo <name>/ --versions` to pin an exact version (never floating), `helm show values` to read the real values surface, `helm template` for local renders.
 
+Charts pinned in TWO places must bump in **lockstep** — the bootstrap helm_release values in `cluster/local/bootstrap/main.tf` and the flux HelmRelease in `manifests/local/` carry independent `version` pins (cilium is the live example, bootstrap ↔ `networking/cilium.helm-release.yaml`): flux adoption converges the live release to the HelmRelease's pin, so bumping only one side silently moves the live release to whichever pin lags.
+
 Gotcha: `helm_verify` printing `FAIL: <name> — helm repo add/update … failed` means the index fetch failed — it no longer swallows those (`|| true` used to leave a stale/empty index that produced phantom "version not in index" verdicts); re-run before digging deeper. `version X not in <repo> index` after a successful fetch means the pin is genuinely wrong/missing — without this check `helm template --version` silently rendered the *closest* index version and passed. A `v`-prefixed pin (`version: "v1.2.3"`) is fine — both sides are normalized. Index fetches are on-miss only (probe → one scoped `helm repo update` → verdict), so a "not in index" verdict is trustworthy.
 
 ## 1. The 1MB release-secret cap
