@@ -85,7 +85,8 @@ LABEL="$(probe_label "$POLICY" || true)"
 echo "policy: $POLICY  probe label: ${LABEL:-<none>}"
 
 AGENT="$(kubectl -n "$NS" get pods -l app.kubernetes.io/name=tetragon \
-  --no-headers | awk '$2 ~ /^[0-9]+\/[0-9]+$/ && $3=="Running" {print $1; exit}')"
+  --no-headers | awk '$2 ~ /^[0-9]+\/[0-9]+$/ && $3=="Running" {print $1}' \
+  | head -n 1)"
 [ -n "$AGENT" ] || { echo "tetragon_probe: no Ready agent pod" >&2; exit 1; }
 NODE="$(kubectl -n "$NS" get pod "$AGENT" -o jsonpath='{.spec.nodeName}')"
 echo "agent: $AGENT on node $NODE"

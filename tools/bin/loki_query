@@ -5,7 +5,13 @@
 #                                      # series, sorted by value desc — for
 #                                      # aggregations, whose group labels are the
 #                                      # only way to tell result series apart
+#   loki_query --stop                  # evict the shared port-forward
 # Prints raw log lines. The tenant is "self-monitoring" (see config.alloy).
+# The port-forward is started once and SHARED across invocations via a lock
+# file (${TMPDIR:-/tmp}/loki_query.loki.forward, "<pid> <port>") — a wedged or
+# dead forward is evicted and replaced on the next call; a not-ready loki
+# (startup/WAL replay) is waited out (bounded 2m). The lifecycle is
+# duplicated in prometheus_query — keep the two in lockstep.
 #
 # LANDMINE: tetragon event streams carry the EXPORTER's labels
 # ({namespace="security", pod="tetragon-*"}), not the workload's — the event's
@@ -13,9 +19,12 @@
 # process_kprobe.process.pod.namespace, ...). Per-workload breakdowns need
 # `| json ns="process_exec.pod.namespace" | ns=~"..."` extraction, never a
 # stream selector on the workload's namespace.
+#
+# Exit 0 = query ran (check the output for emptiness), 1 = port-forward
+# failed to establish or loki stayed not-ready for 2m, 2 = usage error.
 
 usage() {
-  echo "usage: loki_query [-c] '<logql>' [duration]" >&2
+  echo "usage: loki_query [-c] '<logql>' [duration] | loki_query --stop" >&2
   exit 2
 }
 
@@ -31,17 +40,99 @@ range_start() { # e.g. 4h -> epoch seconds; bash math off `date +%s` (portable �
   echo $(( $(date +%s) - n * u ))
 }
 
-port_forward() {
-  local i=0
-  PORT_FORWARD_PORT=$(jot -r 1 21000 21999 2>/dev/null || echo 29124)
-  kubectl -n logging port-forward svc/loki "$PORT_FORWARD_PORT:3100" >/dev/null 2>&1 &
-  PORT_FORWARD_PID=$!
-  trap 'kill $PORT_FORWARD_PID 2>/dev/null' EXIT
-  until curl -s --max-time 2 "http://localhost:$PORT_FORWARD_PORT/ready" >/dev/null 2>&1; do
+# --- shared port-forward lifecycle (duplicated in prometheus_query — keep in lockstep) ---
+
+LOCK_DIR="${TMPDIR:-/tmp}"
+
+http_answer() { # url — exit 0 once any HTTP response arrives; curl exit 0 covers
+  # 200 AND 503, while refused/timeout exit non-zero — that distinction is
+  # what separates "still binding" from "server not ready"
+  curl -s --max-time 2 -o /dev/null "$1"
+}
+
+http_200() { # url
+  [ "$(curl -s --max-time 2 -o /dev/null -w '%{http_code}' "$1")" = 200 ]
+}
+
+is_port_forward() { # pid — the recorded PID must still name a port-forward before
+  # we reuse or kill it (PID recycling would otherwise reuse/kill a stranger)
+  ps -p "$1" -o command= 2>/dev/null | grep -q port-forward
+}
+
+stop_forwards() { # evict every forward this tool has recorded
+  local lock pid port
+  for lock in "$LOCK_DIR"/loki_query.*.forward; do
+    [ -f "$lock" ] || continue
+    read -r pid port < "$lock" 2>/dev/null || true
+    if [ "${pid:-}" ] && is_port_forward "$pid"; then
+      kill "$pid" 2>/dev/null && echo "stopped forward pid=$pid port=$port"
+    fi
+    rm -f "$lock"
+  done
+}
+
+port_forward() { # sets PORT_FORWARD_PORT / PORT_FORWARD_PID
+  local lock i pid port attempt
+  lock="$LOCK_DIR/loki_query.loki.forward"
+  unset PORT_FORWARD_PID PORT_FORWARD_PORT
+  if [ -f "$lock" ]; then
+    read -r pid port < "$lock" 2>/dev/null
+    if [ "${pid:-}" ] && [ "${port:-}" ] && kill -0 "$pid" 2>/dev/null \
+       && is_port_forward "$pid"; then
+      PORT_FORWARD_PID=$pid
+      PORT_FORWARD_PORT=$port
+    else # stale lock: evict a genuine forward, forget a recycled PID
+      if [ "${pid:-}" ] && is_port_forward "$pid"; then kill "$pid" 2>/dev/null; fi
+      rm -f "$lock"
+    fi
+  fi
+  if [ -z "${PORT_FORWARD_PORT:-}" ]; then
+    # fresh forward; one restart when kubectl dies (transient bind collision —
+    # random-port collisions are rare but cheaper to retry than to fail)
+    for attempt in 1 2; do
+      PORT_FORWARD_PORT=$((21000 + RANDOM % 1000))
+      kubectl -n logging port-forward svc/loki "$PORT_FORWARD_PORT:3100" >/dev/null 2>&1 &
+      PORT_FORWARD_PID=$!
+      i=0
+      until http_answer "http://localhost:$PORT_FORWARD_PORT/ready"; do
+        i=$((i + 1))
+        kill -0 "$PORT_FORWARD_PID" 2>/dev/null || break
+        [ "$i" -gt 20 ] && { echo "port-forward failed to establish" >&2; return 1; }
+        sleep 0.5
+      done
+      kill -0 "$PORT_FORWARD_PID" 2>/dev/null && break
+    done
+    kill -0 "$PORT_FORWARD_PID" 2>/dev/null || { echo "port-forward failed to establish" >&2; return 1; }
+  else
+    # reused forward: bounded liveness probe before trusting it — a wedged
+    # kubectl keeps its PID while the port stops answering
+    i=0
+    until http_answer "http://localhost:$PORT_FORWARD_PORT/ready"; do
+      i=$((i + 1))
+      [ "$i" -gt 12 ] && {
+        kill "$PORT_FORWARD_PID" 2>/dev/null
+        rm -f "$lock"
+        port_forward # evict → fresh start (recursion depth 1: the lock is gone)
+        return
+      }
+      sleep 0.5
+    done
+  fi
+  # ready budget: HTTP 503 here is loki not ready (ingester replay) — wait it
+  # out; only a dead forward fails immediately. On expiry the forward is
+  # recorded anyway, so the next call rides the same one.
+  i=0
+  while ! http_200 "http://localhost:$PORT_FORWARD_PORT/ready"; do
+    kill -0 "$PORT_FORWARD_PID" 2>/dev/null || { echo "port-forward failed to establish" >&2; return 1; }
     i=$((i + 1))
-    [ "$i" -gt 20 ] && { echo "port-forward never became ready" >&2; return 1; }
+    [ "$i" -gt 240 ] && {
+      echo "loki not ready after 2m — likely WAL replay; retry shortly" >&2
+      printf '%s %s\n' "$PORT_FORWARD_PID" "$PORT_FORWARD_PORT" > "$lock"
+      return 1
+    }
     sleep 0.5
   done
+  printf '%s %s\n' "$PORT_FORWARD_PID" "$PORT_FORWARD_PORT" > "$lock"
 }
 
 format_compact() { # one line per series: short label subset + latest value; a
@@ -83,5 +174,11 @@ loki_query() {
     --data-urlencode "limit=100" \
     | if [ "$compact" = 1 ]; then format_compact; else jq -r '.data.result[]? | .values[] | .[1]'; fi
 }
+
+if [ "${1:-}" = "--stop" ]; then
+  [ $# -eq 1 ] || usage
+  stop_forwards
+  exit 0
+fi
 
 loki_query "$@"

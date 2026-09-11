@@ -3,8 +3,10 @@
 Helper scripts for the repeated plumbing of this repo. `direnv` adds this
 directory to PATH — invoke as `<name>` inside the repo; otherwise
 `tools/bin/<name>`. Each script is self-contained bash, named for its entry
-function; the observability ones (`prometheus_query`, `loki_query`) manage
-their own port-forward lifecycle.
+function; the observability ones (`prometheus_query`, `loki_query`) share a
+port-forward lifecycle: a per-service forward is started once and reused via
+a lock file in `${TMPDIR:-/tmp}` (`<tool>.<service>.forward`, `<pid> <port>`)
+instead of churning a listener per call; `--stop` evicts them.
 
 **Shared conventions:**
 
@@ -42,7 +44,9 @@ is bash arithmetic off `date +%s` (both darwin and GNU) — never `date -v`
 (darwin-only) or `date -d` (GNU-only), and non-integer durations are
 rejected before the arithmetic (a float inside `$(( ))` is fatal in
 non-interactive bash — the script would abort before `|| usage` fires).
-The random-port picks use `jot` with a fixed fallback where it's missing.
+The random-port picks are bash `$RANDOM` arithmetic over disjoint windows
+(prometheus 20000-20999, loki 21000-21999) — `jot` was BSD-only and its
+fallback silently pinned one fixed port per script on Linux.
 Nothing here shells out to an interpreter — bash + these CLIs is the
 whole dependency tree.
 
@@ -307,10 +311,12 @@ runbooks/local/namespace-migration.md.
 
 ## Observability queries
 
-### `prometheus_query [-v|-c] [-r 6h] [--query] '<promql>'`
+### `prometheus_query [-v|-c] [-r 6h] [--query] '<promql>' | prometheus_query --stop`
 
 Port-forwards svc/kube-prometheus-stack-prometheus:9090 (or
-svc/thanos-query-main with `--query`) with the lifecycle handled.
+svc/thanos-query-main with `--query`) — one forward per service, SHARED
+across invocations via the lock file
+`${TMPDIR:-/tmp}/prometheus_query.<service>.forward` (`<pid> <port>`).
 
 - default: raw JSON; `-v`: values only; `-c`: compact, one line per series
   with a short label subset (token-cheap vs raw JSON's label noise)
@@ -322,14 +328,33 @@ svc/thanos-query-main with `--query`) with the lifecycle handled.
   swallowed
 - instant queries evaluate series present in the last 5m — a range query is
   the way to see pods that have since been recreated
+- **shared-forward lifecycle** (cmdshift/platform#77; duplicated in
+  `loki_query` — keep the two in lockstep): each call validates the recorded
+  forward (PID alive AND still a port-forward — the cmdline check defeats
+  PID recycling — AND the port answering HTTP) and reuses it; a stale or
+  wedged forward is evicted and replaced in the same call (~30s worst case
+  for a wedged-but-alive listener: the liveness probe waits out curl's
+  2s max-time per poll). No EXIT trap kills anything — the forward outlives
+  the call; `--stop` is the hygiene valve. A not-ready server (WAL replay:
+  HTTP 503 from the ready endpoint while the forward answers) is waited out
+  up to 2m with a `prometheus not ready after 2m — likely WAL replay`
+  exit-1, the forward left recorded so the retry rides the same one — the
+  old per-call version hard-failed 20×0.5s into replay instead. Known
+  race: two simultaneous cold starts can both write the lock (last writer
+  wins, one forward orphans until its lock is overwritten or `--stop`
+  catches it) — sequential loops, the norm for these tools, never race.
 
-### `loki_query [-c] '<logql>' [duration]`
+### `loki_query [-c] '<logql>' [duration] | loki_query --stop`
 
-LogQL against svc/loki:3100, tenant `self-monitoring` preset, nanosecond
-time math handled. Default window 1h (m|h|d). Default prints raw log lines;
-`-c` prints one line per series (`labels: latest-value`, sorted by value
-desc) — the only way to see aggregation group labels, which the default
-output drops.
+LogQL against svc/loki:3100 (shared forward, lock file
+`${TMPDIR:-/tmp}/loki_query.loki.forward` — same lifecycle contract as
+`prometheus_query`, with loki's `/ready` endpoint and a 2m
+`loki not ready after 2m` wait for ingester replay), tenant
+`self-monitoring` preset, nanosecond time math handled. Default prints raw
+log lines; `-c` prints one line per series (`labels: latest-value`, sorted
+by value desc) — the only way to see aggregation group labels, which the
+default output drops. Exit codes: 0 = query ran (check the output for
+emptiness), 1 = forward failed or loki stayed not-ready, 2 = usage.
 
 - **LANDMINE — tetragon events carry the EXPORTER's labels**: all event
   streams live under `{namespace="security", pod="tetragon-*"}`; the event's
