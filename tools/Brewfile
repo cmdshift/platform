@@ -1,0 +1,44 @@
+tap "hashicorp/tap", trusted: true
+# Newer shell for tools/bin scripts (associative arrays in sync_wait;
+# /bin/bash on macOS is stuck at 3.2)
+brew "bash"
+# CLI to install, manage & troubleshoot Kubernetes clusters running Cilium
+brew "cilium-cli"
+# Load/unload environment variables based on $PWD
+brew "direnv"
+# CLI for interacting with Doppler secrets and configuration
+brew "doppler"
+# Open and extensible continuous delivery solution for Kubernetes
+brew "fluxcd"
+# GitHub command-line tool
+brew "gh"
+# Kubernetes package manager
+brew "helm"
+# Lightweight and flexible command-line JSON processor
+brew "jq"
+# Handy way to save and run project-specific commands
+brew "just"
+# Kubernetes CLI To Manage Your Clusters In Style!
+brew "k9s"
+# Kubernetes command-line interface
+brew "kubernetes-cli"
+# AI coding agent, built for the terminal
+brew "opencode"
+# Static analysis and lint tool, for (ba)sh scripts
+brew "shellcheck"
+# User-mode networking for unprivileged network namespaces
+brew "slirp4netns"
+# Crypto and x509 Swiss-Army-Knife
+brew "step"
+# CLI for out-of-band management of Kubernetes nodes created by Talos
+brew "talosctl"
+# Tetragon CLI to observe, manage and troubleshoot Tetragon instances
+brew "tetra"
+# Disaster recovery for Kubernetes resources and persistent volumes
+brew "velero"
+# Process YAML, JSON, XML, CSV and properties documents from the CLI
+brew "yq"
+# Packer
+brew "hashicorp/tap/packer"
+# Terraform
+brew "hashicorp/tap/terraform"

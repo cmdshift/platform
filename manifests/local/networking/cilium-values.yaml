@@ -40,6 +40,9 @@ hubble:
         memory: 96Mi
   ui:
     enabled: true
+    # chart 1.21-pre nil-pointers when hubble.ui.httpRoute is absent
+    httpRoute:
+      enabled: false
     backend:
       resources:
         requests:
