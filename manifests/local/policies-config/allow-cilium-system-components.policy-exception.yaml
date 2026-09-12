@@ -19,6 +19,10 @@ spec:
       kind: ValidatingPolicy
     - name: restrict-seccomp-strict
       kind: ValidatingPolicy
+    # the agents terminate in 1s by design (fast node shutdown, no state to drain)
+    - name: require-graceful-termination
+      kind: ValidatingPolicy
   matchConditions:
+    # hubble-relay (part of the cilium release) also terminates in 1s by design
     - name: match-cilium
-      expression: "object.metadata.namespace == 'kube-system' && object.metadata.name.startsWith('cilium')"
+      expression: "object.metadata.namespace == 'kube-system' && (object.metadata.name.startsWith('cilium') || object.metadata.name == 'hubble-relay')"
