@@ -9,6 +9,15 @@ Alloy (log collection DaemonSet) + Loki (S3 to seaweed) + `loki-rules.yaml` (rul
 - **`stage.pack` was removed on purpose**: `loki.source.kubernetes` only emits `instance`/`job`/`service_name`, so the pack carried no metadata and just wrapped every line as `{"_entry":"<original>"}` with apps' JSON nested-and-escaped inside. Lines are app-native now; expected `alloy_components` set: `discovery.kubernetes.pods` + `loki.source.kubernetes.pods` + `loki.write.endpoint` (no `loki.process`).
 - **The `alloy.configMap` values block is load-bearing** — omitting it makes the chart **silently install its example config** (pods healthy, no push, zero errors; the kustomize-generated `alloy-config` CM sits unreferenced). Fingerprint + triage: [runbooks/local/incidents.md](../../runbooks/local/incidents.md) (cmdshift/platform#27).
 
+## Audit log pipeline (cmdshift/platform#90)
+
+The ctrl node's kube-apiserver writes node-local audit logs (the reviewed 9-rule policy; policy body + Talos 1.13/1.14 placement story in `cluster/local/nodes/files/audit-policy.yaml` and the machine-config docs). Alloy scrapes them on ctrl into Loki with `job="audit"`:
+
+- **"Who deleted that PVC at 3am"** = `loki_query '{job="audit"}'` — audit streams ride the existing 30d `limits_config.retention_period`, no separate tenant.
+- **Volume control lives in the audit policy, not Loki**: with the reviewed policy alone ingestion jumped from the ~4.5KB/s baseline to ~2MB/s, dominated by `coordination.k8s.io/leases` heartbeats (74 of the first 100 events). A `none` rule for leases + tokenreviews cut it ~97% to ~60KB/s. Rule ordering matters: the machine-heartbeat `none` rule must sit BEFORE the Metadata catch-all (rules are first-match-wins).
+- **Ctrl-taint scheduling**: alloy tolerates `node-role.kubernetes.io/control-plane:NoSchedule` — until this change the DS was 4/5 by design (workers only). The other two ctrl-only requirements (Talos API image-pull namespace allowance, `DAC_READ_SEARCH` on the audit dir) are PodSpec/PolicyException-side, not config-side — see [runbooks/local/adding-a-workload.md](../../runbooks/local/adding-a-workload.md) for the ctrl-scheduling pattern.
+- **River gotchas hit on the audit stages**: map literals need a trailing comma after EVERY attribute (`{ __path__ = "...", job = "audit", node = sys.env("..."), }`); `env()` is deprecated/removed in alloy v1.19.x — `sys.env()` is the replacement (validation error otherwise).
+
 ## Log-format sweep (source-side JSON conversion)
 
 Method that worked: **binary `--help` via kubectl exec is authoritative** — chart-values greps miss nested/renamed keys.

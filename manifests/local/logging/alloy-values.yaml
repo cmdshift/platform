@@ -6,6 +6,13 @@ alloy:
       # writable /tmp: --storage.path=/tmp/alloy (WAL + positions) below
       - name: tmp
         mountPath: /tmp
+      # kube-apiserver audit logs (cmdshift/platform#90) — the audit dir is
+      # 0700 65534:nogroup with 0600 files, so the DAC_READ_SEARCH capability
+      # below is what makes the read possible (root without caps gets
+      # Permission denied); mount is read-only
+      - name: audit
+        mountPath: /var/log/audit
+        readOnly: true
   # config comes from the kustomization-generated alloy-config ConfigMap
   # (configMapGenerator on config.alloy). Without this block the chart
   # SILENTLY installs its example config — pods run healthy, push nothing,
@@ -20,6 +27,9 @@ alloy:
     capabilities:
       drop:
         - ALL
+      # read-only access to the 0700 root-owned audit log dir (cmdshift/platform#90)
+      add:
+        - DAC_READ_SEARCH
     seccompProfile:
       type: RuntimeDefault
     # NSA hardening: immutable root fs. Alloy still runs as root
@@ -49,5 +59,17 @@ controller:
     extra:
       - name: tmp
         emptyDir: {}
+      # kube-apiserver audit logs on every node (written on ctrl)
+      # (cmdshift/platform#90)
+      - name: audit
+        hostPath:
+          path: /var/log/audit
+          type: DirectoryOrCreate
+  # the apiserver audit logs live on the ctrl node — its control-plane taint
+  # must be tolerated or the audit scrape never runs there
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
 serviceMonitor:
   enabled: true # alloy self-metrics — top-level key in this chart

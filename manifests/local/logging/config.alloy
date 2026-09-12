@@ -5,6 +5,29 @@ logging {
   format = "json"
 }
 
+// Node-local kube-apiserver audit logs (cmdshift/platform#90). Written on
+// ctrl nodes under /var/log/audit/kube, rotated by the apiserver flags
+// (maxSize 100MB / maxBackup 10 / maxAge 30). Events are already JSON — the
+// normalize stage passes them through untouched. job="audit" is the query
+// surface; node comes from the per-target label below. This runs on every
+// alloy pod but only ctrl nodes have log files — file_match is idle elsewhere.
+local.file_match "audit" {
+  path_targets = [
+    {
+      __path__ = "/var/log/audit/kube/*.log",
+      job      = "audit",
+      // K8S_NODE_NAME is a downward API env (spec.nodeName) — more robust
+      // than HOSTNAME, which mirrors the pod name
+      node     = sys.env("K8S_NODE_NAME"),
+    },
+  ]
+}
+
+loki.source.file "audit" {
+  targets    = local.file_match.audit.targets
+  forward_to = [loki.process.normalize.receiver]
+}
+
 discovery.kubernetes "pods" {
   role = "pod"
 }
