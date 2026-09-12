@@ -44,6 +44,7 @@ loki_query -c 'sum by (x) (count_over_time(...))'  # labels per series + latest 
   lines → `{"msg": raw}`), so every line in Loki is JSON. Field queries:
   `{...} | json | level="error"`. tetragon is JSON-native
 - Tenant `self-monitoring` preset (alloy's `loki.write` tenant)
+- **API audit logs**: `loki_query '{job="audit"}'` — kube-apiserver audit events scraped on the ctrl node (the "who deleted that PVC at 3am" query; cmdshift/platform#90). 30d retention like everything else, no separate tenant
 
 ## mailpit
 

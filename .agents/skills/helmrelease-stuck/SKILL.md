@@ -17,6 +17,8 @@ kubectl get events -n <ns> --sort-by=.lastTimestamp
 
 Also not ladder material: the release is **kyverno itself** and its pods sit Pending — that's the hostNetwork port deadlock (local-only). Run `kyverno_unblock`, then re-run `flux_wait`.
 
+**Operator-crud denial mid-churn ≠ a spec error**: a controller (e.g. thanos-operator) failing "failed to create or update N resources" during cluster churn can be kyverno's CEL/exception re-pick-up lag — the exception exists and is correct, the admission engine just hasn't re-read it (hit live: ThanosRuler `main` Ready=False, cmdshift/platform#90). Fix: reconcile the HR + annotation-bump the PolicyException to force re-pick-up. Don't rewrite the workload spec first.
+
 ## Escalation ladder
 
 1. Reconcile — recognize the **terminal-state replay**: once `remediation.retries` is exhausted, every later reconcile replays the cached failure ("terminal error: exceeded maximum retries" in helm-controller logs) without re-attempting, even after the original blocker is fixed. An instant return of the old error = replay, not a fresh attempt. Use `helm_wait <ns> <name>` — it surfaces the HR failure message immediately instead of polling; `helm_wait -c <ns> <name>` reads the current state with no reconcile at all.

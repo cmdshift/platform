@@ -55,6 +55,7 @@ Credentials come from the secrets server: payload in `cluster/local/secrets/loca
 - **helm release**: `<thing>/`; **CRs/config**: the matching `<thing>-config/`
 - **CR-managed workloads** (grafana, thanos ×3, alertmanager, seaweed): resources + securityContext go in the **CR spec** (`resourceRequirements`, `securityContext`), not helm values
 - **operator-managed CRs**: add `healthCheckExprs` (CEL) to the owning kustomization — `wait: true` ignores `healthChecks`; copy expressions from https://fluxcd.io/flux/cheatsheets/cel-healthchecks/ and verify fields against the on-cluster CRD schema
+- **scheduling on ctrl** (rare — alloy is the only tenant so far, cmdshift/platform#90): the pod needs a `node-role.kubernetes.io/control-plane:NoSchedule` toleration, its **namespace listed in `kubernetesTalosAPIAccess.allowedKubernetesNamespaces`** in `cluster/local/nodes/templates/ctrl.tftpl.yaml` (container-mode kubelet verifies image pulls via the Talos API — non-allowed namespaces fail pulls `PermissionDenied ... not authorized`; template edit + `terraform apply`, not a manifest), and any root-owned host-path read needs a capability (e.g. `DAC_READ_SEARCH`) via the PolicyException's `policyRefs`
 
 ## 7. When admission rejects something you can't fix
 
