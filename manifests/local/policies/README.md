@@ -10,11 +10,13 @@ Kyverno (admission policy engine) + `policies-config/` (the PolicyException regi
 
 ## Admission policy
 
-All 11 ValidatingPolicies run in **Deny** mode; requirements and the workload checklist live in [AGENTS.md](../../AGENTS.md) and [runbooks/local/adding-a-workload.md](../../runbooks/local/adding-a-workload.md). Policies autogen to controllers but **not ReplicaSets** (avoids old-RS noise); old PolicyReports for unmatched resources are never retracted — delete stale report objects directly if needed.
+All 12 ValidatingPolicies run in **Deny** mode; requirements and the workload checklist live in [AGENTS.md](../../AGENTS.md) and [runbooks/local/adding-a-workload.md](../../runbooks/local/adding-a-workload.md). Policies autogen to controllers but **not ReplicaSets** (avoids old-RS noise); old PolicyReports for unmatched resources are never retracted — delete stale report objects directly if needed (hit live when `require-graceful-termination` landed: the pre-existing hubble-relay pod report kept failing until deleted, cmdshift/platform#89).
+
+`require-graceful-termination` floors `terminationGracePeriodSeconds` at 5 (unset = 30s default = compliant); the 1s-terminating system agents are excepted below. preStop hooks are deliberately a convention (effectiveness can't be validated — see the adding-a-workload runbook §2b), not a policy.
 
 ## PolicyException registry (`policies-config/`)
 
-Scoped by namespace + name prefix; each needs a keep/drop decision for the cloud — don't blanket-copy the directory. Covers: hostNetwork kyverno, privileged velero node-agents + data-mover pods, cilium, node-exporter, alloy host-logs, local-path helper pod, thanos-ruler config-reloader sidecar, tetragon agent (security namespace), kube-system system components.
+Scoped by namespace + name prefix; each needs a keep/drop decision for the cloud — don't blanket-copy the directory. Covers: hostNetwork kyverno, privileged velero node-agents + data-mover pods, cilium + hubble-relay (incl. their 1s termination grace), node-exporter, alloy host-logs, local-path helper pod, thanos-ruler config-reloader sidecar, tetragon agent (security namespace), kube-system system components.
 
 ## Kyverno landmines (all cost debugging rounds)
 

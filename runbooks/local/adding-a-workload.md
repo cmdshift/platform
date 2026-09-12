@@ -13,6 +13,16 @@ All containers + initContainers need cpu/memory requests and limits. Size per th
 - `seccompProfile: RuntimeDefault`
 - capabilities dropped `ALL`
 
+## 2b. Graceful shutdown (tgps kyverno-checked; preStop convention)
+
+`require-graceful-termination` (Deny mode) rejects pods whose `terminationGracePeriodSeconds` is set below 5 — unset passes (the kubelet's 30s default counts as compliant). Worked example of the rejection: `kubectl run x --overrides '{"spec":{"terminationGracePeriodSeconds":0,...}}'` → `Policy require-graceful-termination failed`.
+
+Conventions:
+
+- For anything serving traffic, **set tgps deliberately**: ≈ max in-flight request duration + shutdown overhead. Don't drift on the 30s default for apps that need longer (alertmanager uses 120s, prometheus 600s — evidence-shaped values).
+- **`preStop` hooks are convention, not policy.** Kyverno can validate presence only, never hook *effectiveness* — a presence-only Deny rule invites hooks that exist but do nothing. Add `preStop: sleep <grace-readiness-lag>` only when the app has no in-pod graceful drain of its own; when it handles SIGTERM properly, no hook is the better shape.
+- The 1s-terminating system agents (cilium, cilium-envoy, hubble-relay, tetragon) are PolicyExcepted in `policies-config/` — deliberate, don't copy their values.
+
 ## 3. Helm hook jobs (if using a chart)
 
 Render and size them — they're admission-checked too:

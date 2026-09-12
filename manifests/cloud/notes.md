@@ -17,6 +17,10 @@ Bigger caveat first: local-path is node-local with no replication — a lost nod
 
 **Volume expansion**: the local classes set `allowVolumeExpansion: false` because local-path-provisioner has no expansion code at all (a `true` value just wedges any PVC resize forever — evidence in `manifests/local/storage/README.md`). Any real CSI StorageClass in the cloud (EBS, Ceph, …) expands natively — set `allowVolumeExpansion: true` there, and size local-path-hosted stateful workloads for the recreate-with-bigger-PVC path if any stay on local-path.
 
+## Admission policy: graceful-termination floor (local: `require-graceful-termination`, cmdshift/platform#89)
+
+The `terminationGracePeriodSeconds >= 5` ValidatingPolicy carries to the cloud unchanged. The PolicyExceptions for the 1s-terminating system agents (cilium, cilium-envoy, hubble-relay, tetragon) need a keep/drop decision: local keeps them because the docker containers are throwaway and fast node shutdown is the recovery path; cloud Talos nodes with real etcd/quorum roles should re-verify cilium's 1s is still right there (a 1s agent grace on a node draining real workloads is a different trade than on a 2-container test rig).
+
 ## Cilium (local: manifests/local/networking/cilium.helm-release.yaml)
 
 What must change vs the local helm release:
