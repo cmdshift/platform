@@ -1,0 +1,120 @@
+# Kubernetes apiserver audit policy — the "reviewed" policy beyond Talos's
+# bare Metadata default (kube-bench 3.2.2 WARN, cmdshift/platform#90).
+#
+# Rules are first-match-wins. Volume control: reads are none except secrets
+# and configmaps (Metadata); writes on security-relevant resources carry
+# RequestResponse bodies; everything else falls to the Metadata catch-all.
+#
+# This file is the literal Kubernetes Policy. On Talos 1.13 it is templated
+# into the inline cluster.apiServer.auditPolicy field; the Talos 1.14
+# config-CRD migration moves it verbatim into KubeAuditPolicyConfig
+# .configuration (tracked separately).
+apiVersion: audit.k8s.io/v1
+kind: Policy
+omitStages:
+  - RequestReceived
+rules:
+  # authn failures from system:anonymous: security signal, never volume-heavy
+  - level: Metadata
+    users:
+      - system:anonymous
+      - system:unsecured
+  - level: Metadata
+    resources:
+      - group: authorization.k8s.io
+        resources:
+          - selfsubjectaccessreviews
+          - selfsubjectrulesreviews
+          - subjectaccessreviews
+          - localsubjectaccessreviews
+  # noisy non-resource endpoints
+  - level: None
+    nonResourceURLs:
+      - /healthz*
+      - /livez
+      - /readyz
+      - /version
+      - /version/
+      - /metrics
+  # workload writes at full detail — "who changed/deleted this" questions
+  - level: RequestResponse
+    verbs:
+      - create
+      - update
+      - patch
+      - delete
+      - deletecollection
+    resources:
+      - group: "" # core
+        resources:
+          - pods
+          - pods/attach
+          - pods/exec
+          - pods/portforward
+          - secrets
+          - configmaps
+          - persistentvolumes
+          - persistentvolumeclaims
+          - services
+          - serviceaccounts
+          - nodes
+      - group: apps
+        resources:
+          - deployments
+          - daemonsets
+          - statefulsets
+          - replicasets
+      - group: batch
+        resources:
+          - jobs
+          - cronjobs
+      - group: rbac.authorization.k8s.io
+        resources:
+          - roles
+          - rolebindings
+          - clusterroles
+          - clusterrolebindings
+  # policy + networking CR writes at Metadata (bodies are large)
+  - level: Metadata
+    verbs:
+      - create
+      - update
+      - patch
+      - delete
+      - deletecollection
+    resources:
+      - group: policies.kyverno.io
+      - group: kyverno.io
+      - group: cilium.io
+      - group: networking.k8s.io
+        resources:
+          - networkpolicies
+  # secret reads: Metadata (RequestResponse bodies would double ingestion)
+  - level: Metadata
+    verbs:
+      - get
+      - list
+      - watch
+    resources:
+      - group: ""
+        resources:
+          - secrets
+          - configmaps
+  # machine-heartbeat mutations: zero security signal, high volume
+  # (coordinator lease renewals, token reviews)
+  - level: None
+    resources:
+      - group: coordination.k8s.io
+        resources:
+          - leases
+      - group: authentication.k8s.io
+        resources:
+          - tokenreviews
+  # reads of everything else: silent
+  - level: None
+    verbs:
+      - get
+      - list
+      - watch
+  # catch-all: every remaining mutation at Metadata
+  - level: Metadata
