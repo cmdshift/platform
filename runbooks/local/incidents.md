@@ -12,6 +12,22 @@ Incidents documented in their owning runbooks (kept there for context):
 
 ---
 
+## Audit policy field wedged the apiserver (cmdshift/platform#90)
+
+**Symptom**: after templating a kube-apiserver audit Policy into the ctrl machine config, the ctrl node dropped out of the cluster — pods on it unschedulable, API blipping.
+
+**Root cause**: the Policy rule field `responseStages` does not exist in the Kubernetes audit Policy schema. Talos's RenderConfigsStaticPodController failed strict decoding: `error generating configuration "auditpolicy.yaml" for "kube-apiserver": error unmarshaling audit policy configuration: strict decoding error: unknown field "rules[0].responseStages"` — the kube-apiserver static pod went down on the ctrl node.
+
+**Fix**: remove the invalid field from the policy file, `terraform apply` (the `talos_machine_configuration_apply` resource re-lands the config), and restart the ctrl container. **Talos-in-Docker container mode does NOT support `talosctl reboot`** (`FailedPrecondition: method is not supported in container mode`) — node-level convergence after an apiserver-render failure is `docker restart <ctrl-container>` (~30s to Ready; k8s API drops briefly).
+
+**Kyverno re-pick-up lag collateral** (known shape, re-hit): during the churn the thanos-operator's STS update was denied by kyverno → ThanosRuler `main` went Ready=False ("failed to create or update 1 resources"). A reconcile + annotation bump on the PolicyException cleared it — no manifest change needed there. Related DaemonSet gotcha: a DS at `desired=5 current=4` with no PodScheduled-pending pod means the DS controller hasn't created the 5th pod yet; an annotation nudge (`platform.nudge`) forces the controller loop — but the annotate itself goes through kyverno admission, which was also mid-lag. Once stable, the nudge landed the pod.
+
+**Tells for next time**:
+
+- Anything templated into a static-pod render path gets validated by Talos's **strict decoder** — verify every field against the real Kubernetes audit Policy schema before it touches the machine config; one unknown field takes down the control plane, not just the feature.
+- After an apiserver-render fix, the recovery is machine-config apply + `docker restart` of the ctrl container (container mode has no `talosctl reboot`).
+- A downstream controller failing "create or update" mid-cluster-churn is often kyverno admission lag, not a real spec error — bump the PolicyException annotation and reconcile before rewriting anything.
+
 ## Gateway-API ingress born dead (cmdshift/platform#70)
 
 **Symptom**: the `cilium` GatewayClass and the `local-test` Gateway both sat "Waiting for controller" indefinitely; agent logs carried zero GatewayClass activity; the internal haproxy answered 503. Found during the #54 rebuild (2026-09-09) but pre-existing — nothing in that change touched cilium values, the Gateway, or the LB.

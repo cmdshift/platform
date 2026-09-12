@@ -6,5 +6,10 @@ machine:
       enabled: true
       allowedRoles:
         - os:reader
+      # kubelet verifies image pulls through the Talos API on ctrl — namespaces
+      # hosting workloads that must schedule there (e.g. alloy scraping
+      # apiserver audit logs) have to be listed or pulls fail with
+      # "not authorized" (cmdshift/platform#90)
       allowedKubernetesNamespaces:
         - kube-system
+        - logging

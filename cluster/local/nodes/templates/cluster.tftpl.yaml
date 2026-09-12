@@ -16,6 +16,13 @@ cluster:
     certSANs:
       - ${local_api_ip}
       - ${ctrl_ip}
+    # reviewed audit policy (cmdshift/platform#90) — audit-log
+    # destination/rotation is NOT a machine-config field in Talos 1.13; the
+    # apiserver defaults are already maxAge 30 / maxBackup 10 / maxSize 100.
+    # The 1.14 config-CRD migration moves this policy into the
+    # KubeAuditPolicyConfig document verbatim.
+    auditPolicy:
+${indent(6, audit_policy)}
   network:
     cni:
       name: none
