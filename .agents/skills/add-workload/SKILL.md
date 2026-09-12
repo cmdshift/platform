@@ -18,6 +18,12 @@ All containers + initContainers need cpu/memory **requests and limits**. Lean re
 - `seccompProfile: RuntimeDefault`
 - capabilities dropped `ALL`
 
+## 2b. Graceful shutdown
+
+- `terminationGracePeriodSeconds >= 5` is **enforced** by `require-graceful-termination` (Deny mode; unset passes — the 30s default). Set it deliberately for anything serving traffic: ≈ max in-flight request duration + shutdown overhead, not the default.
+- `preStop` hooks are a **convention, not policy** — kyverno can validate presence only, not effectiveness; a presence-only Deny rule invites cargo-cult hooks. Add a `preStop: sleep <grace-readiness-lag>` hook when the app has no in-pod graceful-drain of its own (or rely on the app's own SIGTERM handling when it has one).
+- System agents that deliberately terminate in 1s (cilium, cilium-envoy, hubble-relay, tetragon) are PolicyExcepted — don't copy their values.
+
 ## 3. Helm hook jobs
 
 Admission-checked too — render and size them before the first install:
