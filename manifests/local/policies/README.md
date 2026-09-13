@@ -14,6 +14,8 @@ All 12 ValidatingPolicies run in **Deny** mode; requirements and the workload ch
 
 `require-graceful-termination` floors `terminationGracePeriodSeconds` at 5 (unset = 30s default = compliant); the 1s-terminating system agents are excepted below. preStop hooks are deliberately a convention (effectiveness can't be validated — see the adding-a-workload runbook §2b), not a policy.
 
+`deny-shell-entrypoint` is the admission-time backstop for the tetragon exec deny-list (container-init execs escape tetragon's pod-scoped enforcement — security/README.md): its binary list is **verbatim the tetragon deny-list's and the two layers must move in lockstep** — a binary added to one enforcement layer and not the other is either a silent gap (tetragon killed it, admission passed) or a wedge (admission denies pods the runtime layer was fine with).
+
 ## PolicyException registry (`policies-config/`)
 
 Scoped by namespace + name prefix; each needs a keep/drop decision for the cloud — don't blanket-copy the directory. Covers: hostNetwork kyverno, privileged velero node-agents + data-mover pods, cilium + hubble-relay (incl. their 1s termination grace), node-exporter, alloy host-logs, local-path helper pod, thanos-ruler config-reloader sidecar, tetragon agent (security namespace), kube-system system components.
