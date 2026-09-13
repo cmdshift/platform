@@ -4,8 +4,7 @@ metadata:
   name: platform-deployment
   namespace: monitoring
   annotations:
-    # tracks the dashboard's origin issue
-    platform.local/issue: "39"
+    platform.local/issue: "cmdshift/platform#39"
 spec:
   instanceSelector:
     matchLabels:

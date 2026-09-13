@@ -21,7 +21,7 @@ spec:
       cpu: 10m
       memory: 48Mi
     limits:
-      # audit: 15.2% of CFS periods throttled at the old 200m —
+      # audit: 15.2% of CFS periods throttled (at 200m) —
       # group-notification bursts; generous CPU limit per convention
       cpu: 500m
       memory: 72Mi

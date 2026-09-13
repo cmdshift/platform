@@ -49,13 +49,12 @@ nodeAgent:
   containerSecurityContext:
     privileged: true
   extraArgs:
-    # sizes the temporary data mover pods (see backups-config/node-agent-config.configmap.yaml)
+    # sizes the temporary data mover pods (see node-agent-config.configmap.yaml, backups/)
     - --node-agent-configmap=node-agent-config
   resources:
     requests:
       cpu: 10m
-      # audit: busiest node-agent hit 51Mi steady (64%
-      # of the old 80Mi request); 88Mi = observed x 1.2
+      # audit: busiest node-agent 51Mi steady — 88Mi = observed x 1.2
       memory: 88Mi
     limits:
       cpu: 500m

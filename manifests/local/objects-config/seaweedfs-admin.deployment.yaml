@@ -39,8 +39,7 @@ spec:
           resources:
             requests:
               cpu: 10m
-              # audit: steady 62Mi against the old 96Mi
-              # request (65%); 104Mi = observed peak x 1.2
+              # audit: steady 62Mi — 104Mi = observed peak x 1.2
               memory: 104Mi
             limits:
               cpu: 100m

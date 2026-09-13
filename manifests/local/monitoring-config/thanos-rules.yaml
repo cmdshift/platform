@@ -79,8 +79,8 @@ groups:
         # {action=~"signal|override"} (BPF-side, per-action, unaffected by
         # event attribution). for: 5m absorbs one-shot counter spikes — a
         # cluster rebuild's bootstrap generates 3-5 runc-fork kills in the
-        # deny-list namespaces, which previously paged critical and
-        # self-resolved minutes later (cmdshift/platform#60); a sustained
+        # deny-list namespaces, one-shot spikes that page critical and
+        # self-resolve within minutes (cmdshift/platform#60); a sustained
         # kill stream still fires within ~5m.
   - name: trivy-alerts
     rules:

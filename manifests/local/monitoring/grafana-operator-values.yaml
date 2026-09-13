@@ -5,8 +5,7 @@ podSecurityContext:
   seccompProfile:
     type: RuntimeDefault
 # NSA hardening: explicit non-root uid/gid at container level
-# (image runs as 65532, gid was implicit 0 before). Chart default already
-# sets roFS + runAsNonRoot on the container; these merge in
+# (image is 65532; the chart leaves gid implicit 0)
 securityContext:
   runAsUser: 65532
   runAsGroup: 65532

@@ -10,8 +10,8 @@ envoy:
   resources:
     requests:
       cpu: 10m
-      # steady state ~25Mi, but the connectivity test's L7 traffic pushed
-      # the busy node's envoy to ~69Mi against the old 72Mi limit (90%)
+      # steady ~25Mi, but connectivity-test L7 traffic pushed a busy
+      # node's envoy to ~69Mi — 128Mi limit keeps burst headroom
       memory: 64Mi
     limits:
       cpu: 40m
@@ -49,7 +49,7 @@ hubble:
           cpu: 10m
           memory: 48Mi
         limits:
-          # audit: 13.6% of CFS periods throttled at the old 100m
+          # audit: 13.6% of CFS periods throttled (at 100m)
           cpu: 200m
           memory: 72Mi
     frontend:
@@ -58,7 +58,7 @@ hubble:
           cpu: 10m
           memory: 16Mi
         limits:
-          # audit: 33% of CFS periods throttled at the old 20m
+          # audit: 33% of CFS periods throttled (at 20m)
           cpu: 100m
           memory: 24Mi
 ipam:
@@ -94,18 +94,17 @@ operator:
       cpu: 10m
       memory: 144Mi
     limits:
-      # audit: 7.3% of CFS periods throttled at the old 40m —
+      # audit: 7.3% of CFS periods throttled (at 40m) —
       # convention floor for burst headroom
       cpu: 200m
       memory: 216Mi
 resources:
   requests:
     cpu: 50m
-    # audit: agents 296-351Mi (worst node, post ns-refactor churn) —
-    # 448Mi = worst-node x 1.2, limit 1.5x
+    # audit: agents 296-351Mi (worst node) — 448Mi = worst-node x 1.2, limit 1.5x
     memory: 448Mi
   limits:
-    # audit: 21.8% of CFS periods throttled at the old 200m —
+    # audit: 21.8% of CFS periods throttled (at 200m) —
     # eBPF/encrypt bursts; generous CPU limit per convention
     cpu: 500m
     # connectivity-test runs spiked agents to ~323Mi (endpoints/identities) —
