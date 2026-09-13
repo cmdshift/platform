@@ -23,6 +23,7 @@ Procedures are agent skills in `.agents/skills/<name>/SKILL.md`, loaded via the 
 | `velero-ops` | backups and restores |
 | `cilium-test` | full-cluster connectivity validation |
 | `cluster-rebuild` | fresh bootstrap from terraform |
+| `terraform-churn` | a terraform plan under `cluster/local` shows unexpected replacements/updates/drift on resources no edit touched |
 | `observability` | metrics, logs, tetragon events (tetra), or alert delivery |
 | `docs-sweep` | docs need updating for the change (landmine hit, decision made, or pre-commit/PR) — dispatched as a background subagent so the session isn't blocked |
 | `file-issue` | a follow-up, refactor idea, or recurring failure deserves a GitHub issue — dispatched as a background subagent so the session isn't blocked |
