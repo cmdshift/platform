@@ -22,10 +22,12 @@ spec:
   resourceRequirements:
     requests:
       cpu: 10m
-      memory: 56Mi
+      # 7d mem max 26Mi, VPA rec 35Mi — 40Mi = peak x 1.2, limit 1.5x
+      # (cmdshift/platform#66)
+      memory: 40Mi
     limits:
       cpu: 200m
-      memory: 84Mi
+      memory: 60Mi
   storage:
     size: 5Gi
   logFormat: json

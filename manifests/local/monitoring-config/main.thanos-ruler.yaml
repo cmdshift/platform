@@ -31,11 +31,12 @@ spec:
   resourceRequirements:
     requests:
       cpu: 10m
-      # audit: 56Mi steady — 72Mi = P99 x 1.2
-      memory: 72Mi
+      # audit: 56Mi steady at first sizing; 7d max 50Mi — 64Mi = peak x 1.2,
+      # limit 1.5x (cmdshift/platform#66)
+      memory: 64Mi
     limits:
       cpu: 200m
-      memory: 84Mi
+      memory: 96Mi
   storage:
     storageClass: local-path
     size: 1Gi

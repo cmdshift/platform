@@ -88,7 +88,10 @@ reportsController:
   hostNetwork: true # remove in the cloud
   resources:
     requests:
-      cpu: 100m
+      # 7d CPU peak 101m during scan-driven report churn, idle otherwise;
+      # the old 100m request reserved the peak 24/7 — 20m request, limit
+      # keeps the full burst room (cmdshift/platform#66)
+      cpu: 20m
       memory: 160Mi
     limits:
       cpu: 2000m

@@ -98,6 +98,17 @@ trivy:
       capabilities:
         drop:
           - ALL
+    # chart defaults were 200m/512Mi req, 1/1Gi lim — the server is idle
+    # between scan bursts (7d CPU peak 3.4m, mem peak 48Mi; VPA rec
+    # 11m/61Mi) and only serves cached-DB reads: 15m/96Mi req keeps
+    # DB-download headroom, limit 1.5x (cmdshift/platform#66)
+    resources:
+      requests:
+        cpu: 15m
+        memory: 96Mi
+      limits:
+        cpu: 500m
+        memory: 144Mi
 trivyOperator:
   # scan jobs are kyverno-checked like any pod — the operator hardcodes an
   # EMPTY pod-level securityContext into generated Jobs (v0.34.0 source) and

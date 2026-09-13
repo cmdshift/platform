@@ -10,7 +10,7 @@ Kyverno (admission policy engine) + `policies-config/` (the PolicyException regi
 
 ## Admission policy
 
-All 12 ValidatingPolicies run in **Deny** mode; requirements and the workload checklist live in [AGENTS.md](../../AGENTS.md) and [runbooks/local/adding-a-workload.md](../../runbooks/local/adding-a-workload.md). Policies autogen to controllers but **not ReplicaSets** (avoids old-RS noise); old PolicyReports for unmatched resources are never retracted — delete stale report objects directly if needed (hit live when `require-graceful-termination` landed: the pre-existing hubble-relay pod report kept failing until deleted, cmdshift/platform#89).
+All 12 ValidatingPolicies run in **Deny** mode; requirements and the workload checklist live in [AGENTS.md](../../AGENTS.md) and [runbooks/local/adding-a-workload.md](../../runbooks/local/adding-a-workload.md). Policies autogen to controllers but **not ReplicaSets** (avoids old-RS noise); old PolicyReports for unmatched resources are never retracted — delete stale report objects directly if needed (hit live when `require-graceful-termination` landed: the pre-existing hubble-relay pod report kept failing until deleted, cmdshift/platform#89; again during the cmdshift/platform#66 sizing pass: a kube-system report with empty subjects for a pod already gone).
 
 `require-graceful-termination` floors `terminationGracePeriodSeconds` at 5 (unset = 30s default = compliant); the 1s-terminating system agents are excepted below. preStop hooks are deliberately a convention (effectiveness can't be validated — see the adding-a-workload runbook §2b), not a policy.
 

@@ -1,6 +1,16 @@
 # chart default is already admission-clean (pod-level runAsNonRoot +
 # RuntimeDefault seccomp, container-level APE/caps/roFS) and house-convention
-# resources (10m/64Mi req, 500m/128Mi lim) — only the scrape wiring needs values
+# CPU (10m req / 500m lim) — only the scrape wiring and memory sizing need
+# values
+resources:
+  requests:
+    cpu: 10m
+    # chart default 64Mi; 7d max 30Mi, VPA rec 47Mi — 40Mi = peak x 1.2,
+    # limit 1.5x (cmdshift/platform#66)
+    memory: 40Mi
+  limits:
+    cpu: 500m
+    memory: 60Mi
 metrics:
   enabled: true
   # the SM key nests under metrics. — a top-level serviceMonitor: is silently
