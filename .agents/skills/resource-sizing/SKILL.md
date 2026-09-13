@@ -24,6 +24,9 @@ description: Setting or auditing container resources. The sizing convention (lea
 
 A VPA recommendation is a **candidate request, not a drop-in** — cross-check it against the usage audits and the convention above (request ≈ P99 × 1.2, limit = 1.5 × request) before editing manifests. The VPAs are Off mode and maintained automatically by goldilocks for every non-system workload (see `manifests/local/metrics/README.md`) — no per-workload step.
 
+- **Seasoning gate**: a fresh rebuild resets recommender history, so `vpa_recs` pulled <48h after one are polluted by the early-cluster ramp (alloy came back +530% CPU that never materialized — the 7d peak stayed single-digit; most deltas collapsed to ±10% noise, cmdshift/platform#66). Pull recommendations only after the cluster has seasoned, and cross-check every delta against 7d max/P99 trend queries before editing.
+- **Reject over-conservative recs at tiny sizes**: below ~20Mi the recommender's output can exceed the observed P99 (loki-gateway's 22Mi rec vs a 7d P99 of 13Mi under a 16Mi request) — the trend query wins (cmdshift/platform#66).
+
 ## Interpretation
 
 - **Trend, not snapshot.** A fresh cluster's first ~3h is always a ramp (head chunks, WAL, warmup) — judge after that.

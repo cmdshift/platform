@@ -104,16 +104,18 @@ spec:
     requests:
       cpu: 50m
       # overnight burn-in: memory P99 ~161Mi, 108 OOMKilled samples in 12h
-      # (at a 168Mi limit) — request = P99 x 1.2, limit = 1.5x
-      memory: 192Mi
+      # (at a 168Mi limit) — bumped again when the 7d peak reached 279Mi
+      # (92% of the old request; VPA rec 335Mi): 352Mi = peak x 1.2,
+      # limit = 1.5x (cmdshift/platform#66)
+      memory: 352Mi
     limits:
       # sustained 110-160m usage throttled 97% of CFS periods (at 200m),
       # starving the liveness probe (context deadline exceeded) — kubelet
       # killed the pod ~10x/h. The s3 gateway fronts loki AND
       # thanos object storage (hottest path in the cluster) — generous burst
-      # room per AGENTS.md (200m-2000m)
+      # room per AGENTS.md (200m-2000m). Post-limit-fix throttle 0.2%.
       cpu: 1000m
-      memory: 288Mi
+      memory: 528Mi
     podSecurityContext:
       runAsNonRoot: true
       runAsUser: 65534

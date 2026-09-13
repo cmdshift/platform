@@ -15,7 +15,9 @@ logging:
 resources:
   requests:
     cpu: 10m
-    memory: 64Mi
+    # 7d max 37Mi, VPA rec 47Mi — 48Mi = peak x 1.2, limit 1.5x
+    # (cmdshift/platform#66)
+    memory: 48Mi
   limits:
     cpu: 200m
-    memory: 96Mi
+    memory: 72Mi

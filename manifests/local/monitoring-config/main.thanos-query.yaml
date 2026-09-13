@@ -21,11 +21,12 @@ spec:
   resourceRequirements:
     requests:
       cpu: 10m
-      # audit: 84Mi steady — 112Mi = P99 x 1.2, limit 1.5x
-      memory: 112Mi
+      # audit: 84Mi steady at first sizing; 7d max 50Mi (VPA rec 61Mi) —
+      # 64Mi = peak x 1.2, limit 1.5x (cmdshift/platform#66)
+      memory: 64Mi
     limits:
       cpu: 200m
-      memory: 160Mi
+      memory: 96Mi
   customStoreLabelSelector:
     matchLabels:
       operator.thanos.io/store-api: "true"

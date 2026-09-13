@@ -5,6 +5,16 @@
 skipCRDs: true
 image:
   tag: "2.3.2"
+# audit after burn-in (cmdshift/platform#66): 7d CPU peak 1.1m, mem peak
+# 31Mi — 40Mi = peak x 1.2, limit 1.5x; the chart's 100m/128Mi req
+# default was ~90x idle CPU
+resources:
+  requests:
+    cpu: 10m
+    memory: 40Mi
+  limits:
+    cpu: 200m
+    memory: 60Mi
 podSecurityContext:
   runAsNonRoot: true
   seccompProfile:

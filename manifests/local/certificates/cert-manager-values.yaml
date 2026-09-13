@@ -11,11 +11,12 @@ containerSecurityContext:
 resources:
   requests:
     cpu: 10m
-    # audit: steady 77Mi peak — 96Mi = observed x 1.2, limit 144Mi = 1.5x
-    memory: 96Mi
+    # 7d max 34Mi, VPA rec 47Mi — 40Mi = peak x 1.2, limit 1.5x
+    # (cmdshift/platform#66)
+    memory: 40Mi
   limits:
     cpu: 200m
-    memory: 144Mi
+    memory: 60Mi
 cainjector:
   containerSecurityContext:
     runAsUser: 65532
@@ -34,10 +35,12 @@ webhook:
   resources:
     requests:
       cpu: 10m
-      memory: 56Mi
+      # 7d max 30Mi, VPA rec 35Mi — 40Mi = peak x 1.2, limit 1.5x
+      # (cmdshift/platform#66)
+      memory: 40Mi
     limits:
       cpu: 200m
-      memory: 84Mi
+      memory: 60Mi
 startupapicheck:
   resources:
     requests:

@@ -10,12 +10,12 @@ image:
   # appVersion default — pinned explicitly for the admission no-floating-tags rule
   tag: "1.30.0"
 
-# provisional (no burn-in evidence yet): lean request, generous CPU limit —
-# audit with memory_audit/cpu_audit after burn-in per the sizing convention
+# audited after burn-in (cmdshift/platform#66): 7d CPU peak 6.1m, mem peak
+# 65Mi, VPA rec 11m/75Mi — 15m/96Mi req, limits 1.5x
 resources:
   requests:
-    cpu: 50m
-    memory: 128Mi
+    cpu: 15m
+    memory: 96Mi
   limits:
     cpu: 1000m
-    memory: 256Mi
+    memory: 144Mi

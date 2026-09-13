@@ -23,18 +23,20 @@ tetragon:
   # non-loopback TCP listeners.
   grpc:
     address: "localhost:54321"
-  # request ~= P99 x 1.2 (per-node P99 477-524Mi over 5h), limit 1.5x (cmdshift/platform#28).
-  # Working set is a warmup ramp to ~430Mi then a GC sawtooth (380-540Mi,
-  # returns to baseline) — not a leak: the data cache is capacity-bounded
+  # request ~= P99 x 1.2, limit 1.5x (cmdshift/platform#28). First sizing
+  # used a 5h P99 (477-524Mi); at 48h the per-node P99 is 628-729Mi and the
+  # VPA rec is 878Mi — bumped to 880Mi/1320Mi (cmdshift/platform#66).
+  # Working set is still a warmup ramp then a GC sawtooth (returns to
+  # baseline) — not a leak: the data cache is capacity-bounded
   # (cap 1024, ~14 entries). Zero CFS throttling, ringbuf loss 0, program
   # overhead 0.
   resources:
     requests:
       cpu: 50m
-      memory: 640Mi
+      memory: 880Mi
     limits:
       cpu: 1000m
-      memory: 960Mi
+      memory: 1320Mi
   prometheus:
     serviceMonitor:
       enabled: true # agent metrics :2112

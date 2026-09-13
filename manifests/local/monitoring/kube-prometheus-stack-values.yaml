@@ -24,10 +24,12 @@ prometheusOperator:
   resources:
     requests:
       cpu: 10m
-      memory: 80Mi
+      # 7d max 46Mi, VPA rec 61Mi — 56Mi = peak x 1.2, limit 1.5x
+      # (cmdshift/platform#66)
+      memory: 56Mi
     limits:
       cpu: 500m
-      memory: 120Mi
+      memory: 84Mi
   prometheusConfigReloader:
     resources:
       requests:
@@ -49,11 +51,13 @@ kube-state-metrics:
   resources:
     requests:
       cpu: 10m
-      # audit: 76Mi steady — 96Mi = P99 x 1.2, limit 1.5x
-      memory: 96Mi
+      # 7d max 46Mi, VPA rec 61Mi (series churn is slow on this cluster) —
+      # 56Mi = peak x 1.2, limit 1.5x; re-check after series growth
+      # (cmdshift/platform#66)
+      memory: 56Mi
     limits:
       cpu: 200m
-      memory: 144Mi
+      memory: 84Mi
 prometheus:
   prometheusSpec:
     # JSON logging: see prometheusOperator above

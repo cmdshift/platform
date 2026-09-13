@@ -1,13 +1,15 @@
 # audit: chart default request (50Mi) ran at 114%
-# of request in steady state — 120Mi = observed peak x 1.2. cpu/limits are the
-# chart defaults, pinned here so a chart bump can't silently re-shrink them
+# of request in steady state — 120Mi = observed peak x 1.2. CPU pinned at
+# 20m (7d peak 1.9m, VPA rec 11m — the old 100m chart default was ~50x
+# idle usage) and limits at 1.5x request so a chart bump can't silently
+# re-shape them (cmdshift/platform#66)
 resources:
   requests:
-    cpu: 100m
+    cpu: 20m
     memory: 120Mi
   limits:
     cpu: 500m
-    memory: 500Mi
+    memory: 180Mi
 podSecurityContext:
   runAsNonRoot: true
   runAsUser: 65532

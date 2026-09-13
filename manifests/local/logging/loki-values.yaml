@@ -120,9 +120,12 @@ loki:
     size: 2Gi
   resources:
     requests:
-      cpu: 15m
+      # 7d CPU peak 25m vs the old 15m request (VPA rec 23m) — 20m keeps
+      # the lean-request convention with headroom (cmdshift/platform#66)
+      cpu: 20m
       # audit: steady 296Mi climbing to 404Mi post-WAL-replay —
-      # 512Mi = P99 x 1.2, limit 1.5x
+      # 512Mi = P99 x 1.2, limit 1.5x. 7d max 333Mi stays under it;
+      # unchanged: WAL-replay restarts are the spike case
       memory: 512Mi
     limits:
       cpu: 200m
@@ -131,11 +134,13 @@ chunksCache:
   resources:
     requests:
       cpu: 10m
-      # audit: 49Mi steady — 64Mi = P99 x 1.2, limit 1.5x
-      memory: 64Mi
+      # audit: 49Mi steady at first sizing; 7d later the cache grew to a
+      # 95Mi peak (94% of the old 96Mi limit) — 120Mi = peak x 1.2,
+      # limit = 1.5x (cmdshift/platform#66)
+      memory: 120Mi
     limits:
       cpu: 20m
-      memory: 96Mi
+      memory: 180Mi
 resultsCache:
   resources:
     requests:

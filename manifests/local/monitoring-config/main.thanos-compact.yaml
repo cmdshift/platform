@@ -24,10 +24,11 @@ spec:
   # CPU pegged 200m at 92% throttle during compaction runs — generous burst
   # room on both axes (see AGENTS.md sizing conventions). overnight
   # re-audit: sawtooth peaks ~230Mi — request = P99 x 1.2,
-  # limit = 1.5x request
+  # limit = 1.5x request. CPU request cut 50m→20m: 7d peak 28.4m
+  # only during compaction runs (cmdshift/platform#66)
   resourceRequirements:
     requests:
-      cpu: 50m
+      cpu: 20m
       memory: 256Mi
     limits:
       cpu: 1
