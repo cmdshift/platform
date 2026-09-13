@@ -9,7 +9,9 @@ resource "null_resource" "registry_volume" {
     volume_name = local.registry_volume_name
   }
   provisioner "local-exec" {
-    command = "docker volume create ${local.registry_volume_name}"
+    # fresh volumes default to root:root and angos runs as 65534 since 1.8.0 —
+    # the first write would fail EACCES (cmdshift/platform#102)
+    command = "docker volume create ${local.registry_volume_name} && docker run --rm -v ${local.registry_volume_name}:/data busybox:1.37.0 chown -R 65534:65534 /data"
   }
 }
 
@@ -33,6 +35,7 @@ resource "docker_container" "registry" {
     file = "/etc/angos/config.toml"
     content = templatefile("${path.module}/templates/config.tftpl.toml", {
       registries = local.registry_map
+      scan       = var.scan
     })
   }
   command = ["-c", "/etc/angos/config.toml", "server"]

@@ -3,5 +3,8 @@ terraform {
     local = {
       source = "hashicorp/local"
     }
+    random = {
+      source = "hashicorp/random"
+    }
   }
 }

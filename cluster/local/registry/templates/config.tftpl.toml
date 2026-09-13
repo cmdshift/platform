@@ -10,12 +10,18 @@ root_dir = "/data"
 [global.access_policy]
 default = "allow"
 
+[global.scan]
+url = "${scan.url}"
+token = "${scan.token}"
+
 %{ for path, registry in registries ~}
 # namespace ties the repository to the OCI proxy ?ns= parameter, so the
 # wildcard Talos mirror (no path prefix) resolves to the same repository —
 # and the same cache — as the path-prefix spelling
 [repository."${path}"]
 namespace = "${registry.name}"
+# fires on pushes/cache-miss stores only — already-cached images stay quiet
+scan = true
 
 [[repository."${path}".upstream]]
 url = "${registry.remote}"

@@ -120,6 +120,20 @@ output "sync" {
   }
 }
 
+output "scanner" {
+  value = {
+    private_ip = cidrhost(local.cloud_cidr, 8)
+    name       = join("-", ["scanner", local.external_name])
+    services = {
+      scan = {
+        hostname   = join(".", ["scanner", var.external_hostname])
+        private_ip = cidrhost(local.cloud_cidr, 8)
+        port       = 8766
+      }
+    }
+  }
+}
+
 output "nodes" {
   value = {
     ctrl = local.ctrl_nodes

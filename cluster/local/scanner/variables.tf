@@ -2,18 +2,19 @@ variable "name" {
   type = string
 }
 
-variable "scan" {
-  type = object({
-    url   = string
-    token = string
-  })
-  sensitive = true
-}
-
 variable "net" {
   type = object({
     bridge_network_id  = string
     private_network_id = string
     private_ip         = string
   })
+}
+
+variable "registry_url" {
+  type = string
+}
+
+variable "token" {
+  type      = string
+  sensitive = true
 }
