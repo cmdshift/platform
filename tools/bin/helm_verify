@@ -100,9 +100,11 @@ repo_present() { # name url -> rc 0 when the repo is registered with this url
 }
 
 chart_in_index() { # repo chart [version] -> rc 0 when the local index knows the
-                   # chart (and the pinned version, when given; v-prefix normalized)
+                   # chart (and the pinned version, when given; v-prefix normalized).
+                   # --devel: prerelease pins (cilium 1.21.0-pre.x) are hidden
+                   # from plain `helm search repo` but resolve fine in flux
   local versions
-  versions=$(helm search repo "$1/$2" --versions -o json 2>/dev/null) || return 1
+  versions=$(helm search repo "$1/$2" --versions --devel -o json 2>/dev/null) || return 1
   if [[ -z "${3:-}" ]]; then
     [ "$(jq 'length' <<< "$versions")" -gt 0 ]
   else
