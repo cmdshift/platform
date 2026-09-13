@@ -28,7 +28,7 @@ Group READMEs: [networking](networking/README.md) · [metrics](metrics/README.md
 - **CR-managed workloads** (grafana, thanos ×3, alertmanager, seaweed cluster): resources and securityContext go in the CR spec (`resourceRequirements`, `securityContext`), not helm values.
 - **Dependency rules**: a group naming `storageClassName: local-path` must `dependsOn: storage-config` (the SCs moved out of `storage`); CRs whose CRDs a release's operator creates live in a group that `dependsOn` that release, never the reverse; admission-critical PolicyExceptions go in the early `policies-config/` group.
 - **Local-only markers**: `# remove in the cloud` and `# true in the cloud` flag deliberately local-only settings at the value; the cloud-side actions are collected in [manifests/cloud/notes.md](../cloud/notes.md).
-- **Comment rules** (cmdshift/platform#43): rationale comments only on surprising decisions, no dates (provenance = `cmdshift/platform#N` refs), no tool-mechanics explanations (link the runbook), keep the evidence numbers at the value.
+- **Comment rules** (cmdshift/platform#43): default no comment; comments only for surprising choices, edge cases, and Talos-in-Docker deviations — full rules in the [`code-comments` skill](../../.agents/skills/code-comments/SKILL.md).
 
 ## Admission policy
 

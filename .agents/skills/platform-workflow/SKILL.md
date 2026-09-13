@@ -10,7 +10,7 @@ The standard loop for every change to `manifests/local/`. Flux v2 deploys everyt
 ## 0. Before editing
 
 - Check for **rationale comments** before overriding "odd" config — deliberate decisions are documented inline at the value (why the thanos-operator uses `bundle.yaml`, why some kustomizations have `prune: false`, why `mirror.sh` passes `--remove`). If a choice looks wrong, find the comment first.
-- Any non-obvious decision you make gets its own rationale comment per the AGENTS.md comment rules (issue #43): only surprising decisions/settings, no dates (issue/PR refs instead), no tool-mechanics explanations (link the runbook/notes), keep the evidence numbers.
+- Any comment you write, edit, or delete follows the `code-comments` skill (load it — the checklist: default no comment, delete-test; surprising choices / edge cases / evidence only; `# remove/true in the cloud` markers for Talos-in-Docker deviations; `cmdshift/platform#N` provenance, no dates; update-or-delete comments for values you touch).
 
 ## 1. Pre-reconcile checks
 
