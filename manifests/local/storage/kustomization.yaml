@@ -1,6 +1,6 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-# StorageClasses live in ../storage-config (cmdshift/platform#35) — operator/config split like every other group
+# StorageClasses live in ../storage-config (cmdshift/platform#35)
 resources:
   - local-path-provisioner.helm-release.yaml
 configMapGenerator:

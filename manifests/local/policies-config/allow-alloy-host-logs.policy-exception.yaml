@@ -4,9 +4,8 @@ metadata:
   name: allow-alloy-host-logs
   namespace: policies
   annotations:
-    # bump to force the admission engine to re-pick-up the exception after a
-    # CEL update (the engine can lag the stored object — the annotate-nudge
-    # pattern from AGENTS.md)
+    # bump to force admission re-pick-up after CEL updates — the engine can
+    # lag the stored object (policies/README.md)
     platform.cmdshift.io/force-reconcile: "1"
 spec:
   policyRefs:

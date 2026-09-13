@@ -20,15 +20,11 @@ spec:
         - jobs
         - cronjobs
   variables:
-    # pod spec default (and the Deployment/StatefulSet template default) is 30s
-    # when the field is unset, so "unset" is compliant — only explicit
-    # instant-kill or sub-5s values are rejected
     - name: gracePeriod
       expression: "object.spec.?terminationGracePeriodSeconds.orValue(30)"
   validations:
-    # floor 5s: 0 (SIGKILL on termination, no drain) is the real enemy, but
-    # sub-5s values are equally instant-kill in practice; the system agents
-    # that deliberately run at 1s (cilium, cilium-envoy, tetragon) are
-    # PolicyExcepted, cmdshift/platform#89
+    # floor 5s, not 0: sub-5s is instant-kill in practice; the 1s system
+    # agents (cilium, cilium-envoy, hubble-relay, tetragon) are
+    # PolicyExcepted (cmdshift/platform#89)
     - expression: "variables.gracePeriod >= 5"
       message: "terminationGracePeriodSeconds must be >= 5 — instant-kill termination loses in-flight requests and skips connection draining (unset = the 30s default, which passes)."

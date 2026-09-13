@@ -7,24 +7,19 @@ spec:
   interval: 1h
   retryInterval: 5s
   dependsOn:
-    # TracingPolicy CRDs are created by the tetragon operator (security group) —
-    # this group MUST NOT be depended on by security: that was a deadlock (the
-    # policies here need the release's CRDs; the release waited on this group).
-    # The tetragon PolicyException lives in policies-config/ so it still lands
-    # before the release on a fresh rebuild.
+    # TracingPolicy CRDs come from the tetragon operator (security group); the
+    # reverse dependency (security on this group) was a deadlock. The tetragon
+    # PolicyException lives in policies-config/ so it lands before the release.
     - name: security
   sourceRef:
     kind: Bucket
     name: main
   path: ./manifests/local/security-config
-  # prune on purpose (flux = source of truth): TracingPolicies retire by file
-  # deletion. Nothing here is admission-critical — the tetragon PolicyException
-  # lives in policies-config/ (prune: false) with the other exceptions.
+  # prune on purpose: TracingPolicies retire by file deletion; the tetragon
+  # PolicyException (admission-critical) lives in policies-config/
   prune: true
-  # no wait:true — TracingPolicy CRs have no status/conditions, so a health
-  # check can only pass trivially or stall 2m per attempt on a flux discovery
-  # hiccup ("no matches for kind" while the CRD demonstrably exists — hit
-  # three consecutive 2m timeouts live). The real loaded-signal lives in
-  # the agent: `tetra tracingpolicy list` + the TetragonTracingPolicyLoadFailed
-  # alert (thanos-rules tetragon-alerts).
+  # no wait:true — TracingPolicy CRs are conditionless; waiting stalled 3x 2m
+  # live ("no matches for kind" while the CRD exists). Real loaded-signal:
+  # `tetra tracingpolicy list` + the TetragonTracingPolicyLoadFailed alert
+  # (thanos-rules tetragon-alerts).
   timeout: 2m
