@@ -118,7 +118,9 @@ Values sources, merged in flux order (inline first, refs after, last wins):
   HelmReleases pin `1.2.3`; flux resolves identically via semver
   constraints). Without this, `helm template --version` silently falls back
   to the *closest* index version with only a warning — a typo'd pin would
-  render the wrong chart and still PASS
+  render the wrong chart and still PASS. The index probe searches with
+  `--devel` — plain `helm search repo` hides prerelease pins (cilium
+  `1.21.0-pre.x`) and would false-FAIL them as missing from the index
 - **Repos are fetched only on a miss**: the check probes the local index
   first; a miss triggers exactly one scoped `helm repo update` before the
   verdict, so each unique repo is fetched at most once per run (the old
