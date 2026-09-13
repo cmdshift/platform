@@ -5,16 +5,13 @@
 # setuid for every pod start — in-container escalation is the signal here.
 # Requires tetragon.enableProcessCred on the release (credentials in events).
 # monitor_only: no enforcement actions — stage-2 candidates after burn-in.
-# retire: flux prunes this group — deleting the file unloads the sensor.
 apiVersion: cilium.io/v1alpha1
 kind: TracingPolicy
 metadata:
   name: privileges-raise
 spec:
-  # policy-level podSelector: k8s pod processes only. The per-hook Pid NotIn
-  # host_ns filter proved insufficient live — runc (host ns, container setup)
-  # still fired setuid/capset events; podSelector is the documented
-  # k8s-identity filter and excludes unattributed host processes entirely.
+  # policy-level podSelector required — the per-hook Pid NotIn host_ns filter
+  # let runc through live (security/README.md)
   podSelector:
     matchLabels: {}
   kprobes:

@@ -1,33 +1,17 @@
-# Kernel-module operations — enforcement (stage-2 flip 1, issue cmdshift/platform#28 ladder).
-# Burn-in evidence (monitor_only, ~6h across two rebuilds): 327 events, ALL
-# benign auto-load probes (Go runtimes probing net-pf-* socket families on
-# first socket(2); every event was one of these), zero real loads —
-# do_init_module / finit_module never fired. cilium's probes are hidden from
-# the export sink but behave identically.
-# Enforcement split (evidence-driven):
-# - auto-load REQUESTS (non-host-ns): Override with EACCES — the request
-#   fails harmlessly (it fails today anyway: the modules don't exist on
-#   linuxkit) and avoids Sigkilling cilium/controllers on a benign probe.
-# - REAL loads (non-host-ns): Sigkill — nothing legit loads modules from a
-#   pod (upstream modules-nohost pattern).
-# With selectors present, host-namespace processes (etcd/containerd stack)
-# no longer produce events for these hooks — pod-side is the enforcement
-# surface; host-side audit was already invisible in the export sink.
-# Adapted from tetragon examples/policylibrary/modules.yaml + modules-nohost;
-# do_init_module added for module-name context (free_module is inlined in
-# this kernel build and was dropped).
-# retire: flux prunes this group — deleting the file unloads the sensor.
+# Kernel-module operations — enforcement (stage-2 flip 1, cmdshift/platform#28).
+# Burn-in: 327 events/~6h, all benign net-pf-* Go auto-load probes, zero real
+# loads. Split: Override(EACCES) on auto-load requests, Sigkill on real loads —
+# rationale in security/README.md. Adapted from tetragon policylibrary
+# modules(+nohost); do_init_module added (free_module is inlined in this kernel).
 apiVersion: cilium.io/v1alpha1
 kind: TracingPolicy
 metadata:
   name: kernel-modules
 spec:
-  # pod-scoped like privileges-raise/sensitive-paths: with enable-policy-filter
-  # on the agent, policies without a podSelector don't participate in pod
-  # matching and their events don't reach the export sink (Override events were
-  # Loki-invisible without this; NENFORCE still fires sensor-side — confirmation
-  # is the overnight watch-item). Enforcement surface is unchanged — the
-  # per-hook Pid NotIn host_ns selectors already exclude host processes.
+  # podSelector required: with enable-policy-filter on the agent, policies
+  # without one don't reach the export sink (Override events were
+  # Loki-invisible without this; NENFORCE still fires sensor-side) —
+  # security/README.md
   podSelector:
     matchLabels: {}
   # list-of-{name,value} form; valid values are "enforce"/"monitor" (upstream

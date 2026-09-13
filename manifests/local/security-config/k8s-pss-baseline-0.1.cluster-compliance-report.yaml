@@ -1,11 +1,7 @@
-# Vendored from aqua/trivy-operator chart 0.36.0 (templates/specs/k8s-pss-baseline-0.1.yaml),
-# rendered with the house cron (every 6h) and summary report type, chart
-# template labels dropped. Owned here from now on: upstream may change
-# controls on chart bumps — re-vendor deliberately when adopting a new chart
-# version. The chart-side compliance.specs is set to [] so these are the only
-# sources. CIS specs deliberately not vendored: their controls depend on
-# node-collector jobs with standard-Linux hostPath mounts — Talos is neither
-# (see trivy-operator.helm-release.yaml and notes.md).
+# Vendored from aqua/trivy-operator chart 0.36.0 — re-vendor deliberately on
+# chart bumps (upstream may change controls). CIS specs excluded: node-collector
+# hostPath mounts don't exist on Talos (security/README.md). Chart-side
+# compliance.specs is [] so these are the only sources.
 apiVersion: aquasecurity.github.io/v1alpha1
 kind: ClusterComplianceReport
 metadata:
