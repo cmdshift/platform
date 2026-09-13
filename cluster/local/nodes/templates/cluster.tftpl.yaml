@@ -1,9 +1,6 @@
 cluster:
-  # Security note: binding to 0.0.0.0 exposes the metrics port on all interfaces.
-  # It's protected by TLS + bearer token auth (Prometheus presents the service account token),
-  # so it's not "open" in the unauthenticated sense.
-  # But if you're running this on a cloud VM with a public IP,
-  # you'd want a firewall rule (security group) restricting 10257/10259 to your cluster's internal CIDR.
+  # node metrics binds need pod-to-node reachability (prometheus scrapes 10257/10259
+  # by node IP); TLS + bearer token keep them closed to unauthenticated access
   controllerManager:
     extraArgs:
       bind-address: 0.0.0.0
@@ -16,11 +13,8 @@ cluster:
     certSANs:
       - ${local_api_ip}
       - ${ctrl_ip}
-    # reviewed audit policy (cmdshift/platform#90) — audit-log
-    # destination/rotation is NOT a machine-config field in Talos 1.13; the
-    # apiserver defaults are already maxAge 30 / maxBackup 10 / maxSize 100.
-    # The 1.14 config-CRD migration moves this policy into the
-    # KubeAuditPolicyConfig document verbatim.
+    # reviewed audit policy (cmdshift/platform#90); full volume-control rationale
+    # in files/audit-policy.yaml
     auditPolicy:
 ${indent(6, audit_policy)}
   network:

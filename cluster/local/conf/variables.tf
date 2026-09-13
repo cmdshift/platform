@@ -20,5 +20,5 @@ variable "internal_hostname" {
 
 variable "work_nodes" {
   type    = number
-  default = 4 # leave set to 4 for now. cilium/kyverno forces host network
+  default = 4 # cilium gatewayAPI and kyverno bind hostNetwork ports on work nodes — too few starve those placements
 }
