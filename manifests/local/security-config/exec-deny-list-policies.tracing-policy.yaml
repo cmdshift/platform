@@ -1,9 +1,8 @@
-# Exec deny-list, policies namespace (kyverno) — stage-2 flip #2, sibling of
-# exec-deny-list-flux-system (full rationale there; issue #28 ladder,
+# Exec deny-list, policies namespace (kyverno) — stage-2 flip 2, sibling of
+# exec-deny-list-flux-system (full rationale there; issue cmdshift/platform#28 ladder,
 # pod-label scoping because the 1.7.1 CRD has no Kube namespace matcher,
 # debug shells killed by design).
 # Scoping label: the chart's release instance label, unique cluster-wide.
-# retire: flux prunes this group — deleting the file unloads the sensor.
 apiVersion: cilium.io/v1alpha1
 kind: TracingPolicy
 metadata:

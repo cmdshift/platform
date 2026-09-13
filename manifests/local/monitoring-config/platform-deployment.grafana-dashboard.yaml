@@ -4,14 +4,13 @@ metadata:
   name: platform-deployment
   namespace: monitoring
   annotations:
-    # tracks the dashboard's origin issue
-    platform.local/issue: "39"
+    platform.local/issue: "cmdshift/platform#39"
 spec:
   instanceSelector:
     matchLabels:
       dashboards: "grafana"
   # Dashboard JSON comes from the configMapGenerator (platform-deployment.dashboard.json)
-  # — keeps the CR readable; url: is only for mirroring upstream dashboards (issue #39).
+  # — keeps the CR readable; url: is only for mirroring upstream dashboards (issue cmdshift/platform#39).
   configMapRef:
     name: platform-deployment-dashboard
     key: platform-deployment.dashboard.json

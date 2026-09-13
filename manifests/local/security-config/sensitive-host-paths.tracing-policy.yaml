@@ -1,12 +1,9 @@
 # File-integrity baseline: opens of the node's crown-jewel host paths by
 # containerized processes. monitor_only — stage-2 Override (EACCES) candidates
 # are decided from this stream's evidence.
-# ATTACHMENT NOTE: this must be a plain kprobe, not lsmhooks — the linuxkit
-# 7.0.12 kernel ships CONFIG_BPF_LSM=y but its vmlinux BTF lacks the
-# bpf_lsm_* hook symbols, so LSM-hook policies fail to load ("lsm hook
-# security_file_open not found in BTF", agent log). kprobe attach
-# to the same symbol works, and fmodret is supported, so stage-2 enforcement
-# via Override stays available.
+# ATTACHMENT NOTE: plain kprobe, not lsmhooks — linuxkit 7.0.12 vmlinux BTF
+# lacks the bpf_lsm_* hook symbols (security/README.md kernel intel); kprobe
+# attach works and fmodret is supported, so Override stays available.
 # Scoping notes (why the selectors look like this):
 # - matchNamespaces Pid NotIn host_ns: etcd and the containerd/kubelet stack are
 #   host-namespace processes on Talos and legitimately touch these paths
@@ -16,7 +13,6 @@
 #   it for every CRI call, so this selector is rate-limited to 1 event/min —
 #   it is a review trail, not a fire alarm; a stage-2 override must first
 #   carve out kube-system CRI access.
-# retire: flux prunes this group — deleting the file unloads the sensor.
 apiVersion: cilium.io/v1alpha1
 kind: TracingPolicy
 metadata:

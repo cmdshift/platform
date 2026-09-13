@@ -61,8 +61,8 @@ trivy:
   # pods mirror the TARGET's container list — every container runs a trivy
   # scanner, so sizing must cover the worst image in the fleet, not the
   # median. OOMKilled: cilium-agent DaemonSet scan, killer
-  # (install-cni-binaries scanner) climbed past 372Mi against the old 512Mi
-  # limit; completed scans peak 150-200Mi. 512Mi request = observed P99 x 1.2,
+  # (install-cni-binaries scanner) climbed past 372Mi (at a 512Mi
+  # limit); completed scans peak 150-200Mi. 512Mi request = observed P99 x 1.2,
   # 768Mi limit = 1.5x per the resource-sizing convention; ~23.5Gi/node
   # allocatable absorbs the transient worst case (6-container cilium scan)
   resources:
@@ -73,10 +73,9 @@ trivy:
       cpu: 500m
       memory: 768Mi
   server:
-    # PVC-backed cache on the Talos user volume (50GB, thin-provisioned,
-    # ~12MB used across all nodes as of adoption; local-path cannot expand a
-    # PVC in place, so keep headroom — real footprint ~1-2GB, peak ~3GB during
-    # DB update double-buffering)
+    # PVC-backed cache on the Talos user volume (50GB, thin-provisioned;
+    # local-path cannot expand a PVC in place, so keep headroom — real
+    # footprint ~1-2GB, peak ~3GB during DB update double-buffering)
     storageClassEnabled: true
     storageSize: 5Gi
     # chart defaults (runAsUser/fsGroup 65534, readOnlyRootFilesystem) + the
@@ -141,14 +140,13 @@ serviceMonitor:
   enabled: true # trivy metrics :80 (kube-prometheus-stack selects all)
 # operator pod resources — TOP-LEVEL key (the chart ignores
 # operator.resources; caught because the rendered Deployment had
-# containers[].resources: null). provisional — audit after burn-in per the
-# resource-sizing convention (report parsing + rego config-audit run
-# in-process)
+# containers[].resources: null). report parsing + rego config-audit run
+# in-process
 resources:
   requests:
     cpu: 50m
-    # audit (burn-in done): steady ~322Mi, but hourly scan bursts
-    # peak 496Mi = 111% of the 448Mi request — 640Mi = burst-P99 x 1.2;
+    # audit: steady ~322Mi, but hourly scan bursts
+    # peak 496Mi — 640Mi = burst-P99 x 1.2;
     # limit stays 1Gi (usage 50% of it)
     memory: 640Mi
   limits:

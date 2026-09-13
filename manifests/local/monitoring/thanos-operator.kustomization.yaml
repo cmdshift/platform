@@ -22,11 +22,11 @@ spec:
   # objects — recovery in runbooks/local/namespace-migration.md
   timeout: 5m
   patches:
-    # ns refactor (#31): every namespaced bundle resource moves from
-    # thanos-operator-system to monitoring — including the bundle's own
-    # Namespace (renamed to converge with the namespaces group's) and the two
-    # ClusterRoleBindings' subjects. Image pinned to the GitRepository ref
-    # (quay publishes main-YYYY-MM-DD-COMMIT per commit)
+    # every namespaced bundle resource moves from thanos-operator-system to
+    # monitoring — including the bundle's own Namespace (renamed to converge
+    # with the namespaces group's) and the two ClusterRoleBindings' subjects.
+    # Image pinned to the GitRepository ref (quay publishes
+    # main-YYYY-MM-DD-COMMIT per commit)
     - patch: |-
         apiVersion: apps/v1
         kind: Deployment
@@ -41,8 +41,8 @@ spec:
                   type: RuntimeDefault
               containers:
                 - name: manager
-                  # 831accd4 (#636): status conditions fixed — single Ready
-                  # condition replaces the sticky ReconcileSuccess/Failed pair
+                  # 831accd4: single Ready condition replaces the sticky
+                  # ReconcileSuccess/Failed pair (thanos-community/thanos-operator#636)
                   image: quay.io/thanos/thanos-operator:main-2026-09-07-831accd
                   # audit: steady 85Mi — 112Mi = P99 x 1.2, limit 1.5x
                   # cpu limits match the bundle (pinned in case the bundle ref moves)
@@ -66,11 +66,10 @@ spec:
                     - --enable-feature=service-monitor
                     - --enable-feature=prometheus-rule
                     - --enable-feature=kube-resource-sync
-                  # NSA hardening: image runs as
-                  # 65532; leader election is API-based and there's no webhook
-                  # server, so an immutable root fs is safe. /tmp emptyDir is
-                  # cheap insurance for Go temp files (controller-runtime
-                  # defaults write there if a webhook ever gets added)
+                  # NSA hardening: roFS is safe — image runs as 65532,
+                  # leader election is API-based, no webhook server. /tmp
+                  # emptyDir for Go temp files (controller-runtime defaults
+                  # write there if a webhook ever gets added)
                   securityContext:
                     allowPrivilegeEscalation: false
                     capabilities:
@@ -133,9 +132,9 @@ spec:
       target:
         kind: RoleBinding
         name: thanos-operator-leader-election-rolebinding
-    # bundle Namespace rename: JSON6902 (a strategic merge can't change a merge key)
-    # the renamed Namespace mirrors the PSS labels of namespaces/monitoring.namespace.yaml —
-    # whichever kustomization reconciles last strips the other's labels
+    # bundle Namespace rename: the renamed Namespace mirrors the PSS labels of
+    # namespaces/monitoring.namespace.yaml — whichever kustomization
+    # reconciles last strips the other's labels
     # (runbooks/local/namespace-migration.md)
     - patch: |-
         apiVersion: v1

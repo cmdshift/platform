@@ -9,10 +9,9 @@ spec:
   dependsOn:
     - name: namespaces
     - name: sources
-    # CNPG CRDs land via the cnpg-crds child kustomization (crds group,
-    # built from the upstream repo at the pinned tag); no hard ordering vs
-    # the operator — the chart doesn't render-lookup CRDs and the
-    # fail-closed webhooks only fire on CNPG CRs
+    # CNPG CRDs land via the crds group; no hard ordering vs the operator —
+    # the chart doesn't render-lookup CRDs and its fail-closed webhooks only
+    # fire on CNPG CRs
     - name: crds
     - name: networking
   sourceRef:

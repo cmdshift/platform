@@ -42,8 +42,7 @@ admissionController:
     resources:
       requests:
         cpu: 15m
-        # audit: steady 120Mi against the old 200Mi
-        # request; 208Mi = observed peak x 1.2
+        # audit: steady 120Mi — 208Mi = observed peak x 1.2
         memory: 208Mi
       limits:
         cpu: 500m
@@ -93,7 +92,7 @@ reportsController:
       memory: 160Mi
     limits:
       cpu: 2000m
-      memory: 240Mi # memory sawtooth peaks ~178Mi during the hourly background scan (93% of the old 192Mi limit); 240Mi leaves headroom, request 160Mi covers the scan-driven baseline
+      memory: 240Mi # memory sawtooth peaks ~178Mi during the hourly background scan; 240Mi leaves headroom, request 160Mi covers the scan-driven baseline
   podSecurityContext:
     runAsNonRoot: true
   serviceMonitor:

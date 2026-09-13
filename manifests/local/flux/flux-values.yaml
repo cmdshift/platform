@@ -23,8 +23,7 @@ helmController:
     seccompProfile:
       type: RuntimeDefault
   resources:
-    # overnight: sawtooth 69-248Mi against the old 200Mi request
-    # (124% at peak) — request = P99 x 1.2; 512Mi limit holds (peak 48%)
+    # overnight: sawtooth 69-248Mi — request = P99 x 1.2; 512Mi limit holds (peak 48%)
     requests:
       cpu: 50m
       memory: 288Mi
@@ -85,7 +84,7 @@ sourceController:
   resources:
     requests:
       cpu: 50m
-      # audit: steady 260Mi (full-window peak 220Mi pre-bump) — 320Mi = P99 x 1.2
+      # audit: steady 260Mi — 320Mi = P99 x 1.2
       memory: 320Mi
     limits:
       cpu: 1000m

@@ -14,7 +14,7 @@ The rabbitmq cluster + messaging-topology operators (cmdshift/platform#49) were 
 
 ## Group wiring
 
-`datastores.yaml` dependsOn `namespaces, sources, crds` (the vendored CNPG CRDs live there), `networking`. CNP in `networking-config/datastores.cilium-network-policy.yaml` (egress kube-apiserver + intra-ns) — covers every pod in the namespace (`endpointSelector: {}`), no per-workload selectors; ingress isn't default-denied, so future cross-namespace MQTT clients connect without a CNP change.
+`datastores.yaml` dependsOn `namespaces, sources, crds` (the vendored CNPG CRDs live there), `networking`. Note the CRD group does **not** gate the operator beyond that: the chart doesn't render-lookup CRDs and its fail-closed webhooks only fire on CNPG CRs, so no hard ordering is needed between `crds` and this group. CNP in `networking-config/datastores.cilium-network-policy.yaml` (egress kube-apiserver + intra-ns) — covers every pod in the namespace (`endpointSelector: {}`), no per-workload selectors; ingress isn't default-denied, so future cross-namespace MQTT clients connect without a CNP change.
 
 ## KubeBlocks — aborted, not adopted (cmdshift/platform#49)
 

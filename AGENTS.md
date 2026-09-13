@@ -11,6 +11,7 @@ Procedures are agent skills in `.agents/skills/<name>/SKILL.md`, loaded via the 
 | Skill | Load when |
 |---|---|
 | `platform-workflow` | about to change any manifest — the standard loop |
+| `code-comments` | writing, editing, or sweeping any code comment — default is no comment; markers for Talos-in-Docker deviations |
 | `reconcile-stuck` | a kustomization won't go Ready / `flux_wait` timed out |
 | `pipeline-wedged` | manifest edits not reaching the cluster |
 | `helmrelease-stuck` | a HelmRelease is failing or stuck |
@@ -86,7 +87,7 @@ Full reference — what each does, arguments, defaults, exit codes, gotchas: [to
 - **Issue/PR refs are fully qualified**: reference issues and PRs as `cmdshift/platform#N` — never a bare `#N` — in manifests comments, docs, skills, and the CHANGELOG, so refs resolve unambiguously and cross-repo refs (e.g. `thanos-community/thanos-operator#636`) can't be confused. Commit SHAs stay SHAs.
 - **No live patches — everything in files**: never fix drift with `kubectl edit`/`talosctl patch`/`docker exec` mutations (flux root `local`/`main` bucket edits during a wedge are the documented exception). Change the manifest or terraform template and reconcile; if the fix needs a rebuild, note the pending state in `CHANGELOG.md` or the tracking issue.
 - **Docs map**: `CHANGELOG.md` carries the dated narrative (what/when/why, incident stories); `manifests/local/<group>/README.md` carries the group's timeless decisions; `manifests/local/README.md` carries cross-cutting conventions + the hardening-deviations baseline; `manifests/cloud/notes.md` carries what the cloud cluster must do differently. When you add or change a local-only setting, or learn something the cloud cluster must do differently, update the matching README/cloud note (and CHANGELOG entry). In-repo markers (`# remove in the cloud`, `# true in the cloud`) stay the source of truth at the value itself; the docs carry the "why" and the cloud-side action.
-- **Rationale comments** (cmdshift/platform#43): comment only **surprising decisions and settings** — not values that explain themselves or explicitly desired outcomes. **No dated comments**; provenance goes in `cmdshift/platform#N` refs instead. **Don't explain how tools work** (flux propagation, kustomize patch mechanics, helm template internals) — link the README/runbook entry that owns the story. Keep the evidence numbers (observed usage, P99) at the value — they're what justifies it; link README/runbook/issue if there's more context.
+- **Rationale comments** (cmdshift/platform#43): default is no comment; comments only for surprising decisions, edge cases, and Talos-in-Docker deviations (marker vocabulary `# remove/true in the cloud`), provenance via `cmdshift/platform#N` refs — full rules: the `code-comments` skill.
 
 ## Landmines
 

@@ -32,10 +32,10 @@ prometheusOperator:
     resources:
       requests:
         cpu: 10m
-        # audit: 38Mi steady vs the old 32Mi request (119%)
+        # audit: 38Mi steady — 48Mi = P99 x 1.2
         memory: 48Mi
       limits:
-        # audit: 18% of CFS periods throttled at the old 200m —
+        # audit: 18% of CFS periods throttled (at 200m) —
         # reload bursts; generous CPU limit per convention
         cpu: 500m
         memory: 72Mi
@@ -49,8 +49,7 @@ kube-state-metrics:
   resources:
     requests:
       cpu: 10m
-      # audit (post ns-refactor churn): 76Mi steady = 119% of the
-      # old 64Mi request — 96Mi = P99 x 1.2, limit 1.5x
+      # audit: 76Mi steady — 96Mi = P99 x 1.2, limit 1.5x
       memory: 96Mi
     limits:
       cpu: 200m
@@ -74,8 +73,7 @@ prometheus:
     # empty serviceMonitorSelector: {} is treated as falsy by the chart template.
     # Future operator SMs (CNPG) get picked up automatically.
     serviceMonitorSelectorNilUsesHelmValues: false
-    # same gate applies to PodMonitors — the first chart-shipped exporter
-    # PodMonitor landed unscraped until this was set
+    # same gate applies to PodMonitors
     podMonitorSelectorNilUsesHelmValues: false
     externalLabels:
       cluster: local
@@ -98,9 +96,9 @@ prometheus:
           name: thanos-objstore
           key: objstore.yaml
       resources:
-        # overnight: 2h block uploads pin the CPU quota — 33% of
-        # CFS periods throttled at only 0.7m average = hard bursts against
-        # the old 200m limit. Memory fits (peak 112Mi vs 192Mi limit)
+        # overnight: 2h block uploads pin the CPU quota — hard
+        # CFS bursts (33% throttled, 0.7m avg, at 200m). Memory fits
+        # (peak 112Mi vs 192Mi limit)
         requests:
           cpu: 10m
           memory: 128Mi

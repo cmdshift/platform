@@ -4,15 +4,14 @@ crds:
 config:
   enableGatewayAPI: true
 # NSA hardening: explicit non-root uid/gid at container level
-# (image runs as 65532, gid was implicit 0 before)
+# (image runs as 65532; the chart leaves gid implicit 0)
 containerSecurityContext:
   runAsUser: 65532
   runAsGroup: 65532
 resources:
   requests:
     cpu: 10m
-    # audit: steady 77Mi peak against the old 80Mi
-    # request; 96Mi = observed x 1.2, limit bumped to keep the 1.5x ratio
+    # audit: steady 77Mi peak — 96Mi = observed x 1.2, limit 144Mi = 1.5x
     memory: 96Mi
   limits:
     cpu: 200m

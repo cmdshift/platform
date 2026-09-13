@@ -57,8 +57,7 @@ gateway:
       memory: 24Mi
   metrics:
     resources:
-      # overnight: peak 22.3Mi = 93% of the old 24Mi limit —
-      # request = P99 x 1.2, limit = 1.5x request
+      # overnight: peak 22.3Mi — request = P99 x 1.2, limit = 1.5x request
       requests:
         cpu: 10m
         memory: 24Mi
@@ -89,8 +88,7 @@ loki:
       accessKeyId: "${LOKI_S3_ACCESS_KEY_ID}"
       secretAccessKey: "${LOKI_S3_SECRET_ACCESS_KEY}"
   limits_config:
-    # bounded retention (was unbounded — the seaweed loki bucket grew
-    # forever); 30d matches the thanos 5m-tier. Logs are triage data.
+    # bounded retention — 30d matches the thanos 5m-tier; logs are triage data
     retention_period: 30d
   compactor:
     retention_enabled: true
@@ -103,8 +101,7 @@ loki:
     retention_delete_delay: 5m
     # default 24h = the undo window before a delete request is processed;
     # 15m is a deliberate local-only tradeoff (shorter accidental-delete
-    # undo, faster delete-path feedback) — `# true in the cloud` style:
-    # keep the default in cloud
+    # undo, faster delete-path feedback) — true in the cloud: keep the default
     delete_request_cancel_period: 15m
   extraEnv:
     - name: LOKI_S3_ACCESS_KEY_ID
@@ -134,8 +131,7 @@ chunksCache:
   resources:
     requests:
       cpu: 10m
-      # audit: 49Mi = 123% of the old 40Mi request and 82% of the
-      # old 60Mi limit — 64Mi = P99 x 1.2, limit 1.5x
+      # audit: 49Mi steady — 64Mi = P99 x 1.2, limit 1.5x
       memory: 64Mi
     limits:
       cpu: 20m

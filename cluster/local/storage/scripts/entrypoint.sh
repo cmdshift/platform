@@ -19,7 +19,6 @@ for BUCKET in $RUSTFS_BUCKETS; do
   rc mb "main/$BUCKET"
   rc admin user add main/ "${BUCKET}-user" "password"
 
-  # Write policy to temp file
   POLICY_FILE=$(mktemp)
   cat > "$POLICY_FILE" <<EOF
 {

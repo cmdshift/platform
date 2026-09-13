@@ -40,8 +40,7 @@ alloy:
   resources:
     requests:
       cpu: 10m
-      # audit (post ns-refactor churn): pods 283-310Mi = 118-129%
-      # of the old 240Mi request — 384Mi = P99 x 1.2, limit 1.5x
+      # audit: pods 283-310Mi — 384Mi = P99 x 1.2, limit 1.5x
       memory: 384Mi
     limits:
       cpu: 200m

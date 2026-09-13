@@ -79,8 +79,8 @@ groups:
         # {action=~"signal|override"} (BPF-side, per-action, unaffected by
         # event attribution). for: 5m absorbs one-shot counter spikes — a
         # cluster rebuild's bootstrap generates 3-5 runc-fork kills in the
-        # deny-list namespaces, which previously paged critical and
-        # self-resolved minutes later (cmdshift/platform#60); a sustained
+        # deny-list namespaces, one-shot spikes that page critical and
+        # self-resolve within minutes (cmdshift/platform#60); a sustained
         # kill stream still fires within ~5m.
   - name: trivy-alerts
     rules:
@@ -100,8 +100,8 @@ groups:
         # platform namespaces so app-image noise stays out of alerting.
         # max_over_time(30m) keeps the alert up through rescan gaps: the
         # gauge dips to empty while a scan report is rebuilt, which resolved
-        # and re-fired the alert each cycle (issue #36). max_over_time(30m)
+        # and re-fired the alert each cycle (cmdshift/platform#36). max_over_time(30m)
         # + for: 15m means the alert persists ~30-45m after the last
         # sighting — acceptable for an informational alert.
         # High severity is deliberately unalerted: Critical-only keeps
-        # noise down on a test cluster (issue #36).
+        # noise down on a test cluster (cmdshift/platform#36).

@@ -37,17 +37,17 @@ spec:
     requests:
       storage: 10Gi
       cpu: 10m
-      # overnight burn-in: OOMKilled at the old 132Mi limit (peak
+      # overnight burn-in: OOMKilled at a 132Mi limit (peak
       # ~131Mi) — request = P99 x 1.2, limit = 1.5x request
       memory: 160Mi
     limits:
       # 6% of CFS periods throttled at ~2m average = short write bursts
-      # against the old 200m limit — generous burst room per AGENTS.md.
+      # (at 200m) — generous burst room per AGENTS.md.
       # During vacuum/compaction the volume server throttled at 93% of CFS
       # periods, wedged with all volumes read-only, and seaweed S3 returned
-      # 500s for hours (loki couldn't flush chunks; master logged "created 0:
-      # Not enough data nodes found!"). Recovered only via the probe-driven
-      # container restart. Same hottest-path logic as the s3 gateway below.
+      # 500s (loki couldn't flush chunks; master logged "created 0:
+      # Not enough data nodes found!"). Same hottest-path logic as the s3
+      # gateway below.
       cpu: 1000m
       memory: 240Mi
     podSecurityContext:
@@ -67,8 +67,7 @@ spec:
     replicas: 1
     requests:
       cpu: 10m
-      # overnight burn-in: peak ~210Mi against the old 252Mi limit
-      # (83%) — request = P99 x 1.2, limit = 1.5x request
+      # overnight burn-in: peak ~210Mi — request = P99 x 1.2, limit = 1.5x request
       memory: 256Mi
     limits:
       cpu: 200m
@@ -104,14 +103,13 @@ spec:
     replicas: 1
     requests:
       cpu: 50m
-      # overnight burn-in: memory P99 ~161Mi vs the old 168Mi limit
-      # + 108 OOMKilled samples in 12h — request = P99 x 1.2, limit = 1.5x
+      # overnight burn-in: memory P99 ~161Mi, 108 OOMKilled samples in 12h
+      # (at a 168Mi limit) — request = P99 x 1.2, limit = 1.5x
       memory: 192Mi
     limits:
-      # the silent killer: sustained 110-160m against the old 200m limit at 97%
-      # of CFS periods throttled starved the liveness probe (context deadline
-      # exceeded) — kubelet killed the pod ~10x/h ("Completed exit 0"), plus
-      # CPUThrottlingHigh flapping in mailpit. The s3 gateway fronts loki AND
+      # sustained 110-160m usage throttled 97% of CFS periods (at 200m),
+      # starving the liveness probe (context deadline exceeded) — kubelet
+      # killed the pod ~10x/h. The s3 gateway fronts loki AND
       # thanos object storage (hottest path in the cluster) — generous burst
       # room per AGENTS.md (200m-2000m)
       cpu: 1000m

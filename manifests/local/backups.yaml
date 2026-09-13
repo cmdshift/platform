@@ -10,7 +10,6 @@ spec:
     - name: namespaces
     - name: sources
     - name: networking
-    # was: storage — the StorageClasses split out into storage-config (#35);
     # restore drills depend on the local PV types (defaultVolumeType: local)
     - name: storage-config
   sourceRef:

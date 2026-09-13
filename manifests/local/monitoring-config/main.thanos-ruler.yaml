@@ -31,8 +31,7 @@ spec:
   resourceRequirements:
     requests:
       cpu: 10m
-      # audit: 56Mi steady = 100% of the old 56Mi request —
-      # 72Mi = P99 x 1.2
+      # audit: 56Mi steady — 72Mi = P99 x 1.2
       memory: 72Mi
     limits:
       cpu: 200m

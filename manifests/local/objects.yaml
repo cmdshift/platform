@@ -10,8 +10,7 @@ spec:
     - name: namespaces
     - name: sources
     - name: networking
-    # the Seaweed CR's PVCs name local-path — StorageClasses live in
-    # storage-config (#35)
+    # the Seaweed CR's PVCs name local-path
     - name: storage-config
   sourceRef:
     kind: Bucket

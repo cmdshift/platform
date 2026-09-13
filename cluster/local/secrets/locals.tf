@@ -8,7 +8,7 @@ locals {
     }
   }
 
-  # ns refactor #31: locals/upload paths mirror the cluster namespaces
+  # ns refactor cmdshift/platform#31: locals/upload paths mirror the cluster namespaces
   certificates = {
     intermediate_ca = {
       "tls.crt" = trimspace(file("${path.root}/.tmp/tls/intermediate_ca.crt"))

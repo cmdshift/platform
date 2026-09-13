@@ -9,8 +9,7 @@ spec:
   dependsOn:
     - name: sources
     - name: secrets-config
-    # loki-values.yaml names storageClassName: local-path — StorageClasses
-    # live in storage-config (#35)
+    # loki-values.yaml names storageClassName: local-path
     - name: storage-config
     - name: monitoring
   sourceRef:

@@ -11,8 +11,7 @@ locals {
   ctrl_ip         = cidrhost(var.net.ctrl_cidr, 1)
   public_endpoint = "https://${local.ctrl_ip}:${local.ports.k8s}"
 
-  # the reviewed audit policy body — inline cluster.apiServer.auditPolicy on
-  # 1.13 (KubeAuditPolicyConfig doc in 1.14)
+  # reviewed audit policy (cmdshift/platform#90); 1.13/1.14 mechanics in files/audit-policy.yaml
   audit_policy_body = file("${path.module}/files/audit-policy.yaml")
 
   cluster_machine_patch = templatefile("${path.module}/templates/cluster.tftpl.yaml", {
@@ -47,9 +46,10 @@ locals {
 
   mounts = {
     tmpfs = ["/run", "/system", "/tmp"]
+    # volume mounts: k8s overlay dirs, node state (/var, /system/state), then cilium
     volume = concat(
-      ["/etc/cni", "/etc/kubernetes", "/usr/libexec/kubernetes", "/opt"], # overlays
-      ["/var", "/system/state"],                                          # ephemeral
+      ["/etc/cni", "/etc/kubernetes", "/usr/libexec/kubernetes", "/opt"],
+      ["/var", "/system/state"],
       ["/run/cilium"],
       ["/sys/fs/bpf"]
     )

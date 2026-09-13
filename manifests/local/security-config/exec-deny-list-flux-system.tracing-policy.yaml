@@ -1,23 +1,10 @@
-# Exec deny-list, flux-system — stage-2 flip #2 (issue #28 ladder). Enforced
-# without a monitor stream (the issue's gate assumed one): static evidence
-# substitutes for it — every container in the operator namespaces runs its
-# image entrypoint directly (binary + args, zero shells/interpreters/net-
-# tools), no CronJobs, and the bootstrap "hooks" are helm.sh/hook annotations
-# on the Bucket/Kustomization objects, not Jobs — nothing shell-exec'ing at
-# steady state or rebuild.
-# Scoping is pod labels, NOT namespaces: the tetragon 1.7.1 CRD's
-# matchNamespaces only supports kernel NS types (no "Kube" — cr_validate
-# caught the attempt), so the podSelector is the only k8s scoping surface.
-# Per-namespace policies keep kill-event attribution exact. flux pods carry
-# only app=<controller>: the list is explicit and a future flux controller
-# must be added here to come into scope.
-# Deliberate behavior change: `kubectl exec ... sh` debug shells in these
-# pods are killed too — diagnose via the observability stack or a temporary
-# policy-mode: monitor flip.
-# security_bprm_check verified present (T) in node kallsyms per the
-# kernel-intel ritual (security/README.md); adapted from the tetragon docs
-# exec-enforcement pattern (kprobe + arg0 file + Prefix + Sigkill).
-# retire: flux prunes this group — deleting the file unloads the sensor.
+# Exec deny-list, flux-system — stage-2 flip 2, enforce (cmdshift/platform#28).
+# Static evidence substitutes for the monitor stream (security/README.md).
+# Scoping is pod labels: tetragon 1.7.1 matchNamespaces has no "Kube" type —
+# the podSelector is the only k8s scoping surface; a future flux controller
+# must be added below to come into scope. `kubectl exec ... sh` debug shells
+# are killed by design. security_bprm_check verified in node kallsyms
+# (security/README.md); adapted from the tetragon exec-enforcement pattern.
 apiVersion: cilium.io/v1alpha1
 kind: TracingPolicy
 metadata:
@@ -42,11 +29,8 @@ spec:
   kprobes:
     - call: security_bprm_check
       syscall: false
-      # type: file passes cr_validate (schema-valid) but silently never
-      # enforces — arg0 is struct linux_binprm *, the agent only logs a
-      # load-time validation warning and the matcher never fires;
-      # linux_binprm is the working type and resolves the REQUESTED path
-      # (busybox /bin/sh symlink to /bin/busybox still matches /bin/sh)
+      # type: file silently never enforces (arg0 is linux_binprm*; the agent
+      # only logs a validation warning) — landmine in security/README.md
       args:
         - index: 0
           type: linux_binprm

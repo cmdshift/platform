@@ -132,14 +132,12 @@ resource "helm_release" "flux" {
           ]
         }
       }
-      # The Bucket + root Kustomization below are duplicated in
-      # manifests/local/flux-config/ — close enough, not identical (that copy
-      # carries deletionPolicy, retryInterval, timeout, 10m interval). These
-      # hooks are load-bearing for fresh installs only (CRDs must exist before
-      # the Bucket CR can be applied); after first reconcile the flux-config
-      # kustomization force-adopts both objects and converges them to its spec.
-      # With ignore_changes = all below, this block never runs against an
-      # existing cluster.
+      # Fresh-install bootstrap twins of the Bucket + root Kustomization owned
+      # by manifests/local/flux-config/ (that copy carries deletionPolicy,
+      # retryInterval, timeout, 10m interval): the hooks are load-bearing only
+      # until its first reconcile force-adopts both objects — with
+      # ignore_changes = all below, this block never runs against an existing
+      # cluster. Never delete the on-cluster objects (AGENTS.md landmines).
       extraObjects = [
         {
           apiVersion = "source.toolkit.fluxcd.io/v1"

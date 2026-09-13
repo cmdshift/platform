@@ -1,8 +1,6 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-# Note: flux-system and kube-system are NOT managed here.
-# flux-system is owned by the flux2 HelmRelease.
-# kube-system is owned by the cluster.
+# flux-system (flux2 HelmRelease) and kube-system (cluster-owned) are not managed here
 resources:
   - policies.namespace.yaml
   - certificates.namespace.yaml
