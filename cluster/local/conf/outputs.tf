@@ -125,7 +125,7 @@ output "scanner" {
     private_ip = cidrhost(local.cloud_cidr, 8)
     name       = join("-", ["scanner", local.external_name])
     services = {
-      scan = {
+      main = {
         hostname   = join(".", ["scanner", var.external_hostname])
         private_ip = cidrhost(local.cloud_cidr, 8)
         port       = 8766

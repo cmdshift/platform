@@ -73,7 +73,7 @@ module "registry" {
     bridge_network_id  = module.net.bridge_network_id
   }
   scan = {
-    url   = "http://${module.conf.scanner.services.scan.hostname}:${module.conf.scanner.services.scan.port}"
+    url   = "http://${module.conf.scanner.services.main.hostname}"
     token = random_password.scan_token.result
   }
 }

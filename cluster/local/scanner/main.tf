@@ -20,8 +20,6 @@ resource "null_resource" "scanner_volume" {
 resource "docker_container" "scanner" {
   name  = var.name
   image = docker_image.scanner.name
-  # trivy downloads its own DB from upstream over the bridge — the private-only
-  # ipvlan path's DNS forwarder fails external lookups (cmdshift/platform#102)
   networks_advanced {
     name = var.net.bridge_network_id
   }
@@ -37,11 +35,11 @@ resource "docker_container" "scanner" {
   memory      = 768
   memory_swap = 768
   upload {
-    file = "/scanner.toml"
-    content = templatefile("${path.module}/templates/scanner.tftpl.toml", {
+    file = "/config.toml"
+    content = templatefile("${path.module}/templates/config.tftpl.toml", {
       registry_url = var.registry_url
       token        = var.token
     })
   }
-  command = ["-c", "/scanner.toml", "scanner", "trivy"]
+  command = ["-c", "/config.toml", "scanner", "trivy"]
 }

@@ -39,15 +39,6 @@ resource "docker_container" "cloud" {
           if can(regex("^smtp", name))
         ]
       ])
-      scan = flatten([
-        for container_name, services in var.hosts : [
-          for name, service in services : {
-            name       = container_name
-            private_ip = service.private_ip
-          }
-          if can(regex("^scan", name))
-        ]
-      ])
     })
   }
   upload {
