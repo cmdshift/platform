@@ -2,7 +2,7 @@
 
 Platform manifests for a Talos-in-Docker local test cluster (terraform in `cluster/local`, ignore for manifest work). Flux v2 deploys everything in `manifests/local/`.
 
-Out-of-cluster companions (terraform/docker, `*.cloud.test`): rustfs S3 (`s3.cloud.test`, container `storage-cloud-test`), secrets server (`secrets.cloud.test`, container `secrets-cloud-test`, served over haproxy), the sync container (`sync-cloud-test`) that mirrors manifests into the flux bucket, and mailpit — alerts (ruler → alertmanager) land at **http://mail.cloud.test**.
+Out-of-cluster companions (terraform/docker, `*.cloud.test`): rustfs S3 (`s3.cloud.test`, container `storage-cloud-test`), secrets server (`secrets.cloud.test`, container `secrets-cloud-test`, served over haproxy), the sync container (`sync-cloud-test`) that mirrors manifests into the flux bucket, mailpit — alerts (ruler → alertmanager) land at **http://mail.cloud.test** — and the trivy scan companion (`scanner.cloud.test`, container `scanner-cloud-test`): cache-miss image stores in the angos registry (1.8.0) enqueue trivy scans whose SARIF reports attach as OCI referrers (cmdshift/platform#102; registry and scanner angos pins bump in lockstep).
 
 ## Skills (load on demand, don't re-derive)
 
@@ -23,6 +23,7 @@ Procedures are agent skills in `.agents/skills/<name>/SKILL.md`, loaded via the 
 | `velero-ops` | backups and restores |
 | `cilium-test` | full-cluster connectivity validation |
 | `cluster-rebuild` | fresh bootstrap from terraform |
+| `terraform-churn` | a terraform plan under `cluster/local` shows unexpected replacements/updates/drift on resources no edit touched |
 | `observability` | metrics, logs, tetragon events (tetra), or alert delivery |
 | `docs-sweep` | docs need updating for the change (landmine hit, decision made, or pre-commit/PR) — dispatched as a background subagent so the session isn't blocked |
 | `file-issue` | a follow-up, refactor idea, or recurring failure deserves a GitHub issue — dispatched as a background subagent so the session isn't blocked |

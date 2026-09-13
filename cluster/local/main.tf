@@ -24,6 +24,7 @@ module "external" {
     "${module.conf.secrets.name}"  = module.conf.secrets.services
     "${module.conf.registry.name}" = module.conf.registry.services
     "${module.conf.mail.name}"     = module.conf.mail.services
+    "${module.conf.scanner.name}"  = module.conf.scanner.services
   }
 }
 
@@ -71,6 +72,28 @@ module "registry" {
     private_network_id = module.net.private_network_id
     bridge_network_id  = module.net.bridge_network_id
   }
+  scan = {
+    url   = "http://${module.conf.scanner.services.main.hostname}"
+    token = random_password.scan_token.result
+  }
+}
+
+# specials would break the verbatim TOML embedding
+resource "random_password" "scan_token" {
+  length  = 32
+  special = false
+}
+
+module "scanner" {
+  source = "./scanner"
+  name   = module.conf.scanner.name
+  net = {
+    bridge_network_id  = module.net.bridge_network_id
+    private_network_id = module.net.private_network_id
+    private_ip         = module.conf.scanner.private_ip
+  }
+  registry_url = "http://${module.conf.registry.services.main.hostname}"
+  token        = random_password.scan_token.result
 }
 
 module "mail" {

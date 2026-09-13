@@ -1,5 +1,9 @@
 *.tfstate*
 .terraform
+# only the two terraform roots (cluster/local, cluster/local/bootstrap) track
+# their .terraform.lock.hcl — child modules inherit the parent root's lock and
+# a stray module-level init must not leak one in
+cluster/local/*/.terraform.lock.hcl
 
 .DS_Store
 

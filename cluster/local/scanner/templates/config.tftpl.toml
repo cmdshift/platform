@@ -1,0 +1,8 @@
+[scanner]
+port = 8766
+token = "${token}"
+
+# no username/password while the registry allows anonymous pulls — add both in
+# lockstep with any deny-by-default change (cmdshift/platform#102)
+[scanner.registry]
+url = "${registry_url}"
