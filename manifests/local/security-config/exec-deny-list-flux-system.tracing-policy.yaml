@@ -1,4 +1,4 @@
-# Exec deny-list, flux-system — stage-2 flip #2 (issue #28 ladder). Enforced
+# Exec deny-list, flux-system — stage-2 flip 2 (issue cmdshift/platform#28 ladder). Enforced
 # without a monitor stream (the issue's gate assumed one): static evidence
 # substitutes for it — every container in the operator namespaces runs its
 # image entrypoint directly (binary + args, zero shells/interpreters/net-

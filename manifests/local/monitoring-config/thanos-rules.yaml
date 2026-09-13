@@ -100,8 +100,8 @@ groups:
         # platform namespaces so app-image noise stays out of alerting.
         # max_over_time(30m) keeps the alert up through rescan gaps: the
         # gauge dips to empty while a scan report is rebuilt, which resolved
-        # and re-fired the alert each cycle (issue #36). max_over_time(30m)
+        # and re-fired the alert each cycle (cmdshift/platform#36). max_over_time(30m)
         # + for: 15m means the alert persists ~30-45m after the last
         # sighting — acceptable for an informational alert.
         # High severity is deliberately unalerted: Critical-only keeps
-        # noise down on a test cluster (issue #36).
+        # noise down on a test cluster (cmdshift/platform#36).

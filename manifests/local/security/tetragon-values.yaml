@@ -23,7 +23,7 @@ tetragon:
   # non-loopback TCP listeners.
   grpc:
     address: "localhost:54321"
-  # request ~= P99 x 1.2 (per-node P99 477-524Mi over 5h), limit 1.5x (#28).
+  # request ~= P99 x 1.2 (per-node P99 477-524Mi over 5h), limit 1.5x (cmdshift/platform#28).
   # Working set is a warmup ramp to ~430Mi then a GC sawtooth (380-540Mi,
   # returns to baseline) — not a leak: the data cache is capacity-bounded
   # (cap 1024, ~14 entries). Zero CFS throttling, ringbuf loss 0, program

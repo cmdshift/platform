@@ -1,4 +1,4 @@
-# Kernel-module operations — enforcement (stage-2 flip #1, issue #28 ladder).
+# Kernel-module operations — enforcement (stage-2 flip 1, issue cmdshift/platform#28 ladder).
 # Burn-in evidence (monitor_only, ~6h across two rebuilds): 327 events, ALL
 # benign auto-load probes (Go runtimes probing net-pf-* socket families on
 # first socket(2); every event was one of these), zero real loads —

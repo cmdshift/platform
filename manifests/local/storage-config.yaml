@@ -6,7 +6,7 @@ metadata:
 spec:
   interval: 1h
   retryInterval: 5s
-  # StorageClasses moved here from storage/ (#35, X/X-config split) —
+  # StorageClasses moved here from storage/ (cmdshift/platform#35, X/X-config split) —
   # PVC-creating groups (objects, logging, backups) must depend on THIS
   # kustomization, not storage (the move's few seconds of SC absence pend
   # through harmlessly with WaitForFirstConsumer)

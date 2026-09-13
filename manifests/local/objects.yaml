@@ -11,7 +11,7 @@ spec:
     - name: sources
     - name: networking
     # the Seaweed CR's PVCs name local-path — StorageClasses live in
-    # storage-config (#35)
+    # storage-config (cmdshift/platform#35)
     - name: storage-config
   sourceRef:
     kind: Bucket
