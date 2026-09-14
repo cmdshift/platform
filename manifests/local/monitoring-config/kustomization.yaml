@@ -16,10 +16,21 @@ resources:
   - platform-deployment.grafana-dashboard.yaml
   - main-grafana-credentials.external-secret.yaml
 configMapGenerator:
+  # one file per generator — the thanos-operator skips ConfigMaps with more than
+  # one data key ("skipping invalid config map", len(data) != 1 gate in its ruler
+  # controller), which would silently unload ALL ruler rules (cmdshift/platform#85)
   - name: thanos-rules
     namespace: monitoring
     files:
       - thanos-rules.yaml
+    options:
+      labels:
+        operator.thanos.io/rule-file: "true"
+        operator.thanos.io/prometheus-rule: "true"
+  - name: slo-rules
+    namespace: monitoring
+    files:
+      - slo.rules.yaml
     options:
       labels:
         operator.thanos.io/rule-file: "true"
