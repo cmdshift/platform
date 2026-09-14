@@ -52,7 +52,7 @@ loki_query -c 'sum by (x) (count_over_time(...))'  # labels per series + latest 
 mailpit [limit]                    # subjects of the latest alert emails, newest first
 ```
 
-Alert delivery path: thanos-ruler → alertmanager → mailpit. Alerts land at **http://mail.cloud.test** — use it to confirm a rule fired (e.g. after touching `monitoring-config/thanos-rules.yaml`) or to read `ContainerOOMKilled` events.
+Alert delivery path: thanos-ruler → alertmanager → mailpit. Alerts land at **http://mail.cloud.test** — use it to confirm a rule fired (e.g. after touching `monitoring-config/thanos-rules.yaml`) or to read `ContainerOOMKilled` events. If rules silently stop firing but every reconcile is green: each rule ConfigMap must carry exactly one data key — the thanos-operator skips any with more (`monitoring` README, cmdshift/platform#85).
 
 ## tetra (Tetragon process events)
 
