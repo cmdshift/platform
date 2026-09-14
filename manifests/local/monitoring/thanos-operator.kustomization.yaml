@@ -43,7 +43,7 @@ spec:
                 - name: manager
                   # 831accd4: single Ready condition replaces the sticky
                   # ReconcileSuccess/Failed pair (thanos-community/thanos-operator#636)
-                  image: quay.io/thanos/thanos-operator:main-2026-09-07-831accd
+                  image: quay.io/thanos/thanos-operator:main-2026-09-11-dd673b3
                   # audit: steady 85Mi — 112Mi = P99 x 1.2, limit 1.5x
                   # cpu limits match the bundle (pinned in case the bundle ref moves)
                   resources:
