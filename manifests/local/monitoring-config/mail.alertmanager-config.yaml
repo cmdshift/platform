@@ -11,6 +11,18 @@ spec:
     groupInterval: 5m
     repeatInterval: 4h
     receiver: email
+    routes:
+      # SLO burn-rate alerts (slo.rules.yaml): tighter grouping than the root route so
+      # a burning budget pages fast; matched on the `slo` label, not severity
+      # (cmdshift/platform#85)
+      - matchers:
+          - name: slo
+            value: "true"
+        groupBy: [alertname]
+        groupWait: 30s
+        groupInterval: 1m
+        repeatInterval: 1h
+        receiver: email
   receivers:
     - name: email
       emailConfigs:
