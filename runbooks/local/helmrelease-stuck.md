@@ -12,6 +12,8 @@ kubectl get events -n <ns> --sort-by=.lastTimestamp
 
 Also not ladder material: if the release is **kyverno itself** and its pods sit Pending, that's the hostNetwork port deadlock (local-only) — run `kyverno_unblock` instead.
 
+And not even a failure: an upgrade timing out with `Deployment/... status: 'InProgress'` on a **first** attempt of a freshly-pinned image can be pure image-pull time eating the upgrade health timeout — helm-controller's `remediation.retries: 3` retries immediately and the pull is then cached. Don't intervene on the first failure; only treat it as stuck if the retry fails too (seaweedfs-operator 0.1.42, cmdshift/platform#106).
+
 ## Escalation ladder
 
 1. Reconcile — but read what it actually does, via `helm_wait <ns> <name>` (it reconciles, then polls; a `Ready=False` is terminal once the blocking reconcile returns, so it exits 1 immediately with the HR failure message + diagnose hint instead of polling out the window; `helm_wait -c <ns> <name>` is the no-reconcile status check):

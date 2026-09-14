@@ -17,6 +17,8 @@ Charts pinned in TWO places must bump in **lockstep** — the bootstrap helm_rel
 
 Gotcha: `helm_verify` printing `FAIL: <name> — helm repo add/update … failed` means the index fetch failed — it no longer swallows those (`|| true` used to leave a stale/empty index that produced phantom "version not in index" verdicts); re-run before digging deeper. `version X not in <repo> index` after a successful fetch means the pin is genuinely wrong/missing — without this check `helm template --version` silently rendered the *closest* index version and passed. A `v`-prefixed pin (`version: "v1.2.3"`) is fine — both sides are normalized. Index fetches are on-miss only (probe → one scoped `helm repo update` → verdict), so a "not in index" verdict is trustworthy.
 
+Periodic re-inventory of ALL pinned dependencies (not just the chart you're adopting) is a separate sweep: [runbooks/local/dependency-inventory.md](../../../runbooks/local/dependency-inventory.md).
+
 ## 1. The 1MB release-secret cap
 
 Helm persists the release manifest in the `sh.helm.release.*` Secret, capped at **1MB** (`data: Too long: may not be more than 1048576 bytes`). Check the rendered size **before** creating the HelmRelease:
