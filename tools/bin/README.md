@@ -128,6 +128,12 @@ Values sources, merged in flux order (inline first, refs after, last wins):
   widened the window for transient stale-index reads — external-secrets
   FAILED a full run with 2.10.0 very much in the upstream index). A failed
   add/update is a FAIL with a message, not a swallowed `|| true`
+- Gotcha: a stale/partial local index can also surface as the chart-tgz
+  fetch itself failing with `618 jwt:jwt-not-provided` for a version that
+  IS in the index and downloadable — an index-staleness artifact of the
+  fetch, not a bad pin. Re-run once (the script's scoped `helm repo
+  update` re-fetches on the second pass) before suspecting the manifest
+  (cmdshift/platform#106)
 - Gotcha: `helm template` rejects unknown values keys **only** for charts
   shipping a `values.schema.json` (kube-prometheus-stack does; most don't)
   — for schema-less charts this catches nil-pointer template errors, not

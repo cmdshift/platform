@@ -9,6 +9,6 @@ spec:
   ref:
     # 831accd4 (#636): status conditions fixed — sticky ReconcileSuccess/
     # ReconcileFailed pair replaced by a standard Ready condition
-    commit: 831accd41228c5d1c9a9aab47b2b14009c13407e
+    commit: dd673b34d668c1f95e6592e50f8c414d811ab3ac
   ignore: |
     !/bundle.yaml
