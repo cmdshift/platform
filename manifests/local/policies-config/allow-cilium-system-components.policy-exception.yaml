@@ -24,5 +24,8 @@ spec:
       kind: ValidatingPolicy
   matchConditions:
     # hubble-relay (part of the cilium release) also terminates in 1s by design
+    # startsWith is required for hubble-relay: autogen pods carry RS-hash suffixes,
+    # exact-name matching left them unexcepted and background scans kept re-reporting
+    # require-graceful-termination failures on every rollout (cmdshift/platform#100)
     - name: match-cilium
-      expression: "object.metadata.namespace == 'kube-system' && (object.metadata.name.startsWith('cilium') || object.metadata.name == 'hubble-relay')"
+      expression: "object.metadata.namespace == 'kube-system' && (object.metadata.name.startsWith('cilium') || object.metadata.name.startsWith('hubble-relay'))"
