@@ -11,8 +11,9 @@ Each `<group>.yaml` is a flux Kustomization CR; the directory of the same name i
 ```
 namespaces → sources → crds → secrets → secrets-config → certificates → certificates-config
 → networking → networking-config → flux → flux-config → metrics → policies → policies-config
-→ storage → storage-config → objects → objects-config → datastores → monitoring → monitoring-config
-→ backups → backups-config → logging → security → security-config
+→ storage → storage-config → objects → objects-config → datastores → datastores-config
+→ monitoring → monitoring-config → backups → backups-config → logging → logging-config
+→ security → security-config
 ```
 
 Groups without a README are self-explanatory: `crds/` (vendored/child-kustomization CRDs, `prune: false`), `sources/` (HelmRepository/GitRepository pins), `namespaces/` (namespace manifests — **explicit resources list in `kustomization.yaml`; an unregistered `*.namespace.yaml` is silently inert**).
@@ -29,6 +30,7 @@ Group READMEs: [networking](networking/README.md) · [metrics](metrics/README.md
 - **Dependency rules**: a group naming `storageClassName: local-path` must `dependsOn: storage-config` (the SCs moved out of `storage`); CRs whose CRDs a release's operator creates live in a group that `dependsOn` that release, never the reverse; admission-critical PolicyExceptions go in the early `policies-config/` group.
 - **Local-only markers**: `# remove in the cloud` and `# true in the cloud` flag deliberately local-only settings at the value; the cloud-side actions are collected in [manifests/cloud/notes.md](../cloud/notes.md).
 - **Comment rules** (cmdshift/platform#43): default no comment; comments only for surprising choices, edge cases, and Talos-in-Docker deviations — full rules in the [`code-comments` skill](../../.agents/skills/code-comments/SKILL.md).
+- **Compute quotas** (cmdshift/platform#93): every workload namespace carries a `ResourceQuota/compute` in its group's `-config/` dir as `resource-quota.yaml` — sized 2× audited aggregate requests + headroom, limits ≥ current limits sum with burst headroom, pods ≈ 2× running count; the evidence numbers live in each quota's rationale comment, not here. Every group's config kustomization includes it (the explicit-resources dirs — `monitoring-config/`, `storage-config/` — list `resource-quota.yaml` in `resources:`; flux auto-discovers in implicit dirs, `kubectl kustomize` does not, so don't use a local `kubectl kustomize` dry-run as a completeness check). New deployments must fit within the target namespace's quota — a blocked deployment shows as StartError/FailedCreate with `exceeded quota`; add the workload and bump the quota in the same change if it doesn't fit. LimitRange is deliberately absent: kyverno Deny-mode admission already denies containers missing requests/limits, so defaults would be dead code locally (its honest value is cloud-facing — see [manifests/cloud/notes.md](../cloud/notes.md)).
 
 ## Admission policy
 
