@@ -30,7 +30,9 @@ just bootstrap apply    # cilium + flux helm releases + the Bucket/root hooks
 Expect **~10 minutes**, progressing through the dependency chain in order:
 
 ```
-sources → crds → namespaces → certificates → networking (cilium: the long pole)
+sources → crds → namespaces → certificates → certificates-config (ztunnel CA
+issuance gate) → networking (cilium: the long pole; boots unencrypted — the
+HelmRelease flips ztunnel on at first reconcile, cmdshift/platform#87)
 → flux → flux-config (adopts the Bucket + root) → metrics → policies
 → storage → objects → monitoring → thanos-operator → monitoring-config
 → backups → logging → security → security-config

@@ -18,7 +18,7 @@
 set -euo pipefail
 
 cleanup() {
-  kubectl -n kyverno delete policyexception allow-cilium-connectivity-test --ignore-not-found >/dev/null 2>&1 || true
+  kubectl -n policies delete policyexception allow-cilium-connectivity-test --ignore-not-found >/dev/null 2>&1 || true
   kubectl get ns -o name 2>/dev/null | grep -E '^namespace/cilium-test' | cut -d/ -f2 \
     | xargs -r kubectl delete ns --wait=false >/dev/null 2>&1 || true
   echo "cilium_test: scaffolding removed (exception deleted, test namespaces deleting)"
@@ -26,7 +26,7 @@ cleanup() {
 
 trap cleanup EXIT
 
-kubectl -n kyverno apply -f - >/dev/null <<'EOF'
+kubectl apply -f - >/dev/null <<'EOF'
 apiVersion: policies.kyverno.io/v1
 kind: PolicyException
 metadata:
@@ -37,6 +37,8 @@ spec:
     - name: disallow-capabilities-strict
       kind: ValidatingPolicy
     - name: disallow-host-namespaces
+      kind: ValidatingPolicy
+    - name: disallow-host-ports
       kind: ValidatingPolicy
     - name: disallow-privilege-escalation
       kind: ValidatingPolicy

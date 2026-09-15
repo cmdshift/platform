@@ -513,7 +513,13 @@ match what the CLI's flow matcher looks for — the resulting `not found` spam
 is the matcher, not the datapath; the old kube-proxy-DNAT rationale is gone
 since cilium KPR=true, cmdshift/platform#70), connectivity-suites-only
 test filter (policy suites' deny expectations union with the required
-allow-all scaffold and can only fail here). Manual procedure + rationale:
+allow-all scaffold and can only fail here). The temp PolicyException lives in
+the `policies` namespace (policies.kyverno.io CEL exceptions — NOT `-n
+kyverno`; the namespace-mismatch error from the pre-CEL `-n kyverno apply`
+shape kills the script before any test runs) and its policyRefs must track
+the live VPolicies the test pods violate — `disallow-host-ports` was missing
+after the CEL migration and the echo deployments died at admission
+(cmdshift/platform#87 session). Manual procedure + rationale:
 runbooks/local/cilium-connectivity-test.md.
 
 ### `bench [--benchmark cis-1.12] [--image aquasec/kube-bench:v0.16.0] [--keep] [--timeout 720]`

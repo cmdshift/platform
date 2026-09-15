@@ -19,8 +19,18 @@ resource "helm_release" "cilium" {
         hostRoot = "/sys/fs/cgroup"
       }
       encryption = {
-        enabled = true
-        type    = "wireguard"
+        # unencrypted twin: ztunnel mode needs cilium-ztunnel-secrets, which
+        # only cert-manager (flux, post-bootstrap) can issue — the flux
+        # HelmRelease flips encryption to ztunnel on first reconcile
+        # (cmdshift/platform#87)
+        enabled = false
+      }
+      # no standalone envoy DaemonSet in the twin: the bootstrap boots with
+      # no L7 consumers (gateway-api is flux's problem, and gateway-api proxy
+      # mode runs in the agent) — flux converges the rest on first reconcile
+      # (cmdshift/platform#87)
+      envoy = {
+        enabled = false
       }
       gatewayAPI = {
         enabled = true

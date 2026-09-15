@@ -9,6 +9,10 @@ spec:
   dependsOn:
     - name: crds
     - name: certificates
+    # cilium ztunnel mode mounts cilium-ztunnel-secrets non-optionally — the
+    # CA Certificate (certificates-config) must be issued first or the agent
+    # pods fail with FailedMount (cmdshift/platform#87)
+    - name: certificates-config
   sourceRef:
     kind: Bucket
     name: main

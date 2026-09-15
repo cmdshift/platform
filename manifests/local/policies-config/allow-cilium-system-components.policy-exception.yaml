@@ -15,6 +15,12 @@ spec:
       kind: ValidatingPolicy
     - name: disallow-privileged
       kind: ValidatingPolicy
+    # ztunnel-cilium sets allowPrivilegeEscalation: true (chart-design, the
+    # proxy rewrites pod netns iptables rules — cmdshift/platform#87); the
+    # cilium agent itself runs with APE unset (default false) so this ref is
+    # a no-op for it
+    - name: disallow-privilege-escalation
+      kind: ValidatingPolicy
     - name: require-run-as-nonroot
       kind: ValidatingPolicy
     - name: restrict-seccomp-strict
@@ -28,4 +34,7 @@ spec:
     # exact-name matching left them unexcepted and background scans kept re-reporting
     # require-graceful-termination failures on every rollout (cmdshift/platform#100)
     - name: match-cilium
-      expression: "object.metadata.namespace == 'kube-system' && (object.metadata.name.startsWith('cilium') || object.metadata.name.startsWith('hubble-relay'))"
+      # ztunnel-cilium (cmdshift/platform#87): hostNetwork, NET_ADMIN/SYS_ADMIN/
+      # NET_RAW + allowPrivilegeEscalation by chart design — the per-node proxy
+      # rewrites pod netns iptables rules for HBONE redirect
+      expression: "object.metadata.namespace == 'kube-system' && (object.metadata.name.startsWith('cilium') || object.metadata.name.startsWith('hubble-relay') || object.metadata.name.startsWith('ztunnel-cilium'))"
