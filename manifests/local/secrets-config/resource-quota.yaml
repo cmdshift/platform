@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: compute
+  namespace: secrets
+spec:
+  hard:
+    # audit 2026-09: external-secrets trio — 30m CPU / 192Mi req, 600m/288Mi
+    # limits, 3 pods (cmdshift/platform#93). 2× request-sum headroom; largest
+    # VPA rec cert-controller 138Mi.
+    requests.cpu: 100m
+    requests.memory: 500Mi
+    limits.cpu: 1500m
+    limits.memory: 750Mi
+    pods: "8"

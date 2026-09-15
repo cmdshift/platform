@@ -2,5 +2,3 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - resource-quota.yaml
-  - local-path.storage-class.yaml
-  - local-path-immediate.storage-class.yaml

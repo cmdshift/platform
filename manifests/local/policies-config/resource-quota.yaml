@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: compute
+  namespace: policies
+spec:
+  hard:
+    # audit 2026-09: kyverno's four controllers — 75m CPU / 744Mi req,
+    # 3700m/1424Mi limits, 4 pods (cmdshift/platform#93). CPU limits quota is
+    # generous (hostNetwork controllers burst during webhook storms).
+    requests.cpu: 200m
+    requests.memory: 1500Mi
+    limits.cpu: 8
+    limits.memory: 3000Mi
+    pods: "10"
