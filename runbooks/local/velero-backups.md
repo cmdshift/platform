@@ -2,7 +2,7 @@
 
 ## Architecture
 
-Velero backs up to **rustfs** (out-of-cluster): bucket `backups` at `s3.cloud.test`, user `backups-user` via the secrets-server payload `backups/velero-s3-credentials` (secret key `default`), egress through the backups CNP's `toFQDNs: s3.cloud.test` rule. The BSL is `default` (`manifests/local/backups-config/default.backup-storage-location.yaml`); the `pvcs` schedule (03:00 daily, all namespaces, fs-backup, 168h TTL) is the nightly run.
+Velero backs up to **rustfs** (out-of-cluster): bucket `backups` at `s3.cloud.test`, user `backups-user` via the secrets-server payload `backups/velero-s3-credentials` (secret key `default`), egress through the backups CNP's `toFQDNs: s3.cloud.test` rule. The BSL is `default` (`manifests/local/backups-config/default.backup-storage-location.yaml`); the `pvcs` schedule (03:00 daily, all namespaces, fs-backup, 72h TTL — keeps at most 3 backup generations live) is the nightly run.
 
 ## Check the nightly backup (morning routine)
 
@@ -15,6 +15,14 @@ Expect `pvcs-YYYYMMDD030015`-style entries with `Completed`. Since 2026-09-05 th
 1. `kubectl -n backups describe backup <name> | tail -40` and `kubectl -n backups logs deploy/velero --tail=200 | grep -i error`
 2. Check the velero pod for restarts via `pod_status -n backups velero` (OOMKilled history: the server needs 256Mi+ for kopia repo prep — see the sizing comment in `backups/velero.helm-release.yaml`)
 3. Confirm the BSL is `Available` and the rustfs `backups` bucket exists (`rustfs ls main/`)
+
+## Kopia repo-maintenance health
+
+Maintenance Jobs are built by velero's server internally with no securityContext/resources of their own — they're admission-checked like everything else, and their hardening lives in the deployment's values (mechanics: [manifests/local/backups/README.md](../../manifests/local/backups/README.md)). When checking maintenance health, three gotchas:
+
+- **`status.recentMaintenance[0]` is the NEWEST entry, not the oldest** — a naive jq on index 0 reports `Failed` even when the latest attempt `Succeeded` (first=Failed, last=Succeeded right after a fix is the observed shape). Check the **last** entry, or `status.lastMaintenanceTime` (cmdshift/platform#109).
+- **Warning events from blocked maintenance Jobs persist ~1h as stale cluster events after the fix** — and they land in the `default` namespace, not `backups`. They age out on their own; don't chase them.
+- **Reading the uid out of the velero image requires docker, not kubectl**: the image has no shell/coreutils, so `kubectl exec id`/`cat /etc/passwd` both fail — use `docker create` + `docker export` to read `/etc/passwd`. Relevant whenever the image's base/user bumps and `runAsUser` must be re-resolved (numeric only — the image's USER `cnb` is non-numeric and kubelet can't verify `runAsNonRoot` against a bare username, cmdshift/platform#109).
 
 ## Run a test backup
 

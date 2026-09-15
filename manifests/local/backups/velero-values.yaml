@@ -21,6 +21,25 @@ initContainers:
 # runAsUser: 0 default is deliberate — the node-agent needs root), so
 # container-level readOnlyRootFilesystem / caps dropping is unreachable via
 # values — accepted deviations for the velero deployment (manifests/local/README.md)
+podSecurityContext:
+  # v1.18 maintenance-job pods copy this pod/container securityContext from the
+  # velero deployment (pkg/repository/maintenance buildJob), so hardening here
+  # fixes the kopia repo-maintenance admission denials at the source — no
+  # PolicyException (cmdshift/platform#109). runAsUser must be numeric: the
+  # image's USER cnb is non-numeric and kubelet can't verify runAsNonRoot
+  # against a bare username (same trap as thanos-ruler, README.md:52); 1002 =
+  # cnb in the velero v1.18.1 image
+  runAsNonRoot: true
+  runAsUser: 1002
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
 credentials: {}
 resources:
   # memory sized after OOMKill at the 132Mi limit during kopia repo prep
@@ -37,6 +56,19 @@ configuration:
   logFormat: json
   backupStorageLocation: null
   volumeSnapshotLocation: null
+  repositoryMaintenanceJob:
+    repositoryConfigData:
+      global:
+        keepLatestMaintenanceJobs: 3
+        # maintenance-job pods default to zero resources (BestEffort) and are
+        # denied by require-resource-limits (cmdshift/platform#109) — sized
+        # like the data-mover pods (node-agent-config.configmap.yaml), memory
+        # limit 2x request for kopia maintenance spikes
+        podResources:
+          cpuRequest: 50m
+          cpuLimit: 1000m
+          memoryRequest: 256Mi
+          memoryLimit: 512Mi
 deployNodeAgent: true
 upgradeJobResources:
   requests:

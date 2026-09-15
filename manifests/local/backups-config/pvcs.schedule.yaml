@@ -10,5 +10,6 @@ spec:
     includedResources: []
     defaultVolumesToFsBackup: true
     snapshotVolumes: false
-    ttl: 168h
+    # daily 03:00 schedule — 72h keeps at most 3 backup generations live
+    ttl: 72h
     storageLocation: default
