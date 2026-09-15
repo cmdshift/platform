@@ -1,6 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  - resource-quota.yaml
   - main.grafana.yaml
   - main.alertmanager.yaml
   - main.thanos-ruler.yaml

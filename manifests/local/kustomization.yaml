@@ -20,10 +20,12 @@ resources:
   - objects.yaml
   - objects-config.yaml
   - datastores.yaml
+  - datastores-config.yaml
   - monitoring.yaml
   - monitoring-config.yaml
   - backups.yaml
   - backups-config.yaml
   - logging.yaml
+  - logging-config.yaml
   - security.yaml
   - security-config.yaml

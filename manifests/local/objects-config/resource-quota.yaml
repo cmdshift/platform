@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: compute
+  namespace: objects
+spec:
+  hard:
+    # audit 2026-09: seaweed cluster + operator + admin — 110m CPU / 1100Mi req,
+    # 2900m/1636Mi limits, 6 pods (cmdshift/platform#93). 2× request-sum
+    # headroom absorbs the VPA gap on main-volume (rec 392Mi vs 160Mi req) and
+    # main-s3 (523Mi vs 352Mi).
+    requests.cpu: 250m
+    requests.memory: 2500Mi
+    limits.cpu: 6
+    limits.memory: 3500Mi
+    pods: "15"

@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: compute
+  namespace: security
+spec:
+  hard:
+    # audit 2026-09: tetragon ×4 daemons + operator + trivy stack — 425m CPU /
+    # 5360Mi req, 8000m/8376Mi limits, 8 pods (cmdshift/platform#93). Tetragon
+    # dominates: 50m×4 CPU req but the 8-CPU limits sum is its daemon bursts,
+    # so the limits quota sits at 12 to keep one rollout overlap from blocking.
+    requests.cpu: 1
+    requests.memory: 11Gi
+    limits.cpu: 12
+    limits.memory: 14Gi
+    pods: "20"

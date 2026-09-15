@@ -21,6 +21,13 @@ Bigger caveat first: local-path is node-local with no replication — a lost nod
 
 The `terminationGracePeriodSeconds >= 5` ValidatingPolicy carries to the cloud unchanged. The PolicyExceptions for the 1s-terminating system agents (cilium, cilium-envoy, hubble-relay, tetragon) need a keep/drop decision: local keeps them because the docker containers are throwaway and fast node shutdown is the recovery path; cloud Talos nodes with real etcd/quorum roles should re-verify cilium's 1s is still right there (a 1s agent grace on a node draining real workloads is a different trade than on a 2-container test rig).
 
+## Compute quotas + LimitRange (local: `<group>-config/resource-quota.yaml`, cmdshift/platform#93)
+
+Every local workload namespace carries a `ResourceQuota/compute` sized from local-cluster audit numbers (2026-09 audit; evidence in each quota's rationale comment). Cloud deltas:
+
+- **Re-size and re-scope for the cloud's namespace set** — the cloud namespace layout will differ (and may add CI/ephemeral namespaces); the local quota objects' hard values are local-cluster numbers and must be re-audited there, not carried over.
+- **LimitRange is the real cloud-facing piece, not a local artifact** — locally kyverno Deny-mode admission denies containers missing requests/limits, so LimitRange defaults would be dead code; in the cloud, where admission policy may differ, add a LimitRange per namespace so bare containers still get defaults.
+
 ## Cilium (local: manifests/local/networking/cilium.helm-release.yaml)
 
 What must change vs the local helm release:

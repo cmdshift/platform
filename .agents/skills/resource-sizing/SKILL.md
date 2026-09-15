@@ -12,6 +12,7 @@ description: Setting or auditing container resources. The sizing convention (lea
 - **Memory: request ≈ P99 × 1.2, limit = 1.5 × request.** Deliberate deviations get a rationale comment (AGENTS.md comment rules — no dates, keep the evidence numbers) — velero runs 2× because kopia repo-maintenance spikes OOM-killed it at 1.5×.
 - **Flux delivery controllers** (source/helm) have their own floor — 1000m CPU / 512Mi-1Gi — or they wedge the whole pipeline.
 - Evidence-based, not defaults: size from audits, not vibes.
+- **Quota interplay**: every workload namespace has a `ResourceQuota/compute` capping namespace-sum requests/limits/pods (cmdshift/platform#93) — any request/limit bump or new replica consumes quota; a bump that exceeds it wedges the rollout with `exceeded quota` (StartError/FailedCreate, not a helm error). Bumps and quota headroom move in the same change.
 
 ## The audits — pick by question
 

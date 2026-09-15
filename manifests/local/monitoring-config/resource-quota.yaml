@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: compute
+  namespace: monitoring
+spec:
+  hard:
+    # audit 2026-09: prometheus + thanos ×4 + grafana + alertmanager + operators
+    # — 310m CPU / 3080Mi req, 9700m/4620Mi limits, 16 pods (cmdshift/platform#93).
+    # CPU limits quota covers prometheus/thanos-compaction bursts; 2× request-sum
+    # absorbs kube-state-metrics/grafana-operator VPA gaps (recs +87%/+86%).
+    requests.cpu: 750m
+    requests.memory: 7Gi
+    limits.cpu: 16
+    limits.memory: 8Gi
+    pods: "35"

@@ -1,6 +1,6 @@
 # logging
 
-Alloy (log collection DaemonSet) + Loki (S3 to seaweed) + `loki-rules.yaml` (ruler rules delivered via alloy) — alert path: thanos-ruler/loki rules → alertmanager → mailpit.
+Alloy (log collection DaemonSet) + Loki (S3 to seaweed) + `loki-rules.yaml` (ruler rules delivered via alloy) — alert path: thanos-ruler/loki rules → alertmanager → mailpit. The namespace's `ResourceQuota/compute` lives in `logging-config/` (a dedicated config group since the group previously had no `-config/` split; cmdshift/platform#93).
 
 ## The alloy pipeline (`config.alloy`)
 
