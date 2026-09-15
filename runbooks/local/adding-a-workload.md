@@ -57,6 +57,17 @@ Credentials come from the secrets server: add the payload to `cluster/local/secr
 
 Controllers that generate non-compliant pods with no config knobs (e.g. the thanos-operator's config-reloader sidecar) get a **PolicyException** in `policies-config/`: scoped by namespace + name prefix, with a rationale comment (AGENTS.md comment rules). Don't reach for exceptions for workloads you control — fix the workload.
 
+### Quota vs exception: ResourceQuota ignores kyverno PolicyExceptions (cmdshift/platform#111)
+
+A PolicyException exempts a pod from **kyverno** policies only — **ResourceQuota admission is not skipped**. An exception-exempt container with no resources still fails the namespace's `compute` quota (`FailedCreate: failed quota: compute: must specify limits.cpu for: <container>`), and since the pod predating the quota ran fine, the wedge surfaces only when something rolls the controller: the old pod is deleted, the create is denied, and the workload is down.
+
+Fix pattern: a `LimitRange/compute-defaults` in the namespace (Container `default`/`defaultRequest` sized from an audit of the exempt container) — LimitRange is the only defaults source for exception-exempt containers (example: `monitoring-config/limit-range.yaml` for the config-reloader sidecar, ~18Mi/10m audit). Also expect it for velero's data-mover hosting pods, which hardcode `TerminationGracePeriodSeconds: 0` in velero's source — that's why the velero PolicyException carries `require-graceful-termination` ([runbooks/local/velero-backups.md](velero-backups.md)).
+
+Two operational notes from the live hit:
+
+- **An STS's pod-create retry backoff after a quota-denied FailedCreate is long** — no recreate attempt within 15m. Once the LimitRange lands, force the path with a manifest-driven nudge (`flux reconcile kustomization <group>-config --with-source` re-applies the CR; the operator re-syncs the STS and the pod creates cleanly with defaulted resources).
+- Distinct symptom space: quota denials show `exceeded quota`/`failed quota` in controller events, kyverno denials show `Policy <name> failed` — same pod never created, different owner of the refusal.
+
 ## 8. Verify
 
 ```

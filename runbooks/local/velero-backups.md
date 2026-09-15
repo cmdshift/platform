@@ -24,6 +24,18 @@ Maintenance Jobs are built by velero's server internally with no securityContext
 - **Warning events from blocked maintenance Jobs persist ~1h as stale cluster events after the fix** — and they land in the `default` namespace, not `backups`. They age out on their own; don't chase them.
 - **Reading the uid out of the velero image requires docker, not kubectl**: the image has no shell/coreutils, so `kubectl exec id`/`cat /etc/passwd` both fail — use `docker create` + `docker export` to read `/etc/passwd`. Relevant whenever the image's base/user bumps and `runAsUser` must be re-resolved (numeric only — the image's USER `cnb` is non-numeric and kubelet can't verify `runAsNonRoot` against a bare username, cmdshift/platform#109).
 
+## Alerts
+
+Defined in `monitoring-config/thanos-rules.yaml` (`backup-alerts` group; semantics + rule-writing conventions: [manifests/local/monitoring/README.md](../../manifests/local/monitoring/README.md), cmdshift/platform#111):
+
+- **VeleroBackupFailed** (critical, no `for:`) — `increase(velero_backup_failure_total[24h]) > 0 or increase(velero_backup_partial_failure_total[24h]) > 0`. The partial-failure arm is required: a schedule backup with failed PodVolumeBackups lands `PartiallyFailed`, which velero counts only in `velero_backup_partial_failure_total`. Fires within one evaluation (~1m) and lands in mailpit — verified live.
+- **VeleroBackupStale** (warning, `for: 1h`) — no successful `pvcs` backup in 26h **or none ever** (the `absent()` arm covers the never-succeeded state: the last-success gauge only materializes after a first Completed backup). The `for: 1h` means a fresh wedge pends ~1h before firing.
+- **VeleroRepoMaintenanceFailed** (warning, `for: 15m`) — kopia maintenance failure in the last 2h; an admission-blocked maintenance fleet shows here in ~2h.
+
+## Data-mover hosting pods and admission
+
+Velero's temporary hosting pods hardcode `TerminationGracePeriodSeconds: 0` in velero's source (v1.18.1 exposer builders — `pkg/exposer/pod_volume.go`, same in `csi_snapshot.go`/`generic_restore.go`; no values knob, no upstream issue found). Any tgps-floor policy must be PolicyException'd for the velero data-mover pods: the velero PolicyException carries `require-graceful-termination` in its `policyRefs` and matches hosting pods via the `velero.io/pod-volume-*` labels. Symptom if it regresses: all PVBs of a run `Failed` while the Backup reads `PartiallyFailed` (k8s objects still succeed), no velero alert having fired if the rules above are missing the partial-failure arm.
+
 ## Run a test backup
 
 Small backup (k8s objects only, fast, no volume data):
@@ -93,6 +105,8 @@ Validated end-to-end (drill re-run): PVB `Completed` (data mover pod passed admi
 
 ### velero CLI quirks
 
+- **Flags must be explicit — `KUBECONFIG` alone is not picked up**: `velero --kubeconfig cluster/local/.tmp/kubeconfig --namespace backups backup ...` (direnv exports `KUBECONFIG`, but the CLI ignores it; the install namespace is `backups`, not `velero`).
+- **A plain ad-hoc test backup creates NO PodVolumeBackups** — `spec.defaultVolumesToFsBackup` defaults false on ad-hoc backups even though the `pvcs` Schedule sets it. Add `--default-volumes-to-fs-backup` or the "clean" test proves nothing about the data-mover path (a data-path test that reports success with zero PVBs tested nothing).
 - **No jsonpath output** — `-o` is `table|json|yaml` only. Poll completion with `tools/bin/velero_wait` (also stops early on Failed/PartiallyFailed instead of waiting out the timeout)
 - Backups complete in well under a minute at this scale; cap polls at ~2-3m
 

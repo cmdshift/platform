@@ -33,19 +33,37 @@ groups:
   - name: backup-alerts
     rules:
       - alert: VeleroBackupStale
+        # the gauge only exists once a Completed pvcs backup exists (velero sets it
+        # from Backup CR completion timestamps; the "" ad-hoc label vanishes in
+        # prom) — bare time() - gauge matches nothing while the series is absent,
+        # exactly when the alert matters most; the absent() arm covers that state
         expr: |
           time() - velero_backup_last_successful_timestamp{schedule="pvcs"} > 93600
+            or absent(velero_backup_last_successful_timestamp{schedule="pvcs"})
+        for: 1h
         labels:
           severity: warning
         annotations:
-          summary: "No successful velero backup in 26h (schedule pvcs) — nightly 03:00 run missed or failing"
+          summary: "No successful velero backup in 26h or never succeeded (schedule pvcs) — nightly 03:00 run missed or failing"
       - alert: VeleroBackupFailed
+        # schedule backups with failed PodVolumeBackups land in PartiallyFailed,
+        # which velero counts in backup_partial_failure_total, not
+        # backup_failure_total — both arms are required (cmdshift/platform#111)
         expr: |
           increase(velero_backup_failure_total[24h]) > 0
+            or increase(velero_backup_partial_failure_total[24h]) > 0
         labels:
           severity: critical
         annotations:
-          summary: "A velero backup failed in the last 24h (schedule {{ $labels.schedule }})"
+          summary: "A velero backup failed or partially failed in the last 24h (schedule {{ $labels.schedule }})"
+      - alert: VeleroRepoMaintenanceFailed
+        expr: |
+          increase(velero_repo_maintenance_failure_total[2h]) > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Kopia repo maintenance failed in the last 2h (repo {{ $labels.repository_name }}) — check BackupRepository recentMaintenance"
   - name: tetragon-alerts
     rules:
       - alert: TetragonTracingPolicyLoadFailed
