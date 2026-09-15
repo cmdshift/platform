@@ -12,6 +12,8 @@ spec:
       kind: ValidatingPolicy
     - name: disallow-host-path
       kind: ValidatingPolicy
+    - name: require-graceful-termination
+      kind: ValidatingPolicy
     - name: require-run-as-nonroot
       kind: ValidatingPolicy
     - name: restrict-seccomp-strict
@@ -20,5 +22,8 @@ spec:
     - name: match-velero
       # velero/node-agent pods by name, plus the temporary data mover pods velero creates
       # for fs-backup/restore — those are named after their PodVolumeBackup/PVR (arbitrary
-      # prefix) but always carry the velero.io/pod-volume-backup (or restore) label
+      # prefix) but always carry the velero.io/pod-volume-backup (or restore) label.
+      # require-graceful-termination covers the data mover hosting pods: velero's exposer
+      # builders hardcode TerminationGracePeriodSeconds: 0 in all three paths (pod_volume/
+      # csi_snapshot/generic_restore, no upstream knob) (cmdshift/platform#111)
       expression: "object.metadata.namespace == 'backups' && (object.metadata.name.startsWith('velero') || object.metadata.name.startsWith('node-agent') || 'velero.io/pod-volume-backup' in object.metadata.labels || 'velero.io/pod-volume-restore' in object.metadata.labels)"

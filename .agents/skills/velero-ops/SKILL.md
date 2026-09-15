@@ -41,8 +41,14 @@ Two validated shapes (drill):
 
 Drill procedure after any storage change: compliant throwaway pod writes a marker to a local-path PVC → backup with `--default-volumes-to-fs-backup` → confirm a `PodVolumeBackup` exists → delete pod + PVC → restore → verify the **exec-written** file (the pod's startup command writes `marker.txt` — only the exec-written file proves the data path).
 
+## Alerts
+
+Three velero alerts in `monitoring-config/thanos-rules.yaml` (`backup-alerts`): `VeleroBackupFailed` (critical, watches BOTH `velero_backup_failure_total` **and** `velero_backup_partial_failure_total` — a schedule backup with failed PVBs lands `PartiallyFailed`, which only the second counter counts; fires within ~1m), `VeleroBackupStale` (warning, `for: 1h` — a fresh wedge pends ~1h before firing; carries an `absent()` arm because the last-success gauge only exists after a first Completed backup), `VeleroRepoMaintenanceFailed` (warning, 2h window). Delivery: mailpit. Conventions: `manifests/local/monitoring/README.md`.
+
 ## CLI quirks
 
+- **Flags must be explicit — `KUBECONFIG` alone is not picked up**: `velero --kubeconfig cluster/local/.tmp/kubeconfig --namespace backups backup ...` (install namespace is `backups`, not `velero`).
+- **A plain ad-hoc test backup creates NO PodVolumeBackups** — `--default-volumes-to-fs-backup` must be passed explicitly (`defaultVolumesToFsBackup` defaults false on ad-hoc backups even though the Schedule sets it); a "clean" test backup proves nothing about the data-mover path.
 - No jsonpath output (`-o` is table|json|yaml only) — poll with `velero_wait backup|restore <name>` (stops early on Failed/PartiallyFailed).
 - Backups complete in well under a minute at this scale; cap polls at ~2-3m.
 
