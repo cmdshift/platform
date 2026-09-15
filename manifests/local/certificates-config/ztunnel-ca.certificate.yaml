@@ -1,0 +1,36 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ztunnel-ca
+  namespace: kube-system
+spec:
+  # mesh root of trust for cilium ztunnel (cmdshift/platform#87) — signs the
+  # workload certs the internal CA server issues on request. Pair with
+  # ztunnel-bootstrap (cilium-ztunnel-secrets): the bootstrap cert must be a
+  # CA:FALSE self-signed END-ENTITY (rustls rejects CaUsedAsEndEntity), and
+  # the CA cert must never serve TLS itself. NOT the cert-manager
+  # root+intermediate pattern: ca_server.go returns only the signing cert as
+  # the trust anchor (the root never traverses the wire), and an intermediate
+  # renewal would split-brain the mesh across subPath-mounted agents that
+  # never hot-reload. Rotation is a documented manual procedure
+  # (runbooks/local/ztunnel-ca-rotation.md).
+  isCA: true
+  commonName: ztunnel-ca
+  usages:
+    - digital signature
+    - cert sign
+  duration: 87600h # 10y
+  privateKey:
+    algorithm: RSA
+    size: 2048
+    # cilium's ztunnel CA server rejects PKCS#1 (the cert-manager default) —
+    # it pem.Decode()s expecting block type "PRIVATE KEY" (PKCS#8)
+    encoding: PKCS8
+    # a CA key must outlive any cert it issues — re-issuance reuses the key
+    # (default Always would mint a new identity on every renew)
+    rotationPolicy: Never
+  issuerRef:
+    name: selfsigned
+    kind: ClusterIssuer
+    group: cert-manager.io
+  secretName: cilium-ztunnel-ca

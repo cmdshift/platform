@@ -31,6 +31,8 @@ Failure signatures if a layer changes: creation denied (kyverno), `FailedCreate`
 
 ## Gotchas
 
+- **The wrapper's PolicyException is CEL-era (`policies.kyverno.io`, `namespace: policies`) — apply with `kubectl apply`, NOT `kubectl -n kyverno apply`**: a `-n kyverno` prefix mismatches the manifest's namespace and the script dies before any test runs (rot hit live, cmdshift/platform#87 session).
+- **policyRefs must track the live VPolicies** — the CLI's echo deployments set `hostPort`, so `disallow-host-ports` must be in the temp exception's list; a migration that drops a ref surfaces as admission-denied deployments mid-run (same session).
 - A failed run leaves artifacts — the next run fails with `serviceaccounts "echo-same-node" already exists`. Clean up before re-running.
 - The CLI's `--namespace-labels` doesn't cover mid-run `cilium-test-ccnp*` namespaces — the loop is the reliable mechanism.
 - Pods unready anyway? Check admission events first, then hubble:

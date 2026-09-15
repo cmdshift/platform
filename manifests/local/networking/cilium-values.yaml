@@ -5,7 +5,24 @@ cgroup:
   hostRoot: /sys/fs/cgroup
 encryption:
   enabled: true
-  type: wireguard
+  # ztunnel: per-node L4 mTLS proxy (beta upstream, cmdshift/platform#87) —
+  # replaces wireguard as the datapath encryption. CA material is NOT chart-
+  # generated: cert-manager issues the mesh CA into cilium-ztunnel-secrets
+  # (certificates-config/ztunnel-ca.certificate.yaml) and the HelmRelease
+  # postRenderers remap its keys onto the filenames cilium expects. Enrolled-
+  # namespace registry + limits: manifests/local/networking/README.md
+  type: ztunnel
+  ztunnel:
+    ca:
+      type: internal
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        # chart default sets requests only — admission requires limits
+        cpu: 500m
+        memory: 768Mi
 envoy:
   resources:
     requests:

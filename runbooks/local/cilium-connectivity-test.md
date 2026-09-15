@@ -35,6 +35,8 @@ spec:
       kind: ValidatingPolicy
     - name: disallow-host-namespaces
       kind: ValidatingPolicy
+    - name: disallow-host-ports
+      kind: ValidatingPolicy
     - name: disallow-privilege-escalation
       kind: ValidatingPolicy
     - name: require-resource-limits

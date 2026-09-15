@@ -29,3 +29,63 @@ spec:
     - kind: ConfigMap
       name: cilium-values
       valuesKey: values.yaml
+  # remap the cert-manager secrets onto the four filenames cilium's ztunnel
+  # CA server reads from /etc/ztunnel (bootstrap-private.key/bootstrap-root.
+  # crt/ca-private.key/ca-root.crt, pkg/ztunnel/ca/ca_server.go). Two certs
+  # (cmdshift/platform#87): the bootstrap end-entity lives in
+  # cilium-ztunnel-secrets, the mesh CA in cilium-ztunnel-ca — the agent DS
+  # only mounts the former, so the patch adds the CA volume. COUPLED TO THE
+  # CHART VERSION: the patched volumeMount blocks are chart-template shapes;
+  # re-verify against the new chart's cilium-agent + ztunnel daemonsets on
+  # every version bump
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              kind: DaemonSet
+              name: cilium
+            patch: |
+              - op: replace
+                path: /spec/template/spec/containers/0/volumeMounts/11
+                value:
+                  name: cilium-ztunnel-secrets
+                  mountPath: /etc/ztunnel/bootstrap-root.crt
+                  subPath: tls.crt
+                  readOnly: true
+              - op: add
+                path: /spec/template/spec/containers/0/volumeMounts/-
+                value:
+                  name: cilium-ztunnel-secrets
+                  mountPath: /etc/ztunnel/bootstrap-private.key
+                  subPath: tls.key
+                  readOnly: true
+              - op: add
+                path: /spec/template/spec/containers/0/volumeMounts/-
+                value:
+                  name: cilium-ztunnel-ca
+                  mountPath: /etc/ztunnel/ca-root.crt
+                  subPath: tls.crt
+                  readOnly: true
+              - op: add
+                path: /spec/template/spec/containers/0/volumeMounts/-
+                value:
+                  name: cilium-ztunnel-ca
+                  mountPath: /etc/ztunnel/ca-private.key
+                  subPath: tls.key
+                  readOnly: true
+              - op: add
+                path: /spec/template/spec/volumes/-
+                value:
+                  name: cilium-ztunnel-ca
+                  secret:
+                    secretName: cilium-ztunnel-ca
+          - target:
+              kind: DaemonSet
+              name: ztunnel-cilium
+            patch: |
+              - op: replace
+                path: /spec/template/spec/volumes/1/secret/items/0
+                value:
+                  key: tls.crt
+                  path: bootstrap-root.crt
+                  mode: 420
