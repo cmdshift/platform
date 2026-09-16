@@ -53,12 +53,13 @@ Local file → docker sync container (full `rc mirror --overwrite --remove` re-m
 
 ## Admission policy (read this before adding any workload)
 
-All 12 kyverno ValidatingPolicies are in **Deny** mode — non-compliant pods/jobs are rejected at admission:
+All 13 kyverno ValidatingPolicies are in **Deny** mode — non-compliant pods/jobs are rejected at admission:
 
 - All containers + initContainers need cpu/memory **requests and limits**; pinned image tags (no `:latest`), `runAsNonRoot`, seccompProfile `RuntimeDefault`, capabilities dropped `ALL`, `terminationGracePeriodSeconds >= 5` (unset = 30s default = compliant; 1s system agents excepted; preStop hooks are a convention, not policy — runbooks/local/adding-a-workload.md §2b)
 - Policies autogen to controllers, but **not ReplicaSets** (removed to avoid old-RS noise). Old PolicyReports for unmatched resources are never retracted — delete stale report objects directly if needed
 - **PolicyExceptions** (`manifests/local/policies-config/*.policy-exception.yaml`) cover deliberate Talos-in-Docker settings (hostNetwork kyverno, privileged velero node-agents, cilium, node-exporter, kube-system system components, alloy host-logs, local-path helper pod, thanos-ruler config-reloader sidecar). They're scoped by namespace + name prefix — don't try to "fix" these workloads
 - **Helm hook jobs are admission-checked too** — render and size them when adopting a chart (known-proofed list in the `add-workload` skill)
+- **PDB baseline** (cmdshift/platform#84): every multi-replica workload gets a PodDisruptionBudget (maxUnavailable: 1) — the `auto-pdb-multi-replica` GeneratingPolicy in `policies-config/` generates it for flux-managed namespaces (skip-label escape hatch: `pdb.kyverno.io/skip: "true"`); kube-system workloads need **explicit** PDB manifests there, because a CEL policy's fine-grained webhook inherits `config.webhooks.namespaceSelector` (excludes kube-system) and **silently generates nothing** for kube-system triggers. Details: manifests/local/policies-config/README.md
 
 Full checklist: the `add-workload` skill → [runbooks/local/adding-a-workload.md](runbooks/local/adding-a-workload.md).
 

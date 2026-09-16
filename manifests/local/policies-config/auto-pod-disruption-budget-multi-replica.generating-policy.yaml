@@ -1,0 +1,45 @@
+apiVersion: policies.kyverno.io/v1
+kind: GeneratingPolicy
+metadata:
+  name: auto-pdb-multi-replica
+spec:
+  # generates a PDB (maxUnavailable: 1) for every multi-replica workload in
+  # flux-managed namespaces. The per-policy webhook inherits config.webhooks
+  # (kyverno-values.yaml), which excludes kube-system — the two multi-replica
+  # workloads there (coredns, cilium-operator) get explicit PDBs instead
+  # (coredns.pod-disruption-budget.yaml, cilium-operator.pod-disruption-budget.yaml). cmdshift/platform#84
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["apps"]
+        apiVersions: ["v1"]
+        operations: [CREATE, UPDATE]
+        resources: ["deployments", "statefulsets"]
+  matchConditions:
+    - name: multi-replica
+      expression: "object.spec.?replicas.orValue(1) > 1"
+    # escape hatch for charts that ship their own PDB — overlapping PDBs
+    # over-restrict evictions (the most restrictive wins)
+    - name: no-skip-label
+      expression: "!('pdb.kyverno.io/skip' in object.metadata.?labels.orValue({}))"
+  evaluation:
+    generateExisting:
+      enabled: true
+    synchronize:
+      enabled: true
+  generate:
+    - template:
+        interpolate: cel
+        value: |
+          apiVersion: policy/v1
+          kind: PodDisruptionBudget
+          metadata:
+            name: (( object.metadata.name ))-auto
+            namespace: (( object.metadata.namespace ))
+            labels:
+              app.kubernetes.io/managed-by: kyverno
+          spec:
+            # maxUnavailable (not minAvailable: 1 per cmdshift/platform#84):
+            # caps concurrent voluntary evictions at 1 regardless of replica
+            # count — minAvailable would let a 3-replica database lose 2 at once
+            maxUnavailable: 1
+            selector: (( object.spec.selector ))
