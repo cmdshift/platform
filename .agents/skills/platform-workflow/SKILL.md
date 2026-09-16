@@ -9,6 +9,7 @@ The standard loop for every change to `manifests/local/`. Flux v2 deploys everyt
 
 ## 0. Before editing
 
+- **Branch check**: never work on `main`. Verify `git branch --show-current` shows a feature branch (`feat/<topic>` / `fix/<topic>`); create one before the first edit if not. The commit/PR steps assume it (see the `making-a-commit` skill).
 - Check for **rationale comments** before overriding "odd" config — deliberate decisions are documented inline at the value (why the thanos-operator uses `bundle.yaml`, why some kustomizations have `prune: false`, why `mirror.sh` passes `--remove`). If a choice looks wrong, find the comment first.
 - Any comment you write, edit, or delete follows the `code-comments` skill (load it — the checklist: default no comment, delete-test; surprising choices / edge cases / evidence only; `# remove/true in the cloud` markers for Talos-in-Docker deviations; `cmdshift/platform#N` provenance, no dates; update-or-delete comments for values you touch).
 
@@ -63,7 +64,7 @@ Rule of thumb: if this session hit a landmine or learned something the hard way,
 
 ## 5. Stop at green — the human commits
 
-Commit/push by **permission** (AGENTS.md Hygiene). When reconcile is green and docs are swept, summarize the change and propose a commit (message + natural split) — then **ask the human before running `git commit`/`git push`**; the human reviews the diff and approves history.
+Commit/push by **permission** (AGENTS.md Hygiene). When reconcile is green and docs are swept, summarize the change and propose a commit — then **stop; wait for the human's explicit approval before running `git commit`/`git push`**; the human reviews the diff and approves history. The commit step follows the `making-a-commit` skill (conventional format, signing rule); the PR step follows `opening-a-pull-request`.
 
 ## Full detail
 
