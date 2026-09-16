@@ -1,7 +1,7 @@
 apiVersion: policies.kyverno.io/v1
 kind: GeneratingPolicy
 metadata:
-  name: auto-pdb-multi-replica
+  name: auto-pod-disruption-budget-multi-replica
 spec:
   # generates a PDB (maxUnavailable: 1) for every multi-replica workload in
   # flux-managed namespaces. The per-policy webhook inherits config.webhooks

@@ -2,7 +2,7 @@
 
 Config objects for the admission-policy engine — the PolicyException registry, the 13 kyverno ValidatingPolicies (Deny mode), the first GeneratingPolicy, and the explicit kube-system PDBs. The `policies` operator itself lives in [policies/](../policies/README.md); admission requirements + workload checklist live in [AGENTS.md](../../../AGENTS.md) and [runbooks/local/adding-a-workload.md](../../../runbooks/local/adding-a-workload.md).
 
-This kustomization has **prune: false** and owns cluster-protection objects (exceptions, PDBs) — they must survive even when a manifest edit temporarily stops matching them.
+This kustomization **prunes** (test-bed posture, cmdshift/platform#84): deleting or renaming an exception/policy/PDB file here GCs the object from the cluster on the next reconcile — deletions are reviewed in PRs, and kyverno background scans act as the tripwire (a GC'd PolicyException re-fails its pods' validation, so `policy_report` failures go non-zero within one scan cycle).
 
 ## Contents
 
@@ -16,7 +16,7 @@ This kustomization has **prune: false** and owns cluster-protection objects (exc
 
 Every multi-replica workload must have a PDB. The baseline rule:
 
-- **Flux-managed namespaces**: the `auto-pdb-multi-replica` GeneratingPolicy owns it — no PDB manifest needed. Trigger: any apps/v1 Deployment/StatefulSet with replicas > 1; `evaluation.generateExisting` covers pre-existing workloads and `synchronize` drift-heals / cleans up on trigger deletion. Escape hatch for charts shipping their own PDB: label the workload `pdb.kyverno.io/skip: "true"` — overlapping PDBs over-restrict evictions (the most restrictive wins).
+- **Flux-managed namespaces**: the `auto-pod-disruption-budget-multi-replica` GeneratingPolicy owns it — no PDB manifest needed. Trigger: any apps/v1 Deployment/StatefulSet with replicas > 1; `evaluation.generateExisting` covers pre-existing workloads and `synchronize` drift-heals / cleans up on trigger deletion. Escape hatch for charts shipping their own PDB: label the workload `pdb.kyverno.io/skip: "true"` — overlapping PDBs over-restrict evictions (the most restrictive wins).
 - **kube-system**: explicit PDB manifests here — the GeneratingPolicy can never see kube-system workloads (next section). coredns (`selector: k8s-app=kube-dns`) and cilium-operator (`selector: io.cilium/app=operator`), both maxUnavailable: 1. coredns has a second reason for explicitness: it is talos-bootstrap-owned, not flux-managed, so a generate path couldn't own it anyway.
 
 **maxUnavailable: 1, not minAvailable** — maxUnavailable caps concurrent voluntary evictions at 1 regardless of replica count; minAvailable: 1 would let a 3-replica database lose 2 at once. The policy's real payoff is future multi-replica databases (cloudnative-pg is deployed in `datastores/`).
