@@ -11,7 +11,12 @@ Procedures are agent skills in `.agents/skills/<name>/SKILL.md`, loaded via the 
 | Skill | Load when |
 |---|---|
 | `platform-workflow` | about to change any manifest — the standard loop |
+| `planning-changes` | starting any non-trivial change or after pulling an issue — surface mapping, dependency sequencing, branch first |
+| `writing-code` | writing or editing any manifest, terraform template, or tools/bin script — naming, valuesFrom pattern, refs, sizing standards |
 | `code-comments` | writing, editing, or sweeping any code comment — default is no comment; markers for Talos-in-Docker deviations |
+| `making-a-commit` | a change is green and ready to commit — conventional format, docs gate, signing rule, commit-by-permission |
+| `opening-a-pull-request` | the change is committed and ready for review — gates, issue linkage (`Closes cmdshift/platform#N`), PR mechanics |
+| `skill-improvement` | a skill's steps, triggers, or trap list need updating — thin-dispatcher shape, AGENTS.md table sync |
 | `reconcile-stuck` | a kustomization won't go Ready / `flux_wait` timed out |
 | `pipeline-wedged` | manifest edits not reaching the cluster |
 | `helmrelease-stuck` | a HelmRelease is failing or stuck |
