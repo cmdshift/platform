@@ -16,6 +16,7 @@ Procedures are agent skills in `.agents/skills/<name>/SKILL.md`, loaded via the 
 | `code-comments` | writing, editing, or sweeping any code comment — default is no comment; markers for Talos-in-Docker deviations |
 | `making-a-commit` | a change is green and ready to commit — conventional format, docs gate, signing rule, commit-by-permission |
 | `opening-a-pull-request` | the change is committed and ready for review — gates, issue linkage (`Closes cmdshift/platform#N`), PR mechanics |
+| `refining-a-pull-request` | an open PR gets new commits or review feedback — description-drift sync, triage change requests into plans (respond, don't apply without directive) |
 | `skill-improvement` | a skill's steps, triggers, or trap list need updating — thin-dispatcher shape, AGENTS.md table sync |
 | `reconcile-stuck` | a kustomization won't go Ready / `flux_wait` timed out |
 | `pipeline-wedged` | manifest edits not reaching the cluster |

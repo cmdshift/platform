@@ -30,4 +30,4 @@ gh pr create --repo cmdshift/platform --base main --head <branch> --title "..." 
 
 ## 3. After merge
 
-Watch the merge's effect on the cluster (a `main` merge is what the sync container mirrors; the post-merge reconcile is normally a no-op re-confirm since the feature branch was already reconciled). Follow-ups surfaced in review that won't land now get filed via the `file-issue` skill.
+Watch the merge's effect on the cluster (a `main` merge is what the sync container mirrors; the post-merge reconcile is normally a no-op re-confirm since the feature branch was already reconciled). Follow-ups surfaced in review that won't land now get filed via the `file-issue` skill. While the PR is still **open** — new commits or review feedback — the `refining-a-pull-request` skill owns the loop (description-drift sync, change-request triage).
