@@ -15,8 +15,7 @@ spec:
     kind: Bucket
     name: main
   path: ./manifests/local/policies
-  # never prune: admission guardrails must not be garbage-collectable —
-  # dropping a policy file must never silently strip cluster protection
-  prune: false
+  # test-bed posture: prune enabled (see policies-config.yaml for the tripwire)
+  prune: true
   wait: true
   timeout: 10m

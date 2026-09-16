@@ -24,7 +24,7 @@ Secrets-server upload paths (`cluster/local/secrets/main.tf`) mirror the namespa
 
 1. **Explicit `metadata.namespace` on every HelmRelease** — the HR's namespace *is* the release target namespace. Don't rely on kustomize `namespace:` transformers (they clobber explicit fields and are one silent move away from installing a release into the wrong ns).
 2. **PolicyExceptions live in kyverno's namespace** (`features.policyExceptions.namespace`). Moving kyverno = moving all 11 exception objects.
-3. **Zero-gap exception moves**: policies-config has `prune: false`, so moving the exceptions creates the new-ns copies *while the old-ns copies stay*. The old kyverno keeps matching its own ns until the values flip; the new one starts with exceptions already in place. Apply exceptions **before** the kyverno release move, in separate reconciles.
+3. **Zero-gap exception moves need manual sequencing now that policies-config prunes** (cmdshift/platform#84): a rename/move GCs the old-ns copies as soon as the new build applies — so to keep the old kyverno matched until the values flip, apply the exceptions **before** the kyverno release move, in separate reconciles, and expect the old-ns copies to disappear on the first post-flip reconcile. If a gap ever bites: PolicyExceptions are git-recoverable (revert + reconcile), and the tripwire is `policy_report` failures going non-zero within one background-scan cycle.
 4. **CNP + PSS labels move with the namespace**: a new namespace is born under the cluster-wide `default-deny` CCNP — its CNP (from `networking-config/`) must land before/at the same time as the first pods, and the `pod-security.kubernetes.io/enforce: privileged` label must be on the ns manifest if the operator needs it.
 
 ## Traps hit live (2026-09-07)
