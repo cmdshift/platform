@@ -7,7 +7,7 @@ description: Conventional commits for this repo — scope-prefixed summaries, cm
 
 ## 0. Gate: commit by permission only
 
-The agent's job ends at a green reconcile + docs swept. Then **propose** the commit (message + natural split) and **ask the human before running `git commit`/`git push`** — the human reviews the diff and approves history. Never commit proactively, never push without approval.
+The agent's job ends at a green reconcile + docs swept. Then **propose** the commit (message + natural split) and **stop — wait for the human's explicit approval before running `git commit`/`git push`**. The wait is for review: the human needs time to read the diff, and a go-ahead given before they've reviewed it doesn't speed the commit up — it bypasses the check. Do not commit proactively, do not push without approval, and never re-run a commit the human paused.
 
 ## 1. Pre-commit gates
 
@@ -39,4 +39,4 @@ If the developer normally signs commits (the gpg.format setting in `git config`)
 
 ## 5. Branch discipline
 
-Commits land on the feature branch (`feat/<topic>` / `fix/<topic>`), never directly on `main`. Push only after the human approves; the PR step is the `opening-a-pull-request` skill.
+Branch ownership: the branch rule (`feat/<topic>` / `fix/<topic>`, never `main`) is created and verified upstream — `platform-workflow` step 0 / `planning-changes` §0. Push only after the human approves; the PR step is the `opening-a-pull-request` skill.
