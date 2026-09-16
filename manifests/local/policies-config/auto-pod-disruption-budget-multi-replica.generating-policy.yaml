@@ -7,7 +7,7 @@ spec:
   # flux-managed namespaces. The per-policy webhook inherits config.webhooks
   # (kyverno-values.yaml), which excludes kube-system — the two multi-replica
   # workloads there (coredns, cilium-operator) get explicit PDBs instead
-  # (coredns.pdb.yaml, cilium-operator.pdb.yaml). cmdshift/platform#84
+  # (coredns.pod-disruption-budget.yaml, cilium-operator.pod-disruption-budget.yaml). cmdshift/platform#84
   matchConstraints:
     resourceRules:
       - apiGroups: ["apps"]

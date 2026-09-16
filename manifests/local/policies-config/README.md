@@ -9,8 +9,8 @@ This kustomization has **prune: false** and owns cluster-protection objects (exc
 - `*.validating-policy.yaml` — the 13 ValidatingPolicies, all Deny mode (requests/limits, pinned tags, runAsNonRoot, seccomp, caps dropped, host namespaces/paths/ports, privilege escalation, proc mount, graceful termination, shell entrypoint). Requirements: AGENTS.md admission section.
 - `*.policy-exception.yaml` — the PolicyException registry: hostNetwork kyverno, privileged velero node-agents + data-mover pods, cilium + hubble-relay, node-exporter, alloy host-logs, local-path helper pod, thanos-ruler config-reloader sidecar, tetragon agent, kube-system system components. Scoped by namespace + name prefix; matching must use `startsWith`, not `==` (see [policies/README.md](../policies/README.md)).
 - `resource-quota.yaml` — the `policies` namespace's own compute quota, plus the `resourceFiltersInclude` entry for `[*/*,policies,*]` so kyverno's own namespace stays in scope of its policy engine where the default filters would have excluded it.
-- `auto-pdb-multi-replica.generating-policy.yaml` — the repo's first kyverno **GeneratingPolicy** (CEL API, `policies.kyverno.io/v1`): generates a `PodDisruptionBudget` (maxUnavailable: 1) for every apps/v1 Deployment/StatefulSet with replicas > 1 in flux-managed namespaces (cmdshift/platform#84).
-- `coredns.pdb.yaml`, `cilium-operator.pdb.yaml` — explicit PDBs for kube-system workloads the generate policy can't reach (below).
+- `auto-pod-disruption-budget-multi-replica.generating-policy.yaml` — the repo's first kyverno **GeneratingPolicy** (CEL API, `policies.kyverno.io/v1`): generates a `PodDisruptionBudget` (maxUnavailable: 1) for every apps/v1 Deployment/StatefulSet with replicas > 1 in flux-managed namespaces (cmdshift/platform#84).
+- `coredns.pod-disruption-budget.yaml`, `cilium-operator.pod-disruption-budget.yaml` — explicit PDBs for kube-system workloads the generate policy can't reach (below).
 
 ## The generate-vs-explicit PDB split (cmdshift/platform#84)
 
