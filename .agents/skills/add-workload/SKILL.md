@@ -11,6 +11,8 @@ All kyverno ValidatingPolicies run in **Deny** mode — non-compliant pods/jobs 
 
 All containers + initContainers need cpu/memory **requests and limits**. Lean requests, generous CPU limits, memory = evidence not vibes → load the `resource-sizing` skill if unsure (its audits: `memory_audit` / `cpu_audit` / `request_audit` / `vpa_recs`). Part of the evidence is automatic: goldilocks maintains Off-mode VPAs for every non-system workload, so recommendations already exist — no per-workload step.
 
+Multi-replica (replicas > 1)? A PDB (maxUnavailable: 1) is generated for you in flux-managed namespaces — skip via `pdb.kyverno.io/skip: "true"` only if the chart ships its own. In kube-system the generator silently does nothing (CEL-policy webhook inherits the kube-system namespaceSelector exclusion, cmdshift/platform#84) — write an explicit PDB there.
+
 **The target namespace has a `ResourceQuota/compute`** (`<group>-config/resource-quota.yaml`, cmdshift/platform#93) capping namespace-sum requests/limits/pods — your workload's totals must fit, alongside everything already running. A quota-blocked deployment shows as StartError/FailedCreate with `exceeded quota`; if it doesn't fit, bump the quota in the same change (with the sizing evidence per the comment rules). kyverno admission (below) passes but the pod still won't start — check `kubectl -n <ns> describe resourcequota compute` first.
 
 ## 2. Security context
