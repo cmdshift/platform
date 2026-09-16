@@ -5,6 +5,11 @@ defaultRules:
     # environmental on Talos-in-Docker: node_timex_sync_status=0 on every
     # node (no sync flag from the docker VMs) — accepted finding
     NodeClockNotSynchronising: true
+    # meta-alert (fires per-namespace on any info alert) — its only consumer is
+    # the chart's inhibit_rules, which the CR-managed `mail` AlertmanagerConfig
+    # doesn't load, so it delivers pure noise and mutes nothing
+    # (cmdshift/platform#114)
+    InfoInhibitor: true
 # kube-proxy removed from the cluster (cilium KPR, cmdshift/platform#70) —
 # drops the dead-target ServiceMonitor and its rule set
 kubeProxy:
