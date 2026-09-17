@@ -33,9 +33,9 @@ Expect **~10 minutes**, progressing through the dependency chain in order:
 sources → crds → namespaces → certificates → certificates-config (ztunnel CA
 issuance gate) → networking (cilium: the long pole; boots unencrypted — the
 HelmRelease flips ztunnel on at first reconcile, cmdshift/platform#87)
-→ flux → flux-config (adopts the Bucket + root) → metrics → policies
-→ storage → objects → monitoring → thanos-operator → monitoring-config
-→ backups → logging → security → security-config
+→ flux → flux-config (adopts the Bucket + root) → policies
+→ storage → objects → observability → thanos-operator → observability-config
+→ backups → security → security-config
 ```
 
 Watch with `flux_wait` (interactive cap ~15), or `flux_wait -c` for an instant no-reconcile verdict.
@@ -51,7 +51,7 @@ Watch with `flux_wait` (interactive cap ~15), or `flux_wait -c` for an instant n
 | flux-config adoption | `kubectl -n flux-system get kustomization local -o json --show-managed-fields` | `kustomize-controller` owns the spec |
 | Velero BSL | `kubectl -n backups get bsl default` | `Available` |
 | Rustfs buckets | `rustfs ls main/` | `flux`, `backups` |
-| Thanos ruler | `kubectl -n monitoring get pods -l app.kubernetes.io/name=thanos-ruler` | 1/1 Running (CR sets `replicas: 1`) |
+| Thanos ruler | `kubectl -n observability get pods -l app.kubernetes.io/name=thanos-ruler` | 1/1 Running (CR sets `replicas: 1`) |
 | Host API path | `curl -skf --max-time 3 https://127.0.0.1:6443/version` | 401 = publisher alive |
 | Ingress | `curl -s -o /dev/null -w '%{http_code}' http://local.test` | 404 = correct wiring with zero HTTPRoutes (`server: envoy` header proves the Gateway path); 503 = haproxy backends down |
 | Trivy scan pod | `kubectl -n security get pods` | one `scan-vulnerabilityreport-*` pod in `Error` is EXPECTED (see below); all later scans `Completed`, VulnerabilityReports accumulating |

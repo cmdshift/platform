@@ -85,7 +85,7 @@ port_forward() { # service_name — sets PORT_FORWARD_PORT / PORT_FORWARD_PID
     # random-port collisions are rare but cheaper to retry than to fail)
     for attempt in 1 2; do
       PORT_FORWARD_PORT=$((20000 + RANDOM % 1000))
-      kubectl -n monitoring port-forward "svc/$service" "$PORT_FORWARD_PORT:9090" >/dev/null 2>&1 &
+      kubectl -n observability port-forward "svc/$service" "$PORT_FORWARD_PORT:9090" >/dev/null 2>&1 &
       PORT_FORWARD_PID=$!
       i=0
       until http_answer "http://localhost:$PORT_FORWARD_PORT/-/ready"; do

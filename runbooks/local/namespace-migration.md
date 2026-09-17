@@ -1,4 +1,4 @@
-# Namespace migration (issue #31)
+# Namespace migration (cmdshift/platform#31)
 
 How the 2026-09-07 namespace refactor landed, the conventions it locked in, and the traps it hit — the playbook for any future move (including the cloud cluster).
 
@@ -13,9 +13,8 @@ How the 2026-09-07 namespace refactor landed, the conventions it locked in, and 
 | `policies` | `policies` | kyverno + all PolicyException objects |
 | `storage` | `storage` | local-path-provisioner |
 | `objects` | `objects` | seaweedfs-operator (+ seaweed cluster/admin) |
-| `monitoring` | `monitoring` | grafana-operator, kube-prometheus-stack, thanos-operator (bundle), prometheus-operator-crds |
+| `observability` | `observability` | grafana-operator, kube-prometheus-stack, thanos-operator (bundle), prometheus-operator-crds, loki, alloy, metrics-server, vpa, goldilocks (the last three install into kube-system but their HelmReleases live in the observability group by domain) |
 | `backups` | `backups` | velero |
-| `logging` | `logging` | alloy, loki |
 | `security` | `security` | tetragon, trivy-operator |
 
 Secrets-server upload paths (`cluster/local/secrets/main.tf`) mirror the namespaces (`/www/<namespace>/<key>`) — when a namespace is born or renamed, the terraform path and the ExternalSecret's `key` move together.
@@ -63,12 +62,22 @@ When a kustomization moves *all* its resources to another namespace in one apply
 
 ## Migration wave order that worked
 
-storage → objects → monitoring (thanos bundle) → certificates (+ terraform secrets-server path) → secrets (store conditions swap) → backups → policies (sub-waves: exceptions-first, then release+values, then CNP) → delete old namespaces → docs. Secrets-server paths renamed in the same wave as their ExternalSecret (single terraform apply, container recreates, ES keeps last-synced values through the gap).
+storage → objects → observability (thanos bundle) → certificates (+ terraform secrets-server path) → secrets (store conditions swap) → backups → policies (sub-waves: exceptions-first, then release+values, then CNP) → delete old namespaces → docs. Secrets-server paths renamed in the same wave as their ExternalSecret (single terraform apply, container recreates, ES keeps last-synced values through the gap).
 
 ### A bundle Namespace renamed onto a managed namespace gets its labels pruned (thanos-operator wave)
 
-The thanos-operator `bundle.yaml` ships `Namespace: thanos-operator-system`; #31 renamed it to `monitoring` via JSON6902. Two flux kustomizations (`namespaces` and `thanos-operator`) then apply the **same Namespace as the same SSA field manager** (`kustomize-controller`) — SSA treats an Apply from a manager as authoritative for the fields it owns, so whichever kustomization reconciles last rewrites the label map and **prunes the other's labels**. On the 2026-09-07 rebuild `thanos-operator` went last: the `pod-security.kubernetes.io/enforce: privileged` label vanished and the kps node-exporter DaemonSet was denied by PSS at pod creation (`violates PodSecurity "baseline:latest"` — kubelet admission, invisible to kyverno and to `policy_report`), failing the kps install into uninstall-remediation/Stalled.
+The thanos-operator `bundle.yaml` ships `Namespace: thanos-operator-system`; cmdshift/platform#31 renamed it to the monitoring namespace (today `observability`, cmdshift/platform#120) via JSON6902. Two flux kustomizations (`namespaces` and `thanos-operator`) then apply the **same Namespace as the same SSA field manager** (`kustomize-controller`) — SSA treats an Apply from a manager as authoritative for the fields it owns, so whichever kustomization reconciles last rewrites the label map and **prunes the other's labels**. On the 2026-09-07 rebuild `thanos-operator` went last: the `pod-security.kubernetes.io/enforce: privileged` label vanished and the kps node-exporter DaemonSet was denied by PSS at pod creation (`violates PodSecurity "baseline:latest"` — kubelet admission, invisible to kyverno and to `policy_report`), failing the kps install into uninstall-remediation/Stalled.
 
-Fix (in `monitoring/thanos-operator.kustomization.yaml`): a strategic-merge patch puts the same PSS labels on the bundle's Namespace so both appliers declare the identical load-bearing set — order no longer matters. General rule: **when a kustomization renames a bundle Namespace onto one the `namespaces` group owns, mirror the namespace's load-bearing labels into that kustomization's patch** (or pick a different bundle namespace entirely).
+Fix (in `observability/thanos-operator.kustomization.yaml`): a strategic-merge patch puts the same PSS labels on the bundle's Namespace so both appliers declare the identical load-bearing set — order no longer matters. General rule: **when a kustomization renames a bundle Namespace onto one the `namespaces` group owns, mirror the namespace's load-bearing labels into that kustomization's patch** (or pick a different bundle namespace entirely).
 
 Triage fingerprint: kps install timeout on node-exporter + `FailedCreate` events citing PSS + `kubectl get ns <ns> --show-managed-fields -o json` showing a single `kustomize-controller` Apply entry whose label set is missing the PSS keys.
+
+## Traps from the observability collapse (cmdshift/platform#120)
+
+### Implicit kustomization generation for dirs without a `kustomization.yaml`
+
+Kustomize-controller **auto-generates an implicit kustomization listing all YAMLs** for a build path with no `kustomization.yaml` — the `crds/` dir is built this way on purpose (verified via `flux build kustomization crds --path manifests/local/crds` + the live cluster's crds inventory: it applies the nested Kustomization CRs and the HelmRelease). Consequence: a local dry-run with the standalone `kustomize` CLI (or `kubectl kustomize`) on such a dir **fails**, while flux builds it fine — don't conclude the build is broken from a CLI failure. Triage: `flux build kustomization <name> --path <dir>` (validates with the same engine flux uses), or `kubectl -n flux-system describe kustomization <name>` for the live build state. (Sibling of the cmdshift/platform#93 trap in the opposite direction: `kubectl kustomize` on dirs WITH an explicit kustomization silently skips unlisted files — either way, flux is ground truth.)
+
+### Merged ResourceQuotas need a rename, not a stack
+
+When two namespaces' quotas fold into one (namespace collapse), the two `ResourceQuota/compute` objects can't both keep the name `compute` in the merged namespace: two quotas named `compute` would **both charge every pod** (quota admission charges against every matching quota), and kustomize would refuse the duplicate resource id anyway. Rename one on merge — the former `logging` quota became `logging-compute` in `observability-config/logging-resource-quota.yaml` (cmdshift/platform#120).

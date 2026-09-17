@@ -91,7 +91,7 @@ port_forward() { # sets PORT_FORWARD_PORT / PORT_FORWARD_PID
     # random-port collisions are rare but cheaper to retry than to fail)
     for attempt in 1 2; do
       PORT_FORWARD_PORT=$((21000 + RANDOM % 1000))
-      kubectl -n logging port-forward svc/loki "$PORT_FORWARD_PORT:3100" >/dev/null 2>&1 &
+      kubectl -n observability port-forward svc/loki "$PORT_FORWARD_PORT:3100" >/dev/null 2>&1 &
       PORT_FORWARD_PID=$!
       i=0
       until http_answer "http://localhost:$PORT_FORWARD_PORT/ready"; do

@@ -43,7 +43,7 @@ Drill procedure after any storage change: compliant throwaway pod writes a marke
 
 ## Alerts
 
-Three velero alerts in `monitoring-config/thanos-rules.yaml` (`backup-alerts`): `VeleroBackupFailed` (critical, watches BOTH `velero_backup_failure_total` **and** `velero_backup_partial_failure_total` — a schedule backup with failed PVBs lands `PartiallyFailed`, which only the second counter counts; fires within ~1m), `VeleroBackupStale` (warning, `for: 1h` — a fresh wedge pends ~1h before firing; carries an `absent()` arm because the last-success gauge only exists after a first Completed backup), `VeleroRepoMaintenanceFailed` (warning, 2h window). Delivery: mailpit. Conventions: `manifests/local/monitoring/README.md`.
+Three velero alerts in `observability-config/thanos-rules.yaml` (`backup-alerts`): `VeleroBackupFailed` (critical, watches BOTH `velero_backup_failure_total` **and** `velero_backup_partial_failure_total` — a schedule backup with failed PVBs lands `PartiallyFailed`, which only the second counter counts; fires within ~1m), `VeleroBackupStale` (warning, `for: 1h` — a fresh wedge pends ~1h before firing; carries an `absent()` arm because the last-success gauge only exists after a first Completed backup), `VeleroRepoMaintenanceFailed` (warning, 2h window). Delivery: mailpit. Conventions: `manifests/local/observability/README.md`.
 
 ## CLI quirks
 

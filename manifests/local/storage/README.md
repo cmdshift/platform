@@ -4,7 +4,7 @@ local-path-provisioner (helm release) + `storage-config/` (the StorageClasses).
 
 ## The X / X-config split invariant (cmdshift/platform#35)
 
-`storage/` is the only group that was mixing operator install and config objects — the two StorageClasses now live in `storage-config/` (applied by the `storage-config` Kustomization, dependsOn `storage`; no `healthCheckExprs` — a StorageClass has no status to gate on). Consequence: **`storage` Ready no longer implies the SCs exist** — PVC-creating groups (objects, logging, backups) depend on `storage-config`, not `storage`. Any group naming `storageClassName: local-path` must depend on `storage-config`. First-reconcile blip (flux prunes the SCs from `storage`, `storage-config` recreates them ~5s later) is expected and harmless with WaitForFirstConsumer.
+`storage/` is the only group that was mixing operator install and config objects — the two StorageClasses now live in `storage-config/` (applied by the `storage-config` Kustomization, dependsOn `storage`; no `healthCheckExprs` — a StorageClass has no status to gate on). Consequence: **`storage` Ready no longer implies the SCs exist** — PVC-creating groups (objects, observability, backups) depend on `storage-config`, not `storage`. Any group naming `storageClassName: local-path` must depend on `storage-config`. First-reconcile blip (flux prunes the SCs from `storage`, `storage-config` recreates them ~5s later) is expected and harmless with WaitForFirstConsumer.
 
 ## StorageClass decisions
 
