@@ -11,7 +11,13 @@ Procedures are agent skills in `.agents/skills/<name>/SKILL.md`, loaded via the 
 | Skill | Load when |
 |---|---|
 | `platform-workflow` | about to change any manifest — the standard loop |
+| `planning-changes` | starting any non-trivial change or after pulling an issue — surface mapping, dependency sequencing, branch first |
+| `writing-code` | writing or editing any manifest, terraform template, or tools/bin script — naming, valuesFrom pattern, refs, sizing standards |
 | `code-comments` | writing, editing, or sweeping any code comment — default is no comment; markers for Talos-in-Docker deviations |
+| `making-a-commit` | a change is green and ready to commit — conventional format, docs gate, signing rule, commit-by-permission |
+| `opening-a-pull-request` | the change is committed and ready for review — gates, issue linkage (`Closes cmdshift/platform#N`), PR mechanics |
+| `refining-a-pull-request` | an open PR gets new commits or review feedback — description-drift sync, triage change requests into plans (respond, don't apply without directive) |
+| `skill-improvement` | a skill's steps, triggers, or trap list need updating — thin-dispatcher shape, AGENTS.md table sync |
 | `reconcile-stuck` | a kustomization won't go Ready / `flux_wait` timed out |
 | `pipeline-wedged` | manifest edits not reaching the cluster |
 | `helmrelease-stuck` | a HelmRelease is failing or stuck |
@@ -85,7 +91,7 @@ Full reference — what each does, arguments, defaults, exit codes, gotchas: [to
 
 ## Hygiene
 
-- **Commit/push by permission**: the agent's job ends at a green reconcile + docs swept — then propose the commit (message + natural split) and **ask the human before running `git commit`/`git push`**. The human reviews the diff and approves history.
+- **Commit/push by permission**: the agent's job ends at a green reconcile + docs swept — then propose the commit (message + natural split) and **stop; wait for the human's explicit approval before running `git commit`/`git push`**. The human reviews the diff and approves history.
 - **Issue/PR refs are fully qualified**: reference issues and PRs as `cmdshift/platform#N` — never a bare `#N` — in manifests comments, docs, skills, and the CHANGELOG, so refs resolve unambiguously and cross-repo refs (e.g. `thanos-community/thanos-operator#636`) can't be confused. Commit SHAs stay SHAs.
 - **No live patches — everything in files**: never fix drift with `kubectl edit`/`talosctl patch`/`docker exec` mutations (flux root `local`/`main` bucket edits during a wedge are the documented exception). Change the manifest or terraform template and reconcile; if the fix needs a rebuild, note the pending state in `CHANGELOG.md` or the tracking issue.
 - **Docs map**: `CHANGELOG.md` carries the dated narrative (what/when/why, incident stories); `manifests/local/<group>/README.md` carries the group's timeless decisions; `manifests/local/README.md` carries cross-cutting conventions + the hardening-deviations baseline; `manifests/cloud/notes.md` carries what the cloud cluster must do differently. When you add or change a local-only setting, or learn something the cloud cluster must do differently, update the matching README/cloud note (and CHANGELOG entry). In-repo markers (`# remove in the cloud`, `# true in the cloud`) stay the source of truth at the value itself; the docs carry the "why" and the cloud-side action.
