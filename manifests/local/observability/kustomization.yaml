@@ -3,6 +3,8 @@ kind: Kustomization
 resources:
   - grafana-operator.helm-release.yaml
   - kube-prometheus-stack.helm-release.yaml
+  - prometheus-node-exporter.helm-release.yaml
+  - kube-state-metrics.helm-release.yaml
   - metrics-server.helm-release.yaml
   - vpa.helm-release.yaml
   - goldilocks.helm-release.yaml
@@ -22,6 +24,18 @@ configMapGenerator:
     namespace: observability
     files:
       - values.yaml=kube-prometheus-stack-values.yaml
+    options:
+      disableNameSuffixHash: true
+  - name: prometheus-node-exporter-values
+    namespace: observability
+    files:
+      - values.yaml=prometheus-node-exporter-values.yaml
+    options:
+      disableNameSuffixHash: true
+  - name: kube-state-metrics-values
+    namespace: observability
+    files:
+      - values.yaml=kube-state-metrics-values.yaml
     options:
       disableNameSuffixHash: true
   # metrics-server/vpa/goldilocks install into kube-system (cluster plumbing);

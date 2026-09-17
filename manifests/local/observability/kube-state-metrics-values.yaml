@@ -1,0 +1,19 @@
+prometheus:
+  monitor:
+    enabled: true
+containerSecurityContext:
+  # NSA hardening: explicit non-root uid/gid at container level
+  # (image declares USER "nobody"; pod-level sc already had 65534)
+  runAsNonRoot: true
+  runAsUser: 65534
+  runAsGroup: 65534
+resources:
+  requests:
+    cpu: 10m
+    # 7d max 46Mi, VPA rec 61Mi (series churn is slow on this cluster) —
+    # 56Mi = peak x 1.2, limit 1.5x; re-check after series growth
+    # (cmdshift/platform#66)
+    memory: 56Mi
+  limits:
+    cpu: 200m
+    memory: 84Mi
