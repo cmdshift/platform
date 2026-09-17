@@ -24,7 +24,7 @@ Conventional-commit style, as the history shows:
 <scope>: <summary> (<cmdshift/platform#N>)
 ```
 
-- **Scope** = the owning group or area: `policies:`, `monitoring:`, `backups:`, `networking:`, `docs:`, `feat:`/`fix:` for cross-cutting changes (both shapes are precedented — match what the change most belongs to).
+- **Scope** = the owning group or area: `policies:`, `observability:`, `backups:`, `networking:`, `docs:`, `feat:`/`fix:` for cross-cutting changes (both shapes are precedented — match what the change most belongs to).
 - **Summary** = imperative, lowercase, no trailing period; carries the *what* in one line (e.g. `policies: auto-generate PDBs for multi-replica workloads (cmdshift/platform#84)`).
 - **Refs are fully qualified**: `cmdshift/platform#N`, never bare `#N`.
 - Body (when needed): the *why* + the landmines hit, in short bullets — the dated narrative lives in CHANGELOG, so the body stays lean.
