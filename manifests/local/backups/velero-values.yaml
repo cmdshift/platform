@@ -52,7 +52,7 @@ resources:
     cpu: 500m
     memory: 512Mi
 configuration:
-  # JSON logging: see logging/loki-values.yaml
+  # JSON logging: see observability/loki-values.yaml
   logFormat: json
   backupStorageLocation: null
   volumeSnapshotLocation: null

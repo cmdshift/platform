@@ -77,11 +77,11 @@ Incidents documented in their owning runbooks (kept there for context):
 
 **Symptom** (fresh rebuild): kube-prometheus-stack install failed 4× (timeout waiting for the node-exporter DaemonSet) → uninstall remediation each time → Stalled. `policy_report` showed 0 failures and kyverno saw nothing.
 
-**Root cause**: the `monitoring` namespace's PSS labels were gone — node-exporter needs `enforce=privileged` (hostNetwork/hostPID/hostPath/hostPort) and PSS baseline denied every pod at creation (`Error creating: ... violates PodSecurity "baseline:latest"`). That is **kubelet PSS admission, not kyverno** — kyverno never sees the pod. Mechanism: the thanos-operator bundle ships `Namespace: thanos-operator-system`, renamed onto `monitoring`; both the `namespaces` and `thanos-operator` kustomizations apply the same object as the same SSA field manager (`kustomize-controller`), and whichever reconciles last rewrites the label map, pruning the other's fields. Pre-rebuild this survived by luck (reconcile order); on a rebuild the order isn't guaranteed. Fix: the bundle's Namespace carries the PSS labels via a strategic-merge patch in `monitoring/thanos-operator.kustomization.yaml` — both appliers declare the identical load-bearing set, so order no longer matters (cosmetic label flip-flop may persist; harmless).
+**Root cause**: the (now `observability`, cmdshift/platform#120) namespace's PSS labels were gone — node-exporter needs `enforce=privileged` (hostNetwork/hostPID/hostPath/hostPort) and PSS baseline denied every pod at creation (`Error creating: ... violates PodSecurity "baseline:latest"`). That is **kubelet PSS admission, not kyverno** — kyverno never sees the pod. Mechanism: the thanos-operator bundle ships `Namespace: thanos-operator-system`, renamed onto the monitoring namespace (today `observability`); both the `namespaces` and `thanos-operator` kustomizations apply the same object as the same SSA field manager (`kustomize-controller`), and whichever reconciles last rewrites the label map, pruning the other's fields. Pre-rebuild this survived by luck (reconcile order); on a rebuild the order isn't guaranteed. Fix: the bundle's Namespace carries the PSS labels via a strategic-merge patch in `observability/thanos-operator.kustomization.yaml` — both appliers declare the identical load-bearing set, so order no longer matters (cosmetic label flip-flop may persist; harmless).
 
-**Recovery sequence** (after the fix, for a Stalled kps): PSS labels land (via the monitoring group reconciling the updated Kustomization CR — note `flux reconcile kustomization monitoring --with-source` BLOCKS on the group's health wait while kps is down; the CR spec still applies event-driven) → node-exporter DS FailedCreate retries succeed → the release replays its terminal state (`RetriesExceeded`) → `flux suspend/resume helmrelease kube-prometheus-stack -n monitoring` forces a fresh install (the `helmrelease-stuck` ladder, step 2) → Ready.
+**Recovery sequence** (after the fix, for a Stalled kps): PSS labels land (via the observability group reconciling the updated Kustomization CR — note `flux reconcile kustomization observability --with-source` BLOCKS on the group's health wait while kps is down; the CR spec still applies event-driven) → node-exporter DS FailedCreate retries succeed → the release replays its terminal state (`RetriesExceeded`) → `flux suspend/resume helmrelease kube-prometheus-stack -n observability` forces a fresh install (the `helmrelease-stuck` ladder, step 2) → Ready.
 
-**Triage fingerprint**: kps install timeout on node-exporter + `kubectl get events -n monitoring --field-selector reason=FailedCreate` showing PSS violations + `kubectl get ns monitoring --show-managed-fields -o json` showing a single `kustomize-controller` Apply entry whose label set is missing the PSS keys.
+**Triage fingerprint**: kps install timeout on node-exporter + `kubectl get events -n observability --field-selector reason=FailedCreate` showing PSS violations + `kubectl get ns observability --show-managed-fields -o json` showing a single `kustomize-controller` Apply entry whose label set is missing the PSS keys.
 
 ## etcd health flap during the first datastores reconcile (cmdshift/platform#49)
 
@@ -97,13 +97,13 @@ Incidents documented in their owning runbooks (kept there for context):
 
 **Root cause**: the query's SRV-resolved store endpoint held a stale pod IP after the store pod was recreated, and the query errors the WHOLE request when one store dials out. Self-healed when the query pod rolled.
 
-**Triage order**: ruler logs → dial-test the store IP from the query pod (`wget http://<store-ip>:10902/-/ready`) → only then suspect network policy. It is not a CNP block. (Sibling of the "head path broken again" landmine in [monitoring/README.md](../../manifests/local/monitoring/README.md).)
+**Triage order**: ruler logs → dial-test the store IP from the query pod (`wget http://<store-ip>:10902/-/ready`) → only then suspect network policy. It is not a CNP block. (Sibling of the "head path broken again" landmine in [observability/README.md](../../manifests/local/observability/README.md).)
 
 ## Alloy ConfigMap mount staleness (cmdshift/platform#39)
 
 **Symptom**: after an in-place edit of the kustomize-generated `alloy-config` ConfigMap, the API object updated but all four pod volume mounts stayed stale 5+ min (first in-place CM update since the rebuild). The pods didn't crash — they were serving the old config.
 
-**Fix**: `kubectl -n logging rollout restart daemonset/alloy` (same class as `docker restart sync-cloud-test`). Whether alloy hot-reloads is untested — the mount never refreshed to find out.
+**Fix**: `kubectl -n observability rollout restart daemonset/alloy` (same class as `docker restart sync-cloud-test`). Whether alloy hot-reloads is untested — the mount never refreshed to find out.
 
 ## Tetragon lsmhooks load failure (kernel BTF gap)
 

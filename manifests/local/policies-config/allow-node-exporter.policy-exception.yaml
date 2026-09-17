@@ -19,4 +19,4 @@ spec:
       kind: ValidatingPolicy
   matchConditions:
     - name: match-node-exporter
-      expression: "object.metadata.namespace == 'monitoring' && object.metadata.name.startsWith('kube-prometheus-stack-prometheus-node-exporter')"
+      expression: "object.metadata.namespace == 'observability' && object.metadata.name.startsWith('kube-prometheus-stack-prometheus-node-exporter')"

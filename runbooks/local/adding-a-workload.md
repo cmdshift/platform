@@ -49,7 +49,7 @@ Credentials come from the secrets server: add the payload to `cluster/local/secr
 ## 6. Wiring
 
 - **namespace**: plain manifest in `namespaces/` **and register it in `namespaces/kustomization.yaml`** — the list is explicit, so an unregistered `*.namespace.yaml` is silently not applied and everything depending on the namespace hangs on `namespaces "<name>" not found` (cost a debugging round with tetragon, 2026-09-07). Prune is deliberately false there
-- **helm release**: in the relevant `<thing>/` dir; **CRs/config** in the matching `<thing>-config/` dir (grafana/thanos/alertmanager CRs go in `monitoring-config/`, not helm values)
+- **helm release**: in the relevant `<thing>/` dir; **CRs/config** in the matching `<thing>-config/` dir (grafana/thanos/alertmanager CRs go in `observability-config/`, not helm values)
 - **custom resources**: if operator-managed, add `healthCheckExprs` to the owning kustomization (copy from the CEL cheatsheet — see the flux landmine in AGENTS.md)
 - **scheduling on the ctrl node** (alloy was the first, cmdshift/platform#90): pods newly scheduled on ctrl need, beyond the usual checks — a toleration for `node-role.kubernetes.io/control-plane:NoSchedule` (nothing runs there by default); if the pod pulls images, its **namespace must be in `kubernetesTalosAPIAccess.allowedKubernetesNamespaces`** in `cluster/local/nodes/templates/ctrl.tftpl.yaml` — in container mode kubelet verifies image pulls through the Talos API on ctrl, and non-allowed namespaces fail pulls with `failed to verify image "..." with talos: rpc error: code = PermissionDenied desc = not authorized` (a machine-config change: template edit + `terraform apply`, not a manifest). Host-path reads of root-owned dirs need a capability beyond the dropped-ALL baseline — `DAC_READ_SEARCH` for the 0600-node-local audit logs — which means the workload's PolicyException gains `disallow-capabilities-strict` in its policyRefs
 
@@ -61,7 +61,7 @@ Controllers that generate non-compliant pods with no config knobs (e.g. the than
 
 A PolicyException exempts a pod from **kyverno** policies only — **ResourceQuota admission is not skipped**. An exception-exempt container with no resources still fails the namespace's `compute` quota (`FailedCreate: failed quota: compute: must specify limits.cpu for: <container>`), and since the pod predating the quota ran fine, the wedge surfaces only when something rolls the controller: the old pod is deleted, the create is denied, and the workload is down.
 
-Fix pattern: a `LimitRange/compute-defaults` in the namespace (Container `default`/`defaultRequest` sized from an audit of the exempt container) — LimitRange is the only defaults source for exception-exempt containers (example: `monitoring-config/limit-range.yaml` for the config-reloader sidecar, ~18Mi/10m audit). Also expect it for velero's data-mover hosting pods, which hardcode `TerminationGracePeriodSeconds: 0` in velero's source — that's why the velero PolicyException carries `require-graceful-termination` ([runbooks/local/velero-backups.md](velero-backups.md)).
+Fix pattern: a `LimitRange/compute-defaults` in the namespace (Container `default`/`defaultRequest` sized from an audit of the exempt container) — LimitRange is the only defaults source for exception-exempt containers (example: `observability-config/limit-range.yaml` for the config-reloader sidecar, ~18Mi/10m audit). Also expect it for velero's data-mover hosting pods, which hardcode `TerminationGracePeriodSeconds: 0` in velero's source — that's why the velero PolicyException carries `require-graceful-termination` ([runbooks/local/velero-backups.md](velero-backups.md)).
 
 Two operational notes from the live hit:
 
@@ -77,7 +77,7 @@ cr_validate <file-or-dir>                       # server-side dry-run of new/cha
 flux_wait                                       # reconcile from the root + poll
 ```
 
-Then the final checks: helmreleases green (`helm_wait -c <ns> <name>` per release), `policy_report` → failures 0, no stale reports. If the workload exposes metrics: ServiceMonitor (+ `service-monitor` feature where applicable), verified with `prometheus_query 'up{namespace="<ns>"}'`; if it should alert: rules in `monitoring-config/thanos-rules.yaml`, delivery confirmed with `mailpit` (http://mail.cloud.test).
+Then the final checks: helmreleases green (`helm_wait -c <ns> <name>` per release), `policy_report` → failures 0, no stale reports. If the workload exposes metrics: ServiceMonitor (+ `service-monitor` feature where applicable), verified with `prometheus_query 'up{namespace="<ns>"}'`; if it should alert: rules in `observability-config/thanos-rules.yaml`, delivery confirmed with `mailpit` (http://mail.cloud.test).
 
 ---
 

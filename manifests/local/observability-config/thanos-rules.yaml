@@ -1,0 +1,125 @@
+groups:
+  - name: pod-alerts
+    rules:
+      - alert: PodCrashLooping
+        expr: |
+          increase(kube_pod_container_status_restarts_total[5m]) > 2
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash-looping ({{ $value }} restarts in 15m)"
+  - name: memory-alerts
+    rules:
+      - alert: ContainerOOMKilled
+        expr: |
+          increase(kube_pod_container_status_restarts_total[10m]) > 0
+            and on(namespace, pod, container)
+          kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1
+        labels:
+          severity: critical
+        annotations:
+          summary: "Container {{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.container }}) was OOM-killed — limit too low or a leak"
+  - name: node-alerts
+    rules:
+      - alert: NodeHighDiskUsage
+        expr: |
+          (node_filesystem_avail_bytes{fstype!~"tmpfs"} / node_filesystem_size_bytes{fstype!~"tmpfs"}) * 100 < 15
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk usage above 85% on {{ $labels.instance }}"
+  - name: backup-alerts
+    rules:
+      - alert: VeleroBackupStale
+        # the gauge only exists once a Completed pvcs backup exists (velero sets it
+        # from Backup CR completion timestamps; the "" ad-hoc label vanishes in
+        # prom) — bare time() - gauge matches nothing while the series is absent,
+        # exactly when the alert matters most; the absent() arm covers that state
+        expr: |
+          time() - velero_backup_last_successful_timestamp{schedule="pvcs"} > 93600
+            or absent(velero_backup_last_successful_timestamp{schedule="pvcs"})
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "No successful velero backup in 26h or never succeeded (schedule pvcs) — nightly 03:00 run missed or failing"
+      - alert: VeleroBackupFailed
+        # schedule backups with failed PodVolumeBackups land in PartiallyFailed,
+        # which velero counts in backup_partial_failure_total, not
+        # backup_failure_total — both arms are required (cmdshift/platform#111)
+        expr: |
+          increase(velero_backup_failure_total[24h]) > 0
+            or increase(velero_backup_partial_failure_total[24h]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "A velero backup failed or partially failed in the last 24h (schedule {{ $labels.schedule }})"
+      - alert: VeleroRepoMaintenanceFailed
+        expr: |
+          increase(velero_repo_maintenance_failure_total[2h]) > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Kopia repo maintenance failed in the last 2h (repo {{ $labels.repository_name }}) — check BackupRepository recentMaintenance"
+  - name: tetragon-alerts
+    rules:
+      - alert: TetragonTracingPolicyLoadFailed
+        expr: |
+          tetragon_tracingpolicy_loaded{state=~"error|load_error"} > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Tetragon on {{ $labels.pod }} ({{ $labels.node }}) has a tracing policy in {{ $labels.state }} — a policy file may be invalid or use a hook this kernel lacks"
+      - alert: TetragonEnforcementKill
+        expr: |
+          increase(tetragon_policy_events_total{policy=~"kernel-modules|exec-deny-list-.*"}[10m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Tetragon enforcement fired (policy {{ $labels.policy }}) — check `tetra getevents -o json` and per-node `tetra tracingpolicy list` NENFORCE for the policy and binary"
+        # tetragon_kill_events_total does not exist in any tetragon release
+        # (verified against the source of v1.7.1 and upstream's metrics
+        # reference, cmdshift/platform#57) — the real signal is
+        # tetragon_policy_events_total, which materializes on the first
+        # enforcement event. bprm_check deny-list events carry EMPTY
+        # namespace/pod labels (enforcement fires pre-exec, the documented
+        # init-exec gap applies to attribution), and the exporter denylist
+        # drops namespace="" events, so Loki never sees them — tetra gRPC
+        # (-o json; compact renders them as "❓ syscall <node> runc
+        # security_bprm_check") and this alert are the kill-event surfaces
+        # on 1.7.1. The 1.8.0 chart bump (cmdshift/platform#59) upgrades
+        # this to tetragon_tracingpolicy_selector_actions_total
+        # {action=~"signal|override"} (BPF-side, per-action, unaffected by
+        # event attribution). for: 5m absorbs one-shot counter spikes — a
+        # cluster rebuild's bootstrap generates 3-5 runc-fork kills in the
+        # deny-list namespaces, one-shot spikes that page critical and
+        # self-resolve within minutes (cmdshift/platform#60); a sustained
+        # kill stream still fires within ~5m.
+  - name: trivy-alerts
+    rules:
+      - alert: TrivyCriticalImageVulnerabilities
+        expr: |
+          sum by (namespace) (max_over_time(trivy_image_vulnerabilities{severity="Critical", namespace=~"kube-system|flux-system|certificates|secrets|policies|storage|objects|observability|backups|security"}[30m])) > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "trivy reports {{ $value }} CRITICAL image vulnerabilities in {{ $labels.namespace }} — kubectl get vulnerabilityreports -A | grep {{ $labels.namespace }}"
+        # metric name/labels from the v0.34.0 collector source
+        # (pkg/metrics/collector.go: trivy_image_vulnerabilities, severity
+        # label values are capitalized). ignoreUnfixed=false means unfixed
+        # CVEs count too — on a test cluster this alert is informational and
+        # may stay firing for a long time; mailpit absorbs it. Scoped to the
+        # platform namespaces so app-image noise stays out of alerting.
+        # max_over_time(30m) keeps the alert up through rescan gaps: the
+        # gauge dips to empty while a scan report is rebuilt, which resolved
+        # and re-fired the alert each cycle (cmdshift/platform#36). max_over_time(30m)
+        # + for: 15m means the alert persists ~30-45m after the last
+        # sighting — acceptable for an informational alert.
+        # High severity is deliberately unalerted: Critical-only keeps
+        # noise down on a test cluster (cmdshift/platform#36).

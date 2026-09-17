@@ -43,7 +43,7 @@ If the manifest is too big, pick a strategy:
 For the kustomization-over-raw-manifests path:
 - strategic-merge patches on Deployments merge `containers` **by name** — a wrong name silently *adds* a container. Verify the container name first
 - `ClusterRole.rules` is an atomic list: strategic merge **replaces** it — use a JSON6902 `op: add, path: /rules/-` to append instead
-- house example: `manifests/local/monitoring/thanos-operator.kustomization.yaml` (seccomp + image pin via strategic merge, events RBAC via JSON6902)
+- house example: `manifests/local/observability/thanos-operator.kustomization.yaml` (seccomp + image pin via strategic merge, events RBAC via JSON6902)
 
 ## 4. Verify before pushing
 
@@ -66,7 +66,7 @@ kubectl get crd <crd> -o jsonpath='{.spec.versions[0].schema.openAPIV3Schema.pro
 
 ## Worked example (thanos-operator)
 
-helm chart attempt → install failed at the 1MB secret cap (its CRDs are ~2.5MB of the manifest) → vendored CRDs (worked, regen burden) → reverted to the repo's `bundle.yaml` via kustomization with three patches (seccomp, image pin, events RBAC). Full rationale comments live in `monitoring/thanos-operator.kustomization.yaml`.
+helm chart attempt → install failed at the 1MB secret cap (its CRDs are ~2.5MB of the manifest) → vendored CRDs (worked, regen burden) → reverted to the repo's `bundle.yaml` via kustomization with three patches (seccomp, image pin, events RBAC). Full rationale comments live in `observability/thanos-operator.kustomization.yaml`.
 
 ## Operator adoption (datastores group, cmdshift/platform#49)
 

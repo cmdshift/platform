@@ -8,7 +8,7 @@ features:
 global:
   image:
     registry: ghcr.io
-  # JSON logging: see logging/loki-values.yaml (nests under features here)
+  # JSON logging: see observability/loki-values.yaml (nests under features here)
   logging:
     format: json
   admissionReports:

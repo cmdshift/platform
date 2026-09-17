@@ -23,7 +23,7 @@ Useful one-liners: `container_cpu_cfs_throttled_periods_total` (throttling), `co
 ## loki_query
 
 ```
-loki_query '{instance=~"logging/loki-0.*"}'   # LogQL, tenant preset, default window 1h
+loki_query '{instance=~"observability/loki-0.*"}'   # LogQL, tenant preset, default window 1h
 loki_query '<logql>' 24h
 loki_query -c 'sum by (x) (count_over_time(...))'  # labels per series + latest value
 ```
@@ -36,7 +36,7 @@ loki_query -c 'sum by (x) (count_over_time(...))'  # labels per series + latest 
 - Stream labels: `namespace`, `pod`, `container`, `node` (promoted by the
   alloy relabel pipeline — same cardinality as `instance`),
   plus `instance` (`ns/pod:container`), `job`, `service_name`,
-  `detected_level`. Select natively: `{namespace="monitoring",
+  `detected_level`. Select natively: `{namespace="observability",
   pod=~"grafana-.*"}`; `instance` prefix selectors still work
 - Platform components log **JSON** — kyverno, grafana-operator, seaweedfs-operator,
   metrics-server and alloy flipped at the source; the alloy
@@ -52,7 +52,7 @@ loki_query -c 'sum by (x) (count_over_time(...))'  # labels per series + latest 
 mailpit [limit]                    # subjects of the latest alert emails, newest first
 ```
 
-Alert delivery path: thanos-ruler → alertmanager → mailpit. Alerts land at **http://mail.cloud.test** — use it to confirm a rule fired (e.g. after touching `monitoring-config/thanos-rules.yaml`) or to read `ContainerOOMKilled` events. If rules silently stop firing but every reconcile is green: each rule ConfigMap must carry exactly one data key — the thanos-operator skips any with more (`monitoring` README, cmdshift/platform#85).
+Alert delivery path: thanos-ruler → alertmanager → mailpit. Alerts land at **http://mail.cloud.test** — use it to confirm a rule fired (e.g. after touching `observability-config/thanos-rules.yaml`) or to read `ContainerOOMKilled` events. If rules silently stop firing but every reconcile is green: each rule ConfigMap must carry exactly one data key — the thanos-operator skips any with more (`observability` README, cmdshift/platform#85).
 
 ## tetra (Tetragon process events)
 

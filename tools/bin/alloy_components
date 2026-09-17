@@ -28,7 +28,7 @@ port_forward() { # namespace pod port container-port
 }
 
 fetch_components() { # pod
-  port_forward logging "$1" 12345 || return 1
+  port_forward observability "$1" 12345 || return 1
   curl -s "http://localhost:$PORT_FORWARD_PORT/api/v0/web/components" \
     | jq -r 'if type != "array" or length == 0 then "NO COMPONENTS — example/config mismatch? see alloy_components header comment" else .[] | "\(.name).\(.label)\t\(.health.state)\t\(.health.message)" end'
   local rc=${PIPESTATUS[0]}
@@ -54,9 +54,9 @@ parse_args() { # -> ALL / POD globals
 pick_pods() { # -> PODS global; exit 1 when alloy is unreachable
   if [ "$all" -eq 1 ]; then
     [ -z "$pod" ] || usage # --all covers the whole DS; a pod arg contradicts it
-    pods=$(kubectl -n logging get pods -l app.kubernetes.io/name=alloy -o name | cut -d/ -f2)
+    pods=$(kubectl -n observability get pods -l app.kubernetes.io/name=alloy -o name | cut -d/ -f2)
   else
-    [ -n "$pod" ] || pod=$(kubectl -n logging get pods -l app.kubernetes.io/name=alloy -o name | head -1 | cut -d/ -f2)
+    [ -n "$pod" ] || pod=$(kubectl -n observability get pods -l app.kubernetes.io/name=alloy -o name | head -1 | cut -d/ -f2)
     pods="$pod"
   fi
   [ -n "$pods" ] || { echo "no alloy pods found" >&2; return 1; }

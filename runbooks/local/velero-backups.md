@@ -26,7 +26,7 @@ Maintenance Jobs are built by velero's server internally with no securityContext
 
 ## Alerts
 
-Defined in `monitoring-config/thanos-rules.yaml` (`backup-alerts` group; semantics + rule-writing conventions: [manifests/local/monitoring/README.md](../../manifests/local/monitoring/README.md), cmdshift/platform#111):
+Defined in `observability-config/thanos-rules.yaml` (`backup-alerts` group; semantics + rule-writing conventions: [manifests/local/observability/README.md](../../manifests/local/observability/README.md), cmdshift/platform#111):
 
 - **VeleroBackupFailed** (critical, no `for:`) — `increase(velero_backup_failure_total[24h]) > 0 or increase(velero_backup_partial_failure_total[24h]) > 0`. The partial-failure arm is required: a schedule backup with failed PodVolumeBackups lands `PartiallyFailed`, which velero counts only in `velero_backup_partial_failure_total`. Fires within one evaluation (~1m) and lands in mailpit — verified live.
 - **VeleroBackupStale** (warning, `for: 1h`) — no successful `pvcs` backup in 26h **or none ever** (the `absent()` arm covers the never-succeeded state: the last-success gauge only materializes after a first Completed backup). The `for: 1h` means a fresh wedge pends ~1h before firing.

@@ -1,0 +1,37 @@
+apiVersion: monitoring.coreos.com/v1
+kind: Alertmanager
+metadata:
+  name: main
+  namespace: observability
+spec:
+  replicas: 1
+  # JSON logging: see observability/loki-values.yaml
+  logFormat: json
+  # NSA hardening: alertmanager serves HTTP only and its config
+  # reload watches mounted files, never the API — the SA token is dead weight
+  automountServiceAccountToken: false
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    seccompProfile:
+      type: RuntimeDefault
+  resources:
+    requests:
+      cpu: 10m
+      memory: 48Mi
+    limits:
+      # audit: 15.2% of CFS periods throttled (at 200m) —
+      # group-notification bursts; generous CPU limit per convention
+      cpu: 500m
+      memory: 72Mi
+  alertmanagerConfiguration:
+    name: mail
+  storage:
+    volumeClaimTemplate:
+      spec:
+        storageClassName: local-path
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 1Gi

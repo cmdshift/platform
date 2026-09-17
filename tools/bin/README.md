@@ -195,7 +195,7 @@ and `0` used to time out instantly.
   the tetragon stage-2 flip). Classification is by message pattern (no
   separate waiting condition type exists in flux's status) — **unanchored
   substring match**: flux composes the two phrasings freely
-  (`dependency 'x/monitoring' revision is not up to date`) and the original
+  (`dependency 'x/observability' revision is not up to date`) and the original
   anchored regex classified that composite as a real failure, aborting the
   loop mid-cascade (cost a debugging round, cmdshift/platform#58 session).
   Ready=False with an *empty* message is a transitioning group — also

@@ -21,7 +21,7 @@ helm_verify        # renders every HelmRelease's values via helm template
 cr_validate        # server-side dry-run of CRs against on-cluster CRD schemas
 ```
 
-`helm_verify` catches nil-pointer template errors, but schema-less charts do **not** reject values-key typos — cross-check surprise diffs against the chart's `values.yaml`. `cr_validate` is mandatory for any new/changed CR (TracingPolicy, AlertmanagerConfig,CEL health checks…): kustomize-controller dry-runs the whole group before applying, so one undeclared field blocks every file in the directory and repeats at `retryInterval` forever.
+`helm_verify` catches nil-pointer template errors, but schema-less charts do **not** reject values-key typos — cross-check surprise diffs against the chart's `values.yaml`. `cr_validate` is mandatory for any new/changed CR (TracingPolicy, AlertmanagerConfig,CEL health checks…): kustomize-controller dry-runs the whole group before applying, so one undeclared field blocks every file in the directory and repeats at `retryInterval` forever. Kustomize dry-run caveat: dirs without a `kustomization.yaml` (e.g. `crds/`) fail standalone `kustomize build`/`kubectl kustomize` but build fine in flux (implicit kustomization auto-generated listing all YAMLs) — validate those with `flux build kustomization <name> --path <dir>`, not the CLI.
 
 ## 2. Converge the bucket, then reconcile
 

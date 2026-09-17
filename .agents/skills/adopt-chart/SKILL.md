@@ -49,7 +49,7 @@ Charts whose CRDs render from `templates/` (no `crds/` dir) are a variant of the
 
 - strategic-merge patches on Deployments merge `containers` **by name** — a wrong name silently *adds* a container; verify the container name first
 - `ClusterRole.rules` is atomic: strategic merge **replaces** it — append with JSON6902 (`op: add, path: /rules/-`)
-- house example: `manifests/local/monitoring/thanos-operator.kustomization.yaml` (seccomp + image pin via SMP, events RBAC via JSON6902)
+- house example: `manifests/local/observability/thanos-operator.kustomization.yaml` (seccomp + image pin via SMP, events RBAC via JSON6902)
 
 ## 4. Verify before pushing
 
@@ -62,7 +62,7 @@ Charts whose CRDs render from `templates/` (no `crds/` dir) are a variant of the
 
 ## Worked examples
 
-thanos-operator: helm chart attempt → install failed at the 1MB cap (~2.5MB of embedded CRDs) → vendored CRDs (regen burden) → repo's `bundle.yaml` via kustomization with three patches. Rationale in `monitoring/thanos-operator.kustomization.yaml`.
+thanos-operator: helm chart attempt → install failed at the 1MB cap (~2.5MB of embedded CRDs) → vendored CRDs (regen burden) → repo's `bundle.yaml` via kustomization with three patches. Rationale in `observability/thanos-operator.kustomization.yaml`.
 
 trivy-operator: chart 0.36.0 adopted clean (CRDs ship in `crds/`, no hook jobs, 23KB release) but three values keys were **silently ignored** (schema-less chart): `operator.resources` (wants top-level `resources`), `scanJobsConcurrentLimit`/`scanJobTTL` (want `operator.`, not `trivyOperator.`) — caught by inspecting the render, not by helm template. Values now live in a plain values file + configMapGenerator → `valuesFrom` (cmdshift/platform#31 pattern, helm_verify resolves it); operator-generated scan jobs needed the admission shaping trap above. Rationale in `security/trivy-values.yaml` + `security/README.md`.
 

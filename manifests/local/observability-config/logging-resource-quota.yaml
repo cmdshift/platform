@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  # was ResourceQuota/compute in the logging namespace — renamed on the merge
+  # into observability (cmdshift/platform#120): two compute quotas in one ns
+  # would double-charge every pod against both budgets. Unlike the per-ns
+  # `compute` quotas elsewhere, this one is NOT namespace-wide — both quotas
+  # in this namespace admit every pod, so each must clear the FULL namespace
+  # pod set (compute: 9040m/6452Mi limits at rebuild), not just its
+  # origin-group's share. Sized to the merged-namespace totals, not the
+  # ex-logging subset.
+  name: logging-compute
+  namespace: observability
+spec:
+  hard:
+    # sized = `compute` in this namespace (both quotas admit the same pod
+    # set after the merge; the ex-logging share is only 3140m/3236Mi limits
+    # — the rest of the namespace must fit under both ceilings too)
+    requests.cpu: 750m
+    requests.memory: 7Gi
+    limits.cpu: 16
+    limits.memory: 8Gi
+    pods: "35"

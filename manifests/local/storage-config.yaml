@@ -6,7 +6,7 @@ metadata:
 spec:
   interval: 1h
   retryInterval: 5s
-  # PVC-creating groups (objects, logging, backups) depend on this, not storage
+  # PVC-creating groups (objects, observability, backups) depend on this, not storage
   # (invariant: manifests/local/README.md dependency rules)
   dependsOn:
     - name: storage

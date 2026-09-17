@@ -19,4 +19,4 @@ spec:
       kind: ValidatingPolicy
   matchConditions:
     - name: match-alloy
-      expression: "object.metadata.namespace == 'logging' && object.metadata.name.startsWith('alloy')"
+      expression: "object.metadata.namespace == 'observability' && object.metadata.name.startsWith('alloy')"

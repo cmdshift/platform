@@ -17,7 +17,7 @@
 # with a message that is not a dependency-wait state. Dependency-wait
 # messages are matched UNANCHORED as substrings ("is not ready",
 # "revision is not up to date") — flux composes them freely
-# ("dependency 'x/monitoring' revision is not up to date") and anchored
+# ("dependency 'x/observability' revision is not up to date") and anchored
 # regexes misclassified the composite as a real failure, aborting the loop
 # mid-cascade (cmdshift/platform#58 session). A real failure never self-heals
 # mid-poll (flux holds Ready=Unknown while a group progresses), so the loop

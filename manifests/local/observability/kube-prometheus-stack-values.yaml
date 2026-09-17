@@ -1,0 +1,130 @@
+alertmanager:
+  enabled: false
+defaultRules:
+  disabled:
+    # environmental on Talos-in-Docker: node_timex_sync_status=0 on every
+    # node (no sync flag from the docker VMs) — accepted finding
+    NodeClockNotSynchronising: true
+    # meta-alert (fires per-namespace on any info alert) — its only consumer is
+    # the chart's inhibit_rules, which the CR-managed `mail` AlertmanagerConfig
+    # doesn't load, so it delivers pure noise and mutes nothing
+    # (cmdshift/platform#114)
+    InfoInhibitor: true
+# kube-proxy removed from the cluster (cilium KPR, cmdshift/platform#70) —
+# drops the dead-target ServiceMonitor and its rule set
+kubeProxy:
+  enabled: false
+prometheusOperator:
+  # JSON logging: see observability/loki-values.yaml
+  logFormat: json
+  admissionWebhooks:
+    patch:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
+  resources:
+    requests:
+      cpu: 10m
+      # 7d max 46Mi, VPA rec 61Mi — 56Mi = peak x 1.2, limit 1.5x
+      # (cmdshift/platform#66)
+      memory: 56Mi
+    limits:
+      cpu: 500m
+      memory: 84Mi
+  prometheusConfigReloader:
+    resources:
+      requests:
+        cpu: 10m
+        # audit: 38Mi steady — 48Mi = P99 x 1.2
+        memory: 48Mi
+      limits:
+        # audit: 18% of CFS periods throttled (at 200m) —
+        # reload bursts; generous CPU limit per convention
+        cpu: 500m
+        memory: 72Mi
+kube-state-metrics:
+  # NSA hardening: explicit non-root uid/gid at container level
+  # (image declares USER "nobody"; pod-level sc already had 65534)
+  containerSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+  resources:
+    requests:
+      cpu: 10m
+      # 7d max 46Mi, VPA rec 61Mi (series churn is slow on this cluster) —
+      # 56Mi = peak x 1.2, limit 1.5x; re-check after series growth
+      # (cmdshift/platform#66)
+      memory: 56Mi
+    limits:
+      cpu: 200m
+      memory: 84Mi
+prometheus:
+  prometheusSpec:
+    # JSON logging: see prometheusOperator above
+    logFormat: json
+    retention: 2d
+    # CR-managed Alertmanager (observability-config/main.alertmanager.yaml) — the
+    # chart's alertmanager component is disabled, so without this the whole
+    # kubernetes-mixin rule set (PV filling, StatefulSet mismatch, …) fires
+    # into the void. Same endpoint thanos-ruler uses (main.thanos-ruler.yaml).
+    alertingEndpoints:
+      - namespace: observability
+        name: alertmanager-operated
+        port: 9093
+        scheme: http
+    # select every ServiceMonitor/PodMonitor cluster-wide: the chart default's
+    # `release:` label gate left kyverno/thanos/velero SMs unscraped, and an
+    # empty serviceMonitorSelector: {} is treated as falsy by the chart template.
+    # Future operator SMs (CNPG) get picked up automatically.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    # same gate applies to PodMonitors
+    podMonitorSelectorNilUsesHelmValues: false
+    externalLabels:
+      cluster: local
+    resources:
+      # audit: working set 1010-1175Mi (first evicted under node pressure),
+      # head series still climbing (157k -> 187k over 2h — churn-driven, watch
+      # for plateau) — request = P99 x 1.2, limit 1.5x.
+      # Trend + recurrence playbook: cmdshift/platform#20
+      requests:
+        # audit: 56m steady — 100m keeps the reservation honest
+        # (node CPU requests sit at 4-7%)
+        cpu: 100m
+        memory: 1536Mi
+      limits:
+        cpu: 1000m
+        memory: 2304Mi
+    thanos:
+      objectStorageConfig:
+        existingSecret:
+          name: thanos-objstore
+          key: objstore.yaml
+      resources:
+        # overnight: 2h block uploads pin the CPU quota — hard
+        # CFS bursts (33% throttled, 0.7m avg, at 200m). Memory fits
+        # (peak 112Mi vs 192Mi limit)
+        requests:
+          cpu: 10m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 192Mi
+  thanosService:
+    enabled: true
+  thanosServiceMonitor:
+    enabled: true
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 500m
+      memory: 48Mi
+grafana:
+  enabled: false

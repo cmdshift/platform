@@ -15,4 +15,4 @@ spec:
       kind: ValidatingPolicy
   matchConditions:
     - name: match-thanos-ruler
-      expression: "object.metadata.namespace == 'monitoring' && object.metadata.name.startsWith('thanos-ruler')"
+      expression: "object.metadata.namespace == 'observability' && object.metadata.name.startsWith('thanos-ruler')"

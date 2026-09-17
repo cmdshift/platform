@@ -1,0 +1,48 @@
+apiVersion: monitoring.thanos.io/v1alpha1
+kind: ThanosRuler
+metadata:
+  name: main
+  namespace: observability
+spec:
+  replicas: 1
+  alertmanagerURL: "http://alertmanager-operated.observability.svc:9093"
+  # JSON logging: see main.thanos-query.yaml
+  additionalArgs:
+    - --log.format=json
+  queryLabelSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: thanos
+      app.kubernetes.io/component: query-layer
+  ruleConfigSelector:
+    matchLabels:
+      operator.thanos.io/rule-file: "true"
+  evaluationInterval: 1m
+  securityContext:
+    # NSA hardening: pod-level non-root also covers the operator's
+    # config-reloader sidecar, which has no container-level securityContext of
+    # its own (see the thanos-ruler PolicyException for its missing resources).
+    # runAsUser must be numeric: the config-reloader image declares USER
+    # "nobody", which kubelet can't verify against a bare runAsNonRoot
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    seccompProfile:
+      type: RuntimeDefault
+  resourceRequirements:
+    requests:
+      cpu: 10m
+      # audit: 56Mi steady at first sizing; 7d max 50Mi — 64Mi = peak x 1.2,
+      # limit 1.5x (cmdshift/platform#66)
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 96Mi
+  storage:
+    storageClass: local-path
+    size: 1Gi
+  rulerMode:
+    type: Stateful
+    stateful:
+      objectStorageConfig:
+        name: thanos-objstore
+        key: objstore.yaml
