@@ -19,4 +19,9 @@ spec:
       kind: ValidatingPolicy
   matchConditions:
     - name: match-node-exporter
-      expression: "object.metadata.namespace == 'observability' && object.metadata.name.startsWith('kube-prometheus-stack-prometheus-node-exporter')"
+      # both prefixes: the standalone release DS (`prometheus-node-exporter-`)
+      # and the kps-vendored one (`kube-prometheus-stack-prometheus-node-exporter-`)
+      # while it still exists mid-decomposition; the kps prefix is removable
+      # after its next successful upgrade drops the vendored DS
+      # (cmdshift/platform#69)
+      expression: "object.metadata.namespace == 'observability' && (object.metadata.name.startsWith('prometheus-node-exporter') || object.metadata.name.startsWith('kube-prometheus-stack-prometheus-node-exporter'))"

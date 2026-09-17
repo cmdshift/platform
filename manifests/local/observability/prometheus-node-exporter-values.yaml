@@ -1,0 +1,15 @@
+podLabels:
+  # kubernetes-mixin node rules select job="node-exporter"; the SM maps
+  # target job from this pod label (prometheus.monitor.jobLabel=jobLabel)
+  jobLabel: node-exporter
+prometheus:
+  monitor:
+    enabled: true
+    jobLabel: jobLabel
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 500m
+    memory: 48Mi

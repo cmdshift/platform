@@ -23,8 +23,12 @@ spec:
       failed: status.conditions.filter(e, e.type == 'GrafanaReady').all(e, e.status == 'False')
     - apiVersion: monitoring.coreos.com/v1
       kind: Alertmanager
+      # no `failed:` expr: the operator flips the CR to Available=False
+      # (NoPodReady) for the first ~60s of a fresh-rebuild slow start
+      # (cold image pulls + PVC wait) — a known-self-healing blip that
+      # failed the gate on every rebuild; a real failure surfaces as the
+      # kustomization timeout instead (cmdshift/platform#69)
       current: status.conditions.filter(e, e.type == 'Available').all(e, e.status == 'True')
-      failed: status.conditions.filter(e, e.type == 'Available').all(e, e.status == 'False')
     # thanos CRs gate on the operator's single Ready condition
     # (thanos-community/thanos-operator#636). NOTE: empty conditions pass
     # vacuously (.all on []) — a CR the operator hasn't reconciled yet reads
