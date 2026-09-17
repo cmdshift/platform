@@ -1,0 +1,24 @@
+# Recommendation mode only: updater and admission controller are disabled, so
+# VPA never mutates pods or injects webhooks — manifests stay authoritative
+# and the recommendations are pure evidence (cmdshift/platform#62)
+recommender:
+  enabled: true
+  extraArgs:
+    v: "4"
+    # chart defaults clamp pod recommendations UP to 15m CPU / 100Mi — far
+    # above this cluster's 10-50m CPU / 32-96Mi workloads; lower the floors so
+    # small pods get honest numbers
+    pod-recommendation-min-cpu-millicores: "2"
+    pod-recommendation-min-memory-mb: "10"
+  resources:
+    requests:
+      cpu: 10m
+      memory: 128Mi
+    limits:
+      # greenfield sizing — audit after the first days (resource-sizing skill)
+      cpu: 200m
+      memory: 192Mi
+updater:
+  enabled: false
+admissionController:
+  enabled: false

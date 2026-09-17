@@ -1,25 +1,29 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: prometheus-operator-crds
-  namespace: observability
+  name: goldilocks
+  namespace: kube-system
 spec:
-  interval: 1h
-  timeout: 10m
+  interval: 12h
+  releaseName: goldilocks
+  dependsOn:
+    - name: vpa
   chart:
     spec:
-      chart: prometheus-operator-crds
-      version: 32.0.0
+      chart: goldilocks
+      version: "11.1.0"
       sourceRef:
         kind: HelmRepository
-        name: prometheus-community
+        name: fairwinds
         namespace: flux-system
   install:
-    crds: Create
     remediation:
       retries: 3
   upgrade:
-    crds: CreateReplace
     remediation:
       retries: 3
       remediateLastFailure: true
+  valuesFrom:
+    - kind: ConfigMap
+      name: goldilocks-values
+      valuesKey: values.yaml

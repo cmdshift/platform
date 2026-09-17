@@ -59,7 +59,7 @@ locals {
     }
   }
 
-  monitoring = {
+  observability = {
     main_grafana_credentials = {
       GF_SECURITY_ADMIN_USER     = "root"
       GF_SECURITY_ADMIN_PASSWORD = "secret"
@@ -77,9 +77,7 @@ locals {
         }
       })
     }
-  }
 
-  logging = {
     loki_s3_credentials = {
       LOKI_S3_ACCESS_KEY_ID     = "loki-username"
       LOKI_S3_SECRET_ACCESS_KEY = "loki-password"

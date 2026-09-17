@@ -14,7 +14,7 @@ resource "docker_container" "secrets" {
   }
   memory      = 64
   memory_swap = 64
-  entrypoint = ["httpd", "-vvv", "-f", "-h", "/www"]
+  entrypoint  = ["httpd", "-vvv", "-f", "-h", "/www"]
   upload {
     file    = "/www/certificates/intermediate-ca"
     content = jsonencode(local.certificates.intermediate_ca)
@@ -28,16 +28,16 @@ resource "docker_container" "secrets" {
     content = jsonencode(local.objects.seaweedfs_s3_config)
   }
   upload {
-    file    = "/www/monitoring/main-grafana-credentials"
-    content = jsonencode(local.monitoring.main_grafana_credentials)
+    file    = "/www/observability/main-grafana-credentials"
+    content = jsonencode(local.observability.main_grafana_credentials)
   }
   upload {
-    file    = "/www/monitoring/thanos-objstore"
-    content = jsonencode(local.monitoring.thanos_objstore)
+    file    = "/www/observability/thanos-objstore"
+    content = jsonencode(local.observability.thanos_objstore)
   }
   upload {
-    file    = "/www/logging/loki-s3-credentials"
-    content = jsonencode(local.logging.loki_s3_credentials)
+    file    = "/www/observability/loki-s3-credentials"
+    content = jsonencode(local.observability.loki_s3_credentials)
   }
   upload {
     file    = "/www/backups/velero-s3-credentials"

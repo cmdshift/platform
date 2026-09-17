@@ -1,0 +1,183 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: thanos-operator
+  namespace: flux-system
+spec:
+  interval: 24h
+  retryInterval: 5s
+  # never delete-on-removal: the bundle includes CRDs — deleting a CRD destroys
+  # every CR of that kind, so un-managing must orphan, never prune
+  deletionPolicy: Orphan
+  sourceRef:
+    kind: GitRepository
+    name: thanos-operator
+    namespace: flux-system
+  # deployed from the repo's bundle.yaml, NOT its helm chart: the chart embeds
+  # ~2.5MB of CRDs in the release manifest, blowing helm's 1MB release-secret cap
+  path: .
+  prune: true
+  wait: true
+  # a namespace move can wedge the health check on the OLD namespace's
+  # objects — recovery in runbooks/local/namespace-migration.md
+  timeout: 5m
+  patches:
+    # every namespaced bundle resource moves from thanos-operator-system to
+    # observability — including the bundle's own Namespace (renamed to converge
+    # with the namespaces group's) and the two ClusterRoleBindings' subjects.
+    # Image pinned to the GitRepository ref (quay publishes
+    # main-YYYY-MM-DD-COMMIT per commit)
+    - patch: |-
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: thanos-operator-controller-manager
+          namespace: observability
+        spec:
+          template:
+            spec:
+              securityContext:
+                seccompProfile:
+                  type: RuntimeDefault
+              containers:
+                - name: manager
+                  # 831accd4: single Ready condition replaces the sticky
+                  # ReconcileSuccess/Failed pair (thanos-community/thanos-operator#636)
+                  image: quay.io/thanos/thanos-operator:main-2026-09-11-dd673b3
+                  # audit: steady 85Mi — 112Mi = P99 x 1.2, limit 1.5x
+                  # cpu limits match the bundle (pinned in case the bundle ref moves)
+                  resources:
+                    requests:
+                      cpu: 10m
+                      memory: 112Mi
+                    limits:
+                      cpu: 500m
+                      memory: 168Mi
+                  # otel-sidecar gate dropped: it injects tracing config
+                  # (localhost:4318) without a collector — every thanos
+                  # component spams connection-refused ~2900/hr each
+                  args:
+                    - --leader-elect
+                    - --metrics-secure
+                    - --metrics-bind-address=:8443
+                    - --health-probe-bind-address=:8081
+                    - --log.format=logfmt
+                    - --log.level=debug
+                    - --enable-feature=service-monitor
+                    - --enable-feature=prometheus-rule
+                    - --enable-feature=kube-resource-sync
+                  # NSA hardening: roFS is safe — image runs as 65532,
+                  # leader election is API-based, no webhook server. /tmp
+                  # emptyDir for Go temp files (controller-runtime defaults
+                  # write there if a webhook ever gets added)
+                  securityContext:
+                    allowPrivilegeEscalation: false
+                    capabilities:
+                      drop: [ALL]
+                    readOnlyRootFilesystem: true
+                    # image is 65532:65532 — explicit uid/gid so kubelet
+                    # verifies numerically (C-0013)
+                    runAsNonRoot: true
+                    runAsUser: 65532
+                    runAsGroup: 65532
+                  volumeMounts:
+                    - name: tmp
+                      mountPath: /tmp
+              volumes:
+                - name: tmp
+                  emptyDir: {}
+      target:
+        kind: Deployment
+        name: thanos-operator-controller-manager
+    # namespace relocation is JSON6902, not SM — a SM patch can't move a resource
+    - patch: |-
+        - op: replace
+          path: /metadata/namespace
+          value: observability
+      target:
+        kind: Deployment
+        name: thanos-operator-controller-manager
+    - patch: |-
+        - op: replace
+          path: /metadata/namespace
+          value: observability
+      target:
+        kind: ServiceAccount
+        name: thanos-operator-controller-manager
+    - patch: |-
+        - op: replace
+          path: /metadata/namespace
+          value: observability
+      target:
+        kind: Service
+        name: thanos-operator-controller-manager-metrics-service
+    - patch: |-
+        - op: replace
+          path: /metadata/namespace
+          value: observability
+      target:
+        kind: ServiceMonitor
+        name: thanos-operator-controller-manager-metrics-monitor
+    - patch: |-
+        - op: replace
+          path: /metadata/namespace
+          value: observability
+      target:
+        kind: Role
+        name: thanos-operator-leader-election-role
+    - patch: |-
+        - op: replace
+          path: /metadata/namespace
+          value: observability
+      target:
+        kind: RoleBinding
+        name: thanos-operator-leader-election-rolebinding
+    # bundle Namespace rename: the renamed Namespace mirrors the PSS labels of
+    # namespaces/observability.namespace.yaml — whichever kustomization
+    # reconciles last strips the other's labels
+    # (runbooks/local/namespace-migration.md)
+    - patch: |-
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: thanos-operator-system
+          labels:
+            pod-security.kubernetes.io/enforce: privileged
+            pod-security.kubernetes.io/warn: privileged
+      target:
+        kind: Namespace
+        name: thanos-operator-system
+    - patch: |-
+        - op: replace
+          path: /metadata/name
+          value: observability
+      target:
+        kind: Namespace
+        name: thanos-operator-system
+    # ClusterRoleBinding subjects: the SA's namespace must follow the move
+    - patch: |-
+        - op: replace
+          path: /subjects/0/namespace
+          value: observability
+      target:
+        kind: ClusterRoleBinding
+        name: thanos-operator-manager-rolebinding
+    - patch: |-
+        - op: replace
+          path: /subjects/0/namespace
+          value: observability
+      target:
+        kind: ClusterRoleBinding
+        name: thanos-operator-metrics-auth-rolebinding
+    # chart/bundle RBAC lacks the events permission the operator needs in
+    # managed namespaces
+    - patch: |-
+        - op: add
+          path: /rules/-
+          value:
+            apiGroups: ["", "events.k8s.io"]
+            resources: ["events"]
+            verbs: ["create", "patch"]
+      target:
+        kind: ClusterRole
+        name: thanos-operator-manager-role

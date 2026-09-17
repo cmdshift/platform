@@ -1,0 +1,77 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - grafana-operator.helm-release.yaml
+  - kube-prometheus-stack.helm-release.yaml
+  - metrics-server.helm-release.yaml
+  - vpa.helm-release.yaml
+  - goldilocks.helm-release.yaml
+  - loki.helm-release.yaml
+  - alloy.helm-release.yaml
+  - loki-s3-credentials.external-secret.yaml
+  - thanos-objstore.external-secret.yaml
+  - thanos-operator.kustomization.yaml
+configMapGenerator:
+  - name: grafana-operator-values
+    namespace: observability
+    files:
+      - values.yaml=grafana-operator-values.yaml
+    options:
+      disableNameSuffixHash: true
+  - name: kube-prometheus-stack-values
+    namespace: observability
+    files:
+      - values.yaml=kube-prometheus-stack-values.yaml
+    options:
+      disableNameSuffixHash: true
+  # metrics-server/vpa/goldilocks install into kube-system (cluster plumbing);
+  # their HelmReleases live in the observability group by domain
+  - name: metrics-server-values
+    namespace: kube-system
+    files:
+      - values.yaml=metrics-server-values.yaml
+    options:
+      disableNameSuffixHash: true
+  - name: vpa-values
+    namespace: kube-system
+    files:
+      - values.yaml=vpa-values.yaml
+    options:
+      disableNameSuffixHash: true
+  - name: goldilocks-values
+    namespace: kube-system
+    files:
+      - values.yaml=goldilocks-values.yaml
+    options:
+      disableNameSuffixHash: true
+  - name: loki-values
+    namespace: observability
+    files:
+      - values.yaml=loki-values.yaml
+    options:
+      disableNameSuffixHash: true
+  - name: alloy-values
+    namespace: observability
+    files:
+      - values.yaml=alloy-values.yaml
+    options:
+      disableNameSuffixHash: true
+  - name: alloy-config
+    namespace: observability
+    files:
+      - config.alloy
+    options:
+      disableNameSuffixHash: true
+  # loki ruler rules: the chart's sidecar watches label `loki_rule` (the
+  # chart's LABEL env, underscore) and mounts matching ConfigMaps into
+  # /etc/loki/rules — this generator is the delivery channel, not dead
+  # config. The label must be the underscore form; a `loki-rule` label
+  # matches nothing and the ruler silently runs zero rules
+  # (cmdshift/platform#120)
+  - name: loki-rule
+    namespace: observability
+    files:
+      - loki-rules.yaml
+    options:
+      labels:
+        loki_rule: "true"

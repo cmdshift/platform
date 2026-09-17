@@ -7,8 +7,7 @@ resources:
   - secrets.namespace.yaml
   - storage.namespace.yaml
   - datastores.namespace.yaml
-  - monitoring.namespace.yaml
+  - observability.namespace.yaml
   - objects.namespace.yaml
-  - logging.namespace.yaml
   - backups.namespace.yaml
   - security.namespace.yaml

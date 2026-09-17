@@ -1,14 +1,14 @@
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: monitoring
-  namespace: monitoring
+  name: observability
+  namespace: observability
 spec:
   endpointSelector: {}
   egress:
     - toEndpoints:
         - matchLabels:
-            io.kubernetes.pod.namespace: monitoring
+            io.kubernetes.pod.namespace: observability
     - toEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: objects
