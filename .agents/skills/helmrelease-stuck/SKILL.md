@@ -22,10 +22,12 @@ Also not ladder material: the release is **kyverno itself** and its pods sit Pen
 ## Escalation ladder
 
 1. Reconcile — recognize the **terminal-state replay**: once `remediation.retries` is exhausted, every later reconcile replays the cached failure ("terminal error: exceeded maximum retries" in helm-controller logs) without re-attempting, even after the original blocker is fixed. An instant return of the old error = replay, not a fresh attempt. Use `helm_wait <ns> <name>` — it surfaces the HR failure message immediately instead of polling; `helm_wait -c <ns> <name>` reads the current state with no reconcile at all.
-2. Clear Stalled + retry counters (forces a genuinely fresh install after a terminal state):
+2. Clear Stalled + retry counters (forces a genuinely fresh install after a terminal state). **`requestedAt` annotations do NOT clear a Stalled release**: after `install.installFailures` is exhausted (4), the HR carries condition `Stalled`/`RetriesExceeded` and even `reconcile.fluxcd.io/requestedAt` annotation bumps just replay — suspend then resume is the recovery (hit live on the beyla adoption: an admission-denied install cycled to Stalled, suspend/resume reset it and it came back `UpgradeSucceeded`, cmdshift/platform#83):
    ```
-   flux suspend helmrelease <name> -n <ns> && flux resume helmrelease <name> -n <ns>
+   kubectl patch helmrelease <name> -n <ns> --type=merge -p '{"spec":{"suspend":true}}'
+   kubectl patch helmrelease <name> -n <ns> --type=merge -p '{"spec":{"suspend":false}}'
    ```
+   (the `flux suspend`/`flux resume` CLI form performs the same object mutation).
 3. Nuke (flux re-installs from the HelmRelease spec):
    ```
    kubectl get secrets -n <ns> -l owner=helm

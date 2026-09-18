@@ -1,6 +1,6 @@
 # objects
 
-The seaweedfs cluster (CR-managed by seaweedfs-operator) + `seaweedfs-admin` (plain Deployment) + `objects-config/` (the Seaweed CR). In-cluster S3: `main-s3.objects.svc:8333` — loki, thanos, and velero's object storage all live here (rustfs is out-of-cluster and holds only the `flux` + `backups` buckets).
+The seaweedfs cluster (CR-managed by seaweedfs-operator) + `seaweedfs-admin` (plain Deployment) + `objects-config/` (the Seaweed CR). In-cluster S3: `main-s3.objects.svc:8333` — loki, thanos, tempo, and velero's object storage all live here (rustfs is out-of-cluster and holds only the `flux` + `backups` buckets).
 
 ## CR-managed sizing and security
 
@@ -15,6 +15,7 @@ Resources/securityContext go in the **Seaweed CR spec** (`objects-config/`), not
 
 - **Volume servers have a default max volume count (7 slots per disk dir) and `volumeSizeLimitMB: 1024`** — full or size-capped volumes go read-only, and with no free slot the master can't grow replacements, so every write path 500s at once (`No writable volumes` / `Not enough data nodes found!` in the s3/filer/master logs). Vacuum reclaims space; the 10Gi PVC backs loki (30d retention) + thanos blocks — watch growth, `allowVolumeExpansion: false` makes retention/vacuum the only lever.
 - **s3.json identities** (`secret objects/seaweedfs-s3-config`) grant explicit `Delete:` on the loki/loki-rules/thanos buckets — load-bearing for Loki's delete-request store and thanos compactor block deletion.
+- **The s3 gateway loads its IAM config AT STARTUP ONLY** (`weed s3 -config=/etc/sw/s3.json` — no hot-reload of the mounted secret): after adding an identity to s3.json, every request signed with the new key fails `InvalidAccessKeyId ... Available keys: <old-count>` until the `main-s3` pod is restarted (delete it; the operator respawns it). Hit live: tempo crashlooped on auth until the restart (cmdshift/platform#83). Any new S3 consumer (loki-style pattern: identity in s3.json + ExternalSecret creds) must expect the restart as part of rollout.
 
 ## Operator landmine
 

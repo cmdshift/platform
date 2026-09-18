@@ -1,0 +1,33 @@
+privileged: true
+# off: the chart default (true) forces hostNetwork + cgroup/tracefs hostPath
+# binds — hostNetwork would put the metrics port on every node's host (the
+# observability CNP only allows host egress to 10250/9100, breaking the
+# ServiceMonitor scrape) and a hostPath bind of /sys/kernel/tracing trips the
+# same tetragon auto-mount conflict. Without it Beyla mounts tracefs inside
+# its own mount namespace (privileged, no bind in the way).
+contextPropagation:
+  enabled: false
+service:
+  enabled: true
+config:
+  data:
+    # JSON logging: all platform components log JSON so log lines are
+    # field-queryable (`| json` in LogQL) — set at the source, the pipeline
+    # passes lines through unchanged
+    log_format: json
+    otel_traces_export:
+      # direct OTLP to the tempo service (4318) — no OTel collector in the path
+      endpoint: http://tempo.observability.svc:4318
+resources:
+  # no pre-deploy evidence for a new workload: lean start per the sizing
+  # convention, audit (memory_audit/cpu_audit/vpa_recs) after seasoning and
+  # adjust (cmdshift/platform#83). 512Mi OOMKilled on a busy work node at
+  # first deploy — 768Mi covers the eBPF ring buffers under peak traffic
+  requests:
+    cpu: 50m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 768Mi
+serviceMonitor:
+  enabled: true
