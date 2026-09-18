@@ -541,6 +541,68 @@
       ],
       "title": "Recent logs",
       "type": "logs"
+    },
+    {
+      "datasource": {
+        "type": "tempo",
+        "uid": "${tempo_ds}"
+      },
+      "description": "Recent traces from Beyla eBPF auto-instrumentation for the selected namespace. Click a trace to open it; panel menu → Explore for TraceQL.",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 30
+      },
+      "id": 7,
+      "options": {
+        "spanName": [
+          [
+            "service_name"
+          ],
+          [
+            "root_service_name"
+          ],
+          [
+            "name"
+          ]
+        ],
+        "spanStatType": "errors",
+        "suggestions": [],
+        "topTableColumn": "traceName"
+      },
+      "pluginVersion": "13.1.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "${tempo_ds}"
+          },
+          "filters": [
+            {
+              "id": "service_name",
+              "operator": "=",
+              "scope": "resource",
+              "value": []
+            },
+            {
+              "id": "k8s.namespace.name",
+              "operator": "=",
+              "scope": "resource",
+              "value": "$namespace"
+            }
+          ],
+          "limit": 20,
+          "queryType": "search",
+          "refId": "A"
+        }
+      ],
+      "title": "Recent traces (Beyla)",
+      "type": "traces"
     }
   ],
   "preload": false,
@@ -710,6 +772,24 @@
         "query": "",
         "skipUrlSync": false,
         "type": "textbox"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "tempo",
+          "value": "tempo"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Tempo",
+        "multi": false,
+        "name": "tempo_ds",
+        "options": [],
+        "query": "tempo",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
       }
     ]
   },

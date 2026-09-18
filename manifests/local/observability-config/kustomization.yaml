@@ -15,6 +15,7 @@ resources:
   - flux-system.provider.yaml
   - prometheus.grafana-datasource.yaml
   - loki.grafana-datasource.yaml
+  - tempo.grafana-datasource.yaml
   # the dotdc k8s-views dashboards (url:-pointer CRs) were removed — re-add
   # from git history whenever a reference view is wanted again
   - platform-deployment.grafana-dashboard.yaml

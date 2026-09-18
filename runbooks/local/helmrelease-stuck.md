@@ -21,9 +21,10 @@ And not even a failure: an upgrade timing out with `Deployment/... status: 'InPr
    helm_wait <namespace> <name>
    ```
    Once `remediation.retries` is exhausted, helm-controller holds the release in a **terminal state and every later reconcile REPLAYS the cached failure** ("terminal error: exceeded maximum retries: cannot remediate failed release" in helm-controller logs) — it does not re-attempt, even if the original blocker (e.g. an admission denial) is long fixed. A fresh reconcile that returns instantly with the old error message is a replay — `helm_wait` surfaces it at t=0 so you don't burn polls rediscovering this (hit live, velero ns move).
-2. Clear Stalled + retry counters (this is what forces a genuinely fresh install after a terminal state):
+2. Clear Stalled + retry counters (this is what forces a genuinely fresh install after a terminal state). **`requestedAt` annotations do NOT clear a Stalled release**: after `install.installFailures` is exhausted (4), the HR carries condition `Stalled`/`RetriesExceeded` and every further reconcile — including `reconcile.fluxcd.io/requestedAt` annotation bumps — just replays the failure. Suspend then resume resets it to a working remediation path (hit live on the beyla adoption: an admission-denied install cycled install-failures to Stalled; suspend/resume brought it back as `UpgradeSucceeded`, cmdshift/platform#83):
    ```
-   flux suspend helmrelease <name> -n <ns> && flux resume helmrelease <name> -n <ns>
+   kubectl patch helmrelease <name> -n <ns> --type=merge -p '{"spec":{"suspend":true}}'
+   kubectl patch helmrelease <name> -n <ns> --type=merge -p '{"spec":{"suspend":false}}'
    ```
 3. Nuke (flux re-installs):
    ```

@@ -40,6 +40,10 @@ resource "docker_container" "secrets" {
     content = jsonencode(local.observability.loki_s3_credentials)
   }
   upload {
+    file    = "/www/observability/tempo-s3-credentials"
+    content = jsonencode(local.observability.tempo_s3_credentials)
+  }
+  upload {
     file    = "/www/backups/velero-s3-credentials"
     content = jsonencode(local.backups.velero_s3_credentials)
   }

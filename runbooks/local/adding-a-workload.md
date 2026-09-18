@@ -68,6 +68,14 @@ Two operational notes from the live hit:
 - **An STS's pod-create retry backoff after a quota-denied FailedCreate is long** — no recreate attempt within 15m. Once the LimitRange lands, force the path with a manifest-driven nudge (`flux reconcile kustomization <group>-config --with-source` re-applies the CR; the operator re-syncs the STS and the pod creates cleanly with defaulted resources).
 - Distinct symptom space: quota denials show `exceeded quota`/`failed quota` in controller events, kyverno denials show `Policy <name> failed` — same pod never created, different owner of the refusal.
 
+### Quota-ordering deadlock: the bump the workload needs can't land before the workload (cmdshift/platform#83)
+
+A quota bump for a NEW workload lives in `<group>-config/`, which `dependsOn: [<group>]` — flux applies the group's releases first, then the config. But if the new pods don't fit under the OLD quota, they sit StartError/FailedCreate (`exceeded quota`) while the config kustomization waits on a group that can't go Ready. The dependency order applies the fix after it's needed.
+
+Hit live on the beyla/tempo adoption: the observability quota bumps (limits.memory 8Gi→12Gi, pods 35→41, requests.cpu 750m→1 across `compute` + `logging-compute`) lived in `observability-config` and the observability pods couldn't schedule under the old values.
+
+Break the cycle out-of-band: `kubectl apply -f` the two declared quota manifests mid-rollout. This is not a live patch — the manifests are already the source of truth and flux adopts the identical spec on the next reconcile (no drift, no annotation games). Expect exactly one manual apply per adoption that needs its OWN quota headroom; bump-and-adopt in the same change, plan the apply as part of the rollout rather than a deviation.
+
 ## 8. Verify
 
 ```

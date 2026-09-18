@@ -1,0 +1,50 @@
+tempo:
+  # usage-report off: local cluster, no telemetry out (endpoint is grafana.net)
+  reportingEnabled: false
+  # env expansion for the S3 creds (${TEMPO_S3_*} in storage.trace.s3 below)
+  extraArgs:
+    config.expand-env: "true"
+  resources:
+    # no pre-deploy evidence for a new workload: lean start per the sizing
+    # convention, audit (memory_audit/cpu_audit/vpa_recs) after seasoning and
+    # adjust (cmdshift/platform#83)
+    requests:
+      cpu: 150m
+      memory: 768Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  storage:
+    trace:
+      backend: s3
+      s3:
+        bucket: tempo
+        # in-cluster seaweedfs S3 gateway — same pattern as loki/thanos
+        endpoint: main-s3.objects.svc:8333
+        forcepathstyle: true
+        insecure: true
+        access_key: "${TEMPO_S3_ACCESS_KEY_ID}"
+        secret_key: "${TEMPO_S3_SECRET_ACCESS_KEY}"
+      wal:
+        path: /var/tempo/wal
+  extraEnvFrom:
+    - secretRef:
+        name: tempo-s3-credentials
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
+  metricsGenerator:
+    # traces-only first; service-graph/span-metrics wiring is a follow-up
+    # (cmdshift/platform#83)
+    enabled: false
+# persistence is a top-level key in this chart (not tempo.persistence)
+persistence:
+  enabled: true
+  storageClassName: local-path
+  size: 2Gi
+serviceMonitor:
+  enabled: true

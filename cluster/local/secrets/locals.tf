@@ -54,6 +54,21 @@ locals {
               "Delete:loki-rules"
             ]
           },
+          {
+            name = "tempo"
+            credentials = [
+              {
+                accessKey = "tempo-username"
+                secretKey = "tempo-password"
+              }
+            ]
+            actions = [
+              "Read:tempo",
+              "Write:tempo",
+              "List:tempo",
+              "Delete:tempo"
+            ]
+          },
         ]
       })
     }
@@ -81,6 +96,11 @@ locals {
     loki_s3_credentials = {
       LOKI_S3_ACCESS_KEY_ID     = "loki-username"
       LOKI_S3_SECRET_ACCESS_KEY = "loki-password"
+    }
+
+    tempo_s3_credentials = {
+      TEMPO_S3_ACCESS_KEY_ID     = "tempo-username"
+      TEMPO_S3_SECRET_ACCESS_KEY = "tempo-password"
     }
   }
 
