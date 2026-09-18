@@ -1,0 +1,24 @@
+# Phase 3 (cmdshift/platform#60): cluster-wide exec inventory — every exec by
+# every pod process, no binary filter. The stream is the evidence base for the
+# phase-4 per-namespace deny-list widening: legit binaries become the
+# allowlist-by-absence, deny-class binaries that never appear are safe to kill.
+# monitor_only by default (no policy-mode option — enforcement is set per
+# namespace in the exec-deny-list-* policies).
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: exec-inventory
+spec:
+  # all pods — the unfiltered stream is the point
+  podSelector:
+    matchLabels: {}
+  kprobes:
+    - call: security_bprm_check
+      syscall: false
+      args:
+        - index: 0
+          type: linux_binprm
+      message: "exec by pod process (inventory)"
+      selectors:
+        - matchActions:
+            - action: Post
