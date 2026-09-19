@@ -1,0 +1,13 @@
+apiVersion: seaweed.seaweedfs.com/v1
+kind: S3PolicyBinding
+metadata:
+  name: tempo
+  namespace: objects
+spec:
+  seaweedRef:
+    name: main
+    namespace: objects
+  policyRef:
+    name: tempo
+  subjects:
+    - name: tempo

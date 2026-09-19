@@ -137,6 +137,3 @@ spec:
     volumeMounts:
       - name: tmp
         mountPath: /tmp
-    configSecret:
-      name: seaweedfs-s3-config
-      key: s3.json

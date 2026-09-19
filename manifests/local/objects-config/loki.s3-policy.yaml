@@ -1,0 +1,24 @@
+apiVersion: seaweed.seaweedfs.com/v1
+kind: S3Policy
+metadata:
+  name: loki
+  namespace: objects
+spec:
+  seaweedRef:
+    name: main
+    namespace: objects
+  statements:
+    - effect: Allow
+      actions:
+        - s3:ListBucket
+      resources:
+        - loki
+        - loki-rules
+    - effect: Allow
+      actions:
+        - s3:GetObject
+        - s3:PutObject
+        - s3:DeleteObject
+      resources:
+        - loki/*
+        - loki-rules/*

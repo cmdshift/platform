@@ -1,0 +1,9 @@
+apiVersion: seaweed.seaweedfs.com/v1
+kind: S3Identity
+metadata:
+  name: thanos
+  namespace: objects
+spec:
+  seaweedRef:
+    name: main
+    namespace: objects
