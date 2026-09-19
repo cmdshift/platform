@@ -9,12 +9,12 @@ spec:
     # — 310m CPU / 3080Mi req, 9700m/4620Mi limits, 16 pods (cmdshift/platform#93).
     # CPU limits quota covers prometheus/thanos-compaction bursts; 2× request-sum
     # absorbs kube-state-metrics/grafana-operator VPA gaps (recs +87%/+86%).
-    # 2026-09-17 tempo + beyla: +1280Mi req, +3.5Gi limits, +6 pods ceiling
-    # (tempo 1Gi + beyla ×5 512Mi; cmdshift/platform#83) — and requests.cpu
-    # 750m→1: beyla ×5 requests saturated the old ceiling (690m used, tempo's
-    # 150m request denied at the DS rollout)
+    # 2026-09-17 tempo: +768Mi req, +1Gi limits, +1 pod (cmdshift/platform#83)
+    # — and requests.cpu 750m→1: tempo's 150m request denied at the DS rollout
+    # (690m used, over the old ceiling). Beyla's share was reclaimed on the
+    # 2026-09-18 kernel-panic removal — pods 41→36, limits.memory 12Gi→9Gi
     requests.cpu: "1"
     requests.memory: 7Gi
     limits.cpu: 16
-    limits.memory: 12Gi
-    pods: "41"
+    limits.memory: 9Gi
+    pods: "36"

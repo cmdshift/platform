@@ -105,6 +105,20 @@ Incidents documented in their owning runbooks (kept there for context):
 
 **Fix**: `kubectl -n observability rollout restart daemonset/alloy` (same class as `docker restart sync-cloud-test`). Whether alloy hot-reloads is untested — the mount never refreshed to find out.
 
+## Beyla host kernel panic → removal (2026-09-18)
+
+**Symptom**: within a day of the beyla adoption (cmdshift/platform#83, merged as PR #124) the host kernel panicked with beyla's eBPF probes attached. No exact panic text captured (cluster destroyed for a clean rebuild immediately after); symptom-level evidence only: the panic correlated with beyla's DaemonSet running probes on the work nodes.
+
+**Root cause**: beyla 1.16.11's eBPF instrumentation is incompatible with the host kernel (7.2) — the same host-kernel constraint class that already forces the cilium `1.21.0-pre.2` pin (cilium/cilium#48016). Unlike cilium, beyla's panic mode is fatal to the host, not degraded functionality. The eBPF programs that load cleanly for tetragon (kprobes, and kallsyms-verified symbols) do not imply kprobe/tracepoint coverage for a different instrumenter's probe set — each eBPF workload must be verified against this kernel independently.
+
+**Fix**: beyla removed entirely — HelmRelease + values, `beyla-values` configMapGenerator entries, and the `allow-beyla-ebpf` PolicyException deleted; observability quotas reclaimed beyla's share (pods 41→36, limits.memory 12Gi→9Gi; tempo's share kept, `requests.cpu: "1"` stays — tempo's 150m still exceeds the old 750m ceiling). Tempo is retained (traceless until instrumentation returns). Because the cluster was destroyed before the fix, the removal took effect at the next rebuild — zero in-cluster ordering concerns. Landmines learned during the one-day adoption (contextPropagation default forcing hostNetwork, in-namespace tracefs mounts, quota-ordering deadlock) are retained in [manifests/local/observability/README.md](../../manifests/local/observability/README.md) — they apply to any future eBPF/privileged-instrumentation workload.
+
+**Tells for next time**:
+
+- **Verify host-kernel compatibility BEFORE adopting any eBPF-probe workload** (beyla, future OBI/hubble versions, anything loading kprobes/tracepoints beyond tetragon's proven set). Tetragon loading is not evidence another instrumenter's probes are safe; cilium's pin and beyla's panic are the two data points.
+- A workload that takes down the HOST (not just its pods) must be treated as a destroy-and-rebuild event: the cluster was destroyed and rebuilt rather than attempting in-place recovery — node-level panics in Talos-in-Docker have no supported convergence path (container mode has no `talosctl reboot`; see the audit-policy incident above for the limited `docker restart` recovery class).
+- An eBPF workload surviving a deploy window (beyla ran fine for a day before the panic) is not proof of stability — probe paths fire on workload mix; treat the first 24-48h of any new eBPF workload as a burn-in window.
+
 ## Tetragon lsmhooks load failure (kernel BTF gap)
 
 **Symptom**: an `lsmhooks:` TracingPolicy applied cleanly via flux but the agent reported load errors on every node: `lsm hook security_file_open not found in BTF`.

@@ -547,7 +547,7 @@
         "type": "tempo",
         "uid": "${tempo_ds}"
       },
-      "description": "Recent traces from Beyla eBPF auto-instrumentation for the selected namespace. Click a trace to open it; panel menu → Explore for TraceQL.",
+      "description": "Recent traces in the selected namespace (empty until an instrumentation source exports to tempo — beyla was removed over a host-kernel panic). Click a trace to open it; panel menu → Explore for TraceQL.",
       "fieldConfig": {
         "defaults": {},
         "overrides": []
@@ -601,7 +601,7 @@
           "refId": "A"
         }
       ],
-      "title": "Recent traces (Beyla)",
+      "title": "Recent traces",
       "type": "traces"
     }
   ],
