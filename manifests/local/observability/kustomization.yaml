@@ -11,7 +11,6 @@ resources:
   - loki.helm-release.yaml
   - alloy.helm-release.yaml
   - tempo.helm-release.yaml
-  - beyla.helm-release.yaml
   - loki-s3-credentials.external-secret.yaml
   - thanos-objstore.external-secret.yaml
   - tempo-s3-credentials.external-secret.yaml
@@ -77,12 +76,6 @@ configMapGenerator:
     namespace: observability
     files:
       - values.yaml=tempo-values.yaml
-    options:
-      disableNameSuffixHash: true
-  - name: beyla-values
-    namespace: observability
-    files:
-      - values.yaml=beyla-values.yaml
     options:
       disableNameSuffixHash: true
   - name: alloy-config
