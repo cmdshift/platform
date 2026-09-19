@@ -17,60 +17,22 @@ locals {
   }
 
   objects = {
-    seaweedfs_s3_config = {
-      "s3.json" = jsonencode({
-        identities = [
-          {
-            name = "thanos"
-            credentials = [
-              {
-                accessKey = "thanos-username"
-                secretKey = "thanos-password"
-              }
-            ]
-            actions = [
-              "Read:thanos",
-              "Write:thanos",
-              "List:thanos",
-              "Delete:thanos"
-            ]
-          },
-          {
-            name = "loki"
-            credentials = [
-              {
-                accessKey = "loki-username"
-                secretKey = "loki-password"
-              }
-            ]
-            actions = [
-              "Read:loki",
-              "Write:loki",
-              "List:loki",
-              "Delete:loki",
-              "Read:loki-rules",
-              "Write:loki-rules",
-              "List:loki-rules",
-              "Delete:loki-rules"
-            ]
-          },
-          {
-            name = "tempo"
-            credentials = [
-              {
-                accessKey = "tempo-username"
-                secretKey = "tempo-password"
-              }
-            ]
-            actions = [
-              "Read:tempo",
-              "Write:tempo",
-              "List:tempo",
-              "Delete:tempo"
-            ]
-          },
-        ]
-      })
+    # Seeded S3 credentials for the S3Identity/S3Credentials CR path
+    # (cmdshift/platform#125): S3Credentials adopts pre-populated Secrets
+    # as-is, so the static values keep matching the workload consumers.
+    thanos_s3_credentials = {
+      accessKey = "thanos-username"
+      secretKey = "thanos-password"
+    }
+
+    loki_s3_credentials = {
+      accessKey = "loki-username"
+      secretKey = "loki-password"
+    }
+
+    tempo_s3_credentials = {
+      accessKey = "tempo-username"
+      secretKey = "tempo-password"
     }
   }
 

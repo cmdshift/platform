@@ -24,8 +24,16 @@ resource "docker_container" "secrets" {
     content = jsonencode(local.flux_system.bucket_credentials)
   }
   upload {
-    file    = "/www/objects/seaweedfs-s3-config"
-    content = jsonencode(local.objects.seaweedfs_s3_config)
+    file    = "/www/objects/thanos-s3-credentials"
+    content = jsonencode(local.objects.thanos_s3_credentials)
+  }
+  upload {
+    file    = "/www/objects/loki-s3-credentials"
+    content = jsonencode(local.objects.loki_s3_credentials)
+  }
+  upload {
+    file    = "/www/objects/tempo-s3-credentials"
+    content = jsonencode(local.objects.tempo_s3_credentials)
   }
   upload {
     file    = "/www/observability/main-grafana-credentials"
