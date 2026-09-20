@@ -1,6 +1,17 @@
 machine:
   nodeLabels:
     k8s-role/ctrl: ""
+  # platform root CA for the kube-apiserver's OIDC client (--oidc-ca-file,
+  # cmdshift/platform#131): the auth companion's served chain is
+  # leaf+intermediate under this root. Ctrl-patch list only — workers never
+  # validate auth.cloud.test, and the apiserver extraVolumes mount only
+  # exists on ctrl nodes.
+  files:
+    - content: |-
+        ${indent(8, platform_root_ca)}
+      permissions: 644
+      path: /var/etc/oidc/ca.crt
+      op: create
   features:
     kubernetesTalosAPIAccess:
       enabled: true

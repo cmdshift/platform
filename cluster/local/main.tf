@@ -25,6 +25,7 @@ module "external" {
     "${module.conf.registry.name}" = module.conf.registry.services
     "${module.conf.mail.name}"     = module.conf.mail.services
     "${module.conf.scanner.name}"  = module.conf.scanner.services
+    "${module.conf.auth.name}"     = module.conf.auth.services
   }
 }
 
@@ -105,6 +106,15 @@ module "mail" {
   }
 }
 
+module "auth" {
+  source = "./auth"
+  name   = module.conf.auth.name
+  net = {
+    private_network_id = module.net.private_network_id
+    private_ip         = module.conf.auth.private_ip
+  }
+}
+
 module "sync" {
   depends_on = [
     module.storage,
@@ -165,6 +175,11 @@ module "internal" {
 resource "local_sensitive_file" "kubeconfig" {
   content  = module.nodes.kubeconfig
   filename = "${path.module}/.tmp/kubeconfig"
+}
+
+resource "local_sensitive_file" "kubeconfig_oidc" {
+  content  = module.nodes.kubeconfig_oidc
+  filename = "${path.module}/.tmp/kubeconfig-oidc"
 }
 
 resource "local_sensitive_file" "talosconfig" {

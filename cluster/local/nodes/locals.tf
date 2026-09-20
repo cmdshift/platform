@@ -14,6 +14,10 @@ locals {
   # reviewed audit policy (cmdshift/platform#90); 1.13/1.14 mechanics in files/audit-policy.yaml
   audit_policy_body = file("${path.module}/files/audit-policy.yaml")
 
+  # platform root CA baked into the machine config for --oidc-ca-file
+  # (cmdshift/platform#131); read at apply time from the `just certs` output
+  platform_root_ca = trimspace(file("${path.root}/.tmp/tls/root_ca.crt"))
+
   cluster_machine_patch = templatefile("${path.module}/templates/cluster.tftpl.yaml", {
     public_endpoint = local.public_endpoint
     local_api_ip    = local.local_api_ip
@@ -31,7 +35,7 @@ locals {
   })
 
   ctrl_machine_patch = templatefile("${path.module}/templates/ctrl.tftpl.yaml", {
-
+    platform_root_ca = local.platform_root_ca
   })
 
   work_machine_patch = templatefile("${path.module}/templates/work.tftpl.yaml", {
