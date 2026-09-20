@@ -21,7 +21,7 @@ Never work on `main`. Create a branch before the first edit: `feat/<topic>` or `
 
 - Operators group (`<group>/`) reconciles before its config group (`<group>-config/`); the root kustomization wires `dependsOn`. A CR whose CRDs ship in a later group wedges the tree — check `sources/` + `crds/` first when adopting anything new (the `adopt-chart` skill owns that checklist).
 - New kustomizations need: inner `kustomization.yaml`, root `<group>.yaml` Kustomization CR, a root list entry, and `dependsOn` on the right parents. Use an existing `-config/` group as the template.
-- Distinguish **operator workloads** (helm values) from **CR-managed workloads** (grafana, the OTel collector, alertmanager, seaweed — resources/security contexts go in the CR specs, not helm values; mimir is a plain StatefulSet; AGENTS.md → "CR-managed workloads").
+- Distinguish **operator workloads** (helm values) from **CR-managed workloads** (grafana, the OTel collector, alertmanager, seaweed — resources/security contexts go in the CR specs, not helm values; mimir is a plain StatefulSet — [manifests/local/observability/README.md](../../../manifests/local/observability/README.md) and [manifests/local/objects/README.md](../../../manifests/local/objects/README.md) carry the split).
 
 ## 3. Anticipate the full loop
 

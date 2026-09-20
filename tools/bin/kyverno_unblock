@@ -4,8 +4,9 @@
 # LOCAL-ONLY: hostNetwork is a talos-in-docker setting (the "remove in the
 # cloud" values in kyverno.helm-release.yaml). Each kyverno pod claims its
 # node's port, so every worker can host exactly one pod per controller — a
-# new-generation pod stays Pending until the old one is gone (AGENTS.md
-# kyverno landmine). Deletes the old-generation REPLICA SETS.
+# new-generation pod stays Pending until the old one is gone (kyverno
+# rollout-deadlock landmine, manifests/local/policies/README.md). Deletes
+# the old-generation REPLICA SETS.
 #
 # this tool used to delete old-generation PODS — that's
 # whack-a-mole. The stale RS still wants its replicas, so it respawns a

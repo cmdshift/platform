@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# PolicyReport summary — the AGENTS.md final check plus stale-report detection.
+# PolicyReport summary — the platform-workflow final check plus stale-report
+# detection.
 #   policy_report            # summary + stale-report listing
 #   policy_report --clean    # delete the stale reports, then re-print
 # Prints fail/skip/pass counts (failures: expect 0; skips = PolicyExceptions),
 # per-namespace report counts, and reports scoped to resources that no longer
-# exist (kyverno never retracts unmatched reports — AGENTS.md says delete the
-# stale objects directly). Counts pods AND controller kinds (and jobs, for
+# exist (kyverno never retracts unmatched reports — delete the
+# stale objects directly, see manifests/local/policies/README.md). Counts pods AND controller kinds (and jobs, for
 # helm-hook reports) since background scans emit one report per subject.
 # Exit 0 = report printed, 2 = usage error.
 

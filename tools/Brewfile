@@ -1,6 +1,5 @@
 tap "hashicorp/tap", trusted: true
-# Newer shell for tools/bin scripts (associative arrays in sync_wait;
-# /bin/bash on macOS is stuck at 3.2)
+# Newer shell for tools/bin scripts (associative arrays in sync_wait)
 brew "bash"
 # CLI to install, manage & troubleshoot Kubernetes clusters running Cilium
 brew "cilium-cli"

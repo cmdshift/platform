@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # CPU usage-vs-limits + throttling audit — the sibling of memory_audit.
 #   cpu_audit [threshold_pct]   # default 50
-# Throttling first (the silent killer — AGENTS.md resource sizing): top 10
+# Throttling first (the silent killer — the resource-sizing skill): top 10
 # containers by % of CFS periods throttled (1h rate), via prometheus_query.
 # Then usage-vs-limits table, millicores normalized ("2" cores parses as 2m
 # in naive scripts, the cpu twin of memory_audit's '1Gi' bug).

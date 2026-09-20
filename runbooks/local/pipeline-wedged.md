@@ -8,7 +8,7 @@ The chain: local file → sync container (full re-mirror every 5s) → `flux` bu
 
 ### 1. Sync container
 
-The container no longer watches for changes — it re-mirrors the whole tree (`rc mirror --overwrite --remove`) every 5s (cmdshift/platform#55: macOS bind mounts drop inotify events, deletes and edits alike, so a poll that self-heals every pass replaced the watcher). A stale bucket therefore can't come from a dropped event: either the container isn't running or rustfs is unreachable.
+The container no longer watches for changes — it re-mirrors the whole tree (`rc mirror --overwrite --remove`) every 5s (the inotify watcher was replaced after the historical macOS bind mounts dropped events — deletes and edits alike — so a poll that self-heals every pass took its place, cmdshift/platform#55). A stale bucket therefore can't come from a dropped event: either the container isn't running or rustfs is unreachable.
 
 ```
 docker ps                              # is sync-cloud-test even up?

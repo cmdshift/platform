@@ -147,7 +147,7 @@ resource "helm_release" "flux" {
       # retryInterval, timeout, 10m interval): the hooks are load-bearing only
       # until its first reconcile force-adopts both objects — with
       # ignore_changes = all below, this block never runs against an existing
-      # cluster. Never delete the on-cluster objects (AGENTS.md landmines).
+      # cluster. Never delete the on-cluster objects (flux/README.md).
       extraObjects = [
         {
           apiVersion = "source.toolkit.fluxcd.io/v1"

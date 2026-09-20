@@ -1,6 +1,6 @@
 # datastores
 
-Datastore operators — **operators only, nothing instantiated yet**; the namespace carries a `ResourceQuota/compute` in `datastores-config/` (created for it alongside the cluster-wide quota rollout, cmdshift/platform#93), so the first operator-scheduled datastore must fit within it. `datastores-config` with `healthCheckExprs` gets extended when the first CR lands. All images run through the caching registry. Adoption decision tree and traps: [runbooks/local/adopting-a-chart.md](../../runbooks/local/adopting-a-chart.md).
+Datastore operators — **operators only, nothing instantiated yet**; the namespace carries a `ResourceQuota/compute` in `datastores-config/` (created for it alongside the cluster-wide quota rollout, cmdshift/platform#93), so the first operator-scheduled datastore must fit within it. `datastores-config` with `healthCheckExprs` gets extended when the first CR lands. All images run through the caching registry. Adoption decision tree and traps: [runbooks/local/adopting-a-chart.md](../../../runbooks/local/adopting-a-chart.md).
 
 ## The operators
 

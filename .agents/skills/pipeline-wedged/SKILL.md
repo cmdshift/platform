@@ -15,7 +15,7 @@ docker logs sync-cloud-test --since 10m
 rustfs ls main/flux --recursive     # compare against the local tree
 ```
 
-No dropped-event symptom exists anymore — the mirror is a full `--remove` re-mirror every 5s and self-heals missed changes in one pass (cmdshift/platform#55: macOS bind mounts drop inotify events). Logs are silent when healthy; `mirror failed; retrying` = rustfs down or bad credentials. A stale bucket = container stopped (`docker restart sync-cloud-test` restarts the loop) or rustfs down (stage 2).
+No dropped-event symptom exists anymore — the mirror is a full `--remove` re-mirror every 5s and self-heals missed changes in one pass (the inotify watcher was replaced after the historical macOS bind mounts dropped events, cmdshift/platform#55). Logs are silent when healthy; `mirror failed; retrying` = rustfs down or bad credentials. A stale bucket = container stopped (`docker restart sync-cloud-test` restarts the loop) or rustfs down (stage 2).
 
 ## 2. Bucket source
 

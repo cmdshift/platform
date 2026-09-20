@@ -64,7 +64,7 @@ Rule of thumb: if this session hit a landmine or learned something the hard way,
 
 ## 5. Stop at green — the human commits
 
-Commit/push by **permission** (AGENTS.md Hygiene). When reconcile is green and docs are swept, summarize the change and propose a commit — then **stop; wait for the human's explicit approval before running `git commit`/`git push`**; the human reviews the diff and approves history. The commit step follows the `making-a-commit` skill (conventional format, signing rule); the PR step follows `opening-a-pull-request`.
+Commit/push by **permission** — commit-by-permission is a hard rule, and a pre-review go-ahead doesn't authorize the commit (the `making-a-commit` skill carries the full signing/permission rules). When reconcile is green and docs are swept, summarize the change and propose a commit — then **stop; wait for the human's explicit approval before running `git commit`/`git push`**; the human reviews the diff and approves history. The commit step follows the `making-a-commit` skill (conventional format, signing rule); the PR step follows `opening-a-pull-request`.
 
 ## Full detail
 

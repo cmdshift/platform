@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Poll a velero backup/restore until it reaches Completed, echoing progress
-# (see AGENTS.md polling discipline). The velero CLI has no jsonpath output
+# (polling discipline: the velero-ops skill). The velero CLI has no jsonpath output
 # (only table/json/yaml), hence the -o json | jq phase extraction.
 #   velero_wait backup|restore <name> [max_polls]   # 5s per poll; default 36 (~3m)
 # Exit 0 = Completed. Exit 1 = Failed/PartiallyFailed (terminal — no point

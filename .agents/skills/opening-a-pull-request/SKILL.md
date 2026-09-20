@@ -7,7 +7,7 @@ description: PR mechanics for this repo — pre-PR verification gates, title/bod
 
 ## 0. Gates before the PR
 
-- All commits on the feature branch; the pre-commit gates (reconcile green, docs swept, clean status) were checked per the `making-a-commit` skill — the PR adds nothing new except the docs-in-same-branch bar: a change isn't PR-ready until the docs it invalidated are in it (AGENTS.md → "Docs maintenance").
+- All commits on the feature branch; the pre-commit gates (reconcile green, docs swept, clean status) were checked per the `making-a-commit` skill — the PR adds nothing new except the docs-in-same-branch bar: a change isn't PR-ready until the docs it invalidated are in it (AGENTS.md → Do list).
 - Final verification on-cluster: `kubectl get helmreleases -A` all True, `policy_report` failures 0. State the results in the PR body — reviewers shouldn't re-derive them.
 
 ## 1. Title and body

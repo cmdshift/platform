@@ -36,7 +36,7 @@ kustomizeController:
       - --requeue-dependency=5s
   # audit: steady 178Mi (first in line for eviction under node pressure) —
   # 224Mi = P99 x 1.2; 512Mi limit holds. Delivery components wedge the
-  # whole pipeline when starved (see AGENTS.md sizing section)
+  # whole pipeline when starved (see flux/README.md sizing section)
   resources:
     requests:
       cpu: 50m

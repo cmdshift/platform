@@ -42,7 +42,8 @@ spec:
       memory: 160Mi
     limits:
       # 6% of CFS periods throttled at ~2m average = short write bursts
-      # (at 200m) — generous burst room per AGENTS.md.
+      # (at 200m) — generous burst room per the sizing convention
+      # (AGENTS.md → Do list).
       # During vacuum/compaction the volume server throttled at 93% of CFS
       # periods, wedged with all volumes read-only, and seaweed S3 returned
       # 500s (loki couldn't flush chunks; master logged "created 0:
@@ -113,7 +114,8 @@ spec:
       # starving the liveness probe (context deadline exceeded) — kubelet
       # killed the pod ~10x/h. The s3 gateway fronts loki AND
       # thanos object storage (hottest path in the cluster) — generous burst
-      # room per AGENTS.md (200m-2000m). Post-limit-fix throttle 0.2%.
+      # room per the sizing convention (AGENTS.md → Do list, 200m-2000m).
+      # Post-limit-fix throttle 0.2%.
       cpu: 1000m
       memory: 528Mi
     podSecurityContext:
