@@ -30,6 +30,20 @@ output "kubeconfig" {
   value = replace(talos_cluster_kubeconfig.main.kubeconfig_raw, local.public_endpoint, local.local_api_endpoint)
 }
 
+# OIDC-login twin of the admin kubeconfig (cmdshift/platform#131): identical
+# cluster/CA, user = kubelogin exec plugin against the auth companion. The
+# `kubectl oidc-login` subcommand must be installed on the host (runbook:
+# runbooks/local/cluster-rebuild.md). Authn-only — the API answers 403 until
+# cmdshift/platform#91 wires RBAC for the OIDC identities.
+output "kubeconfig_oidc" {
+  value = templatefile("${path.module}/templates/kubeconfig-oidc.tftpl.yaml", {
+    local_api_endpoint = local.local_api_endpoint
+    ca_data            = talos_cluster_kubeconfig.main.kubernetes_client_configuration.ca_certificate
+    issuer_url         = "https://auth.cloud.test/realms/platform"
+    client_id          = "kubernetes"
+  })
+}
+
 output "k8s_client_config" {
   value = merge(talos_cluster_kubeconfig.main.kubernetes_client_configuration, {
     host = local.local_api_endpoint

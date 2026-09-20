@@ -13,6 +13,26 @@ cluster:
     certSANs:
       - ${local_api_ip}
       - ${ctrl_ip}
+    # OIDC authn against the auth companion (cmdshift/platform#131) — authz
+    # stays admin-kubeconfig-only until cmdshift/platform#91 decides the
+    # RBAC story. Additive flags: the admin client-cert credential is
+    # unaffected. The strict static-pod decoder drops the ctrl node on a bad
+    # flag name — validate against `kube-apiserver --help` for the pinned
+    # k8s version before editing.
+    extraArgs:
+      oidc-issuer-url: https://auth.cloud.test/realms/platform
+      oidc-client-id: kubernetes
+      oidc-username-claim: preferred_username
+      oidc-groups-claim: groups
+      oidc-ca-file: /var/etc/oidc/ca.crt
+    # the static pod renders a fixed hostPath set — without this mount the
+    # container can't see /var/etc/oidc/ca.crt and exits at OIDC init
+    # (crash-loop with no container logs; found via the terraform-rendered
+    # machine config, cmdshift/platform#131)
+    extraVolumes:
+      - hostPath: /var/etc/oidc
+        mountPath: /var/etc/oidc
+        readonly: true
     # reviewed audit policy (cmdshift/platform#90); full volume-control rationale
     # in files/audit-policy.yaml
     auditPolicy:

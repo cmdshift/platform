@@ -120,6 +120,20 @@ output "sync" {
   }
 }
 
+output "auth" {
+  value = {
+    private_ip = cidrhost(local.cloud_cidr, 9)
+    name       = join("-", ["auth", local.external_name])
+    services = {
+      main = {
+        hostname   = join(".", ["auth", var.external_hostname])
+        private_ip = cidrhost(local.cloud_cidr, 9)
+        port       = 8080
+      }
+    }
+  }
+}
+
 output "scanner" {
   value = {
     private_ip = cidrhost(local.cloud_cidr, 8)

@@ -26,6 +26,7 @@ just bootstrap apply    # cilium + flux helm releases + the Bucket/root hooks
 4. `just bootstrap apply -auto-approve` (~90s incl. the API-up gate; 4 resources). The bootstrap module **gates itself on an apiserver readiness poll** (cmdshift/platform#72): the apply blocks in plan polling the kube API until it answers, then applies — no wait, no re-run (**nodes Ready ≠ API serving** is the poll's problem now, not the operator's; bootstrap apply stays idempotent regardless). A gate timeout ≈ genuinely broken — suspect the stale Docker port binding (step 3's recovery), not timing.
 5. Everything reconciles eventually — the dependency chain below takes ~10m; the trivy cold-start race pod (below) is expected. First-converge blips that self-heal (ClusterIssuer, Seaweed volume 0/1, Alertmanager NoPodReady — no longer fails the health gate, cmdshift/platform#69) are catalogued in the runbook's verification section.
 6. **If a node-level fix is ever needed post-apply** (e.g. an apiserver static-pod render failure wedged the ctrl node): container mode does NOT support `talosctl reboot` (`FailedPrecondition: method is not supported in container mode`) — `docker restart <ctrl-container>` is the convergence path (~30s to Ready; k8s API drops briefly). Post-mortem: [runbooks/local/incidents.md](../../../runbooks/local/incidents.md) (cmdshift/platform#90).
+7. **If etcd wedges mid-boot** ("Preparing"/"waiting to join" after a machine-config apply restarted the apiserver while etcd was still forming — cmdshift/platform#131): don't attempt surgical recovery (etcd disaster recovery is an open gap) — full destroy/apply is the procedure. Related trap: `--oidc-ca-file` without `cluster.apiServer.extraVolumes` crash-loops the apiserver with NO container logs — fingerprint + the rendered-machine-config diagnosis in the runbook.
 
 Expect **~10 minutes**, progressing through the dependency chain in order:
 
@@ -53,6 +54,9 @@ Watch with `flux_wait` (interactive cap ~15), or `flux_wait -c` for an instant n
 | Rustfs buckets | `rustfs ls main/` | `flux`, `backups` |
 | Mimir | `kubectl -n observability get pods -l app.kubernetes.io/name=mimir` | 1/1 Running; ruler groups up (`prometheus_query --query 'count(up)'` non-empty) |
 | Host API path | `curl -skf --max-time 3 https://127.0.0.1:6443/version` | 401 = publisher alive |
+| Keycloak discovery | `curl -s -o /dev/null -w '%{http_code}' https://auth.cloud.test/realms/platform/.well-known/openid-configuration` | 200 |
+| Kubelet-serving CSRs | `kubectl get csr` | Pending until manually approved (`kubectl get csr -o name \| xargs -I{} kubectl certificate approve {}`) — nodes don't go Ready until then |
+| OIDC kubeconfig | `kubectl --kubeconfig .tmp/kubeconfig-oidc get nodes` | `Forbidden ... User "https://auth.cloud.test/realms/platform#test"` = SUCCESS (authn works, browser login verified; RBAC is cmdshift/platform#91's scope) |
 | Ingress | `curl -s -o /dev/null -w '%{http_code}' http://local.test` | 404 = correct wiring with zero HTTPRoutes (`server: envoy` header proves the Gateway path); 503 = haproxy backends down |
 | Trivy scan pod | `kubectl -n security get pods` | one `scan-vulnerabilityreport-*` pod in `Error` is EXPECTED (see below); all later scans `Completed`, VulnerabilityReports accumulating |
 | PolicyReports | `policy_report` | 0 failures |
