@@ -13,7 +13,7 @@ Never fix drift with `kubectl edit` / `talosctl patch` / `docker exec` mutations
 
 ## 2. Manifest conventions
 
-- **File naming**: `<name>.<kind>.yaml` inside groups (`velero.helm-release.yaml`, `main.thanos-query.yaml`, `mail.alertmanager-config.yaml`), `<action>.<kind>.yaml` for policies (`disallow-privileged.validating-policy.yaml`, `allow-velero-security-contexts.policy-exception.yaml`), plain `<name>-values.yaml` for helm values files. Follow the dir's existing pattern — don't invent spellings.
+- **File naming**: `<name>.<kind>.yaml` inside groups (`velero.helm-release.yaml`, `mimir.statefulset.yaml`, `mail.alertmanager-config.yaml`), `<action>.<kind>.yaml` for policies (`disallow-privileged.validating-policy.yaml`, `allow-velero-security-contexts.policy-exception.yaml`), plain `<name>-values.yaml` for helm values files. Follow the dir's existing pattern — don't invent spellings.
 - **Every new file joins the group's inner `kustomization.yaml` resources list** (auto-discovered dirs excepted — but see the `kubectl kustomize` landmine: explicit-list dirs silently drop unlisted files from dry-runs while flux still applies them).
 - **valuesFrom pattern** (cmdshift/platform#31): helm values live in a plain `<release>-values.yaml`, joined to the HelmRelease via `configMapGenerator` + `valuesFrom` (fixed name, `disableNameSuffixHash: true`). `helm_verify` resolves these refs — keep the generator name in sync.
 - **YAML style**: match the surrounding files (2-space indent, quoted strings where the value is ambiguous). `yaml_lint` before reconciling, always.

@@ -75,7 +75,7 @@ sources → crds → namespaces → certificates → certificates-config (ztunne
 issuance gate) → networking (cilium: the long pole; boots unencrypted — the
 HelmRelease flips ztunnel on at first reconcile, cmdshift/platform#87)
 → flux → flux-config (adopts the Bucket + root) → policies
-→ storage → objects → observability → thanos-operator → observability-config
+→ storage → objects → observability → observability-config
 → backups
 ```
 
@@ -96,13 +96,11 @@ kubectl -n flux-system get kustomizations
 | flux-config adoption | `kubectl -n flux-system get kustomization local -o json --show-managed-fields` | `kustomize-controller` owns the spec |
 | Velero BSL | `kubectl -n backups get bsl default` | `Available` |
 | Rustfs buckets | `rustfs ls main/` | `flux`, `backups` (auto-provisioned) |
-| Thanos ruler | `kubectl -n observability get pods -l app.kubernetes.io/name=thanos-ruler` | 1/1 Running (CR sets `replicas: 1`) |
+| Mimir | `kubectl -n observability get pods -l app.kubernetes.io/name=mimir` | 1/1 Running; ruler groups served (`prometheus_query --query 'count(up)'` non-empty) |
 | PolicyReports | `policy_report` | 0 failures |
 | Host API path | `curl -skf --max-time 3 https://127.0.0.1:6443/version` | 401 (publisher alive; kubeconfig server = 127.0.0.1:6443) |
 | Browser paths | `curl -s -o /dev/null -w '%{http_code}' http://mail.cloud.test` | 200 (s3 → 403 = auth challenge, also fine) |
 | Ingress | `curl -s -o /dev/null -w '%{http_code} loc=%header{location}' http://local.test` | **301** → `https://local.test:443/` (the redirect route; `server: envoy` header proves the Gateway path; 503 = haproxy backends down). `https://local.test` → **404** (no service routes; TLS passthrough to the Gateway) |
-
-**Bootstrap race, self-healing:** on a fresh rebuild the ruler CR can fail its first sync (query service not up yet) → `Ready=False (ReconcileError)` on the CR. Since thanos-community/thanos-operator#636 (cmdshift/platform#22) the operator emits a single recoverable `Ready` condition — the next sync flips it `True`; no manual action, just verify it converged. The `observability-config` kustomization's `healthCheckExprs` gate the thanos CRs on the same condition.
 
 **First-converge races (expected, all self-heal in seconds-to-minutes; verified again 2026-09-09):** the ClusterIssuer/`intermediate-ca` can flip Failed→Ready within ~10s (the issuer is evaluated before the CA secret exists); the Seaweed CR reports `Volume: 0/1 ready` for a minute or two while the volume server registers with the master; the Alertmanager CR sits at `NoPodReady` for ~40-60s while its StatefulSet pod initializes (cold image pulls + PVC wait) — this no longer fails the `observability-config` health gate, whose Alertmanager expr dropped its `failed:` line (cmdshift/platform#69, verified on a full rebuild); the cnpg-crds kustomization can show `Source is not ready` for one poll window; kyverno's first image pulls may take a retry round. No manual action — verify convergence at the end.
 
@@ -169,7 +167,7 @@ Note: the docker daemon kills containers with SIGKILL (exit 137) on shutdown —
 
 A full destroy/apply wipes everything not in the local manifests:
 - rustfs (`storage-cloud-test`) — its data lives in the container layer; buckets re-provision from `cluster/local/conf/outputs.tf`, the `flux` bucket re-populates via the sync container, **all other bucket contents are gone** (velero backups included)
-- local-path PVCs and anything on them (seaweed, grafana, loki, thanos ruler state)
+- local-path PVCs and anything on them (seaweed, grafana, loki, mimir blocks)
 - seaweed buckets and their data
 
 If a rebuild stalls partway: [reconciliation-stuck.md](reconciliation-stuck.md) for kustomization failures, [pipeline-wedged.md](pipeline-wedged.md) if manifests stop applying.

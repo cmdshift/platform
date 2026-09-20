@@ -1,0 +1,72 @@
+target: all
+multitenancy_enabled: true
+
+usage_stats:
+  # local cluster — no telemetry out
+  enabled: false
+
+activity_tracker:
+  filepath: /data/activity.log
+
+server:
+  http_listen_port: 8080
+  grpc_listen_port: 9095
+  log_format: json
+
+memberlist:
+  abort_if_cluster_join_fails: false
+  compression_enabled: false
+  # self-join against the headless service — single replica today, no
+  # reconfig needed if replicas ever grow
+  join_members:
+    - dns+mimir-headless.observability.svc.cluster.local:7946
+
+blocks_storage:
+  backend: s3
+  bucket_store:
+    sync_dir: /data/tsdb-sync
+  s3:
+    bucket_name: mimir
+    endpoint: main-s3.objects.svc:8333
+    insecure: true
+    access_key_id: "${MIMIR_S3_ACCESS_KEY_ID}"
+    secret_access_key: "${MIMIR_S3_SECRET_ACCESS_KEY}"
+  tsdb:
+    dir: /data/tsdb
+    head_compaction_interval: 15m
+    wal_replay_concurrency: 3
+
+compactor:
+  # must not overlap blocks_storage.tsdb.dir (config validation rejects /data
+  # for both); compactor blocks are scratch only, never persisted
+  data_dir: /data/compactor
+  compaction_interval: 30m
+  deletion_delay: 2h
+  first_level_compaction_wait_period: 25m
+
+ingester:
+  ring:
+    replication_factor: 1
+    num_tokens: 512
+    tokens_file_path: /data/tokens
+    unregister_on_shutdown: false
+
+ruler:
+  enable_api: true
+  rule_path: /data/rules-tmp
+  evaluation_interval: 1m
+  alertmanager_url: http://alertmanager-operated.observability.svc:9093
+ruler_storage:
+  # local backend: rules are kustomize-generated ConfigMaps mounted read-only;
+  # no s3 round-trip for rule storage (cmdshift/platform#128)
+  backend: local
+  local:
+    directory: /etc/mimir/rules
+
+runtime_config:
+  file: /etc/mimir/runtime.yaml
+
+limits:
+  max_global_series_per_user: 0
+  max_fetched_series_per_query: 0
+  max_total_query_length: 12000h

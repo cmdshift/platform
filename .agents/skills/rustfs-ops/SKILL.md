@@ -31,7 +31,7 @@ Current buckets: `flux` (the GitOps source), `backups` (velero).
 
 Written **only** by the sync container (`rc mirror --overwrite --remove` from the bind-mounted `manifests/` tree). If contents look wrong or stale, **don't edit the bucket** — fix the local files, or restart the sync container for a full re-mirror (see the `pipeline-wedged` skill).
 
-Notable object: `bundle.yaml` (rendered CRDs + manager for the thanos-operator kustomization, ~2.5MB).
+Notable object: `bundle.yaml` (rendered CRDs + manager for the thanos-operator kustomization, ~2.5MB — historical; the operator was removed with the LGTM migration, cmdshift/platform#128).
 
 ## Full detail
 

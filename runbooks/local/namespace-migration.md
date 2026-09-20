@@ -13,7 +13,7 @@ How the 2026-09-07 namespace refactor landed, the conventions it locked in, and 
 | `policies` | `policies` | kyverno + all PolicyException objects |
 | `storage` | `storage` | local-path-provisioner |
 | `objects` | `objects` | seaweedfs-operator (+ seaweed cluster/admin) |
-| `observability` | `observability` | grafana-operator, kube-prometheus-stack, thanos-operator (bundle), prometheus-operator-crds, loki, alloy, metrics-server, vpa, goldilocks (the last three install into kube-system but their HelmReleases live in the observability group by domain) |
+| `observability` | `observability` | grafana-operator, kube-prometheus-stack, opentelemetry-operator, prometheus-operator-crds, loki, alloy, mimir (plain StatefulSet), metrics-server, vpa, goldilocks (the last three install into kube-system but their HelmReleases live in the observability group by domain) |
 | `backups` | `backups` | velero |
 | `security` | `security` | tetragon, trivy-operator |
 
@@ -50,7 +50,7 @@ The old kyverno HelmRelease was the only one of six moved releases that flux GC 
 
 ### kustomize patches cannot change `metadata.namespace`
 
-Strategic-merge patches treat `metadata.namespace` in the patch body as **selector data, not a merged field** — a SM patch silently leaves the resource in its original namespace (verified against the rendered thanos bundle). Every namespace relocation must be a JSON6902 `replace /metadata/namespace` patch (the thanos-operator bundle uses per-resource JSON6902 patches; its two ClusterRoleBindings also need `subjects[0].namespace` moved or the operator loses RBAC).
+Strategic-merge patches treat `metadata.namespace` in the patch body as **selector data, not a merged field** — a SM patch silently leaves the resource in its original namespace (verified against the rendered thanos bundle). Every namespace relocation must be a JSON6902 `replace /metadata/namespace` patch (the thanos-operator bundle used per-resource JSON6902 patches; its two ClusterRoleBindings also needed `subjects[0].namespace` moved or the operator lost RBAC — kept as precedent, the operator is gone since cmdshift/platform#128).
 
 ### Stale-inventory health-check loop (thanos-operator wave)
 
@@ -64,7 +64,7 @@ When a kustomization moves *all* its resources to another namespace in one apply
 
 storage → objects → observability (thanos bundle) → certificates (+ terraform secrets-server path) → secrets (store conditions swap) → backups → policies (sub-waves: exceptions-first, then release+values, then CNP) → delete old namespaces → docs. Secrets-server paths renamed in the same wave as their ExternalSecret (single terraform apply, container recreates, ES keeps last-synced values through the gap).
 
-### A bundle Namespace renamed onto a managed namespace gets its labels pruned (thanos-operator wave)
+### A bundle Namespace renamed onto a managed namespace gets its labels pruned (thanos-operator wave — operator since removed, cmdshift/platform#128; SSA mechanism stands)
 
 The thanos-operator `bundle.yaml` ships `Namespace: thanos-operator-system`; cmdshift/platform#31 renamed it to the monitoring namespace (today `observability`, cmdshift/platform#120) via JSON6902. Two flux kustomizations (`namespaces` and `thanos-operator`) then apply the **same Namespace as the same SSA field manager** (`kustomize-controller`) — SSA treats an Apply from a manager as authoritative for the fields it owns, so whichever kustomization reconciles last rewrites the label map and **prunes the other's labels**. On the 2026-09-07 rebuild `thanos-operator` went last: the `pod-security.kubernetes.io/enforce: privileged` label vanished and the kps node-exporter DaemonSet was denied by PSS at pod creation (`violates PodSecurity "baseline:latest"` — kubelet admission, invisible to kyverno and to `policy_report`), failing the kps install into uninstall-remediation/Stalled.
 

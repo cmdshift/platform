@@ -11,5 +11,12 @@ spec:
     name: Prometheus
     type: prometheus
     access: proxy
-    url: http://kube-prometheus-stack-prometheus.observability.svc:9090
+    # mimir monolith — prometheus-compatible query API lives under /prometheus
+    # (kube-prometheus-stack remote-writes here with the same OrgID,
+    # cmdshift/platform#128)
+    url: http://mimir.observability.svc:8080/prometheus
     isDefault: true
+    jsonData:
+      httpHeaderName1: X-Scope-OrgID
+    secureJsonData:
+      httpHeaderValue1: self-monitoring

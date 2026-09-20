@@ -1,0 +1,3 @@
+# mimir runtime config (reloadable overrides live here; empty base file —
+# runtime_config loading fails at startup if the file is absent)
+{}

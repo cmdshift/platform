@@ -12,7 +12,7 @@ The root `local` Kustomization and `main` Bucket are managed by the `flux-config
 
 ## Polling intervals (deliberately loose)
 
-Bucket `main` 5m, root + child kustomizations 1h drift-heal (`retryInterval: 5s` everywhere; thanos-operator 24h). Propagation is **event-driven** — artifact change + `dependsOn` requeue at 5s — so the loosened intervals cost nothing in latency; what they buy is background reconciles not interleaving with interactive edits (the old 1m bucket poll could publish a half-mirrored artifact mid-edit and the whole chain would apply it). The bootstrap twins run 1m/10m until flux-config adopts and converges them — keeps fresh rebuilds fast. **Do not suspend kustomizations** — a suspended tree reconciles nothing on rebuild, breaking the one-shot requirement. Cloud keeps tighter 10m/1m (multiple operators make frequent drift-heal worthwhile).
+Bucket `main` 5m, root + child kustomizations 1h drift-heal (`retryInterval: 5s` everywhere). Propagation is **event-driven** — artifact change + `dependsOn` requeue at 5s — so the loosened intervals cost nothing in latency; what they buy is background reconciles not interleaving with interactive edits (the old 1m bucket poll could publish a half-mirrored artifact mid-edit and the whole chain would apply it). The bootstrap twins run 1m/10m until flux-config adopts and converges them — keeps fresh rebuilds fast. **Do not suspend kustomizations** — a suspended tree reconciles nothing on rebuild, breaking the one-shot requirement. Cloud keeps tighter 10m/1m (multiple operators make frequent drift-heal worthwhile).
 
 ## Sizing
 

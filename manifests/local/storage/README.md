@@ -14,6 +14,6 @@ local-path-provisioner (helm release) + `storage-config/` (the StorageClasses).
 
 ## local-path quirks
 
-- local-path creates **world-writable (0777)** dirs so non-root workloads can write PVCs — but only on fresh deploy; retrofitting root-owned data needs a one-time chown (helper-pod pattern, used by seaweedfs and thanos-ruler).
+- local-path creates **world-writable (0777)** dirs so non-root workloads can write PVCs — but only on fresh deploy; retrofitting root-owned data needs a one-time chown (helper-pod pattern, used by seaweedfs and the thanos ruler in its day).
 - The helper pod image is pinned via `helperImage.tag` — must not be `:latest` (admission denies it, **silently breaking all PVC provisioning**).
 - `kubelet_volume_stats_*` PVC metrics exist because the PVs are `local` — hostPath PVs are skipped by kubelet (series silently absent, no error anywhere).

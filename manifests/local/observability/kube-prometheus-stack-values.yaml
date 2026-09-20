@@ -60,7 +60,7 @@ prometheus:
     # CR-managed Alertmanager (observability-config/main.alertmanager.yaml) — the
     # chart's alertmanager component is disabled, so without this the whole
     # kubernetes-mixin rule set (PV filling, StatefulSet mismatch, …) fires
-    # into the void. Same endpoint thanos-ruler uses (main.thanos-ruler.yaml).
+    # into the void. Same endpoint mimir-ruler and the OTelCollector use.
     alertingEndpoints:
       - namespace: observability
         name: alertmanager-operated
@@ -73,6 +73,12 @@ prometheus:
     serviceMonitorSelectorNilUsesHelmValues: false
     # same gate applies to PodMonitors
     podMonitorSelectorNilUsesHelmValues: false
+    # remote-write into the mimir monolith (raw retention lives there now —
+    # flat 7d, mimir has no downsampling, cmdshift/platform#128)
+    remoteWrite:
+      - url: http://mimir.observability.svc:8080/api/v1/push
+        headers:
+          X-Scope-OrgID: self-monitoring
     externalLabels:
       cluster: local
     resources:
@@ -88,24 +94,5 @@ prometheus:
       limits:
         cpu: 1000m
         memory: 2304Mi
-    thanos:
-      objectStorageConfig:
-        existingSecret:
-          name: thanos-objstore
-          key: objstore.yaml
-      resources:
-        # overnight: 2h block uploads pin the CPU quota — hard
-        # CFS bursts (33% throttled, 0.7m avg, at 200m). Memory fits
-        # (peak 112Mi vs 192Mi limit)
-        requests:
-          cpu: 10m
-          memory: 128Mi
-        limits:
-          cpu: 500m
-          memory: 192Mi
-  thanosService:
-    enabled: true
-  thanosServiceMonitor:
-    enabled: true
 grafana:
   enabled: false

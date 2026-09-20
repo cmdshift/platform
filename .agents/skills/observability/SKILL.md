@@ -1,6 +1,6 @@
 ---
 name: observability
-description: Querying cluster metrics, logs, and alert delivery — prometheus_query (PromQL against prometheus or thanos-query, port-forward lifecycle handled), loki_query (LogQL), and mailpit (alert emails). Use when you need metrics, log lines, or to confirm alerts fired.
+description: Querying cluster metrics, logs, and alert delivery — prometheus_query (PromQL against prometheus or mimir, port-forward lifecycle handled), loki_query (LogQL), and mailpit (alert emails). Use when you need metrics, log lines, or to confirm alerts fired.
 ---
 
 # Observability queries
@@ -10,12 +10,12 @@ description: Querying cluster metrics, logs, and alert delivery — prometheus_q
 ```
 prometheus_query 'container_cpu_cfs_throttled_periods_total{namespace="…",container="…"}'
 prometheus_query -c -r 6h 'container_memory_working_set_bytes{namespace="ns",container="c"}'
-prometheus_query --query 'count(kube_pod_container_status_restarts_total)'   # thanos-query (global view)
+prometheus_query --query 'count(kube_pod_container_status_restarts_total)'   # mimir (global raw view)
 ```
 
 - Default: raw JSON. `-v`: values only. `-c`: compact, one line per series (token-cheap).
 - `-r 6h`: range query over m|h|d, auto-stepped to ~30 points.
-- Port-forward lifecycle handled: the forward is SHARED across calls (lock file in `${TMPDIR:-/tmp}`, reused/evicted automatically; `--stop` evicts manually) — rapid query loops no longer churn listeners; a not-ready prometheus (WAL replay) is waited out up to 2m with `prometheus not ready after 2m`, and the retry rides the same forward. Defaults to `svc/kube-prometheus-stack-prometheus:9090`, `--query` switches to thanos-query.
+- Port-forward lifecycle handled: the forward is SHARED across calls (lock file in `${TMPDIR:-/tmp}`, reused/evicted automatically; `--stop` evicts manually) — rapid query loops no longer churn listeners; a not-ready server is waited out up to 2m, and the retry rides the same forward. Defaults to `svc/kube-prometheus-stack-prometheus:9090`, `--query` switches to `svc/mimir:8080` (OrgID header + `/prometheus` API prefix handled).
 - Instant queries only see series present in the last 5m — use `-r` to see pods that have since been recreated.
 
 Useful one-liners: `container_cpu_cfs_throttled_periods_total` (throttling), `container_memory_working_set_bytes` (memory trends), `prometheus_tsdb_head_series` (cardinality), `up` (scrape health — the old `up{job="kube-proxy"}` example died with the kube-proxy removal, cmdshift/platform#70).
@@ -52,7 +52,7 @@ loki_query -c 'sum by (x) (count_over_time(...))'  # labels per series + latest 
 mailpit [limit]                    # subjects of the latest alert emails, newest first
 ```
 
-Alert delivery path: thanos-ruler → alertmanager → mailpit. Alerts land at **http://mail.cloud.test** — use it to confirm a rule fired (e.g. after touching `observability-config/thanos-rules.yaml`) or to read `ContainerOOMKilled` events. If rules silently stop firing but every reconcile is green: each rule ConfigMap must carry exactly one data key — the thanos-operator skips any with more (`observability` README, cmdshift/platform#85).
+Alert delivery path: mimir ruler → alertmanager → mailpit. Alerts land at **http://mail.cloud.test** — use it to confirm a rule fired (e.g. after touching `observability/mimir-rules.yaml`) or to read `ContainerOOMKilled` events.
 
 ## tetra (Tetragon process events)
 

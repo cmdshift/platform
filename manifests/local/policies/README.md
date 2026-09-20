@@ -20,7 +20,7 @@ All 13 ValidatingPolicies run in **Deny** mode (cmdshift/platform#84 added the f
 
 ## PolicyException registry (`policies-config/`)
 
-Scoped by namespace + name prefix; each needs a keep/drop decision for the cloud — don't blanket-copy the directory. Covers: hostNetwork kyverno, privileged velero node-agents + data-mover pods, cilium + hubble-relay (incl. their 1s termination grace), node-exporter, alloy host-logs, local-path helper pod, thanos-ruler config-reloader sidecar, tetragon agent (security namespace), kube-system system components.
+Scoped by namespace + name prefix; each needs a keep/drop decision for the cloud — don't blanket-copy the directory. Covers: hostNetwork kyverno, privileged velero node-agents + data-mover pods, cilium + hubble-relay (incl. their 1s termination grace), node-exporter, alloy host-logs, local-path helper pod, tetragon agent (security namespace), kube-system system components. (The thanos-ruler config-reloader entry was removed with the LGTM migration, cmdshift/platform#128.)
 
 ## Kyverno landmines (all cost debugging rounds)
 

@@ -13,8 +13,11 @@ spec:
     # — and requests.cpu 750m→1: tempo's 150m request denied at the DS rollout
     # (690m used, over the old ceiling). Beyla's share was reclaimed on the
     # 2026-09-18 kernel-panic removal — pods 41→36, limits.memory 12Gi→9Gi
+    # 2026-09-19 LGTM migration (cmdshift/platform#128): mimir monolith
+    # (+768Mi/1Gi) + otel-operator (+64Mi/128Mi) + OTelCollector — headroom for
+    # the thanos↔mimir coexistence window; re-audit after thanos teardown
     requests.cpu: "1"
-    requests.memory: 7Gi
+    requests.memory: 8Gi
     limits.cpu: 16
-    limits.memory: 9Gi
+    limits.memory: 12Gi
     pods: "36"

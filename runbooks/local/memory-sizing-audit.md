@@ -20,7 +20,7 @@ The script normalizes Mi/Gi — `1Gi` silently parses as `1` in naive scripts (t
 
 ## 3. Containers without limits
 
-Folded into `memory_audit`'s footer. Expected on this cluster: **4** — three control-plane statics (apiserver, scheduler, controller-manager) plus the thanos-ruler config-reloader (PolicyException'd, ~18Mi). kube-proxy ×5 used to make it 9 but left with the cilium KPR cutover (cmdshift/platform#70). Anything else is a finding.
+Folded into `memory_audit`'s footer. Expected on this cluster: **3** — three control-plane statics (apiserver, scheduler, controller-manager). The thanos-ruler config-reloader used to make it 4 but left with the LGTM migration (cmdshift/platform#128); kube-proxy ×5 used to make it 9 but left with the cilium KPR cutover (cmdshift/platform#70). Anything else is a finding.
 
 ## 4. Trend, not snapshot
 
@@ -55,7 +55,7 @@ Resource bumps are values-only changes → the HelmRelease spec is untouched →
 1. `sync_wait` + `flux_wait` — the *group* kustomization rebuilds the generated `ConfigMap/<release>-values` (the CMs do not exist until this runs).
 2. `helm_wait <ns> <release>` for each changed release — re-triggers helm against the *fresh* CM.
 
-Run `helm_wait` **without** `flux_wait` first and the upgrade re-renders against the OLD ConfigMap data — the HR goes Ready, reports success, and the new values never land (hit twice in the 2026-09-07 audit; the tell is `request_audit` still showing the old requests after a "successful" rollout). CR-managed workloads (Grafana/Alertmanager/Thanos CRs) don't need step 2 — the operator picks up the CR edit on its own reconcile; a `flux reconcile kustomization <group>-config --with-source` forces it. The thanos-operator is a **Kustomization** (bundle + patches), not an HR — its spec is owned by the `observability` group, so `flux_wait` then `flux reconcile kustomization thanos-operator --with-source`.
+Run `helm_wait` **without** `flux_wait` first and the upgrade re-renders against the OLD ConfigMap data — the HR goes Ready, reports success, and the new values never land (hit twice in the 2026-09-07 audit; the tell is `request_audit` still showing the old requests after a "successful" rollout). CR-managed workloads (Grafana/Alertmanager/the OTel collector CR) don't need step 2 — the operator picks up the CR edit on its own reconcile; a `flux reconcile kustomization <group>-config --with-source` forces it. Plain-manifest workloads (mimir's StatefulSet) are owned by the `observability` group kustomization — `flux_wait`, then `flux reconcile kustomization observability --with-source` if a nudge is needed.
 
 Also: `request_audit`'s read of pod resources reflects the **old** pods until each rollout finishes — daemonsets/statefulsets roll one pod at a time; re-run the audit after the roll completes, not during it.
 

@@ -1,7 +1,7 @@
 apiVersion: seaweed.seaweedfs.com/v1
 kind: S3Policy
 metadata:
-  name: thanos
+  name: mimir
   namespace: objects
 spec:
   seaweedRef:
@@ -12,11 +12,11 @@ spec:
       actions:
         - s3:ListBucket
       resources:
-        - thanos
+        - mimir
     - effect: Allow
       actions:
         - s3:GetObject
         - s3:PutObject
         - s3:DeleteObject
       resources:
-        - thanos/*
+        - mimir/*

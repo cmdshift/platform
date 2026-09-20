@@ -14,7 +14,7 @@ The value says *what*; only a comment can say *why*. Apply the **delete-test** b
 ## 2. The only three reasons to comment
 
 - **Surprising choice** — a value that looks wrong but is deliberate: deviation from the chart's/upstream's default, a magic number, an apparent misconfig (e.g. `global.image.registry: ghcr.io` for kyverno while the upstream vanity proxy silently 404s — cmdshift/platform#71).
-- **Edge case / landmine** — a workaround for a bug, two pins that must move in lockstep (cilium chart versions, thanos GitRepository tag ↔ image tag), an ordering trap, something that silently no-ops.
+- **Edge case / landmine** — a workaround for a bug, two pins that must move in lockstep (cilium chart versions in bootstrap + flux), an ordering trap, something that silently no-ops (e.g. the mimir retention flag that only exists as a CLI arg, cmdshift/platform#128).
 - **Evidence at the value** — the observed P99, audit number, or spike story that justifies a sizing value (e.g. velero's 2× memory limit — kopia repo-maintenance OOM-killed it at 1.5×). Numbers justify the value; keep them at the value, not in a distant doc.
 
 Anything with a *story* longer than a sentence or two does not belong in the comment: the comment carries why + evidence, and links the runbook/README/CHANGELOG entry that owns the narrative.

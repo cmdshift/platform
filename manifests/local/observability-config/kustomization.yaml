@@ -6,10 +6,8 @@ resources:
   - limit-range.yaml
   - main.grafana.yaml
   - main.alertmanager.yaml
-  - main.thanos-ruler.yaml
-  - main.thanos-compact.yaml
-  - main.thanos-query.yaml
-  - main.thanos-store.yaml
+  - otel-collector.opentelemetry-collector.yaml
+  - otel-collector.rbac.yaml
   - mail.alertmanager-config.yaml
   - flux-system.alert.yaml
   - flux-system.provider.yaml
@@ -21,25 +19,6 @@ resources:
   - platform-deployment.grafana-dashboard.yaml
   - main-grafana-credentials.external-secret.yaml
 configMapGenerator:
-  # one file per generator — the thanos-operator skips ConfigMaps with more than
-  # one data key ("skipping invalid config map", len(data) != 1 gate in its ruler
-  # controller), which would silently unload ALL ruler rules (cmdshift/platform#85)
-  - name: thanos-rules
-    namespace: observability
-    files:
-      - thanos-rules.yaml
-    options:
-      labels:
-        operator.thanos.io/rule-file: "true"
-        operator.thanos.io/prometheus-rule: "true"
-  - name: slo-rules
-    namespace: observability
-    files:
-      - slo.rules.yaml
-    options:
-      labels:
-        operator.thanos.io/rule-file: "true"
-        operator.thanos.io/prometheus-rule: "true"
   - name: platform-deployment-dashboard
     namespace: observability
     files:

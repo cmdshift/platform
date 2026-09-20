@@ -50,7 +50,6 @@ curl -s 'https://quay.io/api/v1/repository/<org>/<repo>/tag/?filter_tag_name=lik
 | flux2 | `cluster/local/bootstrap/variables.tf` (`flux_chart_version` default) + `manifests/local/flux/flux.helm-release.yaml` | bootstrap twin converges to the flux pin on adoption |
 | cloudnative-pg | chart (`datastores/cloudnative-pg.helm-release.yaml`) + CRDs tag (`sources/cloudnative-pg-crds.git-repository.yaml`) + values image tag (`datastores/cloudnative-pg-values.yaml`) | a **triple**: chart + CRDs + image |
 | emqx-operator | chart (`datastores/emqx-operator.helm-release.yaml`) + CRDs tag (`sources/emqx-operator-crds.git-repository.yaml`) + values image tag (`datastores/emqx-operator-values.yaml`) | same triple; emqx tags carry no `v` prefix |
-| thanos-operator | GitRepository commit (`sources/thanos-operator.git-repository.yaml`) + quay image tag (`observability/thanos-operator.kustomization.yaml` patch) | commit and quay `main-<date>-<sha>` tag move in lockstep |
 | registry / scanner | `cluster/local/registry/data.tf` + `cluster/local/scanner/data.tf` | both angos pins bump in lockstep (cmdshift/platform#102) |
 
 Pairs where one side lags converge to the laggard (flux adoption pulls the live release to the HelmRelease's pin), so a partial bump is worse than none.

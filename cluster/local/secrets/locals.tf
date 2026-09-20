@@ -20,11 +20,6 @@ locals {
     # Seeded S3 credentials for the S3Identity/S3Credentials CR path
     # (cmdshift/platform#125): S3Credentials adopts pre-populated Secrets
     # as-is, so the static values keep matching the workload consumers.
-    thanos_s3_credentials = {
-      accessKey = "thanos-username"
-      secretKey = "thanos-password"
-    }
-
     loki_s3_credentials = {
       accessKey = "loki-username"
       secretKey = "loki-password"
@@ -34,25 +29,17 @@ locals {
       accessKey = "tempo-username"
       secretKey = "tempo-password"
     }
+
+    mimir_s3_credentials = {
+      accessKey = "mimir-username"
+      secretKey = "mimir-password"
+    }
   }
 
   observability = {
     main_grafana_credentials = {
       GF_SECURITY_ADMIN_USER     = "root"
       GF_SECURITY_ADMIN_PASSWORD = "secret"
-    }
-
-    thanos_objstore = {
-      "objstore.yaml" = yamlencode({
-        type = "s3"
-        config = {
-          bucket     = "thanos"
-          endpoint   = "main-s3.objects.svc:8333"
-          access_key = "thanos-username"
-          secret_key = "thanos-password"
-          insecure   = true
-        }
-      })
     }
 
     loki_s3_credentials = {
@@ -63,6 +50,11 @@ locals {
     tempo_s3_credentials = {
       TEMPO_S3_ACCESS_KEY_ID     = "tempo-username"
       TEMPO_S3_SECRET_ACCESS_KEY = "tempo-password"
+    }
+
+    mimir_s3_credentials = {
+      MIMIR_S3_ACCESS_KEY_ID     = "mimir-username"
+      MIMIR_S3_SECRET_ACCESS_KEY = "mimir-password"
     }
   }
 
