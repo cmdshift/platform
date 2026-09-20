@@ -4,7 +4,7 @@ Tear the Talos-in-Docker cluster down and bring it back from terraform alone. Va
 
 ## Prerequisites
 
-- `.tmp/tls` certs must exist (the `secrets` and `bootstrap` modules read them): `just certs` — skip if already present
+- `.tmp/tls` certs must exist: `just certs` — skip if already present. It creates the intermediate CA (read by the `secrets` and `bootstrap` modules) **and** the `*.cloud.test` wildcard leaf (step CLI, `--profile leaf`, `--not-after 8760h` — lifetime aligned to the intermediate so one rotation run covers both, cmdshift/platform#130), then concatenates key+leaf+intermediate into `cluster/local/.tmp/tls/cloud.test.pem` — the `cloud.test.pem` the external haproxy module uploads for TLS termination on :443. The step calls carry no `--force`; re-running regenerates intermediate+leaf in one run so they never diverge
 - Nothing running that you care about — see data implications below
 
 ## Procedure
@@ -100,6 +100,7 @@ kubectl -n flux-system get kustomizations
 | PolicyReports | `policy_report` | 0 failures |
 | Host API path | `curl -skf --max-time 3 https://127.0.0.1:6443/version` | 401 (publisher alive; kubeconfig server = 127.0.0.1:6443) |
 | Browser paths | `curl -s -o /dev/null -w '%{http_code}' http://mail.cloud.test` | 200 (s3 → 403 = auth challenge, also fine) |
+| Companion TLS | `curl -s -o /dev/null -w '%{http_code}' https://mail.cloud.test` | 200 (s3 → 403; registry → 200; `openssl s_client -connect 127.0.10.1:443 -servername secrets.cloud.test` → TLSv1.3, chain verifies against `root_ca.crt`) — trust the root CA on the host for browser/curl convenience: add `cluster/local/.tmp/tls/root_ca.crt` to the host trust store (e.g. copy to `/usr/local/share/ca-certificates/` + `update-ca-certificates` on Linux) |
 | Ingress | `curl -s -o /dev/null -w '%{http_code} loc=%header{location}' http://local.test` | **301** → `https://local.test:443/` (the redirect route; `server: envoy` header proves the Gateway path; 503 = haproxy backends down). `https://local.test` → **404** (no service routes; TLS passthrough to the Gateway) |
 
 **First-converge races (expected, all self-heal in seconds-to-minutes; verified again 2026-09-09):** the ClusterIssuer/`intermediate-ca` can flip Failed→Ready within ~10s (the issuer is evaluated before the CA secret exists); the Seaweed CR reports `Volume: 0/1 ready` for a minute or two while the volume server registers with the master; the Alertmanager CR sits at `NoPodReady` for ~40-60s while its StatefulSet pod initializes (cold image pulls + PVC wait) — this no longer fails the `observability-config` health gate, whose Alertmanager expr dropped its `failed:` line (cmdshift/platform#69, verified on a full rebuild); the cnpg-crds kustomization can show `Source is not ready` for one poll window; kyverno's first image pulls may take a retry round. No manual action — verify convergence at the end.

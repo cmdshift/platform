@@ -124,5 +124,9 @@ Replicate the local bootstrap's readiness gate (cmdshift/platform#72): a `data "
 
 The pull-through caching registry (angos at `registry.cloud.test`, wildcard containerd mirror in the node machine config) is Talos-in-Docker local-only — cloud nodes pull direct from upstreams: no angos companion, no machine-config mirror. The wildcard's strictness (any registry outside the angos upstream map hard-fails at pull, `skipFallback: true`) therefore does not apply in the cloud; mechanics in `runbooks/local/cluster-rebuild.md`.
 
+## Companion haproxy TLS (local: `cluster/local/external/`, cmdshift/platform#130)
+
+The `*.cloud.test` TLS termination (:443, wildcard leaf from the platform intermediate via `just certs`, pem uploaded into the cloud-test container) is **Talos-in-Docker local-only** — there is no companion haproxy in the cloud. The cloud cluster's ingress/auth endpoints follow the cloud-side pattern (real LB / Gateway-API ingress), not this companion haproxy; nothing to port.
+
 - **kyverno `global.image.registry: ghcr.io`** (override of the chart's reg.kyverno.io default; rationale comment in `manifests/local/policies/kyverno-values.yaml`): harmless in the cloud — a registry override works the same without the cache, and ghcr is the real upstream behind reg.kyverno.io anyway.
 - **vpa + goldilocks** (in the local `observability` group): port as-is, including the lowered VPA recommendation floors (2m CPU / 10Mi) — nothing in the sizing stack depends on the local cluster shape. The VPA CRDs ship in the chart's `crds/` dir (`install.crds: Create` / `upgrade.crds: CreateReplace`), so no separate CRD handling either. Group decisions: `manifests/local/observability/README.md`.
