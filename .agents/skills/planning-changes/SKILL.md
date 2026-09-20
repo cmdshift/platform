@@ -14,14 +14,14 @@ Never work on `main`. Create a branch before the first edit: `feat/<topic>` or `
 ## 1. Map the issue to surfaces
 
 - **Which group owns it?** Every workload lives in one of the group dirs (`networking/`, `observability/`, `backups/`, …); the group's README carries its decisions. Cluster-protection and cross-cutting objects (PolicyExceptions, quotas, PDBs, limit ranges) live in the `-config/` dir of the group that depends on them — `policies-config/` owns cluster-protection, `<group>-config/` owns that group's CR-managed specs and quota objects.
-- **Read the group README + manifests first.** Check for **rationale comments** before deciding existing config is wrong — deliberate decisions are documented inline at the value (why thanos-operator uses `bundle.yaml`, why `mirror.sh` passes `--remove`). If a choice looks odd, find the comment before planning to "fix" it.
+- **Read the group README + manifests first.** Check for **rationale comments** before deciding existing config is wrong — deliberate decisions are documented inline at the value (e.g. why `mirror.sh` passes `--remove`). If a choice looks odd, find the comment before planning to "fix" it.
 - **Sweep the CHANGELOG + skills for prior art.** If the landmine was hit before, it's written down (skills' trap lists, `CHANGELOG.md`, `manifests/local/README.md`). Re-deriving it is wasted rounds.
 
 ## 2. Sequence the dependency order
 
 - Operators group (`<group>/`) reconciles before its config group (`<group>-config/`); the root kustomization wires `dependsOn`. A CR whose CRDs ship in a later group wedges the tree — check `sources/` + `crds/` first when adopting anything new (the `adopt-chart` skill owns that checklist).
 - New kustomizations need: inner `kustomization.yaml`, root `<group>.yaml` Kustomization CR, a root list entry, and `dependsOn` on the right parents. Use an existing `-config/` group as the template.
-- Distinguish **operator workloads** (helm values) from **CR-managed workloads** (grafana, thanos, alertmanager, seaweed — resources/security contexts go in the CR specs, not helm values; AGENTS.md → "CR-managed workloads").
+- Distinguish **operator workloads** (helm values) from **CR-managed workloads** (grafana, the OTel collector, alertmanager, seaweed — resources/security contexts go in the CR specs, not helm values; mimir is a plain StatefulSet; AGENTS.md → "CR-managed workloads").
 
 ## 3. Anticipate the full loop
 

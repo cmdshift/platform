@@ -1,6 +1,6 @@
 # Adopting a chart
 
-Bringing a new helm chart in (or deciding how to deploy an upstream project at all). Worked example throughout: the thanos-operator, 2026-09-05.
+Bringing a new helm chart in (or deciding how to deploy an upstream project at all). Worked example throughout: the thanos-operator, 2026-09-05 (kept as precedent — the operator was removed with the LGTM migration, cmdshift/platform#128, but the decision ladder stands).
 
 ## 0. Import the chart repo into the local helm client
 
@@ -43,7 +43,7 @@ If the manifest is too big, pick a strategy:
 For the kustomization-over-raw-manifests path:
 - strategic-merge patches on Deployments merge `containers` **by name** — a wrong name silently *adds* a container. Verify the container name first
 - `ClusterRole.rules` is an atomic list: strategic merge **replaces** it — use a JSON6902 `op: add, path: /rules/-` to append instead
-- house example: `manifests/local/observability/thanos-operator.kustomization.yaml` (seccomp + image pin via strategic merge, events RBAC via JSON6902)
+- house example: the (removed) thanos-operator kustomization's three patches — seccomp + image pin via strategic merge, events RBAC via JSON6902 (shape preserved in git history and in the `adopt-chart` skill)
 
 ## 4. Verify before pushing
 
@@ -64,9 +64,9 @@ And verify any new-to-you API fields against the **on-cluster CRD schema** befor
 kubectl get crd <crd> -o jsonpath='{.spec.versions[0].schema.openAPIV3Schema.properties.spec.properties.<field>}'
 ```
 
-## Worked example (thanos-operator)
+## Worked example (thanos-operator — historical, operator removed cmdshift/platform#128)
 
-helm chart attempt → install failed at the 1MB secret cap (its CRDs are ~2.5MB of the manifest) → vendored CRDs (worked, regen burden) → reverted to the repo's `bundle.yaml` via kustomization with three patches (seccomp, image pin, events RBAC). Full rationale comments live in `observability/thanos-operator.kustomization.yaml`.
+helm chart attempt → install failed at the 1MB secret cap (its CRDs are ~2.5MB of the manifest) → vendored CRDs (worked, regen burden) → reverted to the repo's `bundle.yaml` via kustomization with three patches (seccomp, image pin, events RBAC). Full rationale in git history (`observability/thanos-operator.kustomization.yaml` was deleted with the teardown).
 
 ## Operator adoption (datastores group, cmdshift/platform#49)
 

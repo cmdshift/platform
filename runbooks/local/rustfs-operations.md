@@ -31,7 +31,7 @@ Buckets, users, and policies are auto-provisioned by the container entrypoint fr
 
 Written **only** by the sync container (`rc mirror --overwrite --remove` from the bind-mounted `manifests/` tree). If its contents look wrong or stale, don't edit the bucket — fix the local files (or restart the sync container for a full re-mirror: see [pipeline-wedged.md](pipeline-wedged.md)).
 
-Notable object: `bundle.yaml` (rendered CRDs + manager for the thanos-operator kustomization, ~2.5MB).
+Notable object: `bundle.yaml` (rendered CRDs + manager for the thanos-operator kustomization, ~2.5MB — historical; the operator was removed with the LGTM migration, cmdshift/platform#128).
 
 ## Verify bucket contents
 

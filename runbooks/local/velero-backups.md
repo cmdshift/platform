@@ -26,7 +26,7 @@ Maintenance Jobs are built by velero's server internally with no securityContext
 
 ## Alerts
 
-Defined in `observability-config/thanos-rules.yaml` (`backup-alerts` group; semantics + rule-writing conventions: [manifests/local/observability/README.md](../../manifests/local/observability/README.md), cmdshift/platform#111):
+Defined in `observability/mimir-rules.yaml` (`backup-alerts` group — the rules moved from `observability-config/thanos-rules.yaml` with the LGTM migration, cmdshift/platform#128; semantics + rule-writing conventions: [manifests/local/observability/README.md](../../manifests/local/observability/README.md), cmdshift/platform#111):
 
 - **VeleroBackupFailed** (critical, no `for:`) — `increase(velero_backup_failure_total[24h]) > 0 or increase(velero_backup_partial_failure_total[24h]) > 0`. The partial-failure arm is required: a schedule backup with failed PodVolumeBackups lands `PartiallyFailed`, which velero counts only in `velero_backup_partial_failure_total`. Fires within one evaluation (~1m) and lands in mailpit — verified live.
 - **VeleroBackupStale** (warning, `for: 1h`) — no successful `pvcs` backup in 26h **or none ever** (the `absent()` arm covers the never-succeeded state: the last-success gauge only materializes after a first Completed backup). The `for: 1h` means a fresh wedge pends ~1h before firing.
@@ -94,7 +94,7 @@ Expect `0 errors` + ~19 benign `No annotations found ... using restore spec sett
 Two gotchas the drill surfaced:
 
 - **Node-agent crashloops if the configmap is missing** (velero exits at startup when the flag is set). This bit a fresh rebuild: the configmap originally lived in `backups-config/`, which `dependsOn` backups — `backups` never went Ready, so `backups-config` could never apply the CM. Circular. Fixed structurally by moving it into `backups/` so it lands atomically with the HelmRelease (rebuilds are one-shot again). If you ever see node-agent pods Error-looping at startup, check the configmap exists: `kubectl -n backups get cm node-agent-config`
-- **The annotation only affects NEW PVs.** The 2026-09-05 rebuild provisioned all 8 PVs as `local` (seaweed included), so the whole cluster is volume-data protected — verified `local PVs: 8 | hostPath PVs: 0`. On any cluster with pre-annotation hostPath PVs, leave them until a rebuild; never recreate seaweed's PVCs out-of-band to convert them early — the volume contents are the only copy of the thanos/loki object store.
+- **The annotation only affects NEW PVs.** The 2026-09-05 rebuild provisioned all 8 PVs as `local` (seaweed included), so the whole cluster is volume-data protected — verified `local PVs: 8 | hostPath PVs: 0`. On any cluster with pre-annotation hostPath PVs, leave them until a rebuild; never recreate seaweed's PVCs out-of-band to convert them early — the volume contents are the only copy of the object store (mimir blocks, loki, tempo data).
 
 Validated end-to-end (drill re-run): PVB `Completed` (data mover pod passed admission), destroy → restore returned the exec-written file byte-for-byte, and the restore's injected `restore-wait` init container also passed admission. Drill procedure for the data path (re-run after any storage change):
 

@@ -59,7 +59,7 @@ Credentials come from the secrets server: payload in `cluster/local/secrets/loca
 
 - **namespace**: plain manifest in `namespaces/` **and register it in `namespaces/kustomization.yaml`** (explicit resources list — an unregistered file is silently not applied and dependents hang on `namespaces "<name>" not found`); prune is deliberately false there
 - **helm release**: `<thing>/`; **CRs/config**: the matching `<thing>-config/`
-- **CR-managed workloads** (grafana, thanos ×3, alertmanager, seaweed): resources + securityContext go in the **CR spec** (`resourceRequirements`, `securityContext`), not helm values
+- **CR-managed workloads** (grafana, the OTel collector, alertmanager, seaweed): resources + securityContext go in the **CR spec** (`resourceRequirements`, `securityContext`), not helm values. Mimir is hand-rolled (plain StatefulSet in `observability/`).
 - **operator-managed CRs**: add `healthCheckExprs` (CEL) to the owning kustomization — `wait: true` ignores `healthChecks`; copy expressions from https://fluxcd.io/flux/cheatsheets/cel-healthchecks/ and verify fields against the on-cluster CRD schema
 - **scheduling on ctrl** (rare — alloy is the only tenant so far, cmdshift/platform#90): the pod needs a `node-role.kubernetes.io/control-plane:NoSchedule` toleration, its **namespace listed in `kubernetesTalosAPIAccess.allowedKubernetesNamespaces`** in `cluster/local/nodes/templates/ctrl.tftpl.yaml` (container-mode kubelet verifies image pulls via the Talos API — non-allowed namespaces fail pulls `PermissionDenied ... not authorized`; template edit + `terraform apply`, not a manifest), and any root-owned host-path read needs a capability (e.g. `DAC_READ_SEARCH`) via the PolicyException's `policyRefs`
 
@@ -74,7 +74,7 @@ yaml_lint
 flux_wait
 ```
 
-Then: helmreleases green (`helm_wait -c <ns> <name>` per release), `policy_report` failures 0 (skips = exceptions; `--clean` for stale reports). If the workload exposes metrics: ServiceMonitor (+ trust-CRDs flag where the chart needs it), then verify scraping landed with `prometheus_query 'up{namespace="<ns>"}'`; if it logs and should ship to Loki, confirm with `loki_query '{namespace="<ns>"}'` (`-c` for a compact series list); if it should alert: rules in `observability-config/thanos-rules.yaml` → alerts land at http://mail.cloud.test (`mailpit`).
+Then: helmreleases green (`helm_wait -c <ns> <name>` per release), `policy_report` failures 0 (skips = exceptions; `--clean` for stale reports). If the workload exposes metrics: ServiceMonitor (+ trust-CRDs flag where the chart needs it), then verify scraping landed with `prometheus_query 'up{namespace="<ns>"}'`; if it logs and should ship to Loki, confirm with `loki_query '{namespace="<ns>"}'` (`-c` for a compact series list); if it should alert: rules in `observability/mimir-rules.yaml` → alerts land at http://mail.cloud.test (`mailpit`).
 
 ## Full detail
 

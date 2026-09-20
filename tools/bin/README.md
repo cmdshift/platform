@@ -228,7 +228,7 @@ run for real.
 - `-n` overrides the namespace for namespaced objects whose namespace doesn't
   exist yet; cluster-scoped objects ignore it
 - It validates **CRs only** — raw-YAML files folded into a ConfigMap via
-  configMapGenerator (e.g. `thanos-rules.yaml`) fail with "apiVersion not set";
+  configMapGenerator (e.g. a values or rules file) fail with "apiVersion not set";
   those go through `yaml_lint` instead
 - Exit 0: all PASS. Exit 1: any FAIL (per-file PASS/FAIL printed); exit 2
   usage; `-h` prints the header comment block
@@ -245,9 +245,10 @@ The three siblings — pick by question:
 ### `memory_audit [threshold_pct]`
 
 Memory usage-vs-limits table (default 50%), Mi/Gi normalized. Footer counts
-containers with no memory limit — expected 4 (three control-plane statics +
-the thanos-ruler config-reloader; kube-proxy ×5 left with the cilium KPR
-cutover, cmdshift/platform#70); anything else is a finding. Non-numeric
+containers with no memory limit — expected 3 (three control-plane statics;
+the thanos-ruler config-reloader left with the LGTM migration
+cmdshift/platform#128, kube-proxy ×5 with the cilium KPR cutover
+cmdshift/platform#70); anything else is a finding. Non-numeric
 thresholds are a usage error — they used to silently corrupt the awk
 comparisons.
 
@@ -324,10 +325,16 @@ runbooks/local/namespace-migration.md.
 
 ### `prometheus_query [-v|-c] [-r 6h] [--query] '<promql>' | prometheus_query --stop`
 
-Port-forwards svc/kube-prometheus-stack-prometheus:9090 (or
-svc/thanos-query-main with `--query`) — one forward per service, SHARED
-across invocations via the lock file
+Port-forwards svc/kube-prometheus-stack-prometheus:9090 (or svc/mimir:8080
+with `--query` — the mimir path also sends `X-Scope-OrgID: self-monitoring`
+and uses `/ready` for the ready check, since mimir serves the query API
+under `/prometheus` with no prometheus-style `/-/ready`) — one forward per
+service, SHARED across invocations via the lock file
 `${TMPDIR:-/tmp}/prometheus_query.<service>.forward` (`<pid> <port>`).
+(Git history note: `--query` targeted svc/thanos-query-main before the LGTM
+migration, cmdshift/platform#128 — a reused-forward lock recorded under the
+old service name silently 302'd the ready check; the per-service lock file
+keying makes that a non-issue going forward.)
 
 - default: raw JSON; `-v`: values only; `-c`: compact, one line per series
   with a short label subset (token-cheap vs raw JSON's label noise)
@@ -354,6 +361,12 @@ across invocations via the lock file
   race: two simultaneous cold starts can both write the lock (last writer
   wins, one forward orphans until its lock is overwritten or `--stop`
   catches it) — sequential loops, the norm for these tools, never race.
+- **per-service knobs live inside `port_forward`**: the service-specific
+  port (mimir 8080 vs prometheus 9090) and ready path (`/ready` vs
+  `/-/ready`) must be set on BOTH the fresh-forward and reused-forward
+  branches — the ready check runs before the query-URL build site, so a
+  knob set only next to the URL build leaves the reused path probing the
+  wrong endpoint (hit as a 302→non-200 ready loop, cmdshift/platform#128).
 
 ### `loki_query [-c] '<logql>' [duration] | loki_query --stop`
 

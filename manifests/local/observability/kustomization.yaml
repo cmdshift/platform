@@ -11,11 +11,30 @@ resources:
   - loki.helm-release.yaml
   - alloy.helm-release.yaml
   - tempo.helm-release.yaml
+  - mimir.statefulset.yaml
+  - mimir.service.yaml
+  - opentelemetry-operator.helm-release.yaml
   - loki-s3-credentials.external-secret.yaml
-  - thanos-objstore.external-secret.yaml
   - tempo-s3-credentials.external-secret.yaml
-  - thanos-operator.kustomization.yaml
+  - mimir-s3-credentials.external-secret.yaml
 configMapGenerator:
+  - name: mimir-config
+    namespace: observability
+    files:
+      - mimir.config.yaml
+      - runtime.yaml
+    options:
+      disableNameSuffixHash: true
+  # mimir's local ruler backend scans <dir>/<tenant>/*.yaml — one level below
+  # the mount, so keys carry the tenant prefix. ConfigMap keys can't contain
+  # '/' — the mimir.statefulset.yaml subPath mount does the mapping
+  - name: mimir-rules
+    namespace: observability
+    files:
+      - self-monitoring.mimir-rules.yaml=mimir-rules.yaml
+      - self-monitoring.slo.rules.yaml=slo.rules.yaml
+    options:
+      disableNameSuffixHash: true
   - name: grafana-operator-values
     namespace: observability
     files:
@@ -76,6 +95,12 @@ configMapGenerator:
     namespace: observability
     files:
       - values.yaml=tempo-values.yaml
+    options:
+      disableNameSuffixHash: true
+  - name: opentelemetry-operator-values
+    namespace: observability
+    files:
+      - values.yaml=opentelemetry-operator-values.yaml
     options:
       disableNameSuffixHash: true
   - name: alloy-config

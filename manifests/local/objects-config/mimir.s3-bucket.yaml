@@ -1,9 +1,9 @@
 apiVersion: seaweed.seaweedfs.com/v1
-kind: S3Identity
+kind: Bucket
 metadata:
-  name: thanos
+  name: mimir
   namespace: objects
 spec:
-  seaweedRef:
+  clusterRef:
     name: main
     namespace: objects

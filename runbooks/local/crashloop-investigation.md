@@ -19,7 +19,7 @@ A silent exit with nothing in the logs is almost always an OOMKill — the proce
 
 ## 2. Kyverno or workload?
 
-If admission denied the pod: its template violates a policy (missing requests/limits, `runAsNonRoot`, seccomp, capabilities, `:latest`). Fix the workload if it's ours. If a controller/operator generates non-compliant pods and offers no config knobs (e.g. the thanos-operator's config-reloader sidecar), add a **scoped PolicyException** — `policies-config/*.policy-exception.yaml`, namespace + name-prefix matching, with a rationale comment (AGENTS.md comment rules).
+If admission denied the pod: its template violates a policy (missing requests/limits, `runAsNonRoot`, seccomp, capabilities, `:latest`). Fix the workload if it's ours. If a controller/operator generates non-compliant pods and offers no config knobs (e.g. the thanos-operator's config-reloader sidecar in its day), add a **scoped PolicyException** — `policies-config/*.policy-exception.yaml`, namespace + name-prefix matching, with a rationale comment (AGENTS.md comment rules); a LimitRange can be the better fix for resource-less exempt containers (cmdshift/platform#111).
 
 ## 3. Memory: limit too low, or a leak?
 

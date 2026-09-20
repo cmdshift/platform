@@ -1,13 +1,13 @@
 apiVersion: seaweed.seaweedfs.com/v1
-kind: S3Credentials
+kind: S3PolicyBinding
 metadata:
-  name: thanos
+  name: mimir
   namespace: objects
 spec:
   seaweedRef:
     name: main
     namespace: objects
-  identityRef:
-    name: thanos
-  secretRef:
-    name: thanos-s3-credentials
+  policyRef:
+    name: mimir
+  subjects:
+    - name: mimir

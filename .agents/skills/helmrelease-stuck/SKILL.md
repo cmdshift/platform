@@ -17,7 +17,7 @@ kubectl get events -n <ns> --sort-by=.lastTimestamp
 
 Also not ladder material: the release is **kyverno itself** and its pods sit Pending — that's the hostNetwork port deadlock (local-only). Run `kyverno_unblock`, then re-run `flux_wait`.
 
-**Operator-crud denial mid-churn ≠ a spec error**: a controller (e.g. thanos-operator) failing "failed to create or update N resources" during cluster churn can be kyverno's CEL/exception re-pick-up lag — the exception exists and is correct, the admission engine just hasn't re-read it (hit live: ThanosRuler `main` Ready=False, cmdshift/platform#90). Fix: reconcile the HR + annotation-bump the PolicyException to force re-pick-up. Don't rewrite the workload spec first.
+**Operator-crud denial mid-churn ≠ a spec error**: a controller failing "failed to create or update N resources" during cluster churn can be kyverno's CEL/exception re-pick-up lag — the exception exists and is correct, the admission engine just hasn't re-read it (hit live: ThanosRuler `main` Ready=False, cmdshift/platform#90; the pattern generalizes to any operator-driven CR). Fix: reconcile the HR + annotation-bump the PolicyException to force re-pick-up. Don't rewrite the workload spec first.
 
 ## Escalation ladder
 

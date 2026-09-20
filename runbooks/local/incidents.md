@@ -105,6 +105,16 @@ Incidents documented in their owning runbooks (kept there for context):
 
 **Fix**: `kubectl -n observability rollout restart daemonset/alloy` (same class as `docker restart sync-cloud-test`). Whether alloy hot-reloads is untested — the mount never refreshed to find out.
 
+## LGTM migration: mimir retention flag + RBAC (cmdshift/platform#128, 2026-09-19)
+
+Two debug-round sinks during the thanos→mimir cutover, recorded as traps:
+
+**Mimir retention flag has no yaml equivalent in 3.2.0.** Two rounds burned trying to set `-compactor.blocks-retention-period` in config: the docs page lists `compactor_blocks_retention_period` (flat) and the chart shape nests it under `compactor.`, but the actual Go struct rejects BOTH — `field not found in type mimir.Config` / `in type compactor.Config` (verified with `docker run mimir -config.file=<f>`; the error string is the tell). The only working path is a CLI arg on the container. Related decision: Mimir has no downsampling at all (grafana/mimir#1834, maintainer-confirmed), so the thanos 5m/1h tiers have no replacement — retention is flat raw-only 168h.
+
+**The collector's k8sattributes RBAC didn't take via RoleBinding.** The OTelCollector needed pods list/watch; a Role/RoleBinding in `observability` never granted (`kubectl auth can-i` stayed "no" even for ClusterRole-via-RoleBinding, and recreating the bindings never flipped it — suspected apiserver/RBAC propagation quirk with the recreated ServiceAccount). The namespace-scoped path was abandoned for a dedicated ClusterRole+ClusterRoleBinding (`observability-config/otel-collector.rbac.yaml`), which worked immediately. **Tell**: when a RoleBinding "should work but doesn't" after SA churn, don't keep recreating it — go straight to ClusterRole+ClusterRoleBinding.
+
+Also re-hit live, exactly as catalogued: the quota-ordering deadlock (cmdshift/platform#83 — the mimir pod couldn't schedule until the `observability-config` quota bumps applied, which flux orders after the pods that need them; broken out-of-band with `kubectl apply` of the declared manifests mid-rollout).
+
 ## Beyla host kernel panic → removal (2026-09-18)
 
 **Symptom**: within a day of the beyla adoption (cmdshift/platform#83, merged as PR #124) the host kernel panicked with beyla's eBPF probes attached. No exact panic text captured (cluster destroyed for a clean rebuild immediately after); symptom-level evidence only: the panic correlated with beyla's DaemonSet running probes on the work nodes.

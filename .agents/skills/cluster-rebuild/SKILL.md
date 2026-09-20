@@ -34,7 +34,7 @@ sources → crds → namespaces → certificates → certificates-config (ztunne
 issuance gate) → networking (cilium: the long pole; boots unencrypted — the
 HelmRelease flips ztunnel on at first reconcile, cmdshift/platform#87)
 → flux → flux-config (adopts the Bucket + root) → policies
-→ storage → objects → observability → thanos-operator → observability-config
+→ storage → objects → observability → observability-config
 → backups → security → security-config
 ```
 
@@ -51,13 +51,11 @@ Watch with `flux_wait` (interactive cap ~15), or `flux_wait -c` for an instant n
 | flux-config adoption | `kubectl -n flux-system get kustomization local -o json --show-managed-fields` | `kustomize-controller` owns the spec |
 | Velero BSL | `kubectl -n backups get bsl default` | `Available` |
 | Rustfs buckets | `rustfs ls main/` | `flux`, `backups` |
-| Thanos ruler | `kubectl -n observability get pods -l app.kubernetes.io/name=thanos-ruler` | 1/1 Running (CR sets `replicas: 1`) |
+| Mimir | `kubectl -n observability get pods -l app.kubernetes.io/name=mimir` | 1/1 Running; ruler groups up (`prometheus_query --query 'count(up)'` non-empty) |
 | Host API path | `curl -skf --max-time 3 https://127.0.0.1:6443/version` | 401 = publisher alive |
 | Ingress | `curl -s -o /dev/null -w '%{http_code}' http://local.test` | 404 = correct wiring with zero HTTPRoutes (`server: envoy` header proves the Gateway path); 503 = haproxy backends down |
 | Trivy scan pod | `kubectl -n security get pods` | one `scan-vulnerabilityreport-*` pod in `Error` is EXPECTED (see below); all later scans `Completed`, VulnerabilityReports accumulating |
 | PolicyReports | `policy_report` | 0 failures |
-
-**Bootstrap race, self-healing:** on a fresh rebuild the ruler CR can fail its first sync (query service not up yet) → `Ready=False (ReconcileError)` on the CR. Since thanos-community/thanos-operator#636 the operator emits a single recoverable `Ready` condition — the next sync flips it `True`; no manual action, verify it converged (cmdshift/platform#22).
 
 **Trivy cold-start race (expected, mostly self-healing):** the operator's Deployment goes ready ~16s before its first scan job, but the `trivy-server-0` StatefulSet (cache server, same release) starts ~75s later — the first job (the cluster-SBOM scan) dies with `dial tcp trivy-service:4954: connect: connection refused`. The operator deletes the failed job (30s retry delay) and all *workload* scans re-run fine; `dependsOn: networking` would NOT fix this — the race is between two resources of one helm release, and networking is Ready long before. The one artifact that does NOT self-heal: the `ClusterSbomReport` stays status-less (the operator treats its server-side cached SBOM as valid and won't re-scan until the report TTL/server cache expires). Nothing consumes that report locally — leave it, or delete it + restart the operator (note: a restart alone does NOT regenerate it).
 
@@ -66,7 +64,7 @@ Watch with `flux_wait` (interactive cap ~15), or `flux_wait -c` for an instant n
 A full destroy/apply wipes everything not in the local manifests:
 
 - rustfs container data — buckets re-provision, `flux` re-populates via sync, **all other bucket contents gone (velero backups included)**
-- local-path PVCs and everything on them (seaweed, grafana, loki, thanos ruler state)
+- local-path PVCs and everything on them (seaweed, grafana, loki, mimir blocks)
 - seaweed buckets and their data
 
 If the rebuild stalls: load the `reconcile-stuck` skill (kustomization failures) or `pipeline-wedged` (manifests stop applying).
