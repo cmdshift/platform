@@ -5,7 +5,7 @@ description: Dispatch a background subagent to sweep the docs surfaces (CHANGELO
 
 # Docs sweep (background)
 
-Docs maintenance (AGENTS.md → "Docs maintenance") is a commit/PR gate, but it shouldn't block the session: collect the learnings, dispatch a subagent, keep working (reconciles, waits, other tasks), review the diff when it lands.
+Docs maintenance is a commit/PR gate (AGENTS.md → Do list), but it shouldn't block the session: collect the learnings, dispatch a subagent, keep working (reconciles, waits, other tasks), review the diff when it lands.
 
 ## 1. Collect the learnings inventory (main session, minutes)
 
@@ -22,7 +22,7 @@ that mutate anything). Write or update documentation from the learnings inventor
 Inventory:
 <verbatim bullets>
 
-Surfaces — pick by what the learnings touch (details + examples: AGENTS.md → "Docs maintenance"):
+Surfaces — pick by what the learnings touch (details + examples: AGENTS.md → Docs map):
 - CHANGELOG.md — dated narrative (what/when/why, incident stories); append a
   reverse-chron entry, ref cmdshift/platform#N
 - manifests/local/<group>/README.md (+ manifests/local/README.md for cross-cutting
@@ -36,7 +36,7 @@ Surfaces — pick by what the learnings touch (details + examples: AGENTS.md →
   codes, gotchas
 - manifests/cloud/notes.md — what the cloud cluster must do differently
 
-Writing rules (AGENTS.md):
+Writing rules (AGENTS.md → Docs map):
 - Timeless rules go in skills/READMEs/runbooks — no dates, no "as of" language;
   provenance is a cmdshift/platform#N ref. The dated story goes in the CHANGELOG only.
 - Keep evidence numbers (observed usage, error strings, versions) with the value

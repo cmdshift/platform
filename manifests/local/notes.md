@@ -9,4 +9,4 @@ This file used to be the decision log; it's been split by audience — nothing w
 - **Local-only settings inventory**: the group READMEs (markers `# remove in the cloud` / `# true in the cloud` at the value); the cloud-side actions live in [manifests/cloud/notes.md](../cloud/notes.md)
 - **Procedures**: [runbooks/local/](../../runbooks/local/) and the skills in `.agents/skills/`
 
-Going forward: dated learnings append to the CHANGELOG; timeless decisions update the matching README — see AGENTS.md → Docs maintenance.
+Going forward: dated learnings append to the CHANGELOG; timeless decisions update the matching README — see AGENTS.md → Docs map.

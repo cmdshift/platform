@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Reconcile from the root and poll until every kustomization is Ready,
-# echoing progress (see AGENTS.md polling discipline).
+# echoing progress (polling discipline: the reconcile-stuck skill).
 #   flux_wait [max_polls] [--with-source]   # default 42; 5s sleep per poll
 #   flux_wait -c                            # status check only — no
 #                                           # reconcile, instant verdict

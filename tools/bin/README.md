@@ -37,10 +37,10 @@ instead of churning a listener per call; `--stop` evicts them.
 
 Dependencies: `kubectl`, `jq`, `yq`, plus `helm`/`git` for `helm_verify`,
 `velero` / `cilium` CLIs for their respective tools, `docker`
-for `rustfs`. The full toolchain installs on both supported hosts via
-`brew bundle --file=tools/Brewfile` (Homebrew on macOS, Linuxbrew on
-Linux). Host-portable: the time math in `loki_query`/`prometheus_query`
-is bash arithmetic off `date +%s` (both darwin and GNU) — never `date -v`
+for `rustfs`. The full toolchain installs via
+`brew bundle --file=tools/Brewfile` (Homebrew; also available through most
+Linux package managers). Host-portable: the time math in `loki_query`/`prometheus_query`
+is bash arithmetic off `date +%s` — never `date -v`
 (darwin-only) or `date -d` (GNU-only), and non-integer durations are
 rejected before the arithmetic (a float inside `$(( ))` is fatal in
 non-interactive bash — the script would abort before `|| usage` fires).
@@ -91,8 +91,8 @@ The pre-reconcile lint step.
 
 ### `helm_verify [path] [release]`
 
-Renders every HelmRelease's values through `helm template` (the AGENTS.md
-"verify values paths" step, automated). Charts resolve from the source CRs on
+Renders every HelmRelease's values through `helm template` (the pre-reconcile
+values check of the `platform-workflow` loop, automated). Charts resolve from the source CRs on
 the live cluster: HelmRepository → repo index, GitRepository (tag/commit) →
 shallow clone. All helm state lives in a temp dir. An optional release-name
 argument renders just that one (ad-hoc values debugging without the
@@ -286,7 +286,7 @@ audited, 2 = usage or kubectl error. Dashboard (port-forward):
 
 ### `policy_report`
 
-PolicyReport summary (the AGENTS.md final check): fail/skip/pass counts
+PolicyReport summary (the `platform-workflow` final check): fail/skip/pass counts
 (failures: 0 expected — skips are PolicyExceptions), per-namespace counts,
 and **stale-report detection** (reports scoped to resources that no longer
 exist — kyverno never retracts them; delete the stale report objects
@@ -299,7 +299,8 @@ make every run (green included) exit 1, breaking any `if`/`until` wrapper.
 
 LOCAL-ONLY. Deletes old-generation kyverno **ReplicaSets** when a rollout
 deadlocks on hostNetwork ports (each pod claims its node's port;
-new-generation pod stays Pending — AGENTS.md kyverno landmine). Targets the
+new-generation pod stays Pending — the kyverno rollout-deadlock landmine in
+[manifests/local/policies/README.md](../../manifests/local/policies/README.md)). Targets the
 `policies` namespace (ns refactor, cmdshift/platform#31). All victims deleted in a
 single kubectl call — piecemeal deletion loses the race to the deployment
 controller. Takes no args (anything else is a usage error). No-op exit 0

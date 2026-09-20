@@ -1,19 +1,19 @@
 # Local cluster architecture
 
-Topology of the Talos-in-Docker test cluster that terraform in this directory builds (`just cluster apply` → `just bootstrap apply`; rebuild procedure and data implications: [runbooks/local/cluster-rebuild.md](../../runbooks/local/cluster-rebuild.md)). The cluster runs on two tested host shapes: a **macOS host** runs everything inside the Docker Desktop VM (24Gi memory budget — the sizing notes below marked VM-scoped apply there), and a **Linux host** (Arch workstation, Docker Engine 29.7.2) runs the same containers natively against host RAM (60Gi host RAM, 41Gi free at setup) — no VM, no publisher indirection, docker bridges host-routable. The container limits are identical on both hosts; the diagram draws the macOS/VM shape, with Linux differences noted inline.
+Topology of the Talos-in-Docker test cluster that terraform in this directory builds (`just cluster apply` → `just bootstrap apply`; rebuild procedure and data implications: [runbooks/local/cluster-rebuild.md](../../runbooks/local/cluster-rebuild.md)). The supported host is **Linux with Docker Engine** (tested on Arch, Docker Engine 29.7.2, 60Gi host RAM, 41Gi free at setup): containers run natively against host RAM, no VM, no publisher indirection, docker bridges host-routable. macOS/Docker Desktop was the original development host and the project outgrew it (VM memory budget, stale VM port-publisher bindings, bind mounts dropping inotify events); historical notes that reference the macOS/VM shape are kept in the runbooks where the failure shapes remain the best reference.
 
 ## Topology
 
 ```mermaid
 flowchart TB
-  subgraph host["host — macOS (Docker Desktop) or Linux (Docker Engine)"]
+  subgraph host["host — Linux (Docker Engine)"]
     direction LR
     BR["browser"]
     KC["kubectl / talosctl / terraform"]
     DNSMASQ["dnsmasq: *.test → 127.0.0.1\n*.cloud.test → 127.0.10.1"]
   end
 
-  subgraph vm["macOS: Docker Desktop VM (24Gi budget) · Linux: Docker Engine native"]
+  subgraph vm["Docker Engine native"]
     direction TB
     subgraph iv["ipvlan L2 · 10.0.0.0/8 (static IPs, no NAT — bridge net is the egress path)"]
       direction LR
@@ -57,7 +57,7 @@ flowchart TB
 
 | CIDR | Used for |
 |---|---|
-| `10.0.0.0/8` | ipvlan "internal" network subnet (gateway `.1` is the Docker Desktop VM on macOS / the host itself on Linux) |
+| `10.0.0.0/8` | ipvlan "internal" network subnet (gateway `.1` is the host) |
 | `10.0.16.0/24` | ctrl nodes — `.1` is the single fixed control plane node |
 | `10.0.32.0/24` | workers (`.1`-`.4`, count = `work_nodes`, default 4) |
 | `10.0.64.0/24` | internal haproxy (ingress LB) — `.1` |
@@ -72,7 +72,7 @@ The control plane is a **single fixed node** — there is no API LB and no ctrl-
 - Cluster endpoint (baked into certs/machine configs): `https://10.0.16.1:6443` — nodes reach it L2-direct
 - Host access: the ctrl container publishes `6443`/`50000` on **`127.0.0.1` only** (not LAN-reachable)
 - **The talos provider embeds the cluster endpoint as the kubeconfig/talosconfig host** — `talos_cluster_kubeconfig.endpoint` is only the fetch path. `nodes/outputs.tf` rewrites `kubeconfig` and `k8s_client_config.host` to `https://127.0.0.1:6443`; kubectl and the bootstrap terraform providers depend on that rewrite. In-cluster consumers must NOT use `127.0.0.1` (pod loopback) — `tools/bin/bench` rewrites the mounted kubeconfig's server to `kubernetes.default.svc:443` (a standard apiserver cert SAN; egress via the house `kube-apiserver` CNP entity)
-- talosctl reaches **worker** apids through the ctrl node's apid proxying, same as it did through the LB. The nodes module's `talos_machine_configuration_apply` resources follow the same loopback pattern (`endpoint` = 127.0.0.1, `node` = the target's private IP, worker applies routed through the ctrl apid) — the provider's private-IP default hangs in silent transport-retry from the macOS host (Linux hosts route the docker bridge directly, but the loopback pattern is host-shape-independent and keeps the outputs rewrite uniform)
+- talosctl reaches **worker** apids through the ctrl node's apid proxying, same as it did through the LB. The nodes module's `talos_machine_configuration_apply` resources follow the same loopback pattern (`endpoint` = 127.0.0.1, `node` = the target's private IP, worker applies routed through the ctrl apid) — the provider's private-IP default hangs in silent transport-retry, and the loopback pattern keeps the outputs rewrite uniform.
 
 ## DNS
 
@@ -113,11 +113,11 @@ Companion state is disposable except the angos cache volume (see the registry la
 
 ## Memory budget (docker-level limits)
 
-Every container carries a `memory` limit with swap disabled (`memory_swap = memory`): ctrl 6Gi, work 4Gi each, rustfs 1Gi, haproxies/coredns/mailpit/angos 256Mi, secrets/sync 64Mi, scanner 768Mi (start-then-audit — trivy DB + scan working set; no OOM on the first real scan, cmdshift/platform#102), keycloak 3Gi (cmdshift/platform#131 — see below) — **Σ ≈ 28Gi**. Sizing is evidence-based (observed peaks: ctrl ≤4.1Gi, work ≤3.0Gi, rustfs ≤287Mi; keycloak settled 1.05GiB after import / ~730MiB post-restart idle; other companion peaks ≤91Mi). What the limits run against differs by host: on macOS they sit against the **Docker Desktop VM's 24Gi budget** (the limit Σ now exceeds it — limits bound real consumption, not scheduler capacity, and the observed peaks keep the real sum well under the budget); on the Linux host (Docker Engine) the same limits run against **60Gi host RAM** (41Gi free at setup) — no VM budget to plan against, the limits just bound real consumption.
+Every container carries a `memory` limit with swap disabled (`memory_swap = memory`): ctrl 6Gi, work 4Gi each, rustfs 1Gi, haproxies/coredns/mailpit/angos 256Mi, secrets/sync 64Mi, scanner 768Mi (start-then-audit — trivy DB + scan working set; no OOM on the first real scan, cmdshift/platform#102), keycloak 3Gi (cmdshift/platform#131 — see below) — **Σ ≈ 28Gi**. Sizing is evidence-based (observed peaks: ctrl ≤4.1Gi, work ≤3.0Gi, rustfs ≤287Mi; keycloak settled 1.05GiB after import / ~730MiB post-restart idle; other companion peaks ≤91Mi). The limits run against host RAM (60Gi, 41Gi free at setup) — they bound real consumption, not scheduler capacity.
 
 Keycloak is the heaviest companion by far (cmdshift/platform#131): docker-level limits of 1280Mi then 2Gi were OOM-killed (exit 137) mid-realm-import — JVM `MaxRAMPercentage=70` + 256Mi MaxMetaspace + H2 import churn — and 3Gi held. If it's ever slimmed, the import burst is the sizing event to re-test, not idle.
 
-**Limits do not influence the scheduler** (cmdshift/platform#54): each kubelet advertises the container's full `/proc/meminfo` as node capacity — ~23.4Gi apiece on the macOS VM (verified there: all 5 nodes report capacity 24569884Ki; ~117Gi of phantom capacity across 5 nodes is inherent to Talos-in-Docker — on the Linux host the kubelets would advertise the host's meminfo instead, same mechanism). The limits only bound real consumption: breaching one OOM-kills that node container (node reboot, flux re-converges) instead of thrashing the whole VM (macOS) or host (Linux). The monitoring stack's node-memory alerts fire on kubelet accounting, so they lag real pressure — the docker layer is the actual backstop.
+**Limits do not influence the scheduler** (cmdshift/platform#54): each kubelet advertises the container's full `/proc/meminfo` as node capacity (~117Gi of phantom capacity across 5 nodes is inherent to Talos-in-Docker — verified on the historical macOS VM where it was ~23.4Gi apiece; same mechanism on Linux, the kubelets advertise the host's meminfo). The limits only bound real consumption: breaching one OOM-kills that node container (node reboot, flux re-converges) instead of thrashing the host. The monitoring stack's node-memory alerts fire on kubelet accounting, so they lag real pressure — the docker layer is the actual backstop.
 
 ## Decision records
 

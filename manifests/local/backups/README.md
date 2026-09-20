@@ -1,6 +1,6 @@
 # backups
 
-Velero + `backups-config/` (BSL, backup schedules, secrets). Operations (nightly check, drills, restore shapes, CLI quirks): [runbooks/local/velero-backups.md](../../runbooks/local/velero-backups.md) and the `velero-ops` skill.
+Velero + `backups-config/` (BSL, backup schedules, secrets). Operations (nightly check, drills, restore shapes, CLI quirks): [runbooks/local/velero-backups.md](../../../runbooks/local/velero-backups.md) and the `velero-ops` skill.
 
 ## Deliberately local-only settings
 

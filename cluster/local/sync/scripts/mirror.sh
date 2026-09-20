@@ -1,8 +1,10 @@
 #!/bin/sh -eu
 
-# Full re-mirror every 5s instead of inotify (cmdshift/platform#55): macOS
-# bind mounts drop inotify events (deletes and edits alike), and one dropped
-# event wedged the pipeline until a manual container restart. The --remove
+# Full re-mirror every 5s instead of inotify (cmdshift/platform#55): a
+# dropped event wedged the pipeline until a manual container restart (first
+# seen via macOS bind mounts dropping inotify events — that host is no
+# longer supported, but the poll also self-heals any dropped change on any
+# host). The --remove
 # mirror self-heals every pass; ≤5s sync latency is invisible (the Bucket
 # source polls at 5m and sync_wait + flux_wait --with-source force an
 # immediate pull). The container has no restart policy, so failures stay

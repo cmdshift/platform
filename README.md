@@ -1,12 +1,12 @@
 # platform
 
-A local Kubernetes platform testbed: Talos nodes running in Docker, provisioned with terraform (`cluster/local`), and deployed entirely by Flux v2 from the manifests in `manifests/local/`. Out-of-cluster companions (S3, secrets server, alert delivery) emulate the cloud services a production deployment would use. Two host types are supported and exercised: macOS with Docker Desktop (VM-indirected networking), and Linux (tested on Arch) with Docker Engine (native docker networking — no VM). The manifests are a single shared set for both.
+A local Kubernetes platform testbed: Talos nodes running in Docker, provisioned with terraform (`cluster/local`), and deployed entirely by Flux v2 from the manifests in `manifests/local/`. Out-of-cluster companions (S3, secrets server, alert delivery) emulate the cloud services a production deployment would use. The supported host is **Linux with Docker Engine** (tested on Arch) — the cluster runs natively on the host kernel, no VM. macOS/Docker Desktop was the original host but the project outgrew it: the Docker Desktop VM capped the memory budget (24Gi), the VM port publisher added a stale-binding failure class, and its bind mounts dropped inotify events — all three classes are gone on Linux. Historical notes about the macOS host survive in the runbooks where the failure shapes they document are still the best reference.
 
 ## Prerequisites
 
 ### Required binaries
 
-The tested binary list is installable in one shot on both hosts — Homebrew on macOS, Linuxbrew on Linux:
+The tested binary list is installable in one shot via Homebrew (also available through most Linux package managers):
 
 ```shell
 brew bundle --file=tools/Brewfile
@@ -17,7 +17,7 @@ The list (without `dnsmasq`, which is host-specific — see below):
 - `cilium`
 - `direnv`
 - `dnsmasq` (or other local DNS management — see [Cloud service emulation](#cloud-service-emulation-the-test-domains))
-- `docker` (tested with Docker Desktop on macOS and Docker Engine 29.7.2 on Linux — runs the cluster and companions)
+- `docker` (tested with Docker Engine 29.7.2 — runs the cluster and companions)
 - `doppler`
 - `flux` (`brew tap fluxcd/tap`)
 - `helm`
@@ -30,7 +30,7 @@ The list (without `dnsmasq`, which is host-specific — see below):
 - `talosctl`
 - `terraform` (`brew tap hashicorp/tap`)
 - `velero` (backup operations — see `runbooks/local/velero-backups.md`)
-- `yq` (manifest lint — see `AGENTS.md`)
+- `yq` (manifest lint — used by `tools/bin/yaml_lint`)
 
 ### direnv
 
@@ -54,23 +54,15 @@ step certificate install --all $STEPPATH/root_ca.crt
 
 ## Cloud service emulation: the `.test` domains
 
-The companion services resolve under `*.cloud.test` (S3, secrets server, mailpit). Two things make that work: a second loopback address (`127.0.10.1`), and a local resolver that maps `*.test` → `127.0.0.1` and `*.cloud.test` → `127.0.10.1`. The mechanism is the same on both supported hosts — macOS needs the extra setup steps below; on Linux the whole `127/8` block is loopback-reachable and dnsmasq installs via the package manager. The Linux recipe is verified live on the Arch test host (Docker Engine 29.7.2).
+The companion services resolve under `*.cloud.test` (S3, secrets server, mailpit). Two things make that work: a second loopback address (`127.0.10.1`), and a local resolver that maps `*.test` → `127.0.0.1` and `*.cloud.test` → `127.0.10.1`. On Linux the whole `127/8` block is loopback-reachable by default and `dnsmasq` installs via the package manager. The recipe is verified live on the Arch test host (Docker Engine 29.7.2). (The historical macOS setup — a `lo0` alias + Homebrew dnsmasq — is gone with macOS support; the dnsmasq config below is identical.)
 
-### macOS
+### Linux
 
-Enable the additional loopback address:
+Linux is the supported host (tested on Arch, Docker Engine 29.7.2 — the cluster runs natively on the host kernel, no Docker Desktop VM). No loopback alias needed — the entire `127.0.0.0/8` block routes to `lo` by default. Verify with `ping -c1 127.0.10.1`.
 
-```shell
-sudo ifconfig lo0 alias 127.0.10.1 up
-```
-
-To verify the address is active, use `ifconfig lo0` and confirm that `127.0.10.1` appears in the output.
-
-Configure `dnsmasq`:
+Install `dnsmasq` with your package manager (`apt install dnsmasq`, `dnf install dnsmasq`, ...) with this config at `/etc/dnsmasq.d/test.conf`:
 
 ```conf
-# /opt/homebrew/etc/dnsmasq.d/test.conf   (Intel brew: /usr/local/etc/dnsmasq.d/test.conf)
-
 address=/.test/127.0.0.1
 address=/.cloud.test/127.0.10.1
 
@@ -79,29 +71,6 @@ server=1.1.1.1 # cloudflare
 server=8.8.8.8 # google
 # additional servers
 ```
-
-On macOS, `dnsmasq` needs to be started as root:
-
-```shell
-sudo brew services start dnsmasq
-```
-
-Point macOS DNS resolution at `localhost`:
-
-- Open System Preferences → Network
-- Choose your active internet connection (WiFi)
-- Click Details... → DNS
-- Add `127.0.0.1` to the DNS servers and remove the others
-
-Verify: `dscacheutil -q host -a name s3.cloud.test` should return `127.0.10.1`.
-
-**WARNING**: macOS updates have been known to reset Network settings.
-
-### Linux
-
-Linux is a first-class supported host (tested on Arch, Docker Engine 29.7.2 — the cluster runs natively on the host kernel, no Docker Desktop VM). No loopback alias needed — the entire `127.0.0.0/8` block routes to `lo` by default. Verify with `ping -c1 127.0.10.1`.
-
-Install `dnsmasq` with your package manager (`apt install dnsmasq`, `dnf install dnsmasq`, ...) and use the same config as macOS at `/etc/dnsmasq.d/test.conf`.
 
 If `systemd-resolved` is running (default on Ubuntu), it holds port 53 — disable its stub listener first:
 
@@ -178,7 +147,7 @@ k9s
 
 This repository is built to be operated by coding agents as much as by humans. The knowledge lives in four layers, thinnest first:
 
-- **`AGENTS.md`** — always-loaded agent instructions: architecture, conventions, landmines, and the pre-commit docs-maintenance gate. Start there regardless of species.
+- **`AGENTS.md`** — always-loaded agent instructions: conventions (Do/Don't), the docs map, and the pre-commit docs-maintenance gate. Landmines live one layer down, in the README nearest the thing they describe. Start there regardless of species.
 - **`.agents/skills/`** — on-demand agent skills in the open agent-skills format (`.agents/skills/<name>/SKILL.md`), loaded via the `skill` tool by agents such as OpenCode. One skill per procedure: the manifest-change loop (`platform-workflow`), incident triage (`reconcile-stuck`, `pipeline-wedged`, `helmrelease-stuck`, `crashloop-investigation`), and operations (`add-workload`, `adopt-chart`, `resource-sizing`, `velero-ops`, `rustfs-ops`, `cilium-test`, `cluster-rebuild`, `observability`).
 - **`runbooks/local/`** — human-readable procedures with worked examples. Every skill links out to its matching runbook; read the runbook when you want the full story.
 - **`tools/bin/`** — helper scripts for the repeated plumbing (reconcile waits, resource audits, admission reports, observability queries). On your `PATH` via `direnv`; full reference in `tools/bin/README.md`.
@@ -187,6 +156,6 @@ Same body of knowledge, two entry points: humans read the runbooks, agents load 
 
 ## Known Issues
 
-### Local Talos Machine Bootstrap (macOS/Docker Desktop hosts)
+### Local Talos Machine Bootstrap hang
 
-`talos_machine_bootstrap` can hang when Docker Desktop's host port binding for the cluster endpoint (the ctrl node container, ports 50000/6443, host loopback only) goes stale after rapid container churn (destroy → recreate within ~a minute): the host listener still accepts connections but black-holes them into the VM. This failure class is specific to Docker Desktop's VM publisher path — Linux/Docker Engine hosts publish ports natively (docker bridges are host-routable) and the failure has not been observed there. On macOS, the terraform provider used to silently retry this for 10 minutes; it now fails fast, and the fix is `docker restart $(docker ps -q --filter name=ctrl-local-test)` (a node reboot) followed by a re-apply. Full root cause and diagnostics: [runbooks/local/cluster-rebuild.md](runbooks/local/cluster-rebuild.md).
+`talos_machine_bootstrap` can hang when the host port binding for the cluster endpoint (the ctrl node container, ports 50000/6443, host loopback only) goes stale after rapid container churn (destroy → recreate within ~a minute): the host listener still accepts connections but black-holes them. The provider fails fast (10s timeouts) rather than silently retrying for 10 minutes; the fix is `docker restart $(docker ps -q --filter name=ctrl-local-test)` (a node reboot) followed by a re-apply. First root-caused on the historical macOS/Docker Desktop host (its VM port publisher was the black-hole); full root cause and diagnostics: [runbooks/local/cluster-rebuild.md](runbooks/local/cluster-rebuild.md).

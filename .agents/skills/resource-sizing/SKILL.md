@@ -9,7 +9,7 @@ description: Setting or auditing container resources. The sizing convention (lea
 
 - **Requests lean** (10-50m CPU) — they're the scheduling side, not a performance knob.
 - **CPU limits generous for bursts** (200m-2000m) — throttling is the silent killer. For a single suspect: `prometheus_query 'container_cpu_cfs_throttled_periods_total{namespace="…",container="…"}'`.
-- **Memory: request ≈ P99 × 1.2, limit = 1.5 × request.** Deliberate deviations get a rationale comment (AGENTS.md comment rules — no dates, keep the evidence numbers) — velero runs 2× because kopia repo-maintenance spikes OOM-killed it at 1.5×.
+- **Memory: request ≈ P99 × 1.2, limit = 1.5 × request.** Deliberate deviations get a rationale comment (`code-comments` skill rules — no dates, keep the evidence numbers) — velero runs 2× because kopia repo-maintenance spikes OOM-killed it at 1.5×.
 - **Flux delivery controllers** (source/helm) have their own floor — 1000m CPU / 512Mi-1Gi — or they wedge the whole pipeline.
 - Evidence-based, not defaults: size from audits, not vibes.
 - **Quota interplay**: every workload namespace has a `ResourceQuota/compute` capping namespace-sum requests/limits/pods (cmdshift/platform#93) — any request/limit bump or new replica consumes quota; a bump that exceeds it wedges the rollout with `exceeded quota` (StartError/FailedCreate, not a helm error). Bumps and quota headroom move in the same change. Exception-exempt containers (PolicyException, no resources) still fail the quota — quota ignores kyverno exceptions; their only defaults source is a namespace LimitRange (cmdshift/platform#111, recipe: adding-a-workload runbook §7).
@@ -36,7 +36,7 @@ A VPA recommendation is a **candidate request, not a drop-in** — cross-check i
 
 ## Decide and record
 
-- Rationale comment at the value in the manifest (AGENTS.md comment rules, issue #43); trend-driven cases get a tracking issue with the data (cmdshift/platform#20 is the template).
+- Rationale comment at the value in the manifest (`code-comments` skill rules, cmdshift/platform#43); trend-driven cases get a tracking issue with the data (cmdshift/platform#20 is the template).
 - The `ContainerOOMKilled` alert guards the ceiling meanwhile — alerts at http://mail.cloud.test.
 
 ## Full detail

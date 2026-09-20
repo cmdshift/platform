@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Usage-vs-REQUESTS audit across all containers — the scheduling side. The
-# usage-vs-LIMITS siblings are memory_audit/cpu_audit. Convention (AGENTS.md):
+# usage-vs-LIMITS siblings are memory_audit/cpu_audit. Convention (the
+# resource-sizing skill):
 # memory request ≈ P99 × 1.2, i.e. steady usage lands ~83% of request.
 # Containers running ≥100% of their memory request are first in line for
 # eviction under node memory pressure, and their scheduling reservation lies.

@@ -1,0 +1,16 @@
+# cluster/local
+
+Terraform/docker side of the local test cluster — network, companions, Talos node containers, bootstrap. Topology and decision records: [ARCHITECTURE.md](ARCHITECTURE.md); rebuild procedure: [runbooks/local/cluster-rebuild.md](../../runbooks/local/cluster-rebuild.md).
+
+## Terraform / Docker traps
+
+- **The talos provider embeds the cluster endpoint in the kubeconfig/talosconfig host** — `talos_cluster_kubeconfig.endpoint` is only the fetch path; the embedded server URL comes from `cluster.controlPlane.endpoint` (the ctrl node IP). `nodes/outputs.tf` rewrites both outputs (`kubeconfig` + `k8s_client_config.host`) to `https://127.0.0.1:6443`; host-side consumers (kubectl, the bootstrap terraform providers) break with connection timeouts if that rewrite is lost. In-cluster consumers must NOT use 127.0.0.1 (pod loopback) — `tools/bin/bench` rewrites the server to the ctrl IP when staging the kubeconfig Secret.
+- **Published host ports can go stale after rapid container churn** (destroy → recreate of a port-publishing container within ~a minute): the host listener still ACCEPTS connections but black-holes the forward into the container — container and node stay healthy, only the host→container published path dies. Hit live on `cmd-local-test:50000` (cmdshift/platform#4); the published API ports (6443/50000, loopback-only) live on the **ctrl node container** (no LB — single ctrl node needs neither), so recovery is `docker restart $(docker ps -q --filter name=ctrl-local-test)` (a node reboot, ~30s to Ready), re-apply (only bootstrap + kubeconfig remain; seconds). The bootstrap/kubeconfig resources carry 10s `timeouts` — a hang surfaces as a fast error, not a wedge. Diagnose with `curl -skf --max-time 3 https://127.0.0.1:6443/version` (hang/black-hole = dead binding; 401 = publisher alive). Full story in [runbooks/local/cluster-rebuild.md](../../runbooks/local/cluster-rebuild.md); same failure shape as the companion `cloud-test` restart note in that runbook.
+- **The strict machine-config static-pod decoder takes down nodes silently** — one unknown policy field in a template (the audit policy was the incident) drops the kube-apiserver static pod with no container logs. Validate schema before it lands in a template; preview the RENDERED config when diagnosing (recipe in ARCHITECTURE.md → decision records, cmdshift/platform#90/#131).
+- **Companion state is disposable except the angos cache volume** — the registry's `platform-registry-data` volume survives destroys (see the registry landmine in the rebuild runbook).
+- **Bucket changes (the `buckets` list in `cluster/local/conf/outputs.tf`) recreate the storage container and wipe its data** (the `rustfs-ops` skill).
+- **The bootstrap root carries `lifecycle.prevent_destroy`** — `just bootstrap destroy` always fails by design.
+
+## Terraform plans that look scary but aren't
+
+kreuzwerker/docker provider churn (arbitrary ordering and re-serialization in the provider internals) shows up as replacements/in-place updates on resources no edit touched. Verdict rule: read the diff, not the action verb — identical values both sides = churn, apply through; any meaningful value differing = stop. Procedure: the `terraform-churn` skill.
