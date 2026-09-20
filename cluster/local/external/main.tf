@@ -25,8 +25,17 @@ resource "docker_container" "cloud" {
     external = 80
     ip       = "127.0.10.1"
   }
+  ports {
+    internal = 443
+    external = 443
+    ip       = "127.0.10.1"
+  }
   memory      = 256
   memory_swap = 256
+  upload {
+    file    = "/usr/local/etc/haproxy/cloud.test.pem"
+    content = file("${path.root}/.tmp/tls/cloud.test.pem")
+  }
   upload {
     file = "/usr/local/etc/haproxy/haproxy.cfg"
     content = templatefile("${path.module}/templates/haproxy.tftpl.cfg", {

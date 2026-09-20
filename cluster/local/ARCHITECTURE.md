@@ -19,7 +19,7 @@ flowchart TB
       direction LR
       subgraph cloud["cloud_cidr 10.0.128.0/24 — companions"]
         direction LR
-        X["external haproxy (cloud-test)\n10.0.128.1 · host-routes :80 via hosts.map/ports.map"]
+        X["external haproxy (cloud-test)\n10.0.128.1 · host-routes :80/:443 via hosts.map/ports.map\n(:443 = TLS termination, wildcard *.cloud.test leaf, cmdshift/platform#130)"]
         CD["coredns (dns-cloud-test)\n10.0.128.2"]
         SE["secrets server (secrets-cloud-test)\n10.0.128.3 · busybox httpd :80"]
         RU["rustfs (storage-cloud-test)\n10.0.128.4 · S3 :9000 · console :9001"]
@@ -88,14 +88,14 @@ Pod DNS: kube-dns → talos hostDNS (`forwardKubeDNSToHost`) → coredns. Compan
 
 | Host binding | Container | Purpose |
 |---|---|---|
-| `127.0.10.1:80` | cloud-test | `*.cloud.test` host-routing proxy (the **only** host route into the ipvlan network) |
+| `127.0.10.1:80` / `127.0.10.1:443` | cloud-test | `*.cloud.test` host-routing proxy (:443 TLS-terminates with the wildcard leaf, cmdshift/platform#130) — the **only** host route into the ipvlan network |
 | `127.0.0.1:80` / `127.0.0.1:443` | local-test | ingress LB → nodePorts 30080/30443 |
 | `127.0.0.1:6443` / `127.0.0.1:50000` | ctrl container | kube-apiserver / talos apid |
 | `:25` (cloud-test, private net) | — | SMTP passthrough → mailpit :1025 (alertmanager) |
 
 ## Request paths
 
-- **Browser → companion**: dnsmasq `*.cloud.test` → `127.0.10.1:80` → Docker publisher → external haproxy → Host-header maps → backend container `ip:port`
+- **Browser → companion**: dnsmasq `*.cloud.test` → `127.0.10.1:80` or `:443` → Docker publisher → external haproxy (:443 terminates TLS with the `*.cloud.test` wildcard leaf from `just certs`, cmdshift/platform#130) → Host-header maps → backend container `ip:port` (backends stay plain HTTP — termination is the only scheme boundary)
 - **Pod → S3/secrets/registry** (flux, external-secrets, velero, trivy): name → kube-dns → coredns wildcard → proxy → backend. All endpoints are normalized to `:80` — the `hosts.map`/`ports.map` own the real ports
 - **Image pull**: containerd wildcard mirror (`RegistryMirrorConfig name: "*"` in the node machine config) → angos `?ns=` upstream resolution → cached in the `platform-registry-data` volume; strict (`skipFallback: true`) — unmapped registries hard-fail
 - **Manifests → cluster**: repo bind-mount → sync container `rc mirror` (5s full re-mirror, `--remove`) → rustfs `flux` bucket → flux Bucket source → root Kustomization → dependency-ordered tree

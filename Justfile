@@ -10,6 +10,16 @@ certs:
     --not-after 8760h \
     --no-password \
     --insecure
+  step certificate create "*.cloud.test" $STEPPATH/cloud.test.crt $STEPPATH/cloud.test.key \
+    --profile leaf \
+    --ca $STEPPATH/intermediate_ca.crt \
+    --ca-key $STEPPATH/intermediate_ca.key \
+    --san "*.cloud.test" \
+    --not-after 8760h \
+    --no-password \
+    --insecure
+  cat $STEPPATH/cloud.test.key $STEPPATH/cloud.test.crt $STEPPATH/intermediate_ca.crt \
+    > $STEPPATH/cloud.test.pem
 
 init *args:
   packer init cluster/cloud/image
