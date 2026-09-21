@@ -1,22 +1,14 @@
 # Kernel-module operations — enforcement (stage-2 flip 1, cmdshift/platform#28).
-# Burn-in: 327 events/~6h, all benign net-pf-* Go auto-load probes, zero real
-# loads. Split: Override(EACCES) on auto-load requests, Sigkill on real loads —
-# rationale in security/README.md. Adapted from tetragon policylibrary
-# modules(+nohost); do_init_module added (free_module is inlined in this kernel).
+# Burn-in: 327 events/~6h, all benign Go auto-load probes. Override(EACCES) on
+# auto-load requests, Sigkill on real loads — rationale: security/README.md.
 apiVersion: cilium.io/v1alpha1
 kind: TracingPolicy
 metadata:
   name: kernel-modules
 spec:
-  # podSelector required: with enable-policy-filter on the agent, policies
-  # without one don't reach the export sink (Override events were
-  # Loki-invisible without this; NENFORCE still fires sensor-side) —
-  # security/README.md
   podSelector:
     matchLabels: {}
-  # list-of-{name,value} form; valid values are "enforce"/"monitor" (upstream
-  # TpStringToMode) — "enforcement"/"monitor_only" are display strings, not
-  # option values
+  # list-of-{name,value}; "enforce"/"monitor" only — the display strings fail agent-side
   options:
     - name: policy-mode
       value: enforce

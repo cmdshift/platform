@@ -12,24 +12,21 @@ resource "docker_container" "auth" {
     ipv4_address = var.net.private_ip
     aliases      = ["auth.cloud.test"]
   }
-  # start-dev: H2 in the container layer — disposable companion, realm
-  # re-imports on recreate (cmdshift/platform#131; the cnpg-backed alternative
-  # was rejected: a companion depending on the in-cluster DB inverts the
-  # bootstrap order)
+  # start-dev: H2 in the container layer — disposable companion, realm re-imports on
+  # recreate (cmdshift/platform#131; the cnpg-backed alternative was rejected: a companion
+  # depending on the in-cluster DB inverts the bootstrap order)
   command = ["start-dev", "--import-realm"]
   env = [
     "KC_BOOTSTRAP_ADMIN_USERNAME=admin",
     "KC_BOOTSTRAP_ADMIN_PASSWORD=secret",
-    # TLS terminates at the external haproxy (cmdshift/platform#130) — the
-    # hostname must render https into discovery/issuer URLs or OIDC clients
-    # reject the metadata
+    # TLS terminates at the external haproxy (cmdshift/platform#130) — the hostname must
+    # render https into discovery/issuer URLs or OIDC clients reject the metadata
     "KC_HOSTNAME=https://auth.cloud.test",
     "KC_PROXY_HEADERS=xforwarded",
   ]
-  # start-then-audit: OOM-killed at 1280Mi mid-import, then again at 2Gi
-  # (JVM MaxRAMPercentage=70 + 256Mi metaspace + H2 import churn); 3Gi held
-  # through import + settle (cmdshift/platform#131). Heaviest companion by
-  # far — the ARCHITECTURE.md budget carries the delta.
+  # start-then-audit: OOM-killed at 1280Mi mid-import, then at 2Gi (JVM
+  # MaxRAMPercentage=70 + metaspace + H2 import churn); 3Gi held through import
+  # + settle (cmdshift/platform#131) — heaviest companion, ARCHITECTURE.md carries the delta
   memory      = 3072
   memory_swap = 3072
   upload {

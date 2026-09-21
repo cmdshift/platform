@@ -1,8 +1,3 @@
-# CNPG renders ~1.3MB with its CRDs — over helm's 1MB release-secret cap.
-# The CRDs install separately via the cnpg-crds kustomization (crds group),
-# built straight from the upstream repo at the tag pinned in
-# manifests/sources/cloudnative-pg-crds.git-repository.yaml — bump that tag
-# in lockstep with the chart version here.
 crds:
   create: false
 
@@ -10,8 +5,7 @@ image:
   # appVersion default — pinned explicitly for the admission no-floating-tags rule
   tag: "1.30.0"
 
-# audited after burn-in (cmdshift/platform#66): 7d CPU peak 6.1m, mem peak
-# 65Mi, VPA rec 11m/75Mi — 15m/96Mi req, limits 1.5x
+# audit: 7d peak 6.1m/65Mi — 15m/96Mi req, limits 1.5x
 resources:
   requests:
     cpu: 15m

@@ -4,9 +4,8 @@ locals {
     apid = 50000
   }
 
-  # host-side API identity: the ctrl container publishes k8s/apid on the host
-  # loopback; the cluster endpoint itself is the ctrl node IP (nodes reach it
-  # L2-direct on the private network)
+  # host-side API identity: the ctrl container publishes k8s/apid on the host loopback;
+  # the cluster endpoint itself is the ctrl node IP (L2-direct on the private network)
   local_api_ip    = "127.0.0.1"
   ctrl_ip         = cidrhost(var.net.ctrl_cidr, 1)
   public_endpoint = "https://${local.ctrl_ip}:${local.ports.k8s}"

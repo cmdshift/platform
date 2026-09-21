@@ -1,17 +1,11 @@
-# Exec deny-list, flux-system — stage-2 flip 2, enforce (cmdshift/platform#28).
-# Static evidence substitutes for the monitor stream (security/README.md).
-# Scoping is pod labels: tetragon 1.7.1 matchNamespaces has no "Kube" type —
-# the podSelector is the only k8s scoping surface; a future flux controller
-# must be added below to come into scope. `kubectl exec ... sh` debug shells
-# are killed by design. security_bprm_check verified in node kallsyms
-# (security/README.md); adapted from the tetragon exec-enforcement pattern.
+# Exec deny-list, flux-system — stage-2 flip 2, enforce (cmdshift/platform#28). Pod-label
+# scoping only (1.7.1 matchNamespaces has no "Kube" type) — add future flux controllers
+# below or they're out of scope; debug shells are killed by design (security/README.md)
 apiVersion: cilium.io/v1alpha1
 kind: TracingPolicy
 metadata:
   name: exec-deny-list-flux-system
 spec:
-  # with enable-policy-filter on the agent, policies without a podSelector
-  # don't reach the export sink; the label scope is also the enforcement scope
   podSelector:
     matchExpressions:
       - key: app
@@ -21,8 +15,7 @@ spec:
           - kustomize-controller
           - notification-controller
           - source-controller
-  # list-of-{name,value} form; valid values are "enforce"/"monitor" —
-  # option-value trap: security/README.md
+  # list-of-{name,value}; "enforce"/"monitor" only — the display strings fail agent-side
   options:
     - name: policy-mode
       value: enforce

@@ -12,10 +12,6 @@ spec:
     kind: Bucket
     name: main
   path: ./manifests/local/policies-config
-  # test-bed posture: prune enabled — exception/policy/PDB files are git-GC-able
-  # (deletions are reviewed in PRs). Tripwire: kyverno background scans ignore
-  # the webhook namespaceSelector, so a GC'd PolicyException surfaces as
-  # policy_report failures != 0 within one scan cycle — run it after any prune
   prune: true
   wait: true
   timeout: 2m

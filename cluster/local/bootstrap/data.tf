@@ -1,7 +1,6 @@
-# Readiness gate: after `cluster apply` the kube API needs ~20-30s to accept
-# connections (nodes Ready ≠ API serving) — connection errors retry, and the
-# first HTTP response (401, anonymous auth is disabled — not 403) means the
-# listener is serving. cmdshift/platform#72
+# Readiness gate: after `cluster apply` the kube API needs ~20-30s to accept connections
+# (nodes Ready != API serving) — the first HTTP response (401, not 403) means it's serving.
+# cmdshift/platform#72
 data "http" "kube_apiserver" {
   url                = "${local.k8s_client_config.host}/version"
   ca_cert_pem        = base64decode(local.k8s_client_config.ca_certificate)

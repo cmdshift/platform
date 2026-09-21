@@ -11,8 +11,7 @@ containerSecurityContext:
 resources:
   requests:
     cpu: 10m
-    # 7d max 34Mi, VPA rec 47Mi — 40Mi = peak x 1.2, limit 1.5x
-    # (cmdshift/platform#66)
+    # 7d max 34Mi, VPA rec 47Mi — peak x 1.2, limit 1.5x
     memory: 40Mi
   limits:
     cpu: 200m
@@ -35,8 +34,7 @@ webhook:
   resources:
     requests:
       cpu: 10m
-      # 7d max 30Mi, VPA rec 35Mi — 40Mi = peak x 1.2, limit 1.5x
-      # (cmdshift/platform#66)
+      # 7d max 30Mi, VPA rec 35Mi — peak x 1.2, limit 1.5x
       memory: 40Mi
     limits:
       cpu: 200m

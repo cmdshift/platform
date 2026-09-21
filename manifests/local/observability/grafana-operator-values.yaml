@@ -1,11 +1,9 @@
 podSecurityContext:
-  # NSA hardening: pod-level non-root (container-level comes from
-  # the chart defaults); operator image is distroless nonroot
+  # NSA hardening: pod-level non-root (container-level comes from the chart defaults)
   runAsNonRoot: true
   seccompProfile:
     type: RuntimeDefault
-# NSA hardening: explicit non-root uid/gid at container level
-# (image is 65532; the chart leaves gid implicit 0)
+# NSA hardening: explicit non-root uid/gid at container level (image is 65532; chart leaves gid implicit 0)
 securityContext:
   runAsUser: 65532
   runAsGroup: 65532
@@ -15,9 +13,7 @@ logging:
 resources:
   requests:
     cpu: 10m
-    # 7d max 37Mi, VPA rec 47Mi — 48Mi = peak x 1.2, limit 1.5x
-    # (cmdshift/platform#66)
-    memory: 48Mi
+    memory: 48Mi # 7d max 37Mi, VPA rec 47Mi — peak x 1.2, limit 1.5x
   limits:
     cpu: 200m
     memory: 72Mi

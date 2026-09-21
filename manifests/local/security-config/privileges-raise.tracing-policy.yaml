@@ -1,10 +1,6 @@
-# Pod-side privilege escalation attempts: setuid/setgid family to root, capset
-# raising capabilities, unprivileged user-namespace creation.
-# Adapted from tetragon examples/policylibrary/privileges/privileges-raise.yaml,
-# scoped to non-host PID namespaces: runc/containerd (host ns) legitimately
-# setuid for every pod start — in-container escalation is the signal here.
-# Requires tetragon.enableProcessCred on the release (credentials in events).
-# monitor_only: no enforcement actions — stage-2 candidates after burn-in.
+# Pod-side privilege escalation attempts (setuid/setgid, capset, userns creation) —
+# adapted from the tetragon policylibrary, scoped to non-host PID namespaces (runc
+# legitimately setuid for every pod start). monitor_only; needs enableProcessCred
 apiVersion: cilium.io/v1alpha1
 kind: TracingPolicy
 metadata:

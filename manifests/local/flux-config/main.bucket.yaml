@@ -1,6 +1,5 @@
-# The pipeline's source. Duplicated in cluster/local/bootstrap extraObjects
-# (helm post-install hooks) for fresh installs — close enough, not identical
-# (the twin omits provider/timeout; the CRD defaults fill them); flux-config
+# The pipeline's source. Duplicated in cluster/local/bootstrap extraObjects for fresh
+# installs (twin omits provider/timeout; CRD defaults fill them); flux-config
 # force-adopts this object and converges it on first reconcile.
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: Bucket
@@ -8,12 +7,9 @@ metadata:
   name: main
   namespace: flux-system
 spec:
-  # 5m, not 1m: a poll straddling a mirror pass can publish a half-mirrored
-  # artifact (the pass is sub-second on ~200 files, but the window exists)
-  # and the whole chain starts applying it. The manual flow (sync_wait +
-  # flux_wait --with-source) forces an immediate pull, so interactive
-  # latency is unaffected; the bootstrap twin's tighter interval keeps the
-  # one-shot rebuild fast.
+  # 5m, not 1m: a poll straddling a mirror pass can publish a half-mirrored artifact and
+  # the whole chain starts applying it. Manual flow (sync_wait + flux_wait --with-source)
+  # forces an immediate pull, so interactive latency is unaffected.
   interval: 5m
   endpoint: s3.cloud.test
   bucketName: flux

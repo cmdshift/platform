@@ -1,35 +1,17 @@
-# load-bearing chart default, kept explicit: process visibility requires the
-# host network namespace (tetragon docs)
+# process visibility requires the host network namespace (load-bearing chart default)
 hostNetwork: true
-# Talos >= 1.12 does not mount tracefs — required per
-# tetragon.io/docs/installation/kubernetes (Talos Linux section)
 extraHostPathMounts:
   - name: sys-kernel-tracing
     mountPath: /sys/kernel/tracing
 tetragon:
-  # kernel 7.2 rejects kprobe_multi attach for Override actions on
-  # security_kernel_module_request (upstream hint: --disable-kprobe-multi)
   extraArgs:
-    disable-kprobe-multi: "true"
-  # required by the privileges-raise TracingPolicy (uid/gid/caps in exec
-  # events); small overhead, events stay useful for jq filtering
+    disable-kprobe-multi: "true" # kernel 7.2 kprobe_multi attach failure (security/README.md)
   enableProcessCred: true
-  # labels events so multi-cluster Loki queries stay unambiguous
   clusterName: local-test
-  # loopback-only gRPC in the host netns: kubectl port-forward dials
-  # 127.0.0.1 inside the pod netns (= node netns for hostNetwork), so
-  # `tetra --server-address localhost:54321` works through kubeconfig auth.
-  # Nothing listens on the node IP — the docs' TLS warning is about
-  # non-loopback TCP listeners.
   grpc:
     address: "localhost:54321"
-  # request ~= P99 x 1.2, limit 1.5x (cmdshift/platform#28). First sizing
-  # used a 5h P99 (477-524Mi); at 48h the per-node P99 is 628-729Mi and the
-  # VPA rec is 878Mi — bumped to 880Mi/1320Mi (cmdshift/platform#66).
-  # Working set is still a warmup ramp then a GC sawtooth (returns to
-  # baseline) — not a leak: the data cache is capacity-bounded
-  # (cap 1024, ~14 entries). Zero CFS throttling, ringbuf loss 0, program
-  # overhead 0.
+  # request ~= P99 x 1.2, limit 1.5x (48h audit, cmdshift/platform#28/#66) — warmup
+  # ramp then GC sawtooth, not a leak: the data cache is capacity-bounded
   resources:
     requests:
       cpu: 50m
@@ -42,8 +24,7 @@ tetragon:
       enabled: true # agent metrics :2112
 # hubble-export-stdout sidecar: streams events to container stdout -> alloy -> Loki
 export:
-  # audited: near-idle at burn-in (single-digit data events/min cluster-wide);
-  # 16Mi/64Mi holds
+  # audited: near-idle at burn-in (single-digit data events/min cluster-wide)
   resources:
     requests:
       cpu: 10m
@@ -55,5 +36,3 @@ tetragonOperator:
   prometheus:
     serviceMonitor:
       enabled: true # operator metrics :2113
-  # resources/securityContext: chart defaults are house-shaped
-  # (non-root 65532, drop ALL, 10m/64Mi req -> 500m/128Mi lim)

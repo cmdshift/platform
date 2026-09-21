@@ -1,8 +1,6 @@
-# audit: chart default request (50Mi) ran at 114%
-# of request in steady state — 120Mi = observed peak x 1.2. CPU pinned at
-# 20m (7d peak 1.9m, VPA rec 11m — the old 100m chart default was ~50x
-# idle usage) and limits at 1.5x request so a chart bump can't silently
-# re-shape them (cmdshift/platform#66)
+# audit: chart default request ran at 114% in steady state — 120Mi = peak x 1.2; CPU
+# pinned at 20m (7d peak 1.9m vs the 100m chart default) and limits at 1.5x request
+# so a chart bump can't silently re-shape them (cmdshift/platform#66)
 resources:
   requests:
     cpu: 20m
@@ -16,8 +14,7 @@ podSecurityContext:
   fsGroup: 65532
   seccompProfile:
     type: RuntimeDefault
-# NSA hardening: explicit non-root gid at container level (image
-# is 65532:65532; the pod-level values above left gid implicit)
+# NSA hardening: explicit non-root gid at container level (image is 65532:65532)
 securityContext:
   runAsNonRoot: true
   runAsUser: 65532

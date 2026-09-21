@@ -1,11 +1,6 @@
-# Audit of BPF subsystem interactions: program loads (bpf_check verification),
-# perf_event allocation, bpffs file access, map creation. monitor_only.
-# From tetragon examples/policylibrary/bpf.yaml, kept close to upstream for
-# easy diffing. Expected bpffs/bpf() actors on this cluster: cilium + tetragon
-# only — anything else is anomalous by definition.
-# security_bpf_map_alloc is kept with ignore.callNotFound (renamed to
-# security_bpf_map_create in Linux 6.9; linuxkit 7.0.12 has only the latter —
-# verified in kallsyms).
+# Audit of BPF subsystem interactions: program loads, perf_event allocation, bpffs access,
+# map creation — monitor_only, expected actors cilium + tetragon only. security_bpf_map_alloc
+# needs ignore.callNotFound (renamed in Linux 6.9 — verified in kallsyms)
 apiVersion: cilium.io/v1alpha1
 kind: TracingPolicy
 metadata:

@@ -16,19 +16,9 @@ initContainers:
       capabilities:
         drop:
           - ALL
-# C-0016/C-0046 hardening via the plugin init container's container-level
-# securityContext. The chart only exposes securityContext at pod level (its
-# runAsUser: 0 default is deliberate — the node-agent needs root), so
-# container-level readOnlyRootFilesystem / caps dropping is unreachable via
-# values — accepted deviations for the velero deployment (manifests/local/README.md)
+# chart exposes container-level securityContext only on the plugin init container —
+# the roFS/caps deviations land there (backups/README.md)
 podSecurityContext:
-  # v1.18 maintenance-job pods copy this pod/container securityContext from the
-  # velero deployment (pkg/repository/maintenance buildJob), so hardening here
-  # fixes the kopia repo-maintenance admission denials at the source — no
-  # PolicyException (cmdshift/platform#109). runAsUser must be numeric: the
-  # image's USER cnb is non-numeric and kubelet can't verify runAsNonRoot
-  # against a bare username (same trap as thanos-ruler, README.md:52); 1002 =
-  # cnb in the velero v1.18.1 image
   runAsNonRoot: true
   runAsUser: 1002
   seccompProfile:
@@ -42,9 +32,7 @@ containerSecurityContext:
     type: RuntimeDefault
 credentials: {}
 resources:
-  # memory sized after OOMKill at the 132Mi limit during kopia repo prep
-  # (nightly fs-backup); limit is 2x request instead of the usual 1.5x to
-  # absorb unified-repo maintenance spikes
+  # OOMKilled at 132Mi during kopia repo prep — 2x limit absorbs maintenance spikes
   requests:
     cpu: 10m
     memory: 256Mi
@@ -60,10 +48,6 @@ configuration:
     repositoryConfigData:
       global:
         keepLatestMaintenanceJobs: 3
-        # maintenance-job pods default to zero resources (BestEffort) and are
-        # denied by require-resource-limits (cmdshift/platform#109) — sized
-        # like the data-mover pods (node-agent-config.configmap.yaml), memory
-        # limit 2x request for kopia maintenance spikes
         podResources:
           cpuRequest: 50m
           cpuLimit: 1000m

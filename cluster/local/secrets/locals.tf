@@ -17,9 +17,9 @@ locals {
   }
 
   objects = {
-    # Seeded S3 credentials for the S3Identity/S3Credentials CR path
-    # (cmdshift/platform#125): S3Credentials adopts pre-populated Secrets
-    # as-is, so the static values keep matching the workload consumers.
+    # Seeded S3 credentials for the S3Identity/S3Credentials CR path (cmdshift/platform#125):
+    # S3Credentials adopts pre-populated Secrets as-is, so the static values keep
+    # matching the workload consumers.
     loki_s3_credentials = {
       accessKey = "loki-username"
       secretKey = "loki-password"

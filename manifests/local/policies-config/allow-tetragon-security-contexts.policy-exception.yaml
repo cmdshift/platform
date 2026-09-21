@@ -23,10 +23,8 @@ spec:
     - name: require-graceful-termination
       kind: ValidatingPolicy
   matchConditions:
-    # same shape as allow-cilium-system-components: the agent DaemonSet runs
-    # privileged with host namespaces/hostPaths because eBPF sensors need the
-    # BPF syscall, tracefs, host /proc and /sys/fs/bpf. Prefix match covers the
-    # generated pods (tetragon-xxxxx); the operator Deployment is compliant and
-    # passes the policies either way.
+    # agent DaemonSet runs privileged with host namespaces/hostPaths — eBPF sensors need
+    # the BPF syscall, tracefs, host /proc and /sys/fs/bpf. Prefix match covers the
+    # generated pods (tetragon-xxxxx); the operator Deployment is compliant as-is.
     - name: match-tetragon
       expression: "object.metadata.namespace == 'security' && object.metadata.name.startsWith('tetragon')"

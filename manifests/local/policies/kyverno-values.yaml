@@ -42,15 +42,10 @@ admissionController:
     resources:
       requests:
         cpu: 15m
-        # audit: steady 120Mi — 208Mi = observed peak x 1.2
-        memory: 208Mi
+        memory: 208Mi # audit: steady 120Mi — observed peak x 1.2
       limits:
         cpu: 500m
         memory: 300Mi
-  # NSA hardening: pod-level non-root on top of the chart's
-  # container-level setting. NOTE: any kyverno rollout can deadlock on
-  # hostNetwork ports (old pod holds them) — run kyverno_unblock if the
-  # new pods hang in ContainerCreating/CrashLoopBackOff
   podSecurityContext:
     runAsNonRoot: true
   serviceMonitor:
@@ -88,9 +83,7 @@ reportsController:
   hostNetwork: true # remove in the cloud
   resources:
     requests:
-      # 7d CPU peak 101m during scan-driven report churn, idle otherwise;
-      # the old 100m request reserved the peak 24/7 — 20m request, limit
-      # keeps the full burst room (cmdshift/platform#66)
+      # 7d peak 101m during scan churn — 20m request, limit keeps burst room (cmdshift/platform#66)
       cpu: 20m
       memory: 160Mi
     limits:

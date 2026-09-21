@@ -1,10 +1,6 @@
-# Admission-time backstop for the tetragon exec deny-list (security-config/
-# exec-deny-list-*.tracing-policy.yaml): container-init execs escape tetragon's
-# pod-scoped enforcement (mechanics: security/README.md). Binary list is
-# verbatim the tetragon deny-list's — keep the two in lockstep.
-# Scoped to the operator namespaces (zero shell entrypoints there,
-# cmdshift/platform#56); shell-needing hook jobs get a scoped PolicyException,
-# not a carve-out here. cmdshift/platform#58
+# Admission-time backstop for the tetragon exec deny-list: container-init execs escape
+# pod-scoped enforcement. Binary list is verbatim the tetragon deny-list's — keep the two
+# in lockstep (security/README.md; scoped namespaces cmdshift/platform#56, cmdshift/platform#58)
 apiVersion: policies.kyverno.io/v1
 kind: ValidatingPolicy
 metadata:

@@ -6,15 +6,14 @@ manager:
     limits:
       cpu: 200m
       memory: 128Mi
-  # collector image the OpenTelemetryCollector CR pods run — contrib distro
-  # (not -k8s: the prw exporter for mimir only ships in contrib; -k8s is core
-  # + k8s helpers and rejected "prometheusremotewrite" at startup)
+  # collector image the OpenTelemetryCollector CR pods run — contrib distro, not
+  # -k8s: the prw exporter for mimir only ships in contrib (-k8s rejected
+  # "prometheusremotewrite" at startup)
   collectorImage:
     repository: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib
     tag: 0.159.0
 admissionWebhooks:
-  # cert-manager issues the webhook cert (chart TLS Option 1 — self-signed
-  # issuer, no cluster-issuer config needed)
+  # cert-manager issues the webhook cert (chart TLS Option 1 — self-signed issuer)
   certManager:
     enabled: true
 crds:

@@ -6,13 +6,9 @@ metadata:
 spec:
   limits:
     - type: Container
-      # ResourceQuota/compute admission fails any pod whose containers lack
-      # requests/limits — including containers that kyverno legitimately skips
-      # via PolicyException (the thanos-operator's config-reloader sidecar has
-      # no resources and no CRD knob; the first pod replacement after the #93
-      # quotas landed wedged the ruler STS on exactly this — cmdshift/platform#111).
-      # Defaults fill the gap so exception-exempt containers still satisfy quota.
-      # Sized from the config-reloader audit (~18Mi steady, 10m CPU).
+      # quota admission fails any container lacking requests/limits — including
+      # PolicyException-exempt ones (wedged the thanos-ruler STS once, cmdshift/platform#111);
+      # these defaults fill that gap (sized from the config-reloader audit)
       default:
         cpu: 200m
         memory: 64Mi

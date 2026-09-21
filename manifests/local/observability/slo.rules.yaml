@@ -1,13 +1,6 @@
-# SLO recording rules + multiwindow burn-rate alerting — the template shape (cmdshift/platform#85).
-# Copy this group for the first real service; keep the conventions, swap the SLI expressions.
-#
-# Recording-rule naming:  slo:<service>:<sli>:rate<window>   (windows: 5m, 30m, 1h, 6h)
-# Burn windows:           fast pair 5m/1h (>14.4x budget → critical), slow pair 30m/6h (>6x → warning)
-#                         — the classic multiwindow multi-burn pair; both windows of a pair must
-#                         burn for the alert to hold, so no `for:` is needed (the `and` sustains it)
-# Error budget:           99.9% → ratio threshold 0.001 (burn 14.4x = 0.0144, burn 6x = 0.006)
-# Routing:                alerts carry `slo: "true"` — the AlertmanagerConfig child route in
-#                         mail.alertmanager-config.yaml matches on that label, not severity
+# SLO template shape (cmdshift/platform#85) — copy for the first real service. Conventions:
+# rules `slo:<service>:<sli>:rate<window>`, burn pairs 5m/1h critical + 30m/6h warning (no
+# `for:`), 99.9% budget; alerts carry `slo: "true"` (mail.alertmanager-config.yaml routes on it)
 groups:
   - name: slo-cilium-datapath
     rules:

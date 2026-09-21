@@ -3,14 +3,10 @@ imageAutomationController:
 imageReflectionController:
   create: false
 helmController:
-  # NSA hardening: pod-level non-root — the chart already sets it
-  # at container level; this pins it at pod level too
+  # NSA hardening: pod-level non-root (chart sets container level only)
   podSecurityContext:
     runAsNonRoot: true
-  # NSA hardening: explicit non-root gid. NOTE: this chart's
-  # securityContext template replaces (not merges) its defaults when any
-  # value is set, so the full container context must be spelled out —
-  # providing only runAsGroup silently dropped APE/caps/roFS (hit live)
+  # replace-not-merge trap — flux/README.md
   securityContext:
     allowPrivilegeEscalation: false
     capabilities:

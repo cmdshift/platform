@@ -8,9 +8,7 @@ lokiCanary:
 global:
   extraArgs:
     - "-config.expand-env=true"
-    # JSON logging: all platform components log JSON so log lines are
-    # field-queryable (`| json` in LogQL) — set at the source, the pipeline
-    # passes lines through unchanged
+    # JSON logging — set at the source, the pipeline passes lines through unchanged
     - "-log.format=json"
   extraEnvFrom:
     - secretRef:
@@ -88,20 +86,12 @@ loki:
       accessKeyId: "${LOKI_S3_ACCESS_KEY_ID}"
       secretAccessKey: "${LOKI_S3_SECRET_ACCESS_KEY}"
   limits_config:
-    # bounded retention — 30d matches the thanos 5m-tier; logs are triage data
-    retention_period: 30d
+    retention_period: 30d # bounded — logs are triage data
   compactor:
     retention_enabled: true
-    # Loki 3.x retention requires a delete-request store; `s3` names the
-    # chart-generated object store
     delete_request_store: s3
-    # default 2h safe-delete window is production caution; 5m keeps the
-    # delete path observable in a test cluster (verify via
-    # loki_compactor_deleted_lines_total after each retention sweep)
     retention_delete_delay: 5m
-    # default 24h = the undo window before a delete request is processed;
-    # 15m is a deliberate local-only tradeoff (shorter accidental-delete
-    # undo, faster delete-path feedback) — true in the cloud: keep the default
+    # true in the cloud: keep the default
     delete_request_cancel_period: 15m
   extraEnv:
     - name: LOKI_S3_ACCESS_KEY_ID
@@ -120,13 +110,8 @@ loki:
     size: 2Gi
   resources:
     requests:
-      # 7d CPU peak 25m vs the old 15m request (VPA rec 23m) — 20m keeps
-      # the lean-request convention with headroom (cmdshift/platform#66)
-      cpu: 20m
-      # audit: steady 296Mi climbing to 404Mi post-WAL-replay —
-      # 512Mi = P99 x 1.2, limit 1.5x. 7d max 333Mi stays under it;
-      # unchanged: WAL-replay restarts are the spike case
-      memory: 512Mi
+      cpu: 20m # VPA rec 23m — lean-request convention with headroom (cmdshift/platform#66)
+      memory: 512Mi # steady 296Mi climbing to 404Mi post-WAL-replay — P99 x 1.2, limit 1.5x
     limits:
       cpu: 200m
       memory: 768Mi
@@ -134,10 +119,7 @@ chunksCache:
   resources:
     requests:
       cpu: 10m
-      # audit: 49Mi steady at first sizing; 7d later the cache grew to a
-      # 95Mi peak (94% of the old 96Mi limit) — 120Mi = peak x 1.2,
-      # limit = 1.5x (cmdshift/platform#66)
-      memory: 120Mi
+      memory: 120Mi # 7d peak 95Mi (94% of old limit) — peak x 1.2, limit 1.5x (cmdshift/platform#66)
     limits:
       cpu: 20m
       memory: 180Mi

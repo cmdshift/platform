@@ -1,7 +1,5 @@
-# Vendored from aqua/trivy-operator chart 0.36.0 — re-vendor deliberately on
-# chart bumps (upstream may change controls). CIS specs excluded: node-collector
-# hostPath mounts don't exist on Talos (security/README.md). Chart-side
-# compliance.specs is [] so these are the only sources.
+# Vendored from aqua/trivy-operator chart 0.36.0 — re-vendor deliberately on chart bumps.
+# CIS excluded: node-collector hostPath mounts don't exist on Talos (security/README.md).
 apiVersion: aquasecurity.github.io/v1alpha1
 kind: ClusterComplianceReport
 metadata:

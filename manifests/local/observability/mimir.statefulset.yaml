@@ -32,10 +32,9 @@ spec:
           args:
             - -config.file=/etc/mimir/mimir.config.yaml
             - -config.expand-env=true
-            # 3.2.0 quirk: this flag has NO yaml config equivalent (the docs
-            # list compactor_blocks_retention_period but the struct rejects
-            # it) — retention can only be set via CLI (cmdshift/platform#128).
-            # retention is flat: Mimir has no downsampling (grafana/mimir#1834)
+            # 3.2.0 quirk: this flag has NO yaml config equivalent — retention is
+            # CLI-only (cmdshift/platform#128), and flat: Mimir has no downsampling
+            # (grafana/mimir#1834)
             - -compactor.blocks-retention-period=168h
           envFrom:
             - secretRef:
@@ -60,10 +59,7 @@ spec:
             initialDelaySeconds: 60
             periodSeconds: 30
           resources:
-            # no pre-deploy evidence for a new workload: lean start per the
-            # sizing convention, audit (memory_audit/cpu_audit/vpa_recs) after
-            # seasoning and adjust; ingester WAL is the memory spike case
-            # (cmdshift/platform#128)
+            # lean start (sizing convention) — audit after seasoning; ingester WAL is the memory spike case
             requests:
               cpu: 150m
               memory: 768Mi
