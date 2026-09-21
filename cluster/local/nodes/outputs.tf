@@ -28,8 +28,8 @@ output "kubeconfig" {
 }
 
 # OIDC-login twin of the admin kubeconfig (cmdshift/platform#131): kubelogin exec plugin
-# against the auth companion (install: runbooks/local/cluster-rebuild.md). Authn-only —
-# the API answers 403 until cmdshift/platform#91 wires RBAC for the OIDC identities.
+# against the auth companion (install: runbooks/local/cluster-rebuild.md). Authorization is
+# the `access/` group's bindings keyed on the `groups` claim (cmdshift/platform#91).
 output "kubeconfig_oidc" {
   value = templatefile("${path.module}/templates/kubeconfig-oidc.tftpl.yaml", {
     local_api_endpoint = local.local_api_endpoint
