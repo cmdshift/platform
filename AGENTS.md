@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Platform manifests for a Talos-in-Docker local test cluster (terraform in `cluster/local`, see [cluster/local/README.md](cluster/local/README.md)). Flux v2 deploys everything in `manifests/local/` — there is no `kubectl apply`. Out-of-cluster companions (`*.cloud.test`): rustfs S3 (`s3.cloud.test`), secrets server, sync container (mirrors manifests into the flux bucket), mailpit (alerts land at **http://mail.cloud.test**), trivy scan companion, keycloak (`auth.cloud.test`, the OIDC issuer for the kube-apiserver; RBAC pending cmdshift/platform#91) — topology and details: [cluster/local/README.md](cluster/local/README.md) and [manifests/local/README.md](manifests/local/README.md).
+Platform manifests for a Talos-in-Docker local test cluster (terraform in `cluster/local`, see [cluster/local/README.md](cluster/local/README.md)). Flux v2 deploys everything in `manifests/local/` — there is no `kubectl apply`. Out-of-cluster companions (`*.cloud.test`): rustfs S3 (`s3.cloud.test`), secrets server, sync container (mirrors manifests into the flux bucket), mailpit (alerts land at **http://mail.cloud.test**), trivy scan companion, keycloak (`auth.cloud.test`, the OIDC issuer for the kube-apiserver; the `access/` group maps its `groups` claim to RBAC) — topology and details: [cluster/local/README.md](cluster/local/README.md) and [manifests/local/README.md](manifests/local/README.md).
 
 ## Skills (auto-discovered, load on demand)
 
