@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Platform manifests for a Talos-in-Docker local test cluster (terraform in `cluster/local`, see [cluster/local/README.md](cluster/local/README.md)). Flux v2 deploys everything in `manifests/local/` — there is no `kubectl apply`. Out-of-cluster companions (`*.cloud.test`): rustfs S3 (`s3.cloud.test`), secrets server, sync container (mirrors manifests into the flux bucket), mailpit (alerts land at **http://mail.cloud.test**), trivy scan companion, keycloak (`auth.cloud.test`, the OIDC issuer for the kube-apiserver; the `access/` group maps its `groups` claim to RBAC) — topology and details: [cluster/local/README.md](cluster/local/README.md) and [manifests/local/README.md](manifests/local/README.md).
+Platform manifests for a Talos-in-Docker local test cluster (terraform in `cluster/local`, see [cluster/local/README.md](cluster/local/README.md)). Flux v2 deploys everything in `manifests/` (bases + clusters overlay) — there is no `kubectl apply`. Out-of-cluster companions (`*.cloud.test`): rustfs S3 (`s3.cloud.test`), secrets server, sync container (mirrors manifests into the flux bucket), mailpit (alerts land at **http://mail.cloud.test**), trivy scan companion, keycloak (`auth.cloud.test`, the OIDC issuer for the kube-apiserver; the `access/` group maps its `groups` claim to RBAC) — topology and details: [cluster/local/README.md](cluster/local/README.md) and [manifests/README.md](manifests/README.md).
 
 ## Skills (auto-discovered, load on demand)
 
@@ -15,10 +15,10 @@ Every skill links out to its human-readable runbook in `runbooks/local/` — rea
 
 Chart traps, per-group decisions, and pipeline mechanics live with the thing they describe — **read the README nearest the area being worked on before diagnosing or changing it** (the `troubleshooting` skill routes):
 
-- `manifests/local/<group>/README.md` — the group's chart landmines and decisions (kyverno, cilium/ztunnel, velero, mimir/alloy, seaweedfs, cert-manager, local-path, …)
-- `manifests/local/flux/README.md` — flux API traps, the pipeline's own objects, propagation mechanics
+- `manifests/bases/<group>/README.md` — the group's chart landmines and decisions (kyverno, cilium/ztunnel, velero, mimir/alloy, seaweedfs, cert-manager, local-path, …)
+- `manifests/bases/flux/README.md` — flux API traps, the pipeline's own objects, propagation mechanics
 - `cluster/local/README.md` — terraform/docker traps (endpoint rewrite, bootstrap pins, port publishing)
-- `manifests/local/README.md` — cross-cutting conventions, dependency order, hardening-deviations baseline
+- `manifests/README.md` — cross-cutting conventions, dependency order, hardening-deviations baseline
 
 ## Do
 
@@ -29,7 +29,7 @@ Chart traps, per-group decisions, and pipeline mechanics live with the thing the
 - **Background multi-minute waits** (`flux_wait`/`helm_wait`/`velero_wait`/`bench`, image pulls, rebuild polls) and work meanwhile — and diagnose early failures immediately (StartError, admission denial, failed mounts at t=10s) instead of polling blind to a timeout.
 - **Scratch files go in `cluster/local/.tmp/`** — kubeconfigs, throwaway token/cache dirs, temp outputs; the dir is gitignored terraform state territory, so it's fair play. Prefer it over `/tmp` when the artifact is cluster-related (path is stable and repo-relative).
 - **Size resources on evidence, not defaults**: requests lean (10-50m CPU), CPU limits generous for bursts (200m-2000m), memory request ≈ P99 × 1.2 / limit 1.5 × request (velero is 2× deliberately — rationale at the value). Throttling is the silent killer — audit procedure: the `resource-sizing` skill.
-- **Verify flux API shapes against the on-cluster CRD schema before pushing** — undeclared fields fail the root dry-run and wedge the whole dependency chain. Mechanics: [manifests/local/flux/README.md](manifests/local/flux/README.md).
+- **Verify flux API shapes against the on-cluster CRD schema before pushing** — undeclared fields fail the root dry-run and wedge the whole dependency chain. Mechanics: [manifests/bases/flux/README.md](manifests/bases/flux/README.md).
 
 ## Don't
 
@@ -45,8 +45,8 @@ Chart traps, per-group decisions, and pipeline mechanics live with the thing the
 ## Docs map (what lives where — keep it current)
 
 - **`CHANGELOG.md`** — the dated narrative: what/when/why, incident stories, open follow-ups. Entries are **concise**: the rule learned + why + the `cmdshift/platform#N` ref; worked narratives belong in the runbook it links. Forward-only — old entries are history, don't rewrite them.
-- **`manifests/local/<group>/README.md`** — the group's timeless decisions and landmines (chart traps, sizing rationale pointers, local-only settings)
-- **`manifests/local/README.md`** — cross-cutting conventions + the hardening-deviations baseline
+- **`manifests/bases/<group>/README.md`** — the group's timeless decisions and landmines (chart traps, sizing rationale pointers, local-only settings)
+- **`manifests/README.md`** — cross-cutting conventions + the hardening-deviations baseline
 - **`cluster/local/README.md`** — terraform/docker-side traps and endpoint mechanics
 - **`manifests/cloud/notes.md`** — what the cloud cluster must do differently
 - **`runbooks/local/`** — procedures and incident post-mortems

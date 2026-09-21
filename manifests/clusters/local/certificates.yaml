@@ -1,0 +1,18 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: certificates
+  namespace: flux-system
+spec:
+  interval: 1h
+  retryInterval: 5s
+  dependsOn:
+    - name: namespaces
+    - name: sources
+  sourceRef:
+    kind: Bucket
+    name: main
+  path: ./manifests/bases/certificates
+  prune: true
+  wait: true
+  timeout: 5m

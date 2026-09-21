@@ -1,0 +1,23 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: datastores
+  namespace: flux-system
+spec:
+  interval: 1h
+  retryInterval: 5s
+  dependsOn:
+    - name: namespaces
+    - name: sources
+    # CNPG CRDs land via the crds group; no hard ordering vs the operator —
+    # the chart doesn't render-lookup CRDs and its fail-closed webhooks only
+    # fire on CNPG CRs
+    - name: crds
+    - name: networking
+  sourceRef:
+    kind: Bucket
+    name: main
+  path: ./manifests/bases/datastores
+  prune: true
+  wait: true
+  timeout: 10m

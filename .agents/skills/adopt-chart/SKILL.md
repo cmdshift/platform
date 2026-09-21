@@ -13,7 +13,7 @@ helm repo add <name> <url> && helm repo update
 
 Name it the same as the HelmRepository CR it will get in `sources/`. Then: `helm search repo <name>/ --versions` to pin an exact version (never floating), `helm show values` to read the real values surface, `helm template` for local renders.
 
-Charts pinned in TWO places must bump in **lockstep** — the bootstrap helm_release values in `cluster/local/bootstrap/main.tf` and the flux HelmRelease in `manifests/local/` carry independent `version` pins (cilium is the live example, bootstrap ↔ `networking/cilium.helm-release.yaml`): flux adoption converges the live release to the HelmRelease's pin, so bumping only one side silently moves the live release to whichever pin lags.
+Charts pinned in TWO places must bump in **lockstep** — the bootstrap helm_release values in `cluster/local/bootstrap/main.tf` and the flux HelmRelease in `manifests/bases/` carry independent `version` pins (cilium is the live example, bootstrap ↔ `bases/networking/cilium.helm-release.yaml`): flux adoption converges the live release to the HelmRelease's pin, so bumping only one side silently moves the live release to whichever pin lags.
 
 Gotcha: `helm_verify` printing `FAIL: <name> — helm repo add/update … failed` means the index fetch failed — it no longer swallows those (`|| true` used to leave a stale/empty index that produced phantom "version not in index" verdicts); re-run before digging deeper. `version X not in <repo> index` after a successful fetch means the pin is genuinely wrong/missing — without this check `helm template --version` silently rendered the *closest* index version and passed. A `v`-prefixed pin (`version: "v1.2.3"`) is fine — both sides are normalized. Index fetches are on-miss only (probe → one scoped `helm repo update` → verdict), so a "not in index" verdict is trustworthy.
 
@@ -32,7 +32,7 @@ helm template <release> <chart> -f /tmp/values.yaml | wc -c
 If too big, pick a strategy:
 - **separate CRD chart** (`prometheus-operator-crds` pattern — cleanest when upstream ships one)
 - **upstream moves CRDs to helm's `crds/` dir** — install-only, never stored in the release secret; wire with `install.crds: Create` / `upgrade.crds: CreateReplace` on the HelmRelease (the vpa release's shape, cmdshift/platform#62)
-- **vendor rendered CRDs** into `manifests/local/crds/` + `crd.enable: false` — works, but adds a manual regen step on every bump
+- **vendor rendered CRDs** into `manifests/bases/crds/` + `crd.enable: false` — works, but adds a manual regen step on every bump
 - **raw manifests via kustomization** (bundle.yaml) — no secret involved; the thanos-operator's answer (predecessor, cmdshift/platform#128)
 
 Charts whose CRDs render from `templates/` (no `crds/` dir) are a variant of the first two: stop the render with the chart's own skip knob and land the CRDs via a child kustomization — the first operator-adoption trap below.
@@ -57,7 +57,7 @@ Charts whose CRDs render from `templates/` (no `crds/` dir) are a variant of the
 
 ## Image-registry traps (pull-through cache)
 
-- **A chart whose default image registry isn't a mapped upstream hard-fails at pull** (kyverno's `reg.kyverno.io` was the live case): the wildcard node mirror + `skipFallback: true` gives every registry not in the angos upstream map a hard image-pull failure — no silent direct-pull fallback. Override to a mapped upstream carrying identical content (`global.image.registry: ghcr.io` — reg.kyverno.io is a vanity proxy of ghcr, same token realm; rationale comment in `manifests/local/policies/kyverno-values.yaml`). Upstream-map mechanics: [runbooks/local/cluster-rebuild.md](../../../runbooks/local/cluster-rebuild.md).
+- **A chart whose default image registry isn't a mapped upstream hard-fails at pull** (kyverno's `reg.kyverno.io` was the live case): the wildcard node mirror + `skipFallback: true` gives every registry not in the angos upstream map a hard image-pull failure — no silent direct-pull fallback. Override to a mapped upstream carrying identical content (`global.image.registry: ghcr.io` — reg.kyverno.io is a vanity proxy of ghcr, same token realm; rationale comment in `manifests/bases/policies/kyverno-values.yaml`). Upstream-map mechanics: [runbooks/local/cluster-rebuild.md](../../../runbooks/local/cluster-rebuild.md).
 - **Chart `flags` maps are schema-less — unknown keys are silently dropped** (goldilocks: `--vpa-object-mode` was removed upstream while the values key would have kept flowing): verify flag names against the image's `--help` before wiring — `docker run --rm --entrypoint /goldilocks us-docker.pkg.dev/fairwinds-ops/oss/goldilocks:<tag> controller --help`.
 
 ## Worked examples

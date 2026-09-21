@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: compute
+  namespace: backups
+spec:
+  hard:
+    # velero + node-agents (cmdshift/platform#93); velero memory is 2x on purpose
+    # (kopia spikes — rationale on the HelmRelease), pods quota leaves room for
+    # kopia maintenance Jobs (cmdshift/platform#109). 2026-09-21 fresh-restore
+    # audit: headroom also covers 3 concurrent data-mover staging pods
+    # (node-agent-config: 256Mi req / 512Mi lim each) + one kopia job burst.
+    requests.cpu: 300m
+    requests.memory: 2000Mi
+    limits.cpu: "8"
+    limits.memory: 3500Mi
+    pods: "12"

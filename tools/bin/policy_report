@@ -6,7 +6,7 @@
 # Prints fail/skip/pass counts (failures: expect 0; skips = PolicyExceptions),
 # per-namespace report counts, and reports scoped to resources that no longer
 # exist (kyverno never retracts unmatched reports — delete the
-# stale objects directly, see manifests/local/policies/README.md). Counts pods AND controller kinds (and jobs, for
+# stale objects directly, see manifests/bases/policies/README.md). Counts pods AND controller kinds (and jobs, for
 # helm-hook reports) since background scans emit one report per subject.
 # Exit 0 = report printed, 2 = usage error.
 

@@ -2,7 +2,7 @@
 
 ## Architecture
 
-Velero backs up to **rustfs** (out-of-cluster): bucket `backups` at `s3.cloud.test`, user `backups-user` via the secrets-server payload `backups/velero-s3-credentials` (secret key `default`), egress through the backups CNP's `toFQDNs: s3.cloud.test` rule. The BSL is `default` (`manifests/local/backups-config/default.backup-storage-location.yaml`); the `pvcs` schedule (03:00 daily, all namespaces, fs-backup, 72h TTL — keeps at most 3 backup generations live) is the nightly run.
+Velero backs up to **rustfs** (out-of-cluster): bucket `backups` at `s3.cloud.test`, user `backups-user` via the secrets-server payload `backups/velero-s3-credentials` (secret key `default`), egress through the backups CNP's `toFQDNs: s3.cloud.test` rule. The BSL is `default` (`manifests/bases/backups-config/default.backup-storage-location.yaml`); the `pvcs` schedule (03:00 daily, all namespaces, fs-backup, 72h TTL — keeps at most 3 backup generations live) is the nightly run.
 
 ## Check the nightly backup (morning routine)
 
@@ -18,7 +18,7 @@ Expect `pvcs-YYYYMMDD030015`-style entries with `Completed`. Since 2026-09-05 th
 
 ## Kopia repo-maintenance health
 
-Maintenance Jobs are built by velero's server internally with no securityContext/resources of their own — they're admission-checked like everything else, and their hardening lives in the deployment's values (mechanics: [manifests/local/backups/README.md](../../manifests/local/backups/README.md)). When checking maintenance health, three gotchas:
+Maintenance Jobs are built by velero's server internally with no securityContext/resources of their own — they're admission-checked like everything else, and their hardening lives in the deployment's values (mechanics: [manifests/bases/backups/README.md](../../manifests/bases/backups/README.md)). When checking maintenance health, three gotchas:
 
 - **`status.recentMaintenance[0]` is the NEWEST entry, not the oldest** — a naive jq on index 0 reports `Failed` even when the latest attempt `Succeeded` (first=Failed, last=Succeeded right after a fix is the observed shape). Check the **last** entry, or `status.lastMaintenanceTime` (cmdshift/platform#109).
 - **Warning events from blocked maintenance Jobs persist ~1h as stale cluster events after the fix** — and they land in the `default` namespace, not `backups`. They age out on their own; don't chase them.
@@ -26,7 +26,7 @@ Maintenance Jobs are built by velero's server internally with no securityContext
 
 ## Alerts
 
-Defined in `observability/mimir-rules.yaml` (`backup-alerts` group — the rules moved from `observability-config/thanos-rules.yaml` with the LGTM migration, cmdshift/platform#128; semantics + rule-writing conventions: [manifests/local/observability/README.md](../../manifests/local/observability/README.md), cmdshift/platform#111):
+Defined in `observability/mimir-rules.yaml` (`backup-alerts` group — the rules moved from `observability-config/thanos-rules.yaml` with the LGTM migration, cmdshift/platform#128; semantics + rule-writing conventions: [manifests/bases/observability/README.md](../../manifests/bases/observability/README.md), cmdshift/platform#111):
 
 - **VeleroBackupFailed** (critical, no `for:`) — `increase(velero_backup_failure_total[24h]) > 0 or increase(velero_backup_partial_failure_total[24h]) > 0`. The partial-failure arm is required: a schedule backup with failed PodVolumeBackups lands `PartiallyFailed`, which velero counts only in `velero_backup_partial_failure_total`. Fires within one evaluation (~1m) and lands in mailpit — verified live.
 - **VeleroBackupStale** (warning, `for: 1h`) — no successful `pvcs` backup in 26h **or none ever** (the `absent()` arm covers the never-succeeded state: the last-success gauge only materializes after a first Completed backup). The `for: 1h` means a fresh wedge pends ~1h before firing.

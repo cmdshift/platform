@@ -81,7 +81,7 @@ whole dependency tree.
 
 ### `yaml_lint [path]`
 
-Parse-checks every `.yaml` under `path` (default `manifests/local`) with yq.
+Parse-checks every `.yaml` under `path` (default `manifests/clusters/local`) with yq.
 The pre-reconcile lint step.
 
 - Exits 1 if any file fails (prints **all** bad files + errors); `OK: N files …` when clean
@@ -154,7 +154,8 @@ fails confusingly or, for a helm release, churns upgrade/rollback. Run
 between editing and `flux_wait`; a `rustfs cat` content-marker spot-check
 is optional insurance, not a dropped-edit defense.
 
-- No args: every uncommitted change under `manifests/` (from git status —
+- No args: every uncommitted change under `manifests/` (bases + clusters —
+  from git status —
   modified, added, deleted, renamed **and untracked**; untracked files were
   silently excluded before the fix, so newly-created manifests were never
   checked); args: specific files (repo-relative or absolute) — validated
@@ -300,7 +301,7 @@ make every run (green included) exit 1, breaking any `if`/`until` wrapper.
 LOCAL-ONLY. Deletes old-generation kyverno **ReplicaSets** when a rollout
 deadlocks on hostNetwork ports (each pod claims its node's port;
 new-generation pod stays Pending — the kyverno rollout-deadlock landmine in
-[manifests/local/policies/README.md](../../manifests/local/policies/README.md)). Targets the
+[manifests/bases/policies/README.md](../../manifests/bases/policies/README.md)). Targets the
 `policies` namespace (ns refactor, cmdshift/platform#31). All victims deleted in a
 single kubectl call — piecemeal deletion loses the race to the deployment
 controller. Takes no args (anything else is a usage error). No-op exit 0
@@ -489,7 +490,7 @@ rustfs mirror --remove /tmp/manifests/ main/flux/manifests/
 ### `tetragon_probe <policy-name>`
 
 Verifies a deny-list TracingPolicy actually enforces — the documented
-collateral-check ritual (`manifests/local/security/README.md`, flip gates in
+collateral-check ritual (`manifests/bases/security/README.md`, flip gates in
 cmdshift/platform#28/#60) as one command: derives the probe label from the
 policy's **own podSelector** (matchLabels or first In-expression), picks a
 Ready tetragon agent, deploys a busybox probe **pinned to the same node**
@@ -549,7 +550,7 @@ podspec dump prelude; workers: node section, one pod per worker via
 anti-affinity), waits, saves logs to `cluster/local/.tmp/bench-<ts>/{ctrl,workers}.log`,
 prints the `== Summary ==` blocks, then deletes the scaffolding. Nothing
 committed as manifests (cilium_test pattern). Talos remaps and the full
-FAIL/WARN triage ledger: `manifests/local/security/README.md`.
+FAIL/WARN triage ledger: `manifests/bases/security/README.md`.
 
 - Exits 0 when both jobs complete (**FAIL counts are scan output, not tool
   errors** — read the summaries); 1 usage; 2 setup/admission failure; 3 job

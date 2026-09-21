@@ -1,0 +1,28 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespaces.yaml
+  - access.yaml
+  - sources.yaml
+  - crds.yaml
+  - secrets.yaml
+  - secrets-config.yaml
+  - certificates.yaml
+  - certificates-config.yaml
+  - networking.yaml
+  - networking-config.yaml
+  - flux.yaml
+  - policies.yaml
+  - policies-config.yaml
+  - storage.yaml
+  - storage-config.yaml
+  - objects.yaml
+  - objects-config.yaml
+  - datastores.yaml
+  - datastores-config.yaml
+  - observability.yaml
+  - observability-config.yaml
+  - backups.yaml
+  - backups-config.yaml
+  - security.yaml
+  - security-config.yaml

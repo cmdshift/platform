@@ -1,0 +1,17 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: policies-config
+  namespace: flux-system
+spec:
+  interval: 1h
+  retryInterval: 5s
+  dependsOn:
+    - name: policies
+  sourceRef:
+    kind: Bucket
+    name: main
+  path: ./manifests/clusters/local/policies-config
+  prune: true
+  wait: true
+  timeout: 2m

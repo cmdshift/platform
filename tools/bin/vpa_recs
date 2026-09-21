@@ -2,7 +2,7 @@
 # VPA recommendations vs current requests — the EVIDENCE side of sizing.
 # Companion to memory_audit/cpu_audit (the usage side): goldilocks maintains
 # an Off-mode VPA per workload (vpa + goldilocks in metrics/, see
-# manifests/local/metrics/README.md) and the VPA recommender fills
+# manifests/bases/observability/README.md) and the VPA recommender fills
 # status.recommendation from metrics-server history. A recommendation is a
 # candidate request (P99-shaped), not a drop-in — cross-check against the
 # usage audits and the sizing convention (resource-sizing skill) before

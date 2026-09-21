@@ -25,7 +25,7 @@ Inventory:
 Surfaces — pick by what the learnings touch (details + examples: AGENTS.md → Docs map):
 - CHANGELOG.md — dated narrative (what/when/why, incident stories); append a
   reverse-chron entry, ref cmdshift/platform#N
-- manifests/local/<group>/README.md (+ manifests/local/README.md for cross-cutting
+- manifests/bases/<group>/README.md (+ manifests/README.md for cross-cutting
   conventions and the hardening-deviations baseline) — group-level decisions the
   change touched
 - runbooks/local/ (incl. incidents.md) — procedures that changed, new gotchas,

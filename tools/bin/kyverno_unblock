@@ -5,7 +5,7 @@
 # cloud" values in kyverno.helm-release.yaml). Each kyverno pod claims its
 # node's port, so every worker can host exactly one pod per controller — a
 # new-generation pod stays Pending until the old one is gone (kyverno
-# rollout-deadlock landmine, manifests/local/policies/README.md). Deletes
+# rollout-deadlock landmine, manifests/bases/policies/README.md). Deletes
 # the old-generation REPLICA SETS.
 #
 # this tool used to delete old-generation PODS — that's
