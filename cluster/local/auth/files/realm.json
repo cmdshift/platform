@@ -81,6 +81,23 @@
       "realmRoles": [
         "platform-admin"
       ]
+    },
+    {
+      "username": "viewer",
+      "enabled": true,
+      "email": "viewer@cloud.test",
+      "firstName": "Viewer",
+      "lastName": "User",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "viewer123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "platform-view"
+      ]
     }
   ]
 }
