@@ -2,9 +2,8 @@ output "public_endpoint" {
   value = local.public_endpoint
 }
 
-# workers only — the internal haproxy frontends the Gateway, whose hostNetwork
-# listeners bind on k8s-role/work nodes; the ctrl would sit permanently
-# check-down in the backends
+# workers only — the internal haproxy frontends the Gateway, whose hostNetwork listeners
+# bind on work nodes; the ctrl would sit permanently check-down in the backends
 output "servers" {
   value = [
     for ip, node in docker_container.work : {
@@ -18,10 +17,8 @@ output "boot_node" {
   value = local.boot_node
 }
 
-# The talos provider derives the embedded API address from the cluster
-# endpoint (ctrl node IP — only routable inside the private network); host-side
-# consumers (kubectl, the bootstrap terraform providers) must go through the
-# loopback-published ports instead.
+# The talos provider derives the embedded API address from the cluster endpoint (ctrl node
+# IP — private-network only); host-side consumers go through the loopback-published ports.
 locals {
   local_api_endpoint = "https://${local.local_api_ip}:${local.ports.k8s}"
 }
@@ -30,11 +27,9 @@ output "kubeconfig" {
   value = replace(talos_cluster_kubeconfig.main.kubeconfig_raw, local.public_endpoint, local.local_api_endpoint)
 }
 
-# OIDC-login twin of the admin kubeconfig (cmdshift/platform#131): identical
-# cluster/CA, user = kubelogin exec plugin against the auth companion. The
-# `kubectl oidc-login` subcommand must be installed on the host (runbook:
-# runbooks/local/cluster-rebuild.md). Authn-only — the API answers 403 until
-# cmdshift/platform#91 wires RBAC for the OIDC identities.
+# OIDC-login twin of the admin kubeconfig (cmdshift/platform#131): kubelogin exec plugin
+# against the auth companion (install: runbooks/local/cluster-rebuild.md). Authn-only —
+# the API answers 403 until cmdshift/platform#91 wires RBAC for the OIDC identities.
 output "kubeconfig_oidc" {
   value = templatefile("${path.module}/templates/kubeconfig-oidc.tftpl.yaml", {
     local_api_endpoint = local.local_api_endpoint

@@ -41,7 +41,7 @@ Reference finding (platform#20): the apiserver job alone was 52k of 111k head se
 
 ## 6. Decide and record
 
-- size per the convention (AGENTS.md → Do list: request ≈ P99 × 1.2, limit = 1.5 × request); deliberate deviations get a rationale comment in the manifest (comment rules: the `code-comments` skill, cmdshift/platform#43 — velero runs 2× for kopia spikes)
+- size per the convention (AGENTS.md → Do list: request ≈ P99 × 1.2, limit = 1.5 × request); deliberate deviations get a rationale comment in the manifest (comment rules: the `writing-code` skill, Comments section, cmdshift/platform#43 — velero runs 2× for kopia spikes)
 - the CPU sibling of this audit is `cpu_audit` (throttled-periods top-N + usage-vs-limits table)
 - the scheduling-side sibling is `request_audit` (usage-vs-**requests** for memory + CPU — containers over 100% of their memory request are first in line for eviction under node pressure, and their scheduling reservation lies)
 - the recommendation-side sibling is `vpa_recs` (VPA targets vs current requests; goldilocks maintains Off-mode VPAs automatically for every non-system workload — `manifests/local/observability/README.md`). A recommendation is a P99-shaped candidate request, **not a drop-in**: cross-check against the usage audits and the convention above before editing manifests. Two `vpa_recs` traps (cmdshift/platform#66): a fresh rebuild resets recommender history, so recommendations pulled <48h after one are inflated by the early-cluster ramp — pull only after seasoning and cross-check deltas against 7d max/P99 trends; and at tiny sizes the recommender can overshoot the observed P99 (loki-gateway: 22Mi rec vs 13Mi P99 under a 16Mi request) — reject with the trend evidence

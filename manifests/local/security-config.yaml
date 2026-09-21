@@ -7,9 +7,6 @@ spec:
   interval: 1h
   retryInterval: 5s
   dependsOn:
-    # TracingPolicy CRDs come from the tetragon operator (security group); the
-    # reverse dependency (security on this group) was a deadlock. The tetragon
-    # PolicyException lives in policies-config/ so it lands before the release.
     - name: security
   sourceRef:
     kind: Bucket
@@ -18,8 +15,5 @@ spec:
   # prune on purpose: TracingPolicies retire by file deletion; the tetragon
   # PolicyException (admission-critical) lives in policies-config/
   prune: true
-  # no wait:true — TracingPolicy CRs are conditionless; waiting stalled 3x 2m
-  # live ("no matches for kind" while the CRD exists). Real loaded-signal:
-  # `tetra tracingpolicy list` + the TetragonTracingPolicyLoadFailed alert
-  # (thanos-rules tetragon-alerts).
+  # no wait:true — conditionless CRs stall the health check (flux/README.md)
   timeout: 2m

@@ -1,14 +1,9 @@
-# Kubernetes apiserver audit policy — the "reviewed" policy beyond Talos's
-# bare Metadata default (kube-bench 3.2.2 WARN, cmdshift/platform#90).
-#
-# Rules are first-match-wins. Volume control: reads are none except secrets
-# and configmaps (Metadata); writes on security-relevant resources carry
-# RequestResponse bodies; everything else falls to the Metadata catch-all.
-#
-# This file is the literal Kubernetes Policy. On Talos 1.13 it is templated
-# into the inline cluster.apiServer.auditPolicy field; the Talos 1.14
-# config-CRD migration moves it verbatim into KubeAuditPolicyConfig
-# .configuration (tracked separately).
+# Kubernetes apiserver audit policy — the "reviewed" policy beyond Talos's bare
+# Metadata default (kube-bench 3.2.2 WARN, cmdshift/platform#90). Rules are
+# first-match-wins: reads are none except secrets/configmaps (Metadata), writes on
+# security-relevant resources carry RequestResponse bodies, the rest falls to the
+# Metadata catch-all. On Talos 1.13 templated into cluster.apiServer.auditPolicy;
+# the 1.14 config-CRD migration moves it verbatim into KubeAuditPolicyConfig.
 apiVersion: audit.k8s.io/v1
 kind: Policy
 omitStages:

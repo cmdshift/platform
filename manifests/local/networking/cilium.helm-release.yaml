@@ -29,15 +29,9 @@ spec:
     - kind: ConfigMap
       name: cilium-values
       valuesKey: values.yaml
-  # remap the cert-manager secrets onto the four filenames cilium's ztunnel
-  # CA server reads from /etc/ztunnel (bootstrap-private.key/bootstrap-root.
-  # crt/ca-private.key/ca-root.crt, pkg/ztunnel/ca/ca_server.go). Two certs
-  # (cmdshift/platform#87): the bootstrap end-entity lives in
-  # cilium-ztunnel-secrets, the mesh CA in cilium-ztunnel-ca — the agent DS
-  # only mounts the former, so the patch adds the CA volume. COUPLED TO THE
-  # CHART VERSION: the patched volumeMount blocks are chart-template shapes;
-  # re-verify against the new chart's cilium-agent + ztunnel daemonsets on
-  # every version bump
+  # remaps the cert-manager secrets onto the filenames cilium's ztunnel CA server reads
+  # from /etc/ztunnel; adds the mesh-CA volume the agent DS doesn't mount (cmdshift/platform#87).
+  # COUPLED TO THE CHART VERSION — re-verify volumeMount shapes on every bump (networking/README.md)
   postRenderers:
     - kustomize:
         patches:

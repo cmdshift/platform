@@ -5,9 +5,7 @@ tempo:
   extraArgs:
     config.expand-env: "true"
   resources:
-    # no pre-deploy evidence for a new workload: lean start per the sizing
-    # convention, audit (memory_audit/cpu_audit/vpa_recs) after seasoning and
-    # adjust (cmdshift/platform#83)
+    # lean start (sizing convention) — audit after seasoning (cmdshift/platform#83 playbook)
     requests:
       cpu: 150m
       memory: 768Mi
@@ -39,7 +37,6 @@ tempo:
       type: RuntimeDefault
   metricsGenerator:
     # traces-only first; service-graph/span-metrics wiring is a follow-up
-    # (cmdshift/platform#83)
     enabled: false
 # persistence is a top-level key in this chart (not tempo.persistence)
 persistence:

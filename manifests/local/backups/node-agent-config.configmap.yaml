@@ -4,11 +4,7 @@ metadata:
   name: node-agent-config
   namespace: backups
 data:
-  # podResources sizes the temporary data mover pods velero creates for
-  # fs-backup/restore — without it they're BestEffort and the
-  # require-resource-limits policy denies them (backups PartiallyFailed).
-  # Memory 2x request like the velero server (kopia repo-prep OOM history —
-  # see velero-values.yaml)
+  # sizes the temporary data-mover pods (BestEffort would be admission-denied) — backups/README.md
   config: |
     {
       "podResources": {

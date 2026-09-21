@@ -5,8 +5,8 @@ args:
   - --metric-resolution=15s
   # JSON logging: see logging/loki-values.yaml (component-base logging flag)
   - --logging-format=json
-# chart's securityContext is CONTAINER-level; runAsGroup added for NSA
-# hardening (requires explicit container-level uid+gid, not just runAsNonRoot)
+# chart's securityContext is CONTAINER-level; runAsGroup added for NSA hardening
+# (explicit container-level uid+gid required, not just runAsNonRoot)
 securityContext:
   runAsGroup: 1000
 resources:

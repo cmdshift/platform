@@ -21,18 +21,7 @@ spec:
     remediation:
       retries: 3
       remediateLastFailure: true
-  # tracefs mount for talos-in-docker: Talos mounts /sys fresh inside the node
-  # containers and skips the pseudo-fs submounts in container mode (machined
-  # MountPseudoLate runs "only in !container"), so /sys/kernel/tracing is an
-  # unmounted sysfs dir. The agent's own auto-mount refuses to mount over the
-  # kubelet's hostPath bind ("instance exists with other type" — mountinfo shows
-  # sysfs, not tracefs) and cilium/ebpf's kprobe attach then dies with
-  # "neither debugfs nor tracefs are mounted". A privileged init container mounts
-  # tracefs itself; Bidirectional propagation pushes the mount up to the node's
-  # /sys and back down into the agent container's bind, so its fstype check sees
-  # real tracefs. postRender keeps helm the single writer. Covered by the
-  # allow-tetragon-security-contexts PolicyException (name-prefix match,
-  # cmdshift/platform#80).
+  # tracefs mount for talos-in-docker — mechanics: security/README.md
   postRenderers:
     - kustomize:
         patches:
@@ -50,9 +39,9 @@ spec:
                   spec:
                     initContainers:
                       - name: mount-tracefs
-                        # idempotent: mount only when /sys/kernel/tracing isn't
-                        # already real tracefs (Bidirectional propagation pushes
-                        # the mount up to the node, so later pods see it there)
+                        # idempotent: mount only when /sys/kernel/tracing isn't already
+                        # real tracefs (Bidirectional propagation pushes the mount up
+                        # to the node, so later pods see it there)
                         image: busybox:1.37
                         command:
                           - sh

@@ -6,18 +6,14 @@ alloy:
       # writable /tmp: --storage.path=/tmp/alloy (WAL + positions) below
       - name: tmp
         mountPath: /tmp
-      # kube-apiserver audit logs (cmdshift/platform#90) — the audit dir is
-      # 0700 65534:nogroup with 0600 files, so the DAC_READ_SEARCH capability
-      # below is what makes the read possible (root without caps gets
-      # Permission denied); mount is read-only
+      # kube-apiserver audit logs (cmdshift/platform#90) — the audit dir is 0700
+      # 65534:nogroup with 0600 files; the DAC_READ_SEARCH capability below is
+      # what makes the read possible. Mount is read-only.
       - name: audit
         mountPath: /var/log/audit
         readOnly: true
-  # config comes from the kustomization-generated alloy-config ConfigMap
-  # (configMapGenerator on config.alloy). Without this block the chart
-  # SILENTLY installs its example config — pods run healthy, push nothing,
-  # and Loki ingests nothing (cmdshift/platform#27, dropped in ddd4f83 by
-  # an edit that overwrote this block with the tmp mount).
+  # without this block the chart SILENTLY installs its example config — pods run
+  # healthy, push nothing, Loki ingests nothing (cmdshift/platform#27)
   configMap:
     create: false
     name: alloy-config
@@ -32,18 +28,13 @@ alloy:
         - DAC_READ_SEARCH
     seccompProfile:
       type: RuntimeDefault
-    # NSA hardening: immutable root fs. Alloy still runs as root
-    # (image declares no USER; the alloy PolicyException covers
-    # run-as-nonroot for the host-log mounts) — the WAL/positions live in
-    # --storage.path=/tmp/alloy, so /tmp stays a writable emptyDir
+    # NSA hardening: immutable root fs; WAL/positions live in the /tmp emptyDir.
+    # Alloy still runs as root (image declares no USER) — PolicyException covers it
     readOnlyRootFilesystem: true
   resources:
     requests:
       cpu: 10m
-      # 5 pods, 7d P99 115-169Mi / max 189Mi — cut from 384Mi (the
-      # original sizing used an early-ramp 283-310Mi reading); 224Mi =
-      # max x 1.2, limit 1.5x (cmdshift/platform#66)
-      memory: 224Mi
+      memory: 224Mi # 7d max 189Mi — max x 1.2, limit 1.5x (cmdshift/platform#66)
     limits:
       cpu: 200m
       memory: 336Mi
@@ -60,14 +51,12 @@ controller:
     extra:
       - name: tmp
         emptyDir: {}
-      # kube-apiserver audit logs on every node (written on ctrl)
-      # (cmdshift/platform#90)
+      # kube-apiserver audit logs on every node (written on ctrl) (cmdshift/platform#90)
       - name: audit
         hostPath:
           path: /var/log/audit
           type: DirectoryOrCreate
-  # the apiserver audit logs live on the ctrl node — its control-plane taint
-  # must be tolerated or the audit scrape never runs there
+  # audit logs live on the ctrl node — its taint must be tolerated or the scrape never runs there
   tolerations:
     - key: node-role.kubernetes.io/control-plane
       operator: Exists

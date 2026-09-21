@@ -14,8 +14,7 @@ spec:
     spec:
       template:
         spec:
-          # NSA hardening: grafana only serves HTTP — no SA
-          # token needed; non-root at pod level (grafana image runs as uid 472)
+          # NSA hardening: grafana only serves HTTP — no SA token needed; non-root at pod level
           automountServiceAccountToken: false
           securityContext:
             runAsNonRoot: true
@@ -29,16 +28,14 @@ spec:
                   cpu: 200m
                   memory: 480Mi
               env:
-                # JSON logging: env beats grafana.ini, and the
-                # operator's validating webhook rejects spec.config.log.console
-                # (strict-decoded vendored type) — [log] format alone is
-                # ignored by grafana 13, so the env override is the only path
+                # JSON logging: env beats grafana.ini, and the operator's validating
+                # webhook rejects spec.config.log.console — grafana 13 ignores
+                # [log] format alone, so the env override is the only path
                 - name: GF_LOG_CONSOLE_FORMAT
                   value: json
-                # the deployment dashboard's preset strip renders button-styled
-                # links via a text panel (html mode + inline styles) — the
-                # sanitizer strips style attributes. Content is repo-authored
-                # only (no user-generated dashboards), so the guard is off
+                # the dashboard's preset strip renders button-styled links via a text
+                # panel (html + inline styles) — the sanitizer strips style attributes.
+                # Content is repo-authored only, so the guard is off
                 - name: GF_PANELS_DISABLE_SANITIZE_HTML
                   value: "true"
                 - name: GF_SECURITY_ADMIN_USER

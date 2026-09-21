@@ -1,6 +1,6 @@
 # Code comments — runbook
 
-The rules live in the [`code-comments` skill](../../.agents/skills/code-comments/SKILL.md) — this runbook holds the worked examples, the marker vocabulary, and the sweep checklist. Lineage: the original comment-style rules were codified in cmdshift/platform#43 and swept across `manifests/local/**` + `tools/bin/*` in PR cmdshift/platform#45.
+The rules live in the **Comments section of the [`writing-code` skill](../../.agents/skills/writing-code/SKILL.md)** (cmdshift/platform#136) — this runbook holds the worked examples, the marker vocabulary, and the sweep checklist. Lineage: the original comment-style rules were codified in cmdshift/platform#43 and swept across `manifests/local/**` + `tools/bin/*` in PR cmdshift/platform#45.
 
 ## The delete-test
 
@@ -77,12 +77,12 @@ Rules:
 
 ## Where a comment ends and docs begin
 
-- **Comment at the value**: the why in ≤1-2 sentences + evidence numbers + `cmdshift/platform#N` ref.
+- **Comment at the value**: the why in ≤3 lines + evidence numbers + `cmdshift/platform#N` ref.
 - **Group README** (`manifests/local/<group>/README.md`): the group-level decision and its timeless rationale.
 - **Runbook** (`runbooks/local/`): the procedure, the mechanics, the worked recovery.
 - **CHANGELOG**: the dated story of the incident/decision.
 
-If a comment is growing past 2-3 sentences, it's docs — move the narrative out and leave the why + a pointer.
+If a comment won't fit in 3 lines, it's docs — move the narrative out and leave the why + a pointer (writing-code skill, Comments rule 2).
 
 ## Sweep checklist (for a rotting file or a pre-PR pass)
 

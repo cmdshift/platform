@@ -4,12 +4,9 @@ metadata:
   name: ztunnel-bootstrap
   namespace: kube-system
 spec:
-  # end-entity cert securing the agent<->ztunnel gRPC (xDS + CA server on
-  # localhost:15012) — upstream shape: SELF-SIGNED with CA:FALSE (rustls
-  # rejects a CA cert serving TLS: CaUsedAsEndEntity), SAN localhost, EKU
-  # server+client auth. ztunnel pins this cert as its trust anchor
-  # (XDS_ROOT_CA/CA_ROOT_CA both point at it). Pair with ztunnel-ca
-  # (cilium-ztunnel-ca) which signs workload certs (cmdshift/platform#87).
+  # end-entity cert securing the agent<->ztunnel gRPC — self-signed with CA:FALSE
+  # (rustls rejects a CA cert serving TLS), SAN localhost, server+client auth. ztunnel
+  # pins this cert as its trust anchor. Pair: ztunnel-ca (cmdshift/platform#87).
   commonName: ztunnel-bootstrap
   dnsNames:
     - localhost
@@ -23,8 +20,8 @@ spec:
     algorithm: RSA
     size: 2048
     encoding: PKCS8
-    # subPath mounts pin content at pod start — mid-flight rotation would
-    # split-brain agent vs ztunnel until every pod rolls (rotation runbook)
+    # subPath mounts pin content at pod start — mid-flight rotation would split-brain
+    # agent vs ztunnel until every pod rolls (rotation runbook)
     rotationPolicy: Never
   issuerRef:
     name: selfsigned

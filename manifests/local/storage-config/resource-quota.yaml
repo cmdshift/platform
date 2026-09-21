@@ -5,8 +5,7 @@ metadata:
   namespace: storage
 spec:
   hard:
-    # audit 2026-09: local-path-provisioner alone — 10m CPU / 48Mi req, 100m/72Mi
-    # limits, 1 running pod (cmdshift/platform#93). 2× request-sum headroom.
+    # sized to the namespace audit (cmdshift/platform#93); 2x request-sum headroom
     requests.cpu: 100m
     requests.memory: 200Mi
     limits.cpu: 500m

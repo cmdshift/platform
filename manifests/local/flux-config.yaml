@@ -12,15 +12,7 @@ spec:
     kind: Bucket
     name: main
   path: ./manifests/local/flux-config
-  # never prune: these manifests own the pipeline's own source and root.
-  # Removing them from git must orphan the Bucket + root Kustomization,
-  # never delete them (deleting the root would GC the entire cluster tree)
   prune: false
-  # force: the terraform bootstrap's helm hooks create these first (load-bearing
-  # for fresh installs — CRDs before the Bucket CR); force lets flux adopt them
-  # from the helm field manager on every bootstrap
   force: true
-  # wait would be circular: flux-config health-waits on the root Kustomization,
-  # whose Ready depends on flux-config itself — a deadlock at timeout
   wait: false
   timeout: 2m

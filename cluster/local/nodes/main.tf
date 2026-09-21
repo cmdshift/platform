@@ -18,8 +18,7 @@ resource "docker_container" "ctrl" {
   name     = join("-", compact([each.value.name, random_id.ctrl[each.key].hex]))
   hostname = join("-", compact([each.value.name, random_id.ctrl[each.key].hex]))
   image    = docker_image.talos.name
-  # loopback-only: the API server and apid are reachable from the host through
-  # these published ports (127.0.0.1), not from the LAN
+  # loopback-only: the API server and apid are reachable from the host, not the LAN
   ports {
     internal = local.ports.k8s
     external = local.ports.k8s
@@ -41,8 +40,8 @@ resource "docker_container" "ctrl" {
     "PLATFORM=container",
     "USERDATA=${base64encode(data.talos_machine_configuration.ctrl.machine_configuration)}"
   ]
-  # observed peak 4.1Gi; kubelet advertises the VM's full meminfo regardless,
-  # so the limit only bounds actual consumption (whole-node OOM on breach)
+  # observed peak 4.1Gi; kubelet advertises the VM's full meminfo regardless — the
+  # limit only bounds actual consumption (whole-node OOM on breach)
   memory      = 6144
   memory_swap = 6144
   privileged  = true
@@ -113,11 +112,9 @@ resource "docker_container" "work" {
   }
 }
 
-# Converges running nodes to the generated machine config (talosctl
-# apply-config) — the iteration path for template changes. USERDATA on the
-# containers is first-boot only; once a node has a config applied it persists
-# in the /system/state volume, so template changes propagate here without
-# recreating containers (cmdshift/platform#73).
+# Converges running nodes to the generated machine config — the iteration path for
+# template changes. USERDATA is first-boot only; an applied config persists in the
+# /system/state volume, so template changes don't recreate containers (cmdshift/platform#73).
 resource "talos_machine_configuration_apply" "ctrl" {
   for_each = docker_container.ctrl
 
@@ -126,9 +123,8 @@ resource "talos_machine_configuration_apply" "ctrl" {
   node                        = [for n in each.value.networks_advanced : n.ipv4_address if n.name == var.net.private_network_id][0]
   endpoint                    = local.local_api_ip
   apply_mode                  = "auto"
-  # the provider silently retries transport errors within the create timeout —
-  # 2m covers a fresh node's apid coming up while keeping a down node a fast,
-  # visible failure instead of the 10m default
+  # the provider silently retries transport errors within the create timeout — 2m
+  # covers a fresh node's apid coming up while keeping a down node a fast failure
   timeouts = {
     create = "2m"
   }
@@ -142,8 +138,7 @@ resource "talos_machine_configuration_apply" "work" {
   node                        = [for n in each.value.networks_advanced : n.ipv4_address if n.name == var.net.private_network_id][0]
   endpoint                    = local.local_api_ip
   apply_mode                  = "auto"
-  # applies route through the ctrl node's apid (no host ports on workers), so
-  # the ctrl applies must have run first
+  # applies route through the ctrl node's apid (no host ports on workers)
   depends_on = [talos_machine_configuration_apply.ctrl]
   timeouts = {
     create = "2m"
@@ -157,9 +152,8 @@ resource "talos_machine_bootstrap" "main" {
   client_configuration = talos_machine_secrets.main.client_configuration
   node                 = local.boot_node
   endpoint             = local.local_api_ip
-  # The provider's default 10m create timeout silently retries every transport
-  # error; the healthy path is sub-second, so fail fast and surface the real
-  # error (stale Docker port binding — see runbooks/local/cluster-rebuild.md).
+  # the default 10m create timeout silently retries every transport error; the healthy
+  # path is sub-second, so fail fast (stale Docker port binding — runbooks/local/cluster-rebuild.md)
   timeouts = {
     create = "10s"
   }

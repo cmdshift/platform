@@ -4,18 +4,14 @@ metadata:
   name: local-path
   annotations:
     storageclass.kubernetes.io/is-default-class: "true"
-    # defaultVolumeType: local — REQUIRED for velero: FSB skips hostPath PVs (node-agent can
-    # only reach volumes staged under /var/lib/kubelet/pods; local PVs get staged there,
-    # hostPath PVs don't). Also the only reason kubelet_volume_stats_* exists for PVCs —
-    # kubelet skips hostPath volumes, so hostPath-backed PVCs report no capacity/usage metrics.
-    # Defaults to hostPath without this. Affects NEW PVs only — existing
-    # hostPath PVs are grandfathered until their PVCs are recreated (runbooks/local/velero-backups.md)
+    # defaultVolumeType: local — REQUIRED for velero FSB (skips hostPath PVs) and the only
+    # reason kubelet_volume_stats_* exists for these PVCs; details: runbooks/local/velero-backups.md.
+    # Affects NEW PVs only — existing hostPath PVs are grandfathered until recreated
     defaultVolumeType: local
 provisioner: rancher.io/local-path
 reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer
-# false on purpose: local-path-provisioner has NO expansion code (v0.0.37 source
-# ships create/delete actions only) and non-CSI provisioners can't expand anyway —
-# `true` here just lets a PVC resize (e.g. a CNPG volume grow) hang forever.
-# Recreate-with-larger-size is the resize path locally; CSI in the cloud expands fine.
+# false on purpose: local-path-provisioner has NO expansion code and non-CSI provisioners
+# can't expand anyway — `true` just lets a PVC resize hang forever (recreate-with-larger-size
+# is the local resize path; CSI in the cloud expands fine)
 allowVolumeExpansion: false # true in the cloud

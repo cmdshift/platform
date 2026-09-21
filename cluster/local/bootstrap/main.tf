@@ -2,9 +2,9 @@ resource "helm_release" "cilium" {
   depends_on = [
     data.http.kube_apiserver
   ]
-  name             = "cilium"
-  repository       = "https://helm.cilium.io"
-  chart            = "cilium"
+  name       = "cilium"
+  repository = "https://helm.cilium.io"
+  chart      = "cilium"
   # pre-release: 1.20.x crashes at startup on kernel 7.2 hosts — the FnSetRetval
   # probe fails verification (cilium/cilium#48016); revisit when 1.20.2 ships
   version          = "1.21.0-pre.2"
@@ -19,16 +19,13 @@ resource "helm_release" "cilium" {
         hostRoot = "/sys/fs/cgroup"
       }
       encryption = {
-        # unencrypted twin: ztunnel mode needs cilium-ztunnel-secrets, which
-        # only cert-manager (flux, post-bootstrap) can issue — the flux
-        # HelmRelease flips encryption to ztunnel on first reconcile
-        # (cmdshift/platform#87)
+        # unencrypted twin: ztunnel mode needs cilium-ztunnel-secrets, which only
+        # cert-manager (flux, post-bootstrap) can issue — the flux HelmRelease
+        # flips encryption to ztunnel on first reconcile (cmdshift/platform#87)
         enabled = false
       }
-      # no standalone envoy DaemonSet in the twin: the bootstrap boots with
-      # no L7 consumers (gateway-api is flux's problem, and gateway-api proxy
-      # mode runs in the agent) — flux converges the rest on first reconcile
-      # (cmdshift/platform#87)
+      # no standalone envoy DaemonSet in the twin: the bootstrap boots with no L7
+      # consumers — flux converges the rest on first reconcile (cmdshift/platform#87)
       envoy = {
         enabled = false
       }
@@ -58,8 +55,8 @@ resource "helm_release" "cilium" {
       ipam = {
         mode = "kubernetes"
       }
-      k8sServiceHost       = "localhost"
-      k8sServicePort       = 7445
+      k8sServiceHost = "localhost"
+      k8sServicePort = 7445
       # gateway-api controller prerequisite (cmdshift/platform#70)
       kubeProxyReplacement = true
       l2announcements = {
@@ -142,12 +139,9 @@ resource "helm_release" "flux" {
           ]
         }
       }
-      # Fresh-install bootstrap twins of the Bucket + root Kustomization owned
-      # by manifests/local/flux-config/ (that copy carries deletionPolicy,
-      # retryInterval, timeout, 10m interval): the hooks are load-bearing only
-      # until its first reconcile force-adopts both objects — with
-      # ignore_changes = all below, this block never runs against an existing
-      # cluster. Never delete the on-cluster objects (flux/README.md).
+      # Fresh-install bootstrap twins of the Bucket + root Kustomization owned by
+      # manifests/local/flux-config/ — load-bearing only until its first reconcile
+      # force-adopts both. Never delete the on-cluster objects (flux/README.md).
       extraObjects = [
         {
           apiVersion = "source.toolkit.fluxcd.io/v1"

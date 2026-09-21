@@ -2,20 +2,12 @@ alertmanager:
   enabled: false
 defaultRules:
   disabled:
-    # environmental on Talos-in-Docker: node_timex_sync_status=0 on every
-    # node (no sync flag from the docker VMs) — accepted finding
+    # environmental on Talos-in-Docker: node_timex_sync_status=0 on every node (no sync flag from the docker VMs)
     NodeClockNotSynchronising: true
-    # meta-alert (fires per-namespace on any info alert) — its only consumer is
-    # the chart's inhibit_rules, which the CR-managed `mail` AlertmanagerConfig
-    # doesn't load, so it delivers pure noise and mutes nothing
-    # (cmdshift/platform#114)
-    InfoInhibitor: true
-# kube-proxy removed from the cluster (cilium KPR, cmdshift/platform#70) —
-# drops the dead-target ServiceMonitor and its rule set
+    InfoInhibitor: true # its only consumer (chart inhibit_rules) isn't loaded — cmdshift/platform#114
+  # vendored components moved to standalone releases; kube-proxy gone (cilium KPR)
 kubeProxy:
   enabled: false
-# vendored components disabled — moved to standalone releases
-# (prometheus-node-exporter / kube-state-metrics, cmdshift/platform#69)
 kubeStateMetrics:
   enabled: false
 nodeExporter:
@@ -35,9 +27,7 @@ prometheusOperator:
   resources:
     requests:
       cpu: 10m
-      # 7d max 46Mi, VPA rec 61Mi — 56Mi = peak x 1.2, limit 1.5x
-      # (cmdshift/platform#66)
-      memory: 56Mi
+      memory: 56Mi # 7d max 46Mi, VPA rec 61Mi — peak x 1.2, limit 1.5x
     limits:
       cpu: 500m
       memory: 84Mi
@@ -45,36 +35,24 @@ prometheusOperator:
     resources:
       requests:
         cpu: 10m
-        # audit: 38Mi steady — 48Mi = P99 x 1.2
-        memory: 48Mi
+        memory: 48Mi # audit: 38Mi steady — P99 x 1.2
       limits:
-        # audit: 18% of CFS periods throttled (at 200m) —
-        # reload bursts; generous CPU limit per convention
+        # 18% of CFS periods throttled (at 200m) — reload bursts; generous per convention
         cpu: 500m
         memory: 72Mi
 prometheus:
   prometheusSpec:
-    # JSON logging: see prometheusOperator above
     logFormat: json
     retention: 2d
-    # CR-managed Alertmanager (observability-config/main.alertmanager.yaml) — the
-    # chart's alertmanager component is disabled, so without this the whole
-    # kubernetes-mixin rule set (PV filling, StatefulSet mismatch, …) fires
-    # into the void. Same endpoint mimir-ruler and the OTelCollector use.
+    # CR-managed Alertmanager — without this the kubernetes-mixin rules never deliver (observability/README.md)
     alertingEndpoints:
       - namespace: observability
         name: alertmanager-operated
         port: 9093
         scheme: http
-    # select every ServiceMonitor/PodMonitor cluster-wide: the chart default's
-    # `release:` label gate left kyverno/thanos/velero SMs unscraped, and an
-    # empty serviceMonitorSelector: {} is treated as falsy by the chart template.
-    # Future operator SMs (CNPG) get picked up automatically.
+    # the falsy-empty-selector + `release:` gate story: observability/README.md
     serviceMonitorSelectorNilUsesHelmValues: false
-    # same gate applies to PodMonitors
     podMonitorSelectorNilUsesHelmValues: false
-    # remote-write into the mimir monolith (raw retention lives there now —
-    # flat 7d, mimir has no downsampling, cmdshift/platform#128)
     remoteWrite:
       - url: http://mimir.observability.svc:8080/api/v1/push
         headers:
@@ -82,14 +60,10 @@ prometheus:
     externalLabels:
       cluster: local
     resources:
-      # audit: working set 1010-1175Mi (first evicted under node pressure),
-      # head series still climbing (157k -> 187k over 2h — churn-driven, watch
-      # for plateau) — request = P99 x 1.2, limit 1.5x.
-      # Trend + recurrence playbook: cmdshift/platform#20
+      # working set 1010-1175Mi, head series churn-driven (157k -> 187k over 2h,
+      # watch for plateau) — request = P99 x 1.2, limit 1.5x; playbook: cmdshift/platform#20
       requests:
-        # audit: 56m steady — 100m keeps the reservation honest
-        # (node CPU requests sit at 4-7%)
-        cpu: 100m
+        cpu: 100m # audit: 56m steady — keeps the reservation honest
         memory: 1536Mi
       limits:
         cpu: 1000m

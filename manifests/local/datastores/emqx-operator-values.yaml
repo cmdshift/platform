@@ -1,13 +1,7 @@
-# the chart packages its ~1.42MB of CRDs in templates/ — over the 1MB
-# release-secret cap; skipCRDs is the chart's own knob (install.crds only
-# governs a crds/ dir, which this chart doesn't have) — the CRDs land via
-# the emqx-operator-crds kustomization (crds group) instead (cmdshift/platform#64)
 skipCRDs: true
 image:
   tag: "2.3.2"
-# audit after burn-in (cmdshift/platform#66): 7d CPU peak 1.1m, mem peak
-# 31Mi — 40Mi = peak x 1.2, limit 1.5x; the chart's 100m/128Mi req
-# default was ~90x idle CPU
+# audit: 7d peak 1.1m/31Mi — peak x 1.2 (chart default was ~90x idle CPU)
 resources:
   requests:
     cpu: 10m

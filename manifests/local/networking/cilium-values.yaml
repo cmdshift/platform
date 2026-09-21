@@ -5,12 +5,7 @@ cgroup:
   hostRoot: /sys/fs/cgroup
 encryption:
   enabled: true
-  # ztunnel: per-node L4 mTLS proxy (beta upstream, cmdshift/platform#87) —
-  # replaces wireguard as the datapath encryption. CA material is NOT chart-
-  # generated: cert-manager issues the mesh CA into cilium-ztunnel-secrets
-  # (certificates-config/ztunnel-ca.certificate.yaml) and the HelmRelease
-  # postRenderers remap its keys onto the filenames cilium expects. Enrolled-
-  # namespace registry + limits: manifests/local/networking/README.md
+  # ztunnel — CA + postRenderers mechanics: networking/README.md
   type: ztunnel
   ztunnel:
     ca:
@@ -27,9 +22,7 @@ envoy:
   resources:
     requests:
       cpu: 10m
-      # steady ~25Mi, but connectivity-test L7 traffic pushed a busy
-      # node's envoy to ~69Mi — 128Mi limit keeps burst headroom
-      memory: 64Mi
+      memory: 64Mi # steady ~25Mi; connectivity-test L7 traffic pushed a busy node to ~69Mi
     limits:
       cpu: 40m
       memory: 128Mi
@@ -66,8 +59,7 @@ hubble:
           cpu: 10m
           memory: 48Mi
         limits:
-          # audit: 13.6% of CFS periods throttled (at 100m)
-          cpu: 200m
+          cpu: 200m # audit: 13.6% of CFS periods throttled (at 100m)
           memory: 72Mi
     frontend:
       resources:
@@ -75,8 +67,7 @@ hubble:
           cpu: 10m
           memory: 16Mi
         limits:
-          # audit: 33% of CFS periods throttled (at 20m)
-          cpu: 100m
+          cpu: 100m # audit: 33% of CFS periods throttled (at 20m)
           memory: 24Mi
 ipam:
   mode: kubernetes
@@ -94,14 +85,10 @@ kubeProxyReplacement: true
 l2announcements:
   enabled: true
 prometheus:
-  # cilium-agent metrics (9962) — endpoint is disabled by chart default,
-  # and the SM needs it enabled
-  enabled: true
+  enabled: true # cilium-agent metrics :9962 — disabled by chart default, the SM needs it
   serviceMonitor:
     enabled: true
-    # SM CRDs ship via the prometheus-operator-crds release — the chart's
-    # render-time CRD gate needs them declared to pass
-    trustCRDsExist: true
+    trustCRDsExist: true # cilium's validate gate refuses to render SMs without it
 operator:
   prometheus:
     serviceMonitor:
@@ -111,9 +98,7 @@ operator:
       cpu: 10m
       memory: 144Mi
     limits:
-      # audit: 7.3% of CFS periods throttled (at 40m) —
-      # convention floor for burst headroom
-      cpu: 200m
+      cpu: 200m # audit: 7.3% of CFS periods throttled (at 40m) — convention floor
       memory: 216Mi
 resources:
   requests:
@@ -121,12 +106,8 @@ resources:
     # audit: agents 296-351Mi (worst node) — 448Mi = worst-node x 1.2, limit 1.5x
     memory: 448Mi
   limits:
-    # audit: 21.8% of CFS periods throttled (at 200m) —
-    # eBPF/encrypt bursts; generous CPU limit per convention
-    cpu: 500m
-    # connectivity-test runs spiked agents to ~323Mi (endpoints/identities) —
-    # limit 1.5x keeps burst headroom
-    memory: 672Mi
+    cpu: 500m # audit: 21.8% of CFS periods throttled (at 200m) — eBPF/encrypt bursts
+    memory: 672Mi # connectivity-test runs spiked agents to ~323Mi — 1.5x keeps burst headroom
 rollOutCiliumPods: true
 securityContext:
   capabilities:

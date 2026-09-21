@@ -25,9 +25,8 @@ configMapGenerator:
       - runtime.yaml
     options:
       disableNameSuffixHash: true
-  # mimir's local ruler backend scans <dir>/<tenant>/*.yaml — one level below
-  # the mount, so keys carry the tenant prefix. ConfigMap keys can't contain
-  # '/' — the mimir.statefulset.yaml subPath mount does the mapping
+  # mimir's local ruler backend scans <dir>/<tenant>/*.yaml — keys carry the tenant
+  # prefix because ConfigMap keys can't contain '/' (subPath mount maps them)
   - name: mimir-rules
     namespace: observability
     files:
@@ -109,12 +108,9 @@ configMapGenerator:
       - config.alloy
     options:
       disableNameSuffixHash: true
-  # loki ruler rules: the chart's sidecar watches label `loki_rule` (the
-  # chart's LABEL env, underscore) and mounts matching ConfigMaps into
-  # /etc/loki/rules — this generator is the delivery channel, not dead
-  # config. The label must be the underscore form; a `loki-rule` label
-  # matches nothing and the ruler silently runs zero rules
-  # (cmdshift/platform#120)
+  # loki ruler rules: the chart's sidecar watches label `loki_rule` (underscore —
+  # a `loki-rule` label matches nothing and the ruler silently runs zero rules,
+  # cmdshift/platform#120); this generator is the delivery channel, not dead config
   - name: loki-rule
     namespace: observability
     files:

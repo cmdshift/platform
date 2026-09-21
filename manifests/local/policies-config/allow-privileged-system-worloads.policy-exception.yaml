@@ -3,10 +3,8 @@ kind: PolicyException
 metadata:
   name: allow-privileged-system-workloads
   namespace: policies
-  # annotation bump to force admission re-pick-up after the ns-refactor CEL
-  # update — the generator saw the edit, the admission path kept evaluating
-  # the previous expression (storage matched, backups denied with identical
-  # CEL) (cmdshift/platform#31)
+  # annotation bump forces admission re-pick-up after the ns-refactor CEL update — the
+  # generator saw the edit, admission kept evaluating the stale expression (cmdshift/platform#31)
   annotations:
     platform.cmdshift.io/ns-refactor: "2026-09-07"
 spec:

@@ -5,17 +5,9 @@ metadata:
   namespace: observability
 spec:
   hard:
-    # audit 2026-09: prometheus + thanos ×4 + grafana + alertmanager + operators
-    # — 310m CPU / 3080Mi req, 9700m/4620Mi limits, 16 pods (cmdshift/platform#93).
-    # CPU limits quota covers prometheus/thanos-compaction bursts; 2× request-sum
-    # absorbs kube-state-metrics/grafana-operator VPA gaps (recs +87%/+86%).
-    # 2026-09-17 tempo: +768Mi req, +1Gi limits, +1 pod (cmdshift/platform#83)
-    # — and requests.cpu 750m→1: tempo's 150m request denied at the DS rollout
-    # (690m used, over the old ceiling). Beyla's share was reclaimed on the
-    # 2026-09-18 kernel-panic removal — pods 41→36, limits.memory 12Gi→9Gi
-    # 2026-09-19 LGTM migration (cmdshift/platform#128): mimir monolith
-    # (+768Mi/1Gi) + otel-operator (+64Mi/128Mi) + OTelCollector — headroom for
-    # the thanos↔mimir coexistence window; re-audit after thanos teardown
+    # sized to the full namespace (audit cmdshift/platform#93): CPU limits quota covers
+    # prometheus/compaction bursts; headroom absorbs the thanos↔mimir coexistence window
+    # (cmdshift/platform#128) — re-audit after thanos teardown
     requests.cpu: "1"
     requests.memory: 8Gi
     limits.cpu: 16

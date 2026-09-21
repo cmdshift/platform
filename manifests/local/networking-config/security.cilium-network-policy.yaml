@@ -13,9 +13,8 @@ spec:
     # agent is hostNetwork — node-local paths resolve via the host entity
     - toEntities:
         - host
-    # default-deny CCNP already allows kube-dns :53 for non-kube-system
-    # namespaces, but the agent uses dnsPolicy Default (node resolv.conf), so
-    # keep explicit DNS egress here too
+    # default-deny CCNP allows kube-dns :53 for non-kube-system namespaces, but the agent
+    # uses dnsPolicy Default (node resolv.conf) — keep explicit DNS egress here too
     - toEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: kube-system
@@ -29,9 +28,8 @@ spec:
           rules:
             dns:
               - matchPattern: "*"
-    # trivy-operator: scan jobs pull the cached trivy-db from the built-in
-    # trivy-server (chart 0.36.0 listens on :4954 — values.yaml's "4975"
-    # comment is stale; verified in the chart's service template)
+    # trivy-operator: scan jobs pull the cached trivy-db from the built-in trivy-server
+    # (:4954 — the chart values.yaml's "4975" comment is stale, verified in the template)
     - toEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: security
@@ -39,11 +37,9 @@ spec:
         - ports:
             - port: "4954"
               protocol: TCP
-    # trivy: all image/DB pulls go through the angos caching registry
-    # (registry.cloud.test, plain HTTP :80 — see manifests/local/README.md) — scan
-    # jobs pull scanned images through it via the chart's registry.mirror
-    # rewrite, trivy-server pulls trivy-db the same way. world:443 stays as
-    # the fallback for upstreams outside the cache's map
+    # trivy: all image/DB pulls go through the angos caching registry (plain HTTP :80,
+    # manifests/local/README.md) — scan-job image refs via the chart's registry.mirror
+    # rewrite, DB via dbRegistry. world:443 stays as fallback for upstreams outside the map
     - toFQDNs:
         - matchName: registry.cloud.test
       toPorts:
@@ -56,7 +52,5 @@ spec:
         - ports:
             - port: "443"
               protocol: TCP
-  # no ingress section: this cluster's default-deny is egress-only, and the
-  # metrics ports (tetragon 2112/2113, trivy-operator 80) must stay scrapeable
-  # by Prometheus. The tetra gRPC listener is loopback-only and does not
-  # traverse Cilium.
+  # no ingress section: this cluster's default-deny is egress-only, and the metrics ports
+  # must stay scrapeable by Prometheus (tetra gRPC is loopback-only, doesn't traverse Cilium)

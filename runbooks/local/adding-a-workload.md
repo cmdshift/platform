@@ -55,7 +55,7 @@ Credentials come from the secrets server: add the payload to `cluster/local/secr
 
 ## 7. When admission rejects something you can't fix
 
-Controllers that generate non-compliant pods with no config knobs (e.g. the thanos-operator's config-reloader sidecar in its day — the operator is gone since cmdshift/platform#128, but the pattern stands) get a **PolicyException** in `policies-config/`: scoped by namespace + name prefix, with a rationale comment (comment rules: the `code-comments` skill). Don't reach for exceptions for workloads you control — fix the workload.
+Controllers that generate non-compliant pods with no config knobs (e.g. the thanos-operator's config-reloader sidecar in its day — the operator is gone since cmdshift/platform#128, but the pattern stands) get a **PolicyException** in `policies-config/`: scoped by namespace + name prefix, with a rationale comment (comment rules: the `writing-code` skill, Comments section). Don't reach for exceptions for workloads you control — fix the workload.
 
 ### Quota vs exception: ResourceQuota ignores kyverno PolicyExceptions (cmdshift/platform#111)
 

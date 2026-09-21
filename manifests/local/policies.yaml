@@ -15,7 +15,6 @@ spec:
     kind: Bucket
     name: main
   path: ./manifests/local/policies
-  # test-bed posture: prune enabled (see policies-config.yaml for the tripwire)
   prune: true
   wait: true
   timeout: 10m

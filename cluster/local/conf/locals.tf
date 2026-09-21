@@ -13,9 +13,8 @@ locals {
 }
 
 locals {
-  # single fixed control plane node — 3-node etcd saturates the Docker VM
-  # during the install burst (host CPU/IOPS ceiling); 1 node has no quorum
-  # trade-off that matters here, so there is no LB and no node count knob
+  # single fixed control plane node — 3-node etcd saturates the Docker VM during the
+  # install burst; no quorum trade-off that matters here, so no LB and no node knob
   # (cmdshift/platform#54)
   ctrl_nodes = {
     (cidrhost(local.ctrl_cidr, 1)) = {
