@@ -17,7 +17,7 @@ A silent exit with nothing in the logs is almost always an OOMKill — the proce
 
 ## 2. Kyverno or workload?
 
-`pod_status` shows the exit reason; `policy_report` summarizes admission verdicts (failures > 0 = denials in play). If admission denied the pod, its template violates a policy (requests/limits, `runAsNonRoot`, seccomp, capabilities, `:latest`). Fix the workload if it's ours. If a controller/operator generates non-compliant pods with no config knobs (e.g. the thanos-operator's config-reloader sidecar in its day — a LimitRange can be the better fix, cmdshift/platform#111), add a **scoped PolicyException** in `policies-config/*.policy-exception.yaml` — namespace + name-prefix matching, with a rationale comment (comment rules: the `code-comments` skill).
+`pod_status` shows the exit reason; `policy_report` summarizes admission verdicts (failures > 0 = denials in play). If admission denied the pod, its template violates a policy (requests/limits, `runAsNonRoot`, seccomp, capabilities, `:latest`). Fix the workload if it's ours. If a controller/operator generates non-compliant pods with no config knobs (e.g. the thanos-operator's config-reloader sidecar in its day — a LimitRange can be the better fix, cmdshift/platform#111), add a **scoped PolicyException** in `policies-config/*.policy-exception.yaml` — namespace + name-prefix matching, with a rationale comment (comment rules: the `writing-code` skill, Comments section).
 
 ## 3. Memory: limit too low, or a leak?
 
@@ -32,7 +32,7 @@ The `ContainerOOMKilled` alert (ruler → alertmanager) catches ceiling hits inv
 
 ## 4. Fix and verify
 
-Size per convention (request ≈ P99 × 1.2, limit = 1.5 × request; deliberate deviations get a rationale comment per the `code-comments` skill — velero runs 2× for kopia repo-maintenance spikes). Bump, reconcile from the root, then confirm stability across **at least one full failure cycle** — velero's cycle was ~14 min, so a few minutes of uptime proved nothing.
+Size per convention (request ≈ P99 × 1.2, limit = 1.5 × request; deliberate deviations get a rationale comment per the `writing-code` skill Comments rules — velero runs 2× for kopia repo-maintenance spikes). Bump, reconcile from the root, then confirm stability across **at least one full failure cycle** — velero's cycle was ~14 min, so a few minutes of uptime proved nothing.
 
 ## Worked example
 

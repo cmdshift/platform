@@ -39,6 +39,8 @@ kubectl get events -A --sort-by=.lastTimestamp | tail -30
 
 Observability evidence (`prometheus_query`, `loki_query`, `mailpit`, `tetra`): the `observability` skill.
 
+**No invocation longer than 60 seconds** (AGENTS.md rule): local ops either make progress or fail fast. No sleep loops, no blind polling to a long timeout — estimate the wait, cap the poll at ~2× that, run long waits in the background, and diagnose early failures (StartError, admission denial, failed mounts at t=10s) instead of waiting out the timeout. Bounded wait helpers (`flux_wait`, `helm_wait`, `velero_wait`) exist in `tools/bin/` precisely so this rule doesn't get improvised around.
+
 ## 4. Write-back rule
 
 A landmine that cost a debugging round gets written to the **nearest README** (with its `cmdshift/platform#N` ref) in the same session — that's where the next operator looks first (step 1). Skills keep their trap lists for their own trigger; the README carries the narrative. The `docs-sweep` skill dispatches the write-up if the session shouldn't block.
