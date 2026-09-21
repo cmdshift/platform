@@ -8,7 +8,7 @@ Use the **`rustfs` wrapper** (`tools/bin/rustfs`, on PATH in a direnv shell) —
 
 ```
 rustfs ls main/flux --recursive
-rustfs cat main/flux/manifests/local/README.md
+rustfs cat main/flux/manifests/README.md
 rustfs object remove main/backups/<key>
 ```
 

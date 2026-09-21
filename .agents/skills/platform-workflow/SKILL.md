@@ -5,7 +5,7 @@ description: End-to-end workflow for changing platform manifests — pre-reconci
 
 # Making a manifest change
 
-The standard loop for every change to `manifests/local/`. Flux v2 deploys everything; there is no manual `kubectl apply`.
+The standard loop for every change to `manifests/` (bases + clusters). Flux v2 deploys everything; there is no manual `kubectl apply`.
 
 ## 0. Before editing
 
@@ -21,7 +21,7 @@ helm_verify        # renders every HelmRelease's values via helm template
 cr_validate        # server-side dry-run of CRs against on-cluster CRD schemas
 ```
 
-`helm_verify` catches nil-pointer template errors, but schema-less charts do **not** reject values-key typos — cross-check surprise diffs against the chart's `values.yaml`. `cr_validate` is mandatory for any new/changed CR (TracingPolicy, AlertmanagerConfig,CEL health checks…): kustomize-controller dry-runs the whole group before applying, so one undeclared field blocks every file in the directory and repeats at `retryInterval` forever. Kustomize dry-run caveat: dirs without a `kustomization.yaml` (e.g. `crds/`) fail standalone `kustomize build`/`kubectl kustomize` but build fine in flux (implicit kustomization auto-generated listing all YAMLs) — validate those with `flux build kustomization <name> --path <dir>`, not the CLI.
+`helm_verify` catches nil-pointer template errors, but schema-less charts do **not** reject values-key typos — cross-check surprise diffs against the chart's `values.yaml`. `cr_validate` is mandatory for any new/changed CR (TracingPolicy, AlertmanagerConfig,CEL health checks…): kustomize-controller dry-runs the whole group before applying, so one undeclared field blocks every file in the directory and repeats at `retryInterval` forever. (Historical: dirs without a `kustomization.yaml` failed standalone `kustomize build`/`kubectl kustomize` but built fine in flux via the auto-generated implicit kustomization — the multi-cluster restructure gave every dir an explicit one, so the CLI now matches the flux build everywhere.)
 
 ## 2. Converge the bucket, then reconcile
 
@@ -44,7 +44,7 @@ kubectl get helmreleases -A      # every release True (per-release check: helm_w
 policy_report                    # failures: 0 expected (skips = PolicyExceptions); lists stale reports for gone resources
 ```
 
-Posture scanning (kubescape) was removed — single-purpose hardening tools are its replacement (see `manifests/local/README.md` for the accepted-deviations baseline those tools will audit against).
+Posture scanning (kubescape) was removed — single-purpose hardening tools are its replacement (see `manifests/README.md` for the accepted-deviations baseline those tools will audit against).
 
 ## Hard rule: no live patches
 
@@ -55,7 +55,7 @@ Never fix drift with `kubectl edit` / `talosctl patch` / `docker exec` mutations
 Docs are part of the change — a change isn't ready to commit or PR until the docs it made stale are updated in the same branch. Sweep the surfaces:
 
 - `CHANGELOG.md` — dated learnings, incident narratives, follow-ups (append an entry; ref `cmdshift/platform#N`)
-- `manifests/local/<group>/README.md` — group-level decisions the change touched (keep current)
+- `manifests/bases/<group>/README.md` — group-level decisions the change touched (keep current)
 - `runbooks/local/` — changed procedures, new gotchas, incident post-mortems
 - `.agents/skills/*/SKILL.md` — sync any skill whose trigger/steps/traps changed (this one included)
 - `tools/bin/README.md` — new/changed helper scripts: args, defaults, exit codes

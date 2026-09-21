@@ -1,0 +1,19 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: security-config
+  namespace: flux-system
+spec:
+  interval: 1h
+  retryInterval: 5s
+  dependsOn:
+    - name: security
+  sourceRef:
+    kind: Bucket
+    name: main
+  path: ./manifests/bases/security-config
+  # prune on purpose: TracingPolicies retire by file deletion; the tetragon
+  # PolicyException (admission-critical) lives in policies-config/
+  prune: true
+  # no wait:true — conditionless CRs stall the health check (flux/README.md)
+  timeout: 2m

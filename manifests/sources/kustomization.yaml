@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - gateway-api.git-repository.yaml
+  - aqua.helm-repository.yaml
+  - kyverno.helm-repository.yaml
+  - cilium.helm-repository.yaml
+  - jetstack.helm-repository.yaml
+  - kubelet-csr-approver.helm-repository.yaml
+  - external-secrets.helm-repository.yaml
+  - fluxcd-community.helm-repository.yaml
+  - metrics-server.helm-repository.yaml
+  - fairwinds.helm-repository.yaml
+  - local-path-provisioner.git-repository.yaml
+  - velero.helm-repository.yaml
+  - seaweedfs-operator.helm-repository.yaml
+  - cloudnative-pg.helm-repository.yaml
+  - cloudnative-pg-crds.git-repository.yaml
+  - valkey.helm-repository.yaml
+  - emqx.helm-repository.yaml
+  - emqx-operator-crds.git-repository.yaml
+  - grafana.helm-repository.yaml
+  - grafana-community.helm-repository.yaml
+  - open-telemetry.helm-repository.yaml
+  - prometheus-community.helm-repository.yaml

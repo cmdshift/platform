@@ -2,7 +2,7 @@
 # Render every HelmRelease's values through `helm template` — the values-path
 # verification step (catches bad values keys/paths before flux ships them to
 # the cluster).
-#   helm_verify [path] [release]   # default: manifests/local, all releases;
+#   helm_verify [path] [release]   # default: manifests/clusters/local, all
 #                                  # a release name renders just that one
 # Values sources, merged in flux order (inline first, valuesFrom refs after —
 # later files override earlier ones):
@@ -197,7 +197,7 @@ render_release() { # file name ns chart version srcKind srcName
 
 helm_verify() {
   [ $# -le 2 ] || usage
-  path="${1:-manifests/local}"
+  path="${1:-manifests/clusters/local}"
   filter="${2:-}"
   [ -e "$path" ] || { echo "helm_verify: no such path: $path" >&2; usage; }
 

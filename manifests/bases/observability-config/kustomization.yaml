@@ -1,0 +1,27 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - resource-quota.yaml
+  - logging-resource-quota.yaml
+  - limit-range.yaml
+  - main.grafana.yaml
+  - main.alertmanager.yaml
+  - otel-collector.opentelemetry-collector.yaml
+  - otel-collector.rbac.yaml
+  - flux-system.alert.yaml
+  - flux-system.provider.yaml
+  - prometheus.grafana-datasource.yaml
+  - loki.grafana-datasource.yaml
+  - tempo.grafana-datasource.yaml
+  # the dotdc k8s-views dashboards (url:-pointer CRs) were removed — re-add
+  # from git history whenever a reference view is wanted again
+  - platform-deployment.grafana-dashboard.yaml
+  - main-grafana-credentials.external-secret.yaml
+configMapGenerator:
+  - name: platform-deployment-dashboard
+    namespace: observability
+    files:
+      - platform-deployment.dashboard.json
+    # name-referenced by the GrafanaDashboard CR — a hash suffix would break the ref
+    options:
+      disableNameSuffixHash: true

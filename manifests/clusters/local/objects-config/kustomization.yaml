@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - default-serviceaccount.yaml
+  - loki-rules.s3-bucket.yaml
+  - loki.s3-bucket.yaml
+  - loki-s3-credentials.external-secret.yaml
+  - loki.s3-credentials.yaml
+  - loki.s3-identity.yaml
+  - loki.s3-policy-binding.yaml
+  - loki.s3-policy.yaml
+  - main.seaweed.yaml
+  - mimir.s3-bucket.yaml
+  - mimir-s3-credentials.external-secret.yaml
+  - mimir.s3-credentials.yaml
+  - mimir.s3-identity.yaml
+  - mimir.s3-policy-binding.yaml
+  - mimir.s3-policy.yaml
+  - resource-quota.yaml
+  - seaweedfs-admin.deployment.yaml
+  - tempo.s3-bucket.yaml
+  - tempo-s3-credentials.external-secret.yaml
+  - tempo.s3-credentials.yaml
+  - tempo.s3-identity.yaml
+  - tempo.s3-policy-binding.yaml
+  - tempo.s3-policy.yaml

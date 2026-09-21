@@ -5,7 +5,7 @@ description: Coding standards for the platform repo — manifest file naming, th
 
 # Writing code (this repo)
 
-Scope: `manifests/local/**`, `cluster/local/**` (terraform + templates), `tools/bin/*`. The cluster state is git-managed; these rules keep the diff reviewable and the drift zero.
+Scope: `manifests/**`, `cluster/local/**` (terraform + templates), `tools/bin/*`. The cluster state is git-managed; these rules keep the diff reviewable and the drift zero.
 
 ## 1. Everything in files — no live patches
 

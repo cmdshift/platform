@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - allow-dns.cilium-clusterwide-network-policy.yaml
+  - certificates.cilium-network-policy.yaml
+  - datastores.cilium-network-policy.yaml
+  - default-deny.cilium-clusterwide-network-policy.yaml
+  - flux-system.cilium-network-policy.yaml
+  - kube-system.cilium-network-policy.yaml
+  - objects.cilium-network-policy.yaml
+  - policies.cilium-network-policy.yaml
+  - storage.cilium-network-policy.yaml

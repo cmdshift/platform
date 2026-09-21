@@ -1,0 +1,27 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - allow-alloy-host-logs.policy-exception.yaml
+  - allow-cilium-system-components.policy-exception.yaml
+  - allow-kube-system-system-components.policy-exception.yaml
+  - allow-node-exporter.policy-exception.yaml
+  - allow-privileged-system-worloads.policy-exception.yaml
+  - allow-tetragon-security-contexts.policy-exception.yaml
+  - allow-velero-security-contexts.policy-exception.yaml
+  - auto-pod-disruption-budget-multi-replica.generating-policy.yaml
+  - cilium-operator.pod-disruption-budget.yaml
+  - coredns.pod-disruption-budget.yaml
+  - deny-shell-entrypoint.validating-policy.yaml
+  - disallow-capabilities-strict.validating-policy.yaml
+  - disallow-host-namespaces.validating-policy.yaml
+  - disallow-host-path.validating-policy.yaml
+  - disallow-host-ports.validating-policy.yaml
+  - disallow-latest.validating-policy.yaml
+  - disallow-privileged.validating-policy.yaml
+  - disallow-privilege-escalation.validating-policy.yaml
+  - disallow-proc-mount.validating-policy.yaml
+  - require-graceful-termination.validating-policy.yaml
+  - require-resource-limits.validating-policy.yaml
+  - require-run-as-nonroot.validating-policy.yaml
+  - resource-quota.yaml
+  - restrict-seccomp-string.validating-policy.yaml

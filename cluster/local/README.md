@@ -10,6 +10,7 @@ Terraform/docker side of the local test cluster — network, companions, Talos n
 - **Companion state is disposable except the angos cache volume** — the registry's `platform-registry-data` volume survives destroys (see the registry landmine in the rebuild runbook).
 - **Bucket changes (the `buckets` list in `cluster/local/conf/outputs.tf`) recreate the storage container and wipe its data** (the `rustfs-ops` skill).
 - **The bootstrap root carries `lifecycle.prevent_destroy`** — `just bootstrap destroy` always fails by design.
+- **The bootstrap-twin root Kustomization path must match the manifest tree layout** — `cluster/local/bootstrap/main.tf` sets `path = "./manifests/clusters/local"`, which must equal the root Kustomization CR's `spec.path` in `manifests/clusters/local/flux-config/local.kustomization.yaml`; they move together on any restructure of the tree.
 
 ## Terraform plans that look scary but aren't
 

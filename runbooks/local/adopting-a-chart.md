@@ -29,7 +29,7 @@ helm template <release> <chart> -f /tmp/values.yaml | wc -c
 If the manifest is too big, pick a strategy:
 - **separate CRD chart** (the `prometheus-operator-crds` pattern — cleanest when upstream ships one)
 - **upstream moves CRDs to helm's `crds/` dir** — install-only, never stored in the release secret; file an issue/PR
-- **vendor the rendered CRDs** into `manifests/local/crds/` + `crd.enable: false` on the release — works, but adds a manual regen-on-every-bump step (rejected for thanos for exactly that reason)
+- **vendor the rendered CRDs** into `manifests/bases/crds/` + `crd.enable: false` on the release — works, but adds a manual regen-on-every-bump step (rejected for thanos for exactly that reason)
 - **raw manifests via kustomization** (bundle.yaml, etc.) — no secret involved at all; the thanos-operator's final answer
 
 ## 2. Admission compliance
@@ -52,7 +52,7 @@ helm_verify [path] [release]      # renders the release with the EXACT values fl
                                   # (resolves valuesFrom refs + chart from source CRs locally)
 ```
 
-Use the single-release form (`helm_verify manifests/local/<group> <release>`) for ad-hoc values debugging. When you need to eyeball the full rendered manifest (hook jobs, securityContext placement), render by hand — but render with the real values, not reconstructed ones:
+Use the single-release form (`helm_verify manifests/bases/<group> <release>`) for ad-hoc values debugging. When you need to eyeball the full rendered manifest (hook jobs, securityContext placement), render by hand — but render with the real values, not reconstructed ones:
 
 ```
 helm template <release> <chart> --namespace <ns> -f /tmp/release-values.yaml

@@ -1,6 +1,6 @@
 # Code comments — runbook
 
-The rules live in the **Comments section of the [`writing-code` skill](../../.agents/skills/writing-code/SKILL.md)** (cmdshift/platform#136) — this runbook holds the worked examples, the marker vocabulary, and the sweep checklist. Lineage: the original comment-style rules were codified in cmdshift/platform#43 and swept across `manifests/local/**` + `tools/bin/*` in PR cmdshift/platform#45.
+The rules live in the **Comments section of the [`writing-code` skill](../../.agents/skills/writing-code/SKILL.md)** (cmdshift/platform#136) — this runbook holds the worked examples, the marker vocabulary, and the sweep checklist. Lineage: the original comment-style rules were codified in cmdshift/platform#43 and swept across `manifests/**` + `tools/bin/*` in PR cmdshift/platform#45.
 
 ## The delete-test
 
@@ -67,7 +67,7 @@ memory: 256Mi # OOM-killed at 128Mi during kopia repo prep (cmdshift/platform#20
 |---|---|---|
 | `# remove in the cloud` | delete the line when the manifests move to real Talos | `manifests/cloud/notes.md` |
 | `# true in the cloud` | flip the value when the manifests move | `manifests/cloud/notes.md` |
-| `# NSA hardening:` | setting that came from the NSA hardening baseline (kubescape-era, kept) | `manifests/local/README.md` accepted-deviations ledger |
+| `# NSA hardening:` | setting that came from the NSA hardening baseline (kubescape-era, kept) | `manifests/README.md` accepted-deviations ledger |
 
 Rules:
 
@@ -78,7 +78,7 @@ Rules:
 ## Where a comment ends and docs begin
 
 - **Comment at the value**: the why in ≤3 lines + evidence numbers + `cmdshift/platform#N` ref.
-- **Group README** (`manifests/local/<group>/README.md`): the group-level decision and its timeless rationale.
+- **Group README** (`manifests/bases/<group>/README.md`): the group-level decision and its timeless rationale.
 - **Runbook** (`runbooks/local/`): the procedure, the mechanics, the worked recovery.
 - **CHANGELOG**: the dated story of the incident/decision.
 

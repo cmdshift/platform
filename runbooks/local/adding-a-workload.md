@@ -31,7 +31,7 @@ Render and size them — they're admission-checked too:
 helm template <chart> | yq 'select(.kind == "Job")'
 ```
 
-Known-proofed: cert-manager `startupapicheck.resources` (all-lowercase key!), velero `upgradeJobResources`, kube-prometheus-stack `prometheusOperator.admissionWebhooks.patch.resources`. The no-knob case: emqx-operator's pre-upgrade Job renders zero resources with no values knob — fixed with HelmRelease postRenderers SMP on its `cleanup` container (cmdshift/platform#64). Full admission-policy context: [manifests/local/policies/README.md](../../manifests/local/policies/README.md).
+Known-proofed: cert-manager `startupapicheck.resources` (all-lowercase key!), velero `upgradeJobResources`, kube-prometheus-stack `prometheusOperator.admissionWebhooks.patch.resources`. The no-knob case: emqx-operator's pre-upgrade Job renders zero resources with no values knob — fixed with HelmRelease postRenderers SMP on its `cleanup` container (cmdshift/platform#64). Full admission-policy context: [manifests/bases/policies/README.md](../../manifests/bases/policies/README.md).
 
 ## 4. Network policy
 
@@ -50,7 +50,7 @@ Credentials come from the secrets server: add the payload to `cluster/local/secr
 
 - **namespace**: plain manifest in `namespaces/` **and register it in `namespaces/kustomization.yaml`** — the list is explicit, so an unregistered `*.namespace.yaml` is silently not applied and everything depending on the namespace hangs on `namespaces "<name>" not found` (cost a debugging round with tetragon, 2026-09-07). Prune is deliberately false there
 - **helm release**: in the relevant `<thing>/` dir; **CRs/config** in the matching `<thing>-config/` dir (grafana/the OTel collector/alertmanager CRs go in `observability-config/`, not helm values)
-- **custom resources**: if operator-managed, add `healthCheckExprs` to the owning kustomization (copy from the CEL cheatsheet — see the Flux API traps in [manifests/local/flux/README.md](../../manifests/local/flux/README.md))
+- **custom resources**: if operator-managed, add `healthCheckExprs` to the owning kustomization (copy from the CEL cheatsheet — see the Flux API traps in [manifests/bases/flux/README.md](../../manifests/bases/flux/README.md))
 - **scheduling on the ctrl node** (alloy was the first, cmdshift/platform#90): pods newly scheduled on ctrl need, beyond the usual checks — a toleration for `node-role.kubernetes.io/control-plane:NoSchedule` (nothing runs there by default); if the pod pulls images, its **namespace must be in `kubernetesTalosAPIAccess.allowedKubernetesNamespaces`** in `cluster/local/nodes/templates/ctrl.tftpl.yaml` — in container mode kubelet verifies image pulls through the Talos API on ctrl, and non-allowed namespaces fail pulls with `failed to verify image "..." with talos: rpc error: code = PermissionDenied desc = not authorized` (a machine-config change: template edit + `terraform apply`, not a manifest). Host-path reads of root-owned dirs need a capability beyond the dropped-ALL baseline — `DAC_READ_SEARCH` for the 0600-node-local audit logs — which means the workload's PolicyException gains `disallow-capabilities-strict` in its policyRefs
 
 ## 7. When admission rejects something you can't fix

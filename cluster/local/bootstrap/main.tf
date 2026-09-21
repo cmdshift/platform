@@ -140,7 +140,7 @@ resource "helm_release" "flux" {
         }
       }
       # Fresh-install bootstrap twins of the Bucket + root Kustomization owned by
-      # manifests/local/flux-config/ — load-bearing only until its first reconcile
+      # manifests/clusters/local/flux-config/ — load-bearing only until its first reconcile
       # force-adopts both. Never delete the on-cluster objects (flux/README.md).
       extraObjects = [
         {
@@ -179,7 +179,7 @@ resource "helm_release" "flux" {
               kind = "Bucket"
               name = "main"
             }
-            path  = "./manifests/local"
+            path  = "./manifests/clusters/local"
             prune = true
           }
         }

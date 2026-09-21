@@ -97,7 +97,7 @@ Incidents documented in their owning runbooks (kept there for context):
 
 **Root cause**: the query's SRV-resolved store endpoint held a stale pod IP after the store pod was recreated, and the query errors the WHOLE request when one store dials out. Self-healed when the query pod rolled.
 
-**Triage order**: ruler logs → dial-test the store IP from the query pod (`wget http://<store-ip>:10902/-/ready`) → only then suspect network policy. It is not a CNP block. (Sibling of the "head path broken again" landmine in [observability/README.md](../../manifests/local/observability/README.md).)
+**Triage order**: ruler logs → dial-test the store IP from the query pod (`wget http://<store-ip>:10902/-/ready`) → only then suspect network policy. It is not a CNP block. (Sibling of the "head path broken again" landmine in [observability/README.md](../../manifests/bases/observability/README.md).)
 
 ## Alloy ConfigMap mount staleness (cmdshift/platform#39)
 
@@ -121,7 +121,7 @@ Also re-hit live, exactly as catalogued: the quota-ordering deadlock (cmdshift/p
 
 **Root cause**: beyla 1.16.11's eBPF instrumentation is incompatible with the host kernel (7.2) — the same host-kernel constraint class that already forces the cilium `1.21.0-pre.2` pin (cilium/cilium#48016). Unlike cilium, beyla's panic mode is fatal to the host, not degraded functionality. The eBPF programs that load cleanly for tetragon (kprobes, and kallsyms-verified symbols) do not imply kprobe/tracepoint coverage for a different instrumenter's probe set — each eBPF workload must be verified against this kernel independently.
 
-**Fix**: beyla removed entirely — HelmRelease + values, `beyla-values` configMapGenerator entries, and the `allow-beyla-ebpf` PolicyException deleted; observability quotas reclaimed beyla's share (pods 41→36, limits.memory 12Gi→9Gi; tempo's share kept, `requests.cpu: "1"` stays — tempo's 150m still exceeds the old 750m ceiling). Tempo is retained (traceless until instrumentation returns). Because the cluster was destroyed before the fix, the removal took effect at the next rebuild — zero in-cluster ordering concerns. Landmines learned during the one-day adoption (contextPropagation default forcing hostNetwork, in-namespace tracefs mounts, quota-ordering deadlock) are retained in [manifests/local/observability/README.md](../../manifests/local/observability/README.md) — they apply to any future eBPF/privileged-instrumentation workload.
+**Fix**: beyla removed entirely — HelmRelease + values, `beyla-values` configMapGenerator entries, and the `allow-beyla-ebpf` PolicyException deleted; observability quotas reclaimed beyla's share (pods 41→36, limits.memory 12Gi→9Gi; tempo's share kept, `requests.cpu: "1"` stays — tempo's 150m still exceeds the old 750m ceiling). Tempo is retained (traceless until instrumentation returns). Because the cluster was destroyed before the fix, the removal took effect at the next rebuild — zero in-cluster ordering concerns. Landmines learned during the one-day adoption (contextPropagation default forcing hostNetwork, in-namespace tracefs mounts, quota-ordering deadlock) are retained in [manifests/bases/observability/README.md](../../manifests/bases/observability/README.md) — they apply to any future eBPF/privileged-instrumentation workload.
 
 **Tells for next time**:
 

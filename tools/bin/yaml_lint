@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Parse-check every YAML manifest with yq (the pre-reconcile lint step).
-#   yaml_lint [path]   # default manifests/local
+#   yaml_lint [path]   # default manifests/clusters/local
 # Prints per-file errors and exits 1 if any file fails; exit 0 = all parse
 # (the lint step only catches syntax, not semantics — values verification
 # still needs helm template). Exit 2 = usage error.
@@ -16,7 +16,7 @@ check_file() { # file — parse errors land in $err
 
 yaml_lint() {
   [ $# -le 1 ] || usage
-  local path="${1:-manifests/local}" fail=0 count=0 f
+  local path="${1:-manifests/clusters/local}" fail=0 count=0 f
   [ -e "$path" ] || { echo "yaml_lint: no such path: $path" >&2; usage; }
   err=$(mktemp)
   trap 'rm -f "$err"' EXIT

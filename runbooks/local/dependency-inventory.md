@@ -8,10 +8,10 @@ Cadence: re-run before each maintenance session, or monthly. The output is an is
 
 | Surface | Where | Example shape |
 |---|---|---|
-| HelmRelease chart versions | `manifests/local/**` — `grep -rn 'version:' --include='*.helm-release.yaml'` (`.spec.chart.spec.version`) | `version: "1.2.3"` |
+| HelmRelease chart versions | `manifests/bases/**` — `grep -rn 'version:' --include='*.helm-release.yaml'` (`.spec.chart.spec.version`) | `version: "1.2.3"` |
 | GitRepository tags/commits | `manifests/sources/*.git-repository.yaml` (`spec.ref.tag` / `spec.ref.commit`) | CRD sets, raw-manifest operators |
 | Terraform bootstrap pins | `cluster/local/bootstrap/` — `main.tf` `helm_release` blocks and `variables.tf` defaults (flux's version is a variable default) | bootstrap cilium, flux2 |
-| In-values image tags | values files and kustomize image patches (`grep -rn 'tag:\|image:' manifests/local/**`) | operator images pinned for the no-floating-tags rule |
+| In-values image tags | values files and kustomize image patches (`grep -rn 'tag:\|image:' manifests/bases/**`) | operator images pinned for the no-floating-tags rule |
 | Companion image pins | `cluster/local/{registry,scanner}/data.tf` (`docker_registry_image` names) | registry + scanner must move in lockstep (cmdshift/platform#102) |
 | HelmRepository URLs | `manifests/sources/*.helm-repository.yaml` — the `url:` is what a local `helm repo add` must use | input for the chart checks below |
 
@@ -46,8 +46,8 @@ curl -s 'https://quay.io/api/v1/repository/<org>/<repo>/tag/?filter_tag_name=lik
 
 | Pair | Surfaces | Note |
 |---|---|---|
-| cilium | `cluster/local/bootstrap/main.tf` + `manifests/local/networking/cilium.helm-release.yaml` | **HELD** at the 1.21.0-pre line — the local pin exists because the Linux host's kernel 7.2 crashes cilium 1.20.x (cilium/cilium#48016, rationale in the CHANGELOG 2026-09-10 entry). Re-check the constraint, don't blind-bump |
-| flux2 | `cluster/local/bootstrap/variables.tf` (`flux_chart_version` default) + `manifests/local/flux/flux.helm-release.yaml` | bootstrap twin converges to the flux pin on adoption |
+| cilium | `cluster/local/bootstrap/main.tf` + `manifests/bases/networking/cilium.helm-release.yaml` | **HELD** at the 1.21.0-pre line — the local pin exists because the Linux host's kernel 7.2 crashes cilium 1.20.x (cilium/cilium#48016, rationale in the CHANGELOG 2026-09-10 entry). Re-check the constraint, don't blind-bump |
+| flux2 | `cluster/local/bootstrap/variables.tf` (`flux_chart_version` default) + `manifests/bases/flux/flux.helm-release.yaml` | bootstrap twin converges to the flux pin on adoption |
 | cloudnative-pg | chart (`datastores/cloudnative-pg.helm-release.yaml`) + CRDs tag (`sources/cloudnative-pg-crds.git-repository.yaml`) + values image tag (`datastores/cloudnative-pg-values.yaml`) | a **triple**: chart + CRDs + image |
 | emqx-operator | chart (`datastores/emqx-operator.helm-release.yaml`) + CRDs tag (`sources/emqx-operator-crds.git-repository.yaml`) + values image tag (`datastores/emqx-operator-values.yaml`) | same triple; emqx tags carry no `v` prefix |
 | registry / scanner | `cluster/local/registry/data.tf` + `cluster/local/scanner/data.tf` | both angos pins bump in lockstep (cmdshift/platform#102) |

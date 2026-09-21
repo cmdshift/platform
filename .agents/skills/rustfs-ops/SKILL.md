@@ -9,7 +9,7 @@ The out-of-cluster S3: docker container `storage-cloud-test`, endpoint `s3.cloud
 
 ```
 rustfs ls main/flux --recursive
-rustfs cat main/flux/manifests/local/README.md | grep <marker>
+rustfs cat main/flux/manifests/README.md | grep <marker>
 rustfs object remove main/backups/<key>
 ```
 

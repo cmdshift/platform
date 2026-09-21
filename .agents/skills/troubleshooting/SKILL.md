@@ -9,10 +9,10 @@ description: Something broke, behaves unexpectedly, or a change isn't landing �
 
 Chart traps, per-group decisions, and pipeline mechanics live with the thing they describe — read the README nearest the area being worked on **before** diagnosing:
 
-- `manifests/local/<group>/README.md` — the group's chart landmines (kyverno, cilium/ztunnel, velero, mimir/alloy, seaweedfs, cert-manager, local-path, …)
-- `manifests/local/flux/README.md` — flux API traps, the pipeline's own objects, propagation mechanics
+- `manifests/bases/<group>/README.md` — the group's chart landmines (kyverno, cilium/ztunnel, velero, mimir/alloy, seaweedfs, cert-manager, local-path, …)
+- `manifests/bases/flux/README.md` — flux API traps, the pipeline's own objects, propagation mechanics
 - `cluster/local/README.md` — terraform/docker traps (endpoint rewrite, bootstrap pins, port publishing)
-- `manifests/local/README.md` — cross-cutting conventions + the hardening-deviations baseline
+- `manifests/README.md` — cross-cutting conventions + the hardening-deviations baseline
 
 Most live landmines are already written down with their fingerprints — the README often answers the question without a diagnostic round.
 
