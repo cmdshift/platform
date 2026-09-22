@@ -1,11 +1,11 @@
 ---
 name: file-issue
-description: Dispatch a background subagent to file a GitHub issue on cmdshift/platform when a follow-up, refactor idea, or recurring failure surfaces mid-session (rebuild races, rot traps, decomposition ideas, tooling gaps) — without blocking the main work. Load when the user says "file an issue" or when a finding deserves tracking but is out of scope for the current change.
+description: Dispatch a subagent to file a GitHub issue on cmdshift/platform when a follow-up, refactor idea, or recurring failure surfaces mid-session (rebuild races, rot traps, decomposition ideas, tooling gaps). Load when the user says "file an issue" or when a finding deserves tracking but is out of scope for the current change.
 ---
 
-# File issue (background)
+# File issue
 
-Filing issues shouldn't block the session: hand the finding to a background subagent, keep working, report the issue number when it lands.
+Hand the finding to a subagent, report the issue number when it lands.
 
 ## 1. Collect the finding (main session, minutes)
 
@@ -20,7 +20,7 @@ An empty finding means no dispatch. If the issue is a docs fix, dispatch `docs-s
 
 ## 2. Dispatch the subagent
 
-Task tool, subagent_type `general`, background (do not wait — continue other work). Prompt skeleton (fill the brackets, pass the finding verbatim):
+Task tool, subagent_type `general`. Prompt skeleton (fill the brackets, pass the finding verbatim):
 
 ```
 File ONE GitHub issue in this repo (cmdshift/platform) from the finding below. gh is

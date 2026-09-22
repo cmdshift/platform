@@ -21,7 +21,7 @@ The tools (helm_verify) resolve sources from the cluster's source CRs into their
 Helm persists the release manifest in the `sh.helm.release.*` Secret, which caps at **1MB** (`data: Too long: may not be more than 1048576 bytes`). Check the rendered size **before** the HelmRelease exists:
 
 ```
-helm template <release> <chart> -f /tmp/values.yaml | wc -c
+helm template <release> <chart> -f .agents/temp/values.yaml | wc -c
 ```
 
 **Measure, don't estimate** — a gzipped-size estimate (~420KB) predicted safety for a chart whose helm install then failed hard; helm-controller's secret storage doesn't behave like `gzip | base64`.
@@ -55,7 +55,7 @@ helm_verify [path] [release]      # renders the release with the EXACT values fl
 Use the single-release form (`helm_verify manifests/bases/<group> <release>`) for ad-hoc values debugging. When you need to eyeball the full rendered manifest (hook jobs, securityContext placement), render by hand — but render with the real values, not reconstructed ones:
 
 ```
-helm template <release> <chart> --namespace <ns> -f /tmp/release-values.yaml
+helm template <release> <chart> --namespace <ns> -f .agents/temp/release-values.yaml
 ```
 
 And verify any new-to-you API fields against the **on-cluster CRD schema** before pushing — undeclared fields fail the root dry-run and wedge the whole dependency chain:

@@ -5,7 +5,7 @@ directory to PATH — invoke as `<name>` inside the repo; otherwise
 `tools/bin/<name>`. Each script is self-contained bash, named for its entry
 function; the observability ones (`prometheus_query`, `loki_query`) share a
 port-forward lifecycle: a per-service forward is started once and reused via
-a lock file in `${TMPDIR:-/tmp}` (`<tool>.<service>.forward`, `<pid> <port>`)
+a lock file in `.agents/temp/` (`<tool>.<service>.forward`, `<pid> <port>`)
 instead of churning a listener per call; `--stop` evicts them.
 
 **Shared conventions:**
@@ -332,7 +332,7 @@ with `--query` — the mimir path also sends `X-Scope-OrgID: self-monitoring`
 and uses `/ready` for the ready check, since mimir serves the query API
 under `/prometheus` with no prometheus-style `/-/ready`) — one forward per
 service, SHARED across invocations via the lock file
-`${TMPDIR:-/tmp}/prometheus_query.<service>.forward` (`<pid> <port>`).
+`.agents/temp/prometheus_query.<service>.forward` (`<pid> <port>`).
 (Git history note: `--query` targeted svc/thanos-query-main before the LGTM
 migration, cmdshift/platform#128 — a reused-forward lock recorded under the
 old service name silently 302'd the ready check; the per-service lock file
@@ -373,7 +373,7 @@ keying makes that a non-issue going forward.)
 ### `loki_query [-c] '<logql>' [duration] | loki_query --stop`
 
 LogQL against svc/loki:3100 (shared forward, lock file
-`${TMPDIR:-/tmp}/loki_query.loki.forward` — same lifecycle contract as
+`.agents/temp/loki_query.loki.forward` — same lifecycle contract as
 `prometheus_query`, with loki's `/ready` endpoint and a 2m
 `loki not ready after 2m` wait for ingester replay), tenant
 `self-monitoring` preset, nanosecond time math handled. Default prints raw
@@ -547,7 +547,7 @@ Secret from `$KUBECONFIG` with the server rewritten from `127.0.0.1:6443` to
 runs two Jobs
 (ctrl node: sections master/controlplane/etcd/policies/node with a Talos
 podspec dump prelude; workers: node section, one pod per worker via
-anti-affinity), waits, saves logs to `cluster/local/.tmp/bench-<ts>/{ctrl,workers}.log`,
+anti-affinity), waits, saves logs to `.agents/temp/bench-<ts>/{ctrl,workers}.log`,
 prints the `== Summary ==` blocks, then deletes the scaffolding. Nothing
 committed as manifests (cilium_test pattern). Talos remaps and the full
 FAIL/WARN triage ledger: `manifests/bases/security/README.md`.
