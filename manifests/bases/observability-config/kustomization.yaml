@@ -5,7 +5,6 @@ resources:
   - logging-resource-quota.yaml
   - limit-range.yaml
   - main.grafana.yaml
-  - main.alertmanager.yaml
   - otel-collector.opentelemetry-collector.yaml
   - otel-collector.rbac.yaml
   - flux-system.alert.yaml

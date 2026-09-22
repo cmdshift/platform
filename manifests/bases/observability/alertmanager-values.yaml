@@ -1,0 +1,89 @@
+# values for the alertmanager chart (replaces the kps-operator-managed
+# Alertmanager CR — cmdshift/platform#141)
+fullnameOverride: alertmanager
+
+automountServiceAccountToken: false
+
+image:
+  repository: quay.io/prometheus/alertmanager
+  # chart default (appVersion) — pinned explicitly per convention
+  tag: v0.34.1
+
+# JSON logging: see observability/loki-values.yaml
+extraArgs:
+  log.format: json
+
+service:
+  # mimir-ruler + loki-ruler + the flux provider address this name:port
+  # (chart service is <fullnameOverride>)
+  type: ClusterIP
+  port: 9093
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  runAsGroup: 65534
+  fsGroup: 65534
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 48Mi
+  limits:
+    # audit: 15.2% of CFS periods throttled (at 200m) — group-notification
+    # bursts; generous CPU limit per convention
+    cpu: 500m
+    memory: 72Mi
+
+persistence:
+  enabled: true
+  size: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  storageClass: local-path
+
+config:
+  enabled: true
+  templates: []
+  # camelCase keys are the AlertmanagerConfig-CR spelling — the raw am config
+  # uses snake_case; the chart renders this verbatim into alertmanager.yml
+  route:
+    receiver: email
+    group_by: [alertname, severity]
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 4h
+    routes:
+      # SLO burn-rate alerts (slo.rules.yaml): tighter grouping than the root
+      # route so a burning budget pages fast; matched on the `slo` label, not
+      # severity (cmdshift/platform#85)
+      - matchers:
+          - slo="true"
+        receiver: email
+        group_by: [alertname]
+        group_wait: 30s
+        group_interval: 1m
+        repeat_interval: 1h
+  receivers:
+    - name: email
+      email_configs:
+        - to: you@cloud.test
+          smarthost: smtp.cloud.test:25
+          from: alertmanager@cloud.test
+          require_tls: false
+          send_resolved: true
+
+serviceMonitor:
+  enabled: true
+
+testFramework:
+  enabled: false

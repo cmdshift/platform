@@ -12,7 +12,7 @@ spec:
     type: prometheus
     access: proxy
     # mimir monolith — prometheus-compatible query API lives under /prometheus
-    # (kube-prometheus-stack remote-writes here with the same OrgID,
+    # (the OTel collector remote-writes here with the same OrgID,
     # cmdshift/platform#128)
     url: http://mimir.observability.svc:8080/prometheus
     isDefault: true
