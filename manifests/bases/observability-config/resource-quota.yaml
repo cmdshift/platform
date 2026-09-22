@@ -5,11 +5,12 @@ metadata:
   namespace: observability
 spec:
   hard:
-    # sized to the full namespace (audit cmdshift/platform#93): CPU limits quota covers
-    # prometheus/compaction bursts; headroom absorbs the thanos↔mimir coexistence window
-    # (cmdshift/platform#128) — re-audit after thanos teardown
+    # re-audited post cmdshift/platform#141: kps prometheus (1536Mi req / 2304Mi
+    # lim) + operator + reloaders removed; mimir absorbed the raw-store load
+    # (1280Mi req / 1920Mi lim) and the OTel collector the scraping (768Mi req /
+    # 1536Mi lim). Requests ≈ 0.6Gi headroom, limits ≈ 3Gi burst headroom
     requests.cpu: "1"
     requests.memory: 8Gi
     limits.cpu: 16
     limits.memory: 12Gi
-    pods: "36"
+    pods: "24"
