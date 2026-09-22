@@ -39,7 +39,7 @@ kubectl get events -A --sort-by=.lastTimestamp | tail -30
 
 Observability evidence (`prometheus_query`, `loki_query`, `mailpit`, `tetra`): the `observability` skill.
 
-**No invocation longer than 60 seconds** (AGENTS.md rule): local ops either make progress or fail fast. No sleep loops, no blind polling to a long timeout — estimate the wait, cap the poll at ~2× that, run long waits in the background, and diagnose early failures (StartError, admission denial, failed mounts at t=10s) instead of waiting out the timeout. Bounded wait helpers (`flux_wait`, `helm_wait`, `velero_wait`) exist in `tools/bin/` precisely so this rule doesn't get improvised around.
+**No invocation longer than 60 seconds** (AGENTS.md rule): local ops either make progress or fail fast. No sleep loops, no blind polling to a long timeout — estimate the wait, cap the poll at ~2× that, and diagnose early failures (StartError, admission denial, failed mounts at t=10s) instead of waiting out the timeout. Bounded wait helpers (`flux_wait`, `helm_wait`, `velero_wait`) exist in `tools/bin/` precisely so this rule doesn't get improvised around.
 
 ## 4. Write-back rule
 

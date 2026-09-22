@@ -24,7 +24,7 @@ Periodic re-inventory of ALL pinned dependencies (not just the chart you're adop
 Helm persists the release manifest in the `sh.helm.release.*` Secret, capped at **1MB** (`data: Too long: may not be more than 1048576 bytes`). Check the rendered size **before** creating the HelmRelease:
 
 ```
-helm template <release> <chart> -f /tmp/values.yaml | wc -c
+helm template <release> <chart> -f .agents/temp/values.yaml | wc -c
 ```
 
 **Measure, don't estimate** — a gzipped-size estimate (~420KB) predicted safety for a chart whose install then failed hard; helm-controller's secret storage doesn't behave like `gzip | base64`.

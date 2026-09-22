@@ -389,7 +389,7 @@ bench() {
     exit 2
   fi
 
-  LOGDIR="$(cd "$(dirname "$0")/../.." && pwd)/cluster/local/.tmp/bench-$(date +%Y%m%d-%H%M%S)"
+  LOGDIR="$(cd "$(dirname "$0")/../.." && pwd)/.agents/temp/bench-$(date +%Y%m%d-%H%M%S)"
   mkdir -p "$LOGDIR"
 
   trap cleanup EXIT

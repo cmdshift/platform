@@ -1,11 +1,11 @@
 ---
 name: docs-sweep
-description: Dispatch a background subagent to sweep the docs surfaces (CHANGELOG, group READMEs, runbooks, skills, tools/bin README, cloud notes) with the session's learnings while the main work continues. Load when a landmine was hit, a debugging round was spent, a decision with rationale was made, or before commit/PR — documentation is part of the change.
+description: Dispatch a subagent to sweep the docs surfaces (CHANGELOG, group READMEs, runbooks, skills, tools/bin README, cloud notes) with the session's learnings. Load when a landmine was hit, a debugging round was spent, a decision with rationale was made, or before commit/PR — documentation is part of the change.
 ---
 
-# Docs sweep (background)
+# Docs sweep
 
-Docs maintenance is a commit/PR gate (AGENTS.md → Do list), but it shouldn't block the session: collect the learnings, dispatch a subagent, keep working (reconciles, waits, other tasks), review the diff when it lands.
+Docs maintenance is a commit/PR gate (AGENTS.md → Do list): collect the learnings, dispatch a subagent, review the diff when it reports.
 
 ## 1. Collect the learnings inventory (main session, minutes)
 
@@ -13,7 +13,7 @@ One bullet per learning, facts only — what was hit, what cost a debugging roun
 
 ## 2. Dispatch the subagent
 
-Task tool, subagent_type `general`, background (do not wait — continue other work). Prompt skeleton (fill the brackets, pass the inventory verbatim):
+Task tool, subagent_type `general`. Prompt skeleton (fill the brackets, pass the inventory verbatim):
 
 ```
 You are doing DOCS-ONLY work in this repo (no code, no manifests, no cluster commands

@@ -33,7 +33,7 @@ just bootstrap apply -auto-approve       # ~90s incl. the API-up gate (cmdshift/
 **The `cluster apply` hang recipe** (operator-verified): spawn it in the background, kill it after ~1 minute, then bootstrap straight away — the bootstrap apply readiness gate absorbs the API-up window (no manual wait). Details that bit the 2026-09-07 run:
 
 - Non-interactive shells must pass `-auto-approve` — terraform's plan-approval prompt EOFs without a TTY (`error asking for approval: EOF`) and the recipe dies in 3s.
-- Background with `just cluster apply -auto-approve > /tmp/cluster-apply.log 2>&1 &`, then `kill $PID` + `pkill -f "chdir=cluster/local apply"`.
+- Background with `just cluster apply -auto-approve > .agents/temp/cluster-apply.log 2>&1 &`, then `kill $PID` + `pkill -f "chdir=cluster/local apply"`.
 - Poll before killing: this run the apply **finished on its own in 16s** (37 resources). Kill only if it's still running at ~60s.
 - The kill point is expected to be after resource creation — the plan is 37 to add (containers + talos nodes + kubeconfig); flux "reconciles the rest eventually".
 - `just certs` is only needed if `cluster/local/.tmp/tls/` is missing (note: the path is under `cluster/local/.tmp/`, NOT the repo-root `.tmp/`).
