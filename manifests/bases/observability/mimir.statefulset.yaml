@@ -59,13 +59,16 @@ spec:
             initialDelaySeconds: 60
             periodSeconds: 30
           resources:
-            # lean start (sizing convention) — audit after seasoning; ingester WAL is the memory spike case
+            # lean start (sizing convention) — ingester WAL is the memory spike case;
+            # 1Gi OOMKilled-looped once dual push (kps + OTel collector) landed
+            # during the cmdshift/platform#141 cutover — bump to the kps-prometheus
+            # evidence band (1010-1175Mi working set), limit 1.5x
             requests:
               cpu: 150m
-              memory: 768Mi
+              memory: 1280Mi
             limits:
               cpu: 1000m
-              memory: 1Gi
+              memory: 1920Mi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

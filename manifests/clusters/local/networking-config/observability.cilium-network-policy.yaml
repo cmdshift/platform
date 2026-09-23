@@ -16,7 +16,7 @@ spec:
         - kube-apiserver
     - toEntities:
         - cluster
-    # Prometheus scrapes all pods (metrics)
+    # The OTel collector scrapes all pods + control-plane (metrics)
     - toEntities:
         - host
         - remote-node

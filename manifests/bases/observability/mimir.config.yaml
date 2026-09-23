@@ -55,7 +55,7 @@ ruler:
   enable_api: true
   rule_path: /data/rules-tmp
   evaluation_interval: 1m
-  alertmanager_url: http://alertmanager-operated.observability.svc:9093
+  alertmanager_url: http://alertmanager.observability.svc:9093
 ruler_storage:
   # local backend: rules are kustomize-generated ConfigMaps mounted read-only;
   # no s3 round-trip for rule storage (cmdshift/platform#128)
@@ -70,3 +70,12 @@ limits:
   max_global_series_per_user: 0
   max_fetched_series_per_query: 0
   max_total_query_length: 12000h
+  # the OTel collector pushes the whole cluster's scrapes in bursts (kps pushed
+  # in the same shape but prw-retried; the collector drops on 429 instead) —
+  # 10k/s default rejects the batch (cmdshift/platform#141)
+  ingestion_rate: 40000
+  ingestion_burst_size: 400000
+  # the collector's own :8888 self-metrics carry dot-containing metric/label
+  # names (otelcol.k8s.pod.association, otel.signal) — legacy scheme 400-rejects
+  # the whole remote-write request they ride in (cmdshift/platform#141)
+  name_validation_scheme: "utf8"

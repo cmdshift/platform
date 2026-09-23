@@ -13,7 +13,7 @@ How the 2026-09-07 namespace refactor landed, the conventions it locked in, and 
 | `policies` | `policies` | kyverno + all PolicyException objects |
 | `storage` | `storage` | local-path-provisioner |
 | `objects` | `objects` | seaweedfs-operator (+ seaweed cluster/admin) |
-| `observability` | `observability` | grafana-operator, kube-prometheus-stack, opentelemetry-operator, prometheus-operator-crds, loki, alloy, mimir (plain StatefulSet), metrics-server, vpa, goldilocks (the last three install into kube-system but their HelmReleases live in the observability group by domain) |
+| `observability` | `observability` | grafana-operator, alertmanager (chart), opentelemetry-operator + otel-collector (target allocator, the sole scraper), prometheus-operator-crds (CRDs-only — SM discovery needs the CRDs), loki, alloy, mimir (plain StatefulSet), metrics-server, vpa, goldilocks (the last three install into kube-system but their HelmReleases live in the observability group by domain) |
 | `backups` | `backups` | velero |
 | `security` | `security` | tetragon, trivy-operator |
 

@@ -19,7 +19,7 @@ ruler:
     local:
       directory: /etc/loki/rules
     rule_path: /tmp/loki/rules
-    alertmanager_url: http://alertmanager-operated.observability.svc:9093
+    alertmanager_url: http://alertmanager.observability.svc:9093
     enable_api: true
     enable_alertmanager_v2: true
     evaluation_interval: 1m

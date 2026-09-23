@@ -1,6 +1,6 @@
 # SLO template shape (cmdshift/platform#85) — copy for the first real service. Conventions:
 # rules `slo:<service>:<sli>:rate<window>`, burn pairs 5m/1h critical + 30m/6h warning (no
-# `for:`), 99.9% budget; alerts carry `slo: "true"` (mail.alertmanager-config.yaml routes on it)
+# `for:`), 99.9% budget; alerts carry `slo: "true"` (alertmanager-values.yaml routes on it)
 groups:
   - name: slo-cilium-datapath
     rules:

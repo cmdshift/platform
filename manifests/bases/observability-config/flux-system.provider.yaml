@@ -5,4 +5,4 @@ metadata:
   namespace: flux-system
 spec:
   type: alertmanager
-  address: http://alertmanager-operated.observability.svc:9093/api/v2/alerts/
+  address: http://alertmanager.observability.svc:9093/api/v2/alerts/
