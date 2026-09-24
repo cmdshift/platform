@@ -20,8 +20,7 @@ tetragon:
       cpu: 1000m
       memory: 1320Mi
   prometheus:
-    serviceMonitor:
-      enabled: true # agent metrics :2112
+    enabled: true # agent metrics :2112 — alloy-telemetry scrapes the tetragon service
 # hubble-export-stdout sidecar: streams events to container stdout -> alloy -> Loki
 export:
   # audited: near-idle at burn-in (single-digit data events/min cluster-wide)
@@ -34,5 +33,4 @@ export:
       memory: 64Mi
 tetragonOperator:
   prometheus:
-    serviceMonitor:
-      enabled: true # operator metrics :2113
+    enabled: true # operator metrics :2113 — alloy-telemetry scrapes it

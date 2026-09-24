@@ -43,5 +43,3 @@ persistence:
   enabled: true
   storageClassName: local-path
   size: 2Gi
-serviceMonitor:
-  enabled: true

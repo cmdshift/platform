@@ -12,6 +12,11 @@ resources:
   - networking.yaml
   - networking-config.yaml
   - flux.yaml
+  - flux-config.yaml
+  # policies/datastores/backups/security were trimmed for the cmdshift/platform#146
+  # bootstrap (the full stack drowned the install failure being diagnosed) and are
+  # re-enabled group-by-group — policies (kyverno) landed clean first. The trim
+  # is fully lifted; delete this comment once nothing else re-trims.
   - policies.yaml
   - policies-config.yaml
   - storage.yaml

@@ -37,10 +37,8 @@ hubble:
   relay:
     enabled: true
     prometheus:
-      # relay metrics (9966) — the SM needs the metrics endpoint enabled
+      # relay metrics (9966) — alloy-telemetry scrapes the metrics service
       enabled: true
-      serviceMonitor:
-        enabled: true
     resources:
       requests:
         cpu: 10m
@@ -85,14 +83,14 @@ kubeProxyReplacement: true
 l2announcements:
   enabled: true
 prometheus:
-  enabled: true # cilium-agent metrics :9962 — disabled by chart default, the SM needs it
-  serviceMonitor:
-    enabled: true
-    trustCRDsExist: true # cilium's validate gate refuses to render SMs without it
+  enabled: true # cilium-agent metrics :9962 — disabled by chart default, alloy-telemetry scrapes it
+  # the metrics services exist ONLY while serviceMonitor.enabled is true (chart
+  # renders svc+SM as one block) — keep metricsService on now that the SMs are
+  # gone, or discovery finds no cilium-agent/cilium-operator targets (#146)
+  metricsService: true
 operator:
   prometheus:
-    serviceMonitor:
-      enabled: true # chart default requires release labels; Prometheus selects all SMs (serviceMonitorSelector: {})
+    metricsService: true
   resources:
     requests:
       cpu: 10m

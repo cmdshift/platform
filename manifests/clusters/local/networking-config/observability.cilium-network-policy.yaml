@@ -16,13 +16,17 @@ spec:
         - kube-apiserver
     - toEntities:
         - cluster
-    # The OTel collector scrapes all pods + control-plane (metrics)
+    # alloy-telemetry scrapes all pods + control-plane (metrics)
     - toEntities:
         - host
         - remote-node
       toPorts:
         - ports:
             - port: "10250"   # kubelet
+              protocol: TCP
+            - port: "10257"   # kube-controller-manager
+              protocol: TCP
+            - port: "10259"   # kube-scheduler
               protocol: TCP
             - port: "9100"    # node-exporter
               protocol: TCP

@@ -82,8 +82,6 @@ config:
           require_tls: false
           send_resolved: true
 
-serviceMonitor:
-  enabled: true
 
 testFramework:
   enabled: false

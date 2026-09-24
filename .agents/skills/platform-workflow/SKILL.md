@@ -44,6 +44,8 @@ kubectl get helmreleases -A      # every release True (per-release check: helm_w
 policy_report                    # failures: 0 expected (skips = PolicyExceptions); lists stale reports for gone resources
 ```
 
+After any **scrape-path change** (alloy/collector config, SM values, chart metrics toggles): `metrics_summary -t -w` — per-job up-target counts + total + Watchdog heartbeat in one call. Empty output = no series; a family missing or a per-replica count collapsed (node-exporter/cilium-agent < node count) is the scrape regression tell. Don't hand-roll port-forward+curl — the tool carries the mimir tenant/forward plumbing.
+
 Posture scanning (kubescape) was removed — single-purpose hardening tools are its replacement (see `manifests/README.md` for the accepted-deviations baseline those tools will audit against).
 
 ## Hard rule: no live patches

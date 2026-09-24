@@ -9,8 +9,8 @@ metadata:
 spec:
   hard:
     # sized = `compute` in this namespace (both quotas admit the same pod set);
-    # lockstep history: cmdshift/platform#83, cmdshift/platform#128
-    requests.cpu: "1"
+    # lockstep history: cmdshift/platform#83, cmdshift/platform#128, cmdshift/platform#146
+    requests.cpu: "2"
     requests.memory: 8Gi
     limits.cpu: 16
     limits.memory: 12Gi

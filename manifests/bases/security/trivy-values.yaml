@@ -82,8 +82,6 @@ compliance:
   specs: []
 image:
   registry: docker.io
-serviceMonitor:
-  enabled: true
 resources:
   requests:
     cpu: 50m

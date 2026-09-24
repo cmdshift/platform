@@ -1,6 +1,3 @@
-prometheus:
-  monitor:
-    enabled: true
 containerSecurityContext:
   # NSA hardening: explicit non-root uid/gid at container level (image declares USER "nobody")
   runAsNonRoot: true

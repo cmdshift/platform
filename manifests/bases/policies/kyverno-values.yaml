@@ -48,8 +48,6 @@ admissionController:
         memory: 300Mi
   podSecurityContext:
     runAsNonRoot: true
-  serviceMonitor:
-    enabled: true
 backgroundController:
   replicas: 1
   hostNetwork: true # remove in the cloud
@@ -62,8 +60,6 @@ backgroundController:
       memory: 216Mi
   podSecurityContext:
     runAsNonRoot: true
-  serviceMonitor:
-    enabled: true
 cleanupController:
   replicas: 1
   hostNetwork: true # remove in the cloud
@@ -76,8 +72,6 @@ cleanupController:
       memory: 156Mi
   podSecurityContext:
     runAsNonRoot: true
-  serviceMonitor:
-    enabled: true
 reportsController:
   replicas: 1
   hostNetwork: true # remove in the cloud
@@ -91,5 +85,3 @@ reportsController:
       memory: 240Mi # memory sawtooth peaks ~178Mi during the hourly background scan; 240Mi leaves headroom, request 160Mi covers the scan-driven baseline
   podSecurityContext:
     runAsNonRoot: true
-  serviceMonitor:
-    enabled: true

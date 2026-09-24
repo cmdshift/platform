@@ -1,0 +1,66 @@
+alloy:
+  # no phone-home
+  enableReporting: false
+  clustering:
+    # mimir-style peer gossip — safe scale-out for the scrape load later; with
+    # replicas=1 it is a no-op but keeps the single instance from split-running
+    # the component sharding after any future scale-up
+    enabled: true
+    name: alloy-telemetry
+  # writable /tmp: --storage.path lives there (WAL for prometheus.remote_write)
+  mounts:
+    extra:
+      - name: tmp
+        mountPath: /tmp
+  extraPorts:
+    # OTLP receivers (traces) — workloads push to alloy-telemetry:4317/4318
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+      protocol: TCP
+  # without this block the chart SILENTLY installs its example config — pods run
+  # healthy, push nothing (same trap as alloy-logging, cmdshift/platform#27)
+  configMap:
+    create: false
+    name: alloy-telemetry-config
+    key: config.alloy
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
+    readOnlyRootFilesystem: true
+  resources:
+    requests:
+      # lean per the sizing convention — 850m of the old requests.cpu:1 quota was
+      # already committed when this release first installed (quota bump lands in
+      # observability-config, which depends on this group going Ready)
+      cpu: 50m
+      memory: 768Mi
+    limits:
+      cpu: 2000m
+      memory: 1536Mi
+configReloader:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 64Mi
+
+controller:
+  type: statefulset
+  replicas: 1
+  # clustering peers need stable identities — the chart renders a headless
+  # cluster Service for the statefulset; the regular Service carries 4317/4318
+  volumes:
+    extra:
+      - name: tmp
+        emptyDir: {}
