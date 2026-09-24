@@ -1,6 +1,3 @@
-monitoring:
-  serviceMonitor:
-    enabled: true # loki self-metrics — lives under `monitoring:` in this chart
 test:
   enabled: false
 lokiCanary:

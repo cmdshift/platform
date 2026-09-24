@@ -1,11 +1,7 @@
 podLabels:
-  # kubernetes-mixin node rules select job="node-exporter"; the SM maps
-  # target job from this pod label (prometheus.monitor.jobLabel=jobLabel)
+  # kubernetes-mixin node rules select job="node-exporter"; alloy-telemetry's
+  # targets_node_exporter maps target job from this pod label (cmdshift/platform#146)
   jobLabel: node-exporter
-prometheus:
-  monitor:
-    enabled: true
-    jobLabel: jobLabel
 resources:
   requests:
     cpu: 10m

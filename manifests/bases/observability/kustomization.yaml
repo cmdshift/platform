@@ -9,11 +9,11 @@ resources:
   - vpa.helm-release.yaml
   - goldilocks.helm-release.yaml
   - loki.helm-release.yaml
-  - alloy.helm-release.yaml
+  - alloy-logging.helm-release.yaml
+  - alloy-telemetry.helm-release.yaml
   - tempo.helm-release.yaml
   - mimir.statefulset.yaml
   - mimir.service.yaml
-  - opentelemetry-operator.helm-release.yaml
   - loki-s3-credentials.external-secret.yaml
   - tempo-s3-credentials.external-secret.yaml
   - mimir-s3-credentials.external-secret.yaml
@@ -84,10 +84,10 @@ configMapGenerator:
       - values.yaml=loki-values.yaml
     options:
       disableNameSuffixHash: true
-  - name: alloy-values
+  - name: alloy-logging-values
     namespace: observability
     files:
-      - values.yaml=alloy-values.yaml
+      - values.yaml=alloy-logging-values.yaml
     options:
       disableNameSuffixHash: true
   - name: tempo-values
@@ -96,16 +96,22 @@ configMapGenerator:
       - values.yaml=tempo-values.yaml
     options:
       disableNameSuffixHash: true
-  - name: opentelemetry-operator-values
+  - name: alloy-logging-config
     namespace: observability
     files:
-      - values.yaml=opentelemetry-operator-values.yaml
+      - config.alloy=alloy-logging.config.alloy
     options:
       disableNameSuffixHash: true
-  - name: alloy-config
+  - name: alloy-telemetry-values
     namespace: observability
     files:
-      - config.alloy
+      - values.yaml=alloy-telemetry-values.yaml
+    options:
+      disableNameSuffixHash: true
+  - name: alloy-telemetry-config
+    namespace: observability
+    files:
+      - config.alloy=alloy-telemetry.config.alloy
     options:
       disableNameSuffixHash: true
   # loki ruler rules: the chart's sidecar watches label `loki_rule` (underscore —

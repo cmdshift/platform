@@ -7,9 +7,6 @@ metadata:
   name: main
   namespace: flux-system
 spec:
-  # 5m, not 1m: a poll straddling a mirror pass can publish a half-mirrored artifact and
-  # the whole chain starts applying it. Manual flow (sync_wait + flux_wait --with-source)
-  # forces an immediate pull, so interactive latency is unaffected.
   interval: 5m
   endpoint: s3.cloud.test
   bucketName: flux

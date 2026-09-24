@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Post-scrape-change verification summary — the check repeated after every
+# alloy/collector scrape edit: per-job up-target counts from mimir, the
+# series total, and the Watchdog heartbeat (ruler+alertmanager alive).
+# Sits on prometheus_query's shared mimir forward — no own plumbing.
+#   metrics_summary                    one line per job: "<n> job" sorted by name
+#   metrics_summary -t                 + TOTAL line
+#   metrics_summary -w                 + Watchdog firing line
+#   metrics_summary -t -w              the full default gate
+#   metrics_summary --raw '<promql>'   escape hatch: any instant query, compact form
+# Exit 0 = query ran (empty output = no series — investigate), 1 = forward
+# failed, 2 = usage error.
+set -euo pipefail
+
+usage() {
+  echo "usage: metrics_summary [-t] [-w] | metrics_summary --raw '<promql>'" >&2
+  exit 2
+}
+
+totals=0 watchdog=0 raw=''
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -t) totals=1; shift ;;
+    -w) watchdog=1; shift ;;
+    --raw) [ -n "${2:-}" ] || usage; raw="$2"; shift 2 ;;
+    -*) usage ;;
+    *) usage ;;
+  esac
+done
+
+tool_dir="$(cd "$(dirname "$0")" && pwd)"
+
+if [ -n "$raw" ]; then
+  exec "$tool_dir/prometheus_query" -c --query "$raw"
+fi
+
+"$tool_dir/prometheus_query" -c --query 'count by (job) (up{job!~""})' \
+  | sed -E 's/^job=([^:]+): ([0-9]+)$/\2 \1/' \
+  | sort -k2
+
+if [ "$totals" -eq 1 ]; then
+  "$tool_dir/prometheus_query" -c --query 'count(up{job!~""})' | sed -E 's/^: ([0-9]+)$/TOTAL \1/'
+fi
+
+if [ "$watchdog" -eq 1 ]; then
+  wd=$("$tool_dir/prometheus_query" -c --query 'ALERTS{alertname="Watchdog",alertstate="firing"}' | grep -c . || true)
+  echo "WATCHDOG firing=$wd"
+fi

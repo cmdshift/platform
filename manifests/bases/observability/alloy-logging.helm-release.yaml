@@ -1,7 +1,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: alloy
+  name: alloy-logging
   namespace: observability
 spec:
   interval: 1h
@@ -22,5 +22,5 @@ spec:
       remediateLastFailure: true
   valuesFrom:
     - kind: ConfigMap
-      name: alloy-values
+      name: alloy-logging-values
       valuesKey: values.yaml

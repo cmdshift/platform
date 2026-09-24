@@ -16,7 +16,7 @@ alloy:
   # healthy, push nothing, Loki ingests nothing (cmdshift/platform#27)
   configMap:
     create: false
-    name: alloy-config
+    name: alloy-logging-config
     key: config.alloy
   securityContext:
     allowPrivilegeEscalation: false
@@ -61,5 +61,3 @@ controller:
     - key: node-role.kubernetes.io/control-plane
       operator: Exists
       effect: NoSchedule
-serviceMonitor:
-  enabled: true # alloy self-metrics — top-level key in this chart

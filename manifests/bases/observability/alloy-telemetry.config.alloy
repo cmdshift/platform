@@ -1,0 +1,646 @@
+// alloy-telemetry: metrics (scrape -> mimir remote_write) + traces (OTLP -> tempo).
+// Logs live in the alloy-logging release. Replaces the OTel collector + target
+// allocator as the sole scraper and OTLP receiver (cmdshift/platform#146).
+//
+// Label parity: the five control-plane jobs keep the exact job names the OTel
+// collector produced (apiserver/cadvisor/kubelet/kube-controller-manager/
+// kube-scheduler) — mimir-rules.yaml and the dashboards select on them. The
+// ServiceMonitor-replacement families never landed in mimir (the target
+// allocator's prometheusCR watcher was dead from cache-sync failure since
+// 2026-09-22), so their job labels are a fresh baseline named after each
+// service.
+
+logging {
+  level  = "info"
+  format = "json"
+}
+
+// ---------------------------------------------------------------------------
+// prometheus.remote_write -> mimir (tenant self-monitoring)
+// ---------------------------------------------------------------------------
+
+prometheus.remote_write "mimir" {
+  endpoint {
+    url = "http://mimir.observability.svc:8080/api/v1/push"
+
+    headers = {
+      "X-Scope-OrgID" = "self-monitoring",
+    }
+  }
+}
+
+discovery.kubernetes "nodes" {
+  role = "node"
+}
+
+discovery.kubernetes "pods" {
+  role = "pod"
+}
+
+discovery.kubernetes "services" {
+  role = "service"
+}
+
+// endpoints role expands to one target per backing pod — service-role targets
+// would scrape the ClusterIP, load-balancing across replicas and losing
+// per-pod series (node-exporter/cilium-agent/alloy-logging/alertmanager)
+discovery.kubernetes "endpoints" {
+  role = "endpoints"
+}
+
+// ---------------------------------------------------------------------------
+// Control-plane scrapes (ported 1:1 from the OTel collector config).
+// TLS + SA bearer token; kubelet/cadvisor authorize via SubjectAccessReview
+// on nodes/{subresource} (nodes/metrics + nodes/proxy RBAC, see
+// alloy-telemetry.rbac.yaml).
+// ---------------------------------------------------------------------------
+
+prometheus.scrape "kubelet" {
+  job_name          = "kubelet"
+  targets           = discovery.kubernetes.nodes.targets
+  scheme            = "https"
+  bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+  forward_to        = [prometheus.remote_write.mimir.receiver]
+
+  tls_config {
+    insecure_skip_verify = true
+  }
+}
+
+prometheus.scrape "cadvisor" {
+  job_name          = "cadvisor"
+  targets           = discovery.kubernetes.nodes.targets
+  scheme            = "https"
+  metrics_path      = "/metrics/cadvisor"
+  bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+  forward_to        = [prometheus.remote_write.mimir.receiver]
+
+  tls_config {
+    insecure_skip_verify = true
+  }
+}
+
+// apiserver via the default/kubernetes endpoints
+discovery.kubernetes "apiserver_endpoints" {
+  role = "endpoints"
+
+  namespaces {
+    names = ["default"]
+  }
+}
+
+discovery.relabel "keep_apiserver" {
+  targets = discovery.kubernetes.apiserver_endpoints.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_service_label_component", "__meta_kubernetes_service_label_provider"]
+    action        = "keep"
+    regex         = "apiserver;kubernetes"
+  }
+}
+
+prometheus.scrape "apiserver" {
+  job_name          = "apiserver"
+  targets           = discovery.relabel.keep_apiserver.output
+  scheme            = "https"
+  bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+  forward_to        = [prometheus.remote_write.mimir.receiver]
+
+  tls_config {
+    ca_file = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+  }
+}
+
+// host-network static pods — SD by pod label, fixed host ports
+discovery.relabel "keep_controller_manager" {
+  targets = discovery.kubernetes.pods.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_component"]
+    action        = "keep"
+    regex         = "kube-controller-manager"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_phase"]
+    action        = "drop"
+    regex         = "Pending|Succeeded|Failed|Completed"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_host_ip"]
+    action        = "replace"
+    target_label  = "__address__"
+    regex         = "(.+)"
+    replacement   = "${1}:10257"
+  }
+}
+
+prometheus.scrape "kube_controller_manager" {
+  job_name          = "kube-controller-manager"
+  targets           = discovery.relabel.keep_controller_manager.output
+  scheme            = "https"
+  bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+  forward_to        = [prometheus.remote_write.mimir.receiver]
+
+  tls_config {
+    insecure_skip_verify = true
+  }
+}
+
+discovery.relabel "keep_scheduler" {
+  targets = discovery.kubernetes.pods.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_component"]
+    action        = "keep"
+    regex         = "kube-scheduler"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_phase"]
+    action        = "drop"
+    regex         = "Pending|Succeeded|Failed|Completed"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_host_ip"]
+    action        = "replace"
+    target_label  = "__address__"
+    regex         = "(.+)"
+    replacement   = "${1}:10259"
+  }
+}
+
+prometheus.scrape "kube_scheduler" {
+  job_name          = "kube-scheduler"
+  targets           = discovery.relabel.keep_scheduler.output
+  scheme            = "https"
+  bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+  forward_to        = [prometheus.remote_write.mimir.receiver]
+
+  tls_config {
+    insecure_skip_verify = true
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Service metrics (replaces the ServiceMonitor/target-allocator discovery).
+// One family per source ServiceMonitor: a discovery.relabel keeps the services
+// matching that SM's label-selector + endpoint port name; the scrape names the
+// job after the service.
+// ---------------------------------------------------------------------------
+
+// --- kube-system ---
+
+discovery.relabel "targets_cilium_agent" {
+  targets = discovery.kubernetes.endpoints.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_service_label_app_kubernetes_io_name"]
+    action        = "keep"
+    regex         = "kube-system;cilium-agent"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_endpoint_port_name"]
+    action        = "keep"
+    regex         = "metrics"
+  }
+}
+
+prometheus.scrape "cilium_agent" {
+  job_name   = "cilium-agent"
+  targets    = discovery.relabel.targets_cilium_agent.output
+  forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+discovery.relabel "targets_cilium_operator" {
+  targets = discovery.kubernetes.services.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_service_label_io_cilium_app", "__meta_kubernetes_service_label_name"]
+    action        = "keep"
+    regex         = "kube-system;operator;cilium-operator"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_service_port_name"]
+    action        = "keep"
+    regex         = "metrics"
+  }
+}
+
+prometheus.scrape "cilium_operator" {
+  job_name   = "cilium-operator"
+  targets    = discovery.relabel.targets_cilium_operator.output
+  forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+discovery.relabel "targets_hubble_relay" {
+  targets = discovery.kubernetes.services.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_service_label_k8s_app"]
+    action        = "keep"
+    regex         = "kube-system;hubble-relay"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_service_port_name"]
+    action        = "keep"
+    regex         = "metrics"
+  }
+}
+
+prometheus.scrape "hubble_relay" {
+  job_name   = "hubble-relay"
+  targets    = discovery.relabel.targets_hubble_relay.output
+  forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+// --- policies ---
+
+discovery.relabel "targets_kyverno_admission_controller" {
+  targets = discovery.kubernetes.services.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_service_label_app_kubernetes_io_component", "__meta_kubernetes_service_label_app_kubernetes_io_instance"]
+    action        = "keep"
+    regex         = "policies;admission-controller;kyverno"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_service_port_name"]
+    action        = "keep"
+    regex         = "metrics-port"
+  }
+}
+
+prometheus.scrape "kyverno_admission_controller" {
+  job_name   = "kyverno-admission-controller"
+  targets    = discovery.relabel.targets_kyverno_admission_controller.output
+  forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+discovery.relabel "targets_kyverno_background_controller" {
+  targets = discovery.kubernetes.services.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_service_label_app_kubernetes_io_component", "__meta_kubernetes_service_label_app_kubernetes_io_instance"]
+    action        = "keep"
+    regex         = "policies;background-controller;kyverno"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_service_port_name"]
+    action        = "keep"
+    regex         = "metrics-port"
+  }
+}
+
+prometheus.scrape "kyverno_background_controller" {
+  job_name   = "kyverno-background-controller"
+  targets    = discovery.relabel.targets_kyverno_background_controller.output
+  forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+discovery.relabel "targets_kyverno_cleanup_controller" {
+  targets = discovery.kubernetes.services.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_service_label_app_kubernetes_io_component", "__meta_kubernetes_service_label_app_kubernetes_io_instance"]
+    action        = "keep"
+    regex         = "policies;cleanup-controller;kyverno"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_service_port_name"]
+    action        = "keep"
+    regex         = "metrics-port"
+  }
+}
+
+prometheus.scrape "kyverno_cleanup_controller" {
+  job_name   = "kyverno-cleanup-controller"
+  targets    = discovery.relabel.targets_kyverno_cleanup_controller.output
+  forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+discovery.relabel "targets_kyverno_reports_controller" {
+  targets = discovery.kubernetes.services.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_service_label_app_kubernetes_io_component", "__meta_kubernetes_service_label_app_kubernetes_io_instance"]
+    action        = "keep"
+    regex         = "policies;reports-controller;kyverno"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_service_port_name"]
+    action        = "keep"
+    regex         = "metrics-port"
+  }
+}
+
+prometheus.scrape "kyverno_reports_controller" {
+  job_name   = "kyverno-reports-controller"
+  targets    = discovery.relabel.targets_kyverno_reports_controller.output
+  forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+// --- security ---
+
+discovery.relabel "targets_tetragon" {
+  targets = discovery.kubernetes.services.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_service_label_app_kubernetes_io_instance", "__meta_kubernetes_service_label_app_kubernetes_io_name"]
+    action        = "keep"
+    regex         = "security;tetragon;tetragon"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_service_port_name"]
+    action        = "keep"
+    regex         = "metrics"
+  }
+}
+
+prometheus.scrape "tetragon" {
+  job_name   = "tetragon"
+  targets    = discovery.relabel.targets_tetragon.output
+  forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+discovery.relabel "targets_tetragon_operator" {
+  targets = discovery.kubernetes.services.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_service_label_app_kubernetes_io_instance", "__meta_kubernetes_service_label_app_kubernetes_io_name"]
+    action        = "keep"
+    regex         = "security;tetragon;tetragon-operator"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_service_port_name"]
+    action        = "keep"
+    regex         = "metrics"
+  }
+}
+
+prometheus.scrape "tetragon_operator" {
+  job_name   = "tetragon-operator"
+  targets    = discovery.relabel.targets_tetragon_operator.output
+  forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+discovery.relabel "targets_trivy_operator" {
+  targets = discovery.kubernetes.services.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_service_label_app_kubernetes_io_instance", "__meta_kubernetes_service_label_app_kubernetes_io_name"]
+    action        = "keep"
+    regex         = "security;trivy-operator;trivy-operator"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_service_port_name"]
+    action        = "keep"
+    regex         = "metrics"
+  }
+}
+
+prometheus.scrape "trivy_operator" {
+  job_name   = "trivy-operator"
+  targets    = discovery.relabel.targets_trivy_operator.output
+  forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+// --- backups ---
+
+discovery.relabel "targets_velero" {
+  targets = discovery.kubernetes.services.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_service_label_app_kubernetes_io_instance", "__meta_kubernetes_service_label_app_kubernetes_io_name"]
+    action        = "keep"
+    regex         = "backups;velero;velero"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_service_port_name"]
+    action        = "keep"
+    regex         = "http-monitoring"
+  }
+}
+
+prometheus.scrape "velero" {
+  job_name   = "velero"
+  targets    = discovery.relabel.targets_velero.output
+  forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+// --- datastores ---
+
+discovery.relabel "targets_valkey_operator" {
+  targets = discovery.kubernetes.services.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_service_label_app_kubernetes_io_instance", "__meta_kubernetes_service_label_app_kubernetes_io_name"]
+    action        = "keep"
+    regex         = "datastores;valkey-operator;valkey-operator"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_service_port_name"]
+    action        = "keep"
+    regex         = "http"
+  }
+}
+
+prometheus.scrape "valkey_operator" {
+  job_name   = "valkey-operator"
+  targets    = discovery.relabel.targets_valkey_operator.output
+  forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+// --- observability ---
+
+discovery.relabel "targets_alertmanager" {
+  targets = discovery.kubernetes.endpoints.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_service_label_app_kubernetes_io_instance", "__meta_kubernetes_service_label_app_kubernetes_io_name"]
+    action        = "keep"
+    regex         = "observability;alertmanager;alertmanager"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_endpoint_port_name"]
+    action        = "keep"
+    regex         = "http"
+  }
+}
+
+prometheus.scrape "alertmanager" {
+  job_name   = "alertmanager"
+  targets    = discovery.relabel.targets_alertmanager.output
+  forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+discovery.relabel "targets_kube_state_metrics" {
+  targets = discovery.kubernetes.services.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_service_label_app_kubernetes_io_instance", "__meta_kubernetes_service_label_app_kubernetes_io_name"]
+    action        = "keep"
+    regex         = "observability;kube-state-metrics;kube-state-metrics"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_service_port_name"]
+    action        = "keep"
+    regex         = "http"
+  }
+}
+
+prometheus.scrape "kube_state_metrics" {
+  job_name   = "kube-state-metrics"
+  targets    = discovery.relabel.targets_kube_state_metrics.output
+  forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+discovery.relabel "targets_loki" {
+  targets = discovery.kubernetes.services.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_service_label_app_kubernetes_io_instance", "__meta_kubernetes_service_label_app_kubernetes_io_name"]
+    action        = "keep"
+    regex         = "observability;loki;loki"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_service_port_name"]
+    action        = "keep"
+    regex         = "http-metrics"
+  }
+}
+
+prometheus.scrape "loki" {
+  job_name   = "loki"
+  targets    = discovery.relabel.targets_loki.output
+  forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+discovery.relabel "targets_tempo" {
+  targets = discovery.kubernetes.services.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_service_label_app_kubernetes_io_instance", "__meta_kubernetes_service_label_app_kubernetes_io_name"]
+    action        = "keep"
+    regex         = "observability;tempo;tempo"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_service_port_name"]
+    action        = "keep"
+    regex         = "tempo-prom-metrics"
+  }
+}
+
+prometheus.scrape "tempo" {
+  job_name   = "tempo"
+  targets    = discovery.relabel.targets_tempo.output
+  forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+// node-exporter job label = "node-exporter": the kubernetes-mixin node rules
+// select on it (carried over from the SM's jobLabel pod-label mechanic)
+discovery.relabel "targets_node_exporter" {
+  targets = discovery.kubernetes.endpoints.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_service_label_app_kubernetes_io_instance", "__meta_kubernetes_service_label_app_kubernetes_io_name"]
+    action        = "keep"
+    regex         = "observability;prometheus-node-exporter;prometheus-node-exporter"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_endpoint_port_name"]
+    action        = "keep"
+    regex         = "metrics"
+  }
+}
+
+prometheus.scrape "node_exporter" {
+  job_name   = "node-exporter"
+  targets    = discovery.relabel.targets_node_exporter.output
+  forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+discovery.relabel "targets_alloy_logging" {
+  targets = discovery.kubernetes.endpoints.targets
+
+  rule {
+    // the SM the chart renders selects instance=alloy-logging / name=alloy
+    source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_service_label_app_kubernetes_io_instance", "__meta_kubernetes_service_label_app_kubernetes_io_name"]
+    action        = "keep"
+    regex         = "observability;alloy-logging;alloy"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_endpoint_port_name"]
+    action        = "keep"
+    regex         = "http-metrics"
+  }
+}
+
+prometheus.scrape "alloy_logging" {
+  job_name   = "alloy-logging"
+  targets    = discovery.relabel.targets_alloy_logging.output
+  forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+// ---------------------------------------------------------------------------
+// Traces: OTLP receivers -> tempo (workloads push to alloy-telemetry:4317/4318).
+// Untested until instrumented workloads exist (cmdshift/platform#146) — the
+// receiver+pipeline are live so the ports answer as soon as something sends.
+// ---------------------------------------------------------------------------
+
+otelcol.receiver.otlp "workloads" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    metrics = []
+    logs    = []
+    traces  = [otelcol.processor.k8sattributes.traces.input]
+  }
+}
+
+otelcol.processor.k8sattributes "traces" {
+  output {
+    traces = [otelcol.processor.memory_limiter.traces.input]
+  }
+}
+
+otelcol.processor.memory_limiter "traces" {
+  check_interval         = "5s"
+  limit_percentage       = 80
+  spike_limit_percentage = 20
+
+  output {
+    traces = [otelcol.exporter.otlphttp.tempo.input]
+  }
+}
+
+otelcol.exporter.otlphttp "tempo" {
+  client {
+    endpoint = "http://tempo.observability.svc:4318"
+  }
+}

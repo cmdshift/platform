@@ -1,51 +1,38 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: otel-collector
+  name: alloy-telemetry
   namespace: observability
 rules:
   - apiGroups: [""]
     resources: ["pods", "namespaces", "nodes", "services", "endpoints", "endpointslices"]
     verbs: ["get", "list", "watch"]
   # kubelet /metrics + /metrics/cadvisor authorize via SubjectAccessReview for
-  # nodes/{subresource}: get nodes/metrics + nodes/proxy (the kps Prometheus used
-  # a client cert instead; SA-token scrapes need these — cmdshift/platform#141)
+  # nodes/{subresource}: get nodes/metrics + nodes/proxy (SA-token scrapes need
+  # these — cmdshift/platform#141)
   - apiGroups: [""]
     resources: ["nodes/metrics", "nodes/proxy", "nodes/stats", "nodes/log"]
-    verbs: ["get"]
+    verbs: ["get", "list", "watch"]
   - apiGroups: ["apps"]
     resources: ["replicasets", "deployments", "daemonsets", "statefulsets"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["networking.k8s.io"]
     resources: ["networkpolicies", "ingresses"]
     verbs: ["get", "list", "watch"]
-  - apiGroups: ["monitoring.coreos.com"]
-    resources: ["servicemonitors", "podmonitors", "scrapeconfigs", "probes"]
-    verbs: ["get", "list", "watch"]
-  # TA watches scrape-config-bearing SM/PM endpoints + their basicAuth/bearer
-  # secret refs (PartialObjectMetadata list); without this the TA crashloops on
-  # startup (promOperator CRD watcher, cmdshift/platform#141)
-  - apiGroups: [""]
-    resources: ["secrets", "configmaps"]
-    verbs: ["get", "list", "watch"]
   # apiserver /metrics is a non-resource URL — RBAC for it lives outside the
-  # apiGroups shape (a 403 here reads as a plain scrape failure in the collector)
+  # apiGroups shape (a 403 here reads as a plain scrape failure in the scraper)
   - nonResourceURLs: ["/metrics"]
     verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: otel-collector
-  namespace: observability
+  name: alloy-telemetry
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: otel-collector
+  name: alloy-telemetry
 subjects:
   - kind: ServiceAccount
-    name: otel-collector-collector
-    namespace: observability
-  - kind: ServiceAccount
-    name: otel-collector-targetallocator
+    name: alloy-telemetry
     namespace: observability

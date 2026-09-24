@@ -1,19 +1,15 @@
 # observability
 
-grafana-operator, loki, alloy, **tempo**, **mimir** (raw metrics store, cmdshift/platform#128), the opentelemetry-operator + one collector CR (the sole metrics scraper since cmdshift/platform#141), a chart-managed Alertmanager, and the sizing stack (metrics-server, vpa, goldilocks — all three install into kube-system but their HelmReleases/values live here by domain) + `observability-config/` (CR-managed components, the OpenTelemetryCollector CR, alert routing, dashboards, quotas). prometheus-operator-crds stays in `crds/` (its HelmRelease targets the `observability` namespace) — **CRDs-only, no pods**: the collector's target allocator discovers targets through ServiceMonitor/PodMonitor CRs, so the SM CRDs must exist even though the operator that managed them is gone. kube-prometheus-stack (operator + Prometheus CR) was removed in cmdshift/platform#141; the former kps sections below remain as history/precedent. Namespace layout rationale (cmdshift/platform#120): the former `metrics`/`monitoring`/`logging` groups collapsed into one — the `logging → dependsOn: monitoring` edge existed only because `loki.grafana-datasource.yaml` needed the grafana-operator CRDs, and the merge dissolves it.
+grafana-operator, loki, **alloy-logging** (logs/audit) + **alloy-telemetry** (the sole metrics scraper and OTLP trace receiver since cmdshift/platform#146), **tempo**, **mimir** (raw metrics store, cmdshift/platform#128), a chart-managed Alertmanager, and the sizing stack (metrics-server, vpa, goldilocks — all three install into kube-system but their HelmReleases/values live here by domain) + `observability-config/` (alert routing, dashboards, quotas, the alloy-telemetry RBAC). kube-prometheus-stack was removed in cmdshift/platform#141, and cmdshift/platform#146 completed the arc: the opentelemetry-operator + collector CR and prometheus-operator-crds are GONE — no SM/PodMonitor CRDs exist, every scrape target is hand-expressed in `alloy-telemetry.config.alloy`. The former collector sections remain below as history/precedent. Namespace layout rationale (cmdshift/platform#120): the former `metrics`/`monitoring`/`logging` groups collapsed into one — the `logging → dependsOn: monitoring` edge existed only because `loki.grafana-datasource.yaml` needed the grafana-operator CRDs, and the merge dissolves it.
 
-## Prometheus removed: the OTel collector is the scraper (cmdshift/platform#141)
+## Prometheus removed → collector → alloy: the scrape-path history
 
-Flow since cmdshift/platform#141: ServiceMonitors/PodMonitors (CRDs from `prometheus-operator-crds`) → **target allocator** (`prometheusCR` discovery) → collector `prometheus` receiver → `prometheusremotewrite/mimir`. Traps, all hit live:
+The path was: kps (removed #141) → OTel collector + target allocator reading ServiceMonitor CRs (#141) → **alloy hand-expressing every target (#146, Option B — SM CRDs deleted, no discovery layer left)**. The #141 trap list is kept for the chart-decomposition precedent (the same classes of trap apply to any operator-generated scraper):
 
 - **`.spec.mode` is immutable** (operator webhook): deployment→statefulset is delete-and-recreate, and TA only supports statefulset pools. The rejection message names the OLD mode — don't read it as "statefulset rejected".
-- **TA pod inherits nothing from the collector spec**: set `targetAllocator.securityContext`/`podSecurityContext`/`resources` explicitly or kyverno Deny-mode rejects the operator-generated Deployment (TA endpoints stay EMPTY; collector logs `Failed to retrieve job list ... i/o timeout`). The TA SA needs its own ClusterRoleBinding plus `scrapeconfigs`/`probes` get-list-watch and `secrets`/`configmaps` list-watch (the promOperator CRD watcher builds informers over them; missing RBAC = TA crashloop at startup).
-- **`targetAllocator.prometheusCR` selectors**: empty object `{}` = select all; an OMITTED selector matches nothing, silently.
-- **kubelet auth is SAR-based for SA tokens**: `nodes/metrics` (+`nodes/proxy`/`stats`/`log`) get verbs are required — `kubectl auth can-i get nodes/metrics --as=...` is the direct probe. kps's Prometheus never hit this (kubelet client cert instead). The apiserver `/metrics` is a non-resource URL: `nonResourceURLs: ["/metrics"]` get in the ClusterRole.
-- **Control-plane static jobs in the collector config**: kubelet/cadvisor via node-role SD + the collector's own SA token (`credentials_file` — no secretRef through the TA), apiserver via default-ns endpoints SD, kube-controller-manager/kube-scheduler via pod SD + host-IP:10257/10259 rewrites (host-network static pods).
-- **The collector's self-scrape** (`otel-collector-collector-monitoring` SM, :8888) emits dot-containing names (`otelcol.k8s.pod.association`, label `otel.signal`) — mimir needs `limits.name_validation_scheme: "utf8"` or every push carrying them is 400-rejected request-wide. (`utf8_names_enabled` does NOT exist in mimir 3.2.0 — config parse error.)
-- **prw exporter semantics vs kps**: the collector treats 429 as PERMANENT (drops the batch) — mimir `limits.ingestion_rate`/`ingestion_burst_size` must absorb the whole-cluster snapshot (40000/400000 here); exporter `timeout: 30s` (default 5s deadlines the batch) + `remote_write_queue` 10000×10 consumers; `batch` split (`send_batch_size: 8000`) keeps requests shippable.
-- **kps PolicyException prefix stays**: `allow-node-exporter` still matches `kube-prometheus-stack-prometheus-node-exporter` (harmless; covers a rebuild's reconciliation-ordering window).
+- **TA pod inherits nothing from the collector spec**: securityContext/resources had to be set explicitly or kyverno Deny-mode rejected the operator-generated Deployment. The TA SA needed its own ClusterRoleBinding plus CRD-watcher informer RBAC.
+- **kubelet auth is SAR-based for SA tokens**: `nodes/metrics` (+`nodes/proxy`/`stats`/`log`) get verbs are required — `kubectl auth can-i get nodes/metrics --as=...` is the direct probe. The apiserver `/metrics` is a non-resource URL: `nonResourceURLs: ["/metrics"]` get in the ClusterRole (carried into `alloy-telemetry.rbac.yaml`).
+- **prw exporter semantics**: the collector treated 429 as PERMANENT (drops the batch) — mimir `limits.ingestion_rate`/`ingestion_burst_size` absorb the whole-cluster snapshot (40000/400000). Alloy's remote_write has queueing semantics; the mimir headroom stays.
 
 ## Mimir: the raw metrics store (cmdshift/platform#128)
 
@@ -25,14 +21,20 @@ Thanos (operator + Query/Ruler/Store/Compact CRs) was replaced by a hand-rolled 
 - **Ruler is the local-backend kind**: `ruler_storage.backend: local` scans `<dir>/<tenant>/*.yaml`, so rule ConfigMap keys are remapped via subPath `items` into `self-monitoring/` (ConfigMap keys can't contain `/`). Rules live in this group (`mimir-rules.yaml`, `slo.rules.yaml`) — kustomize can't reference files above the group dir (flux's `LoadRestrictionsNone` builds `../` fine, but plain `kubectl kustomize` on a group dir fails; keep files local). The thanos-operator's one-data-key-per-rule-CM rule is obsolete — mimir's local backend reads the whole mount.
 - **Sizing**: 1280Mi req / 1920Mi lim after the cmdshift/platform#141 dual-push OOM (was 768Mi/1Gi, OOMKilled at the parity window) — ingester WAL is the memory spike case, cmdshift/platform#83 playbook. Runs as 65532, roFS, seccomp RuntimeDefault, caps ALL dropped, TGP 90.
 
-## OpenTelemetry collector (cmdshift/platform#128, scraper since cmdshift/platform#141)
+## OpenTelemetry collector (removed in cmdshift/platform#146; scraper #141-#146)
 
-`opentelemetry-operator.helm-release.yaml` (chart 0.123.0, app 0.159.0) + one `OpenTelemetryCollector` CR in `observability-config/` (statefulset mode, target allocator with `prometheusCR` discovery, otlp receivers): traces → tempo (`http://tempo.observability.svc:4318`), logs → loki-gateway `/otlp`, metrics → mimir remote-write — all tenant `self-monitoring`. See the "Prometheus removed" section above for the full trap list.
+Deleted with the Option B cutover: `opentelemetry-operator.helm-release.yaml`, the `OpenTelemetryCollector` CR, its rbac, and the `prometheus-operator-crds` release (SM/PodMonitor CRDs included — the collector was their only consumer). Kept as precedent:
 
 - **v1beta1 `spec.config` is a structured object** — v1alpha1 took a string; the schema rejects the string form (`cr_validate` catches it).
 - **`collectorImage` must be `opentelemetry-collector-contrib`** — the chart's default `opentelemetry-collector-k8s` image lacks the prometheusremotewrite exporter (`unknown type` at startup).
-- Chart 0.123.0 has no `testFramework.enabled` key (schema rejects it). The operator deployment is admission-clean by default (runAsNonRoot 65532, seccomp, caps dropped).
-- **k8sattributes RBAC** (`observability-config/otel-collector.rbac.yaml`): the processor needs pods list/watch. A Role/RoleBinding (even RoleBinding→ClusterRole) did not take effect in the recreated-SA case — `kubectl auth can-i` stayed "no" and recreated bindings never granted; a dedicated ClusterRole+ClusterRoleBinding works. Don't burn time on the namespace-scoped path (cmdshift/platform#128).
+- **k8sattributes RBAC**: a Role/RoleBinding (even RoleBinding→ClusterRole) did not take effect in the recreated-SA case — a dedicated ClusterRole+ClusterRoleBinding works. Don't burn time on the namespace-scoped path (cmdshift/platform#128).
+- **The `name_validation_scheme: "utf8"` mimir flag stays** — dot-containing metric/label names (any component exporting them) 400-reject a whole push under the legacy scheme.
+
+## alloy-telemetry discovery (alloy-telemetry.config.alloy, cmdshift/platform#146)
+
+- **Multi-replica families scrape via the `endpoints` role, not `service`**: a service-role target is the ClusterIP — one address load-balanced across the DS/sts replicas, so per-node series (node-exporter, cilium-agent) silently collapse to one pod's. Endpoints role expands to one target per backing pod.
+- **At endpoints role the port-name meta label is `__meta_kubernetes_endpoint_port_name`**, NOT `__meta_kubernetes_service_port_name` — reusing a service-role rule verbatim silently drops every target (the keep regex matches nothing; pods stay healthy). The label rename is the whole migration cost when flipping a family to endpoints role.
+- **Config edits need an sts rollout restart to reach the pod** — see the alloy pipeline section for the fingerprint (hit live on the endpoints flip: new config shipped, old targets kept until restart).
 
 ## Tempo (traces) (cmdshift/platform#83)
 
@@ -42,11 +44,12 @@ Thanos (operator + Query/Ruler/Store/Compact CRs) was replaced by a hand-rolled 
 - **Sizing evidence**: tempo lean start validated 268-367Mi steady (768Mi request / 1Gi limit), CPU 150m→1000m.
 - **Grafana wiring**: `observability-config/tempo.grafana-datasource.yaml` (`GrafanaDatasource` CR, type `tempo`, url `http://tempo.observability.svc:3200`); the `platform-deployment` dashboard has a `tempo_ds` datasource variable + a "Recent traces" traces panel (id 7, filters on `k8s.namespace.name=$namespace`).
 
-## Decomposition: complete (cmdshift/platform#141)
+## Decomposition: complete (cmdshift/platform#141, SMs hand-expressed in #146)
 
-kps was fully removed in cmdshift/platform#141 (operator + Prometheus CR + generated SMs). The cmdshift/platform#69 partial-split mechanics below remain as precedent for chart migrations: node-exporter → standalone `prometheus-node-exporter@4.57.0`, kube-state-metrics → standalone `kube-state-metrics@8.5.0` (kps values carried `kubeStateMetrics.enabled: false` / `nodeExporter.enabled: false` — the top-level keys are the **subchart-condition switches**; the legacy nested keys only configure the subcharts and never disable them).
+kps was fully removed in cmdshift/platform#141 (operator + Prometheus CR + generated SMs); #146 then deleted the SM/PodMonitor CRDs entirely — every chart's `serviceMonitor`/`prometheus.monitor` values block is stripped (alloy-telemetry hand-expresses the targets). The cmdshift/platform#69 partial-split mechanics below remain as precedent for chart migrations: node-exporter → standalone `prometheus-node-exporter@4.57.0`, kube-state-metrics → standalone `kube-state-metrics@8.5.0`.
 
-- **Scrape-label mechanics that kept the split scrape-identical** (still relevant to the standalone charts): the kubernetes-mixin node rules select `job="node-exporter"`. The standalone node-exporter values use `podLabels.jobLabel: node-exporter` + `prometheus.monitor.enabled: true` + `prometheus.monitor.jobLabel: jobLabel` — the target `job` comes from that pod label. Key-shape trap: the standalone chart's SM block is `prometheus.monitor.*` — there is **no top-level `serviceMonitor.enabled`** in the 4.57.0 chart. ksm's SM needs no extra labels (its `app.kubernetes.io/name` jobLabel is the standalone default).
+- **Scrape-label mechanics (post-SM: selector logic moved into alloy)**: the kubernetes-mixin node rules select `job="node-exporter"`. The node-exporter values keep `podLabels.jobLabel: node-exporter` — alloy's `targets_node_exporter` discovery maps the target `job` from that pod label.
+- **Chart metrics gates are NOT uniform** (hit live in #146): the cilium chart only renders the agent/operator metrics Services while `serviceMonitor.enabled` is true (`prometheus.metricsService` ANDs with the SM block) — stripping SM values alone deleted the services and zeroed both jobs; `metricsService: true` restores them. Check each chart's values shape before assuming `enabled: true` alone yields a service.
 - Transition landmines (full story: [policies-config/README.md](../policies-config/README.md)): the node-exporter PolicyException must match **both** DS name prefixes before the kps upgrade lands (narrowing it first wedged the old release and every rollback), and the standalone DS's hostPort 9100 conflicts with the vendored DS's until the kps upgrade deletes the vendored one — the new pods sit Pending on `didn't have free ports` during the overlap.
 
 ## Alertmanager: chart-managed (cmdshift/platform#141)
@@ -118,8 +121,7 @@ Method that worked: **binary `--help` via kubectl exec is authoritative** — ch
 | grafana-operator | `logging.encoder: json` (`--zap-encoder`) | grafana-operator values |
 | seaweedfs-operator | `--zap-encoder=json` via HelmRelease **postRenderers** (no args knob; container is `seaweedfs-operator`, not `manager`) | objects |
 | metrics-server | `args += --logging-format=json` | metrics-server values |
-| opentelemetry-operator | `manager.logLevel`-style chart keys aside, the operator logs JSON by default (zap) | — |
-| flux, trivy-operator, external-secrets, otel collector, tetragon | already JSON | — |
+| flux, trivy-operator, external-secrets, tetragon, alloy | already JSON | — |
 | cilium, cert-manager, local-path, seaweed weed, kubelet-csr-approver | **no knob exists** (verified via `--help`) — the pipeline's normalize stage converts | — |
 
 ## The alloy pipeline (`config.alloy`)
@@ -128,6 +130,7 @@ Method that worked: **binary `--help` via kubectl exec is authoritative** — ch
 - **Every line in Loki is JSON**: JSON lines pass through; logfmt lines convert; plain-text falls back to `{"msg": raw}`. `stage.decolorize` strips ANSI codes first (preventive — escapes would otherwise end up embedded in JSON string values). There is no generic format-to-JSON stage in alloy (pack is the only wrapper and it double-encodes), so conversion happens at the source where a knob exists.
 - **`stage.pack` was removed on purpose**: `loki.source.kubernetes` only emits `instance`/`job`/`service_name`, so the pack carried no metadata and just wrapped every line as `{"_entry":"<original>"}` with apps' JSON nested-and-escaped inside. Lines are app-native now; expected `alloy_components` set: `discovery.kubernetes.pods` + `loki.source.kubernetes.pods` + `loki.write.endpoint` (no `loki.process`).
 - **The `alloy.configMap` values block is load-bearing** — omitting it makes the chart **silently install its example config** (pods healthy, no push, zero errors; the kustomize-generated `alloy-config` CM sits unreferenced). Fingerprint + triage: [runbooks/local/incidents.md](../../../runbooks/local/incidents.md) (cmdshift/platform#27).
+- **A config-CM content change does not restart the alloy pods** (hit live on `alloy-telemetry`, 2026-09-24): the sts mounts the CM but the rendered pod spec is unchanged, so helm-controller rolls nothing — the pod kept scraping with the old config. After an edit, `kubectl -n observability rollout restart statefulset/alloy-telemetry` (the sts mount is read fresh at pod start).
 
 ## Audit log pipeline (cmdshift/platform#90)
 

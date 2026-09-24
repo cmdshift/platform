@@ -69,6 +69,7 @@ whole dependency tree.
 | `kyverno_unblock` | unstick kyverno rollouts deadlocked on hostNetwork ports |
 | `tetragon_probe` | verify a deny-list TracingPolicy kills: labeled probe pod + counter deltas |
 | `prometheus_query` | PromQL with port-forward lifecycle handled |
+| `metrics_summary` | post-scrape-change gate: per-job up-target counts + Watchdog |
 | `loki_query` | LogQL with tenant + time math preset |
 | `alloy_components` | dump the alloy components a pod is actually running (config-mismatch triage) |
 | `mailpit` | alert-email subjects from mailpit |
@@ -369,6 +370,20 @@ keying makes that a non-issue going forward.)
   branches — the ready check runs before the query-URL build site, so a
   knob set only next to the URL build leaves the reused path probing the
   wrong endpoint (hit as a 302→non-200 ready loop, cmdshift/platform#128).
+
+### `metrics_summary [-t] [-w] | metrics_summary --raw '<promql>'`
+
+The post-scrape-change verification gate (run after any alloy/collector
+scrape edit, SM removal, or chart metrics toggle): one `<n> <job>` line per
+job family from `count by (job) (up{job!~""})` against mimir, sorted by job
+name — eyeball for expected families and per-replica target counts
+(node-exporter/cilium-agent = node count, etc.). `-t` adds a TOTAL line;
+`-w` adds `WATCHDOG firing=N` (ruler + alertmanager path alive). Rides
+`prometheus_query`'s shared mimir forward — no own port-forward, same
+lifecycle contract. `--raw '<promql>'` is the escape hatch for any other
+instant query in the same compact form. Exit 0 on a run (empty output =
+no series — investigate, don't read as green); the shared-forward and
+not-ready semantics are `prometheus_query`'s.
 
 ### `loki_query [-c] '<logql>' [duration] | loki_query --stop`
 

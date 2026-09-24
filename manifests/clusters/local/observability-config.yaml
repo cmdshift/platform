@@ -23,7 +23,3 @@ spec:
     - apiVersion: monitoring.coreos.com/v1
       kind: Alertmanager
       current: status.conditions.filter(e, e.type == 'Available').all(e, e.status == 'True')
-    - apiVersion: opentelemetry.io/v1beta1
-      kind: OpenTelemetryCollector
-      current: status.conditions.filter(e, e.type == 'Ready').all(e, e.status == 'True')
-      failed: status.conditions.filter(e, e.type == 'Ready').all(e, e.status == 'False')

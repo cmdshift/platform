@@ -76,6 +76,4 @@ nodeAgent:
       cpu: 500m
       memory: 120Mi
 metrics:
-  enabled: true
-  serviceMonitor:
-    enabled: true
+  enabled: true # velero server metrics :8085 — alloy-telemetry scrapes the metrics service

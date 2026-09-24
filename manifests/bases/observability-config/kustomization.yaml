@@ -5,8 +5,7 @@ resources:
   - logging-resource-quota.yaml
   - limit-range.yaml
   - main.grafana.yaml
-  - otel-collector.opentelemetry-collector.yaml
-  - otel-collector.rbac.yaml
+  - alloy-telemetry.rbac.yaml
   - flux-system.alert.yaml
   - flux-system.provider.yaml
   - prometheus.grafana-datasource.yaml
