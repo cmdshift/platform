@@ -1,6 +1,6 @@
 ---
 name: observability
-description: Querying cluster metrics, logs, and alert delivery — prometheus_query (PromQL against prometheus or mimir, port-forward lifecycle handled), loki_query (LogQL), and mailpit (alert emails). Use when you need metrics, log lines, or to confirm alerts fired.
+description: Querying cluster metrics, logs, and alert delivery — prometheus_query (PromQL against mimir, port-forward lifecycle handled), loki_query (LogQL), and mailpit (alert emails). Use when you need metrics, log lines, or to confirm alerts fired.
 ---
 
 # Observability queries
@@ -10,12 +10,12 @@ description: Querying cluster metrics, logs, and alert delivery — prometheus_q
 ```
 prometheus_query 'container_cpu_cfs_throttled_periods_total{namespace="…",container="…"}'
 prometheus_query -c -r 6h 'container_memory_working_set_bytes{namespace="ns",container="c"}'
-prometheus_query --query 'count(kube_pod_container_status_restarts_total)'   # mimir (global raw view)
+prometheus_query 'count(kube_pod_container_status_restarts_total)'
 ```
 
 - Default: raw JSON. `-v`: values only. `-c`: compact, one line per series (token-cheap).
 - `-r 6h`: range query over m|h|d, auto-stepped to ~30 points.
-- Port-forward lifecycle handled: the forward is SHARED across calls (lock file in `.agents/temp/`, reused/evicted automatically; `--stop` evicts manually) — rapid query loops no longer churn listeners; a not-ready server is waited out up to 2m, and the retry rides the same forward. Defaults to `svc/kube-prometheus-stack-prometheus:9090` (dead service name since kps removal — always pass `--query` for mimir until the default is repointed), `--query` switches to `svc/mimir:8080` (OrgID header + `/prometheus` API prefix handled).
+- Port-forward lifecycle handled: the forward is SHARED across calls (lock file in `.agents/temp/`, reused/evicted automatically; `--stop` evicts manually) — rapid query loops no longer churn listeners; a not-ready server is waited out up to 2m, and the retry rides the same forward. Queries `svc/mimir:8080` (OrgID header + `/prometheus` API prefix handled); the pre-kps-removal `--query` switch and the dead `svc/kube-prometheus-stack-prometheus` default it survived are gone.
 - Instant queries only see series present in the last 5m — use `-r` to see pods that have since been recreated.
 
 Useful one-liners: `container_cpu_cfs_throttled_periods_total` (throttling), `container_memory_working_set_bytes` (memory trends), `prometheus_tsdb_head_series` (cardinality), `up` (scrape health), `prometheus_scrape_targets_gauge{component_id=...}` (per-collector discovery — the ksm double-target phantom's first check, cmdshift/platform#149), `alloy_components` (what config a collector is actually running).

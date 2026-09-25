@@ -22,9 +22,9 @@ description: Setting or auditing container resources. The sizing convention (lea
 | `memory_audit [pct]` | is anything near its **limit**? (usage-vs-limits; footer counts limit-less containers — expected 3: control-plane statics, cmdshift/platform#70) |
 | `cpu_audit [pct]` | same for CPU + the silent-killer check: top-10 by % of CFS periods throttled (>5% worth a look) |
 | `request_audit [pct]` | are **requests** honest for scheduling? (≥100% of memory request = first evicted under node pressure) |
-| `vpa_recs [ns]` | what does **VPA** recommend for this workload? (the recommendation side — P99-shaped candidate requests from the Off-mode VPAs goldilocks maintains) |
+| `vpa_recs [ns]` | what does **VPA** recommend for this workload? (the recommendation side — P99-shaped candidate requests from the Off-mode VPAs) |
 
-A VPA recommendation is a **candidate request, not a drop-in** — cross-check it against the usage audits and the convention above (request ≈ P99 × 1.2, limit = 1.5 × request) before editing manifests. The VPAs are Off mode and maintained automatically by goldilocks for every non-system workload (see `manifests/bases/observability/README.md`) — no per-workload step.
+A VPA recommendation is a **candidate request, not a drop-in** — cross-check it against the usage audits and the convention above (request ≈ P99 × 1.2, limit = 1.5 × request) before editing manifests. The VPAs are Off mode and hand-maintained per workload (goldilocks the auto-creator was removed; new workloads get a VPA in their group manifest — see `manifests/bases/observability/README.md`).
 
 - **Seasoning gate**: a fresh rebuild resets recommender history, so `vpa_recs` pulled <48h after one are polluted by the early-cluster ramp (alloy came back +530% CPU that never materialized — the 7d peak stayed single-digit; most deltas collapsed to ±10% noise, cmdshift/platform#66). Pull recommendations only after the cluster has seasoned, and cross-check every delta against 7d max/P99 trend queries before editing.
 - **Reject over-conservative recs at tiny sizes**: below ~20Mi the recommender's output can exceed the observed P99 (loki-gateway's 22Mi rec vs a 7d P99 of 13Mi under a 16Mi request) — the trend query wins (cmdshift/platform#66).
@@ -33,6 +33,7 @@ A VPA recommendation is a **candidate request, not a drop-in** — cross-check i
 
 - **Trend, not snapshot.** A fresh cluster's first ~3h is always a ramp (head chunks, WAL, warmup) — judge after that.
 - **Shapes:** a steady climb = leak or cardinality growth; a **sawtooth returning to baseline = periodic burst** (needs limit headroom over the peak, not a leak hunt).
+- **A below-limit snapshot does not clear a limit** — transient bursts kill between snapshots (seaweed volume server OOMKilled at 240Mi while `kubectl top` read 183Mi); judge burst headroom from the range-query peak (memory-sizing-audit §4, seaweed traps in `manifests/bases/objects/README.md`).
 - For prometheus's own memory: check series count first (`prometheus_query -c 'prometheus_tsdb_head_series'`, `topk(10, count by (job)({__name__=~".+"}))`) — if memory tracks series, the fix is `MetricRelabelings`, not a bump.
 
 ## Decide and record

@@ -108,18 +108,23 @@ loki:
   resources:
     requests:
       cpu: 20m # VPA rec 23m — lean-request convention with headroom (cmdshift/platform#66)
-      memory: 512Mi # steady 296Mi climbing to 404Mi post-WAL-replay — P99 x 1.2, limit 1.5x
+      # 12h: flat ~220Mi, then 609Mi peak (audit backlog replay) / 481Mi settled — P99 x 1.05, limit 1.6x peak
+      memory: 640Mi
     limits:
       cpu: 200m
-      memory: 768Mi
+      memory: 1Gi
 chunksCache:
+  # memcached's slab budget must sit under the container limit or the cgroup
+  # OOM-killer becomes the eviction policy (chart default 8192 never self-limits)
+  allocatedMemory: 300
   resources:
     requests:
       cpu: 10m
-      memory: 120Mi # 7d peak 95Mi (94% of old limit) — peak x 1.2, limit 1.5x (cmdshift/platform#66)
+      # hit the old 300Mi limit flat (LRU pressure, not sawtooth) — slabs 300MB + overhead
+      memory: 256Mi
     limits:
       cpu: 20m
-      memory: 180Mi
+      memory: 384Mi
 resultsCache:
   resources:
     requests:

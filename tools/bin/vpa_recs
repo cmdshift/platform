@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # VPA recommendations vs current requests — the EVIDENCE side of sizing.
-# Companion to memory_audit/cpu_audit (the usage side): goldilocks maintains
-# an Off-mode VPA per workload (vpa + goldilocks in metrics/, see
-# manifests/bases/observability/README.md) and the VPA recommender fills
-# status.recommendation from metrics-server history. A recommendation is a
+# Companion to memory_audit/cpu_audit (the usage side): Off-mode VPAs
+# (hand-maintained per workload — goldilocks the auto-creator was removed,
+# see manifests/bases/observability/README.md) feed the VPA recommender,
+# which fills status.recommendation from metrics-server history. A
+# recommendation is a
 # candidate request (P99-shaped), not a drop-in — cross-check against the
 # usage audits and the sizing convention (resource-sizing skill) before
 # editing manifests. Positive delta = recommendation ABOVE current request
@@ -58,8 +59,8 @@ trap 'rm -f "$tmp_vpa" "$tmp_req"' EXIT
 collect_vpa > "$tmp_vpa" || exit 2
 collect_requests > "$tmp_req" || exit 2
 
-# excludes mirror goldilocks controller.flags.exclude-namespaces — workloads
-# there have no VPAs by design, so they don't count as gaps
+# workloads in kube-system/flux-system are system plumbing — no VPAs by
+# design, so they don't count as gaps
 GAP=$(join -v2 -t "$(printf '\t')" -1 1 -2 1 "$tmp_vpa" \
       < <(grep -vE $'^(kube-system|flux-system)/' "$tmp_req") \
       | wc -l | tr -d ' ')

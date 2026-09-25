@@ -100,11 +100,12 @@ operator:
       memory: 216Mi
 resources:
   requests:
-    cpu: 50m
+    # 12h CPU P99 85m with 7.5% of CFS periods throttled at 50m — eBPF/encrypt bursts
+    cpu: 100m
     # audit: agents 296-351Mi (worst node) — 448Mi = worst-node x 1.2, limit 1.5x
     memory: 448Mi
   limits:
-    cpu: 500m # audit: 21.8% of CFS periods throttled (at 200m) — eBPF/encrypt bursts
+    cpu: 1000m # audit: 21.8% of CFS periods throttled (at 200m) — eBPF/encrypt bursts
     memory: 672Mi # connectivity-test runs spiked agents to ~323Mi — 1.5x keeps burst headroom
 rollOutCiliumPods: true
 securityContext:

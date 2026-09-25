@@ -32,10 +32,12 @@ spec:
     requests:
       storage: 10Gi
       cpu: 10m
-      memory: 160Mi # OOMKilled at a 132Mi limit — peak x 1.2
+      # OOMKilled twice (132Mi, then 240Mi limits) — vacuum commit reloads
+      # needle maps; observed 183Mi + unseen spike — peak x 1.2
+      memory: 224Mi
     limits:
       cpu: 1000m
-      memory: 240Mi
+      memory: 336Mi
     podSecurityContext:
       runAsNonRoot: true
       runAsUser: 65534
@@ -84,10 +86,12 @@ spec:
     replicas: 1
     requests:
       cpu: 50m
-      memory: 352Mi # 12h of OOMKills at 168Mi, 7d peak 279Mi — peak x 1.2
+      # OOMKilled at 528Mi during a loki-flush write burst (flat 217Mi baseline,
+      # burst 391Mi+) — burst x 1.2, limit 1.5x
+      memory: 384Mi
     limits:
       cpu: 1000m
-      memory: 528Mi
+      memory: 768Mi
     podSecurityContext:
       runAsNonRoot: true
       runAsUser: 65534

@@ -12,11 +12,10 @@ recommender:
   resources:
     requests:
       cpu: 10m
-      memory: 128Mi
+      memory: 48Mi # 12h max 37Mi — old 128Mi was 3.4x the observed peak
     limits:
-      # greenfield sizing — audit after the first days (resource-sizing skill)
-      cpu: 200m
-      memory: 192Mi
+      cpu: 200m # 16% of CFS periods throttled at 200m — bursty recommend loops, keep headroom
+      memory: 72Mi
 updater:
   enabled: false
 admissionController:

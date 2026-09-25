@@ -7,5 +7,5 @@ resources:
     cpu: 10m
     memory: 32Mi
   limits:
-    cpu: 500m
+    cpu: 1000m # 46% CFS-throttle spikes at 500m on system-metrics scrapes — bursty, not steady
     memory: 48Mi

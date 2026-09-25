@@ -6,7 +6,7 @@ containerSecurityContext:
 resources:
   requests:
     cpu: 10m
-    memory: 56Mi # 7d max 46Mi, VPA rec 61Mi — peak x 1.2, limit 1.5x; re-check after series growth
+    memory: 96Mi # 12h median 69Mi / max 79Mi — max x 1.2, limit 1.5x; re-check after series growth
   limits:
     cpu: 200m
-    memory: 84Mi
+    memory: 144Mi

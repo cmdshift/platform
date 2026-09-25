@@ -29,7 +29,7 @@ Usage vs limits across the cluster (Mi/Gi handled — `1Gi` silently parses as `
 memory_audit 50
 ```
 
-Is it growing or stable? (snapshot proves nothing — query the trend):
+Snapshot proves nothing — judge the trend. **And for an OOMKill specifically, a below-limit snapshot does not clear the limit either**: transient bursts kill between snapshots (seaweed volume server died at a 240Mi limit while `kubectl top` showed 183Mi) — pull the range query and judge headroom against the burst peak, not the last observed value ([memory-sizing-audit.md](memory-sizing-audit.md) §4; seaweed burst traps: [../../manifests/bases/objects/README.md](../../manifests/bases/objects/README.md)).
 
 ```
 prometheus_query -c -r 6h 'container_memory_working_set_bytes{namespace="<ns>",container="<name>"}'
