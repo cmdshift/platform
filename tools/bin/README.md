@@ -364,6 +364,13 @@ keying makes that a non-issue going forward.)
   race: two simultaneous cold starts can both write the lock (last writer
   wins, one forward orphans until its lock is overwritten or `--stop`
   catches it) — sequential loops, the norm for these tools, never race.
+- **LANDMINE — bash parses `a || b && c` as `(a || b) && c`** (hit live,
+  cmdshift/platform#149): the shared `REPO_ROOT="$(git ... || cd ... && pwd)"`
+  ran the fallback `cd && pwd` EVEN ON the git success path, appending a
+  second line to REPO_ROOT → garbage LOCK_DIR → the lock file was never
+  found → "port-forward failed to establish" on EVERY call. Fixed with
+  `{ cd ...; pwd; }` grouping around the fallback. Same bug class anywhere
+  a `||` fallback is chained with `&&`: group it or it runs unconditionally.
 - **per-service knobs live inside `port_forward`**: the service-specific
   port (mimir 8080 vs prometheus 9090) and ready path (`/ready` vs
   `/-/ready`) must be set on BOTH the fresh-forward and reused-forward
