@@ -15,7 +15,7 @@ docker logs sync-cloud-test --since 10m
 rustfs ls main/flux --recursive     # compare against the local tree
 ```
 
-No dropped-event symptom exists anymore — the mirror is a full `--remove` re-mirror every 5s and self-heals missed changes in one pass (the inotify watcher was replaced after the historical macOS bind mounts dropped events, cmdshift/platform#55). Logs are silent when healthy; `mirror failed; retrying` = rustfs down or bad credentials. A stale bucket = container stopped (`docker restart sync-cloud-test` restarts the loop) or rustfs down (stage 2).
+No dropped-event symptom exists anymore — the mirror is a full `--remove` re-mirror every 5s and self-heals missed changes in one pass (the inotify watcher was replaced after the historical macOS bind mounts dropped events, cmdshift/platform#55). Logs are silent when healthy; `mirror failed; retrying` = rustfs down or bad credentials. A stale bucket = container stopped (`docker restart sync-cloud-test` restarts the loop) or rustfs down (stage 2). **A stopped companion can be silent for hours**: the cloud-test haproxy (s3.cloud.test frontend) OOM-killed (exit 137) under sustained S3 traffic and `Bucket/main` failed "no route to host" while the cluster happily kept running the last-delivered config — everything looked Ready (cmdshift/platform#149). If `sync_wait` hangs forever, `docker ps` before digging into flux; recovery is `docker start cloud-test` + `flux reconcile source bucket main` — and verify the CM CONTENT landed, not just sync_wait convergence.
 
 ## 2. Bucket source
 

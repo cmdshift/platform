@@ -38,9 +38,13 @@ Also not ladder material: the release is **kyverno itself** and its pods sit Pen
 
 `Failed to perform remediation: missing target release for rollback: cannot remediate failed release` — the release's `sh.helm.release.*` storage secrets are gone (deleted by hand, or uninstall remediation removed the rollback target mid-recovery), so every reconcile fails at remediation before helm ever runs. Hit live on the aborted kubeblocks install (issue #49). Fix: confirm the release's resources are gone or absent, `kubectl -n <ns> delete secrets sh.helm.release.v1.<name>.*`, re-reconcile — helm-controller does a fresh install against empty storage. `helm_wait` recognizes the error string and appends this fix to its diagnose hint.
 
+Same storage, opposite direction: **an operator-managed release whose name matches a previous flux HelmRelease** upgrades against the stale storage — "upgrade failed; rollback required" fights over immutable StatefulSet fields (volumeClaimTemplates, selector) and version churn (hit live adopting the Alloy CRs, cmdshift/platform#149). Fix: fresh release name for the new CR, or purge the old storage first (delete the `sh.helm.release.v1.<name>.*` secrets + the old HR).
+
 ## Wedged finalizer
 
 An HR deletion that hangs on `finalizers.fluxcd.io` means the uninstall is stuck (hit live: the old release's `kyverno-scale-to-zero` hook retried forever against already-deleted deployments). Clearing the finalizer (`kubectl patch hr <name> -n <ns> --type=merge -p '{"metadata":{"finalizers":null}}'`) skips the uninstall — safe when the remaining work is namespace-scoped garbage that dies with the old namespace and chart CRDs are not GC'd by helm-controller anyway. Check cluster-scoped release objects (webhook configs) survive/are recreated before clearing.
+
+**Uninstall wedged on failed uninstall-remediation hooks** (k8s-monitoring, cmdshift/platform#149): the deletion hangs with helm reporting "Could not determine release state" — the chart's pre-delete/add-finalizer hook jobs were admission-denied (kyverno checks hook jobs too), so uninstall remediation itself failed. Recovery: suspend the HR → `kubectl -n <ns> delete secrets sh.helm.release.v1.<release>.*` → resume (flux re-installs fresh; delete/re-delete as needed). Even after recovery, the helm release itself may remain deployed (hook race stopped the uninstall) — a direct `helm uninstall <release> -n <ns>` finishes it. Root fix is sizing the hook jobs (the `adopt-chart` skill's admission-compliance section).
 
 ## Context
 

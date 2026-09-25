@@ -15,10 +15,10 @@ prometheus_query --query 'count(kube_pod_container_status_restarts_total)'   # m
 
 - Default: raw JSON. `-v`: values only. `-c`: compact, one line per series (token-cheap).
 - `-r 6h`: range query over m|h|d, auto-stepped to ~30 points.
-- Port-forward lifecycle handled: the forward is SHARED across calls (lock file in `.agents/temp/`, reused/evicted automatically; `--stop` evicts manually) — rapid query loops no longer churn listeners; a not-ready server is waited out up to 2m, and the retry rides the same forward. Defaults to `svc/kube-prometheus-stack-prometheus:9090`, `--query` switches to `svc/mimir:8080` (OrgID header + `/prometheus` API prefix handled).
+- Port-forward lifecycle handled: the forward is SHARED across calls (lock file in `.agents/temp/`, reused/evicted automatically; `--stop` evicts manually) — rapid query loops no longer churn listeners; a not-ready server is waited out up to 2m, and the retry rides the same forward. Defaults to `svc/kube-prometheus-stack-prometheus:9090` (dead service name since kps removal — always pass `--query` for mimir until the default is repointed), `--query` switches to `svc/mimir:8080` (OrgID header + `/prometheus` API prefix handled).
 - Instant queries only see series present in the last 5m — use `-r` to see pods that have since been recreated.
 
-Useful one-liners: `container_cpu_cfs_throttled_periods_total` (throttling), `container_memory_working_set_bytes` (memory trends), `prometheus_tsdb_head_series` (cardinality), `up` (scrape health — the old `up{job="kube-proxy"}` example died with the kube-proxy removal, cmdshift/platform#70).
+Useful one-liners: `container_cpu_cfs_throttled_periods_total` (throttling), `container_memory_working_set_bytes` (memory trends), `prometheus_tsdb_head_series` (cardinality), `up` (scrape health), `prometheus_scrape_targets_gauge{component_id=...}` (per-collector discovery — the ksm double-target phantom's first check, cmdshift/platform#149), `alloy_components` (what config a collector is actually running).
 
 ## loki_query
 
@@ -38,6 +38,13 @@ loki_query -c 'sum by (x) (count_over_time(...))'  # labels per series + latest 
   plus `instance` (`ns/pod:container`), `job`, `service_name`,
   `detected_level`. Select natively: `{namespace="observability",
   pod=~"grafana-.*"}`; `instance` prefix selectors still work
+- Metrics are split across **two collectors** (cmdshift/platform#149):
+  `alloy-telemetry` (cluster plumbing: kubelet/cadvisor/apiserver/kcm/
+  scheduler, kube-state-metrics, node-exporter) and `alloy-platform`
+  (per-service families + collector self-scrapes) — both push to mimir, so
+  `metrics_summary`/`up` cover the union; a missing job family is a keep-rule
+  or release-name problem on whichever collector owns it (instance label =
+  helm release name in the keep regexes).
 - Platform components log **JSON** — kyverno, grafana-operator, seaweedfs-operator,
   metrics-server and alloy flipped at the source; the alloy
   pipeline **normalizes the rest** (logfmt lines → JSON fields; plain-text
