@@ -47,7 +47,7 @@ spec:
         - ports:
             - port: "8888"
               protocol: TCP
-    # Keycloak discovery + token endpoints — TLS through the companion haproxy
+    # Rauthy discovery + token endpoints — TLS through the companion haproxy
     # (the :443 frontend, not the container's direct :8080)
     - toFQDNs:
         - matchName: auth.cloud.test

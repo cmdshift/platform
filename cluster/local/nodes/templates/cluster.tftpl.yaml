@@ -17,7 +17,9 @@ cluster:
     # admin-kubeconfig-only until cmdshift/platform#91. The strict static-pod decoder
     # drops the ctrl node on a bad flag name — validate against `kube-apiserver --help`.
     extraArgs:
-      oidc-issuer-url: https://auth.cloud.test/realms/platform
+      # rauthy issuer — trailing slash is load-bearing: the apiserver exact-matches
+      # this against the discovery doc's `iss` (cmdshift/platform#154)
+      oidc-issuer-url: https://auth.cloud.test/auth/v1/
       oidc-client-id: kubernetes
       oidc-username-claim: preferred_username
       oidc-groups-claim: groups

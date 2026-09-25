@@ -10,11 +10,13 @@ config:
   configFile: |-
     upstreams = ["http://grafana-service.observability.svc:3000"]
     provider = "oidc"
-    oidc_issuer_url = "https://auth.cloud.test/realms/platform"
+    # rauthy issuer — trailing slash is load-bearing (client libs exact-match the
+    # discovery doc's iss, cmdshift/platform#154)
+    oidc_issuer_url = "https://auth.cloud.test/auth/v1/"
     redirect_url = "https://grafana.local.test/oauth2/callback"
     # host-scoped: the cookie is the admin bearer credential and must never be
     # sent to other *.local.test hosts (3rd-party software may live there) —
-    # SSO comes from the Keycloak session instead (threat model: access/README)
+    # SSO comes from the Rauthy session instead (threat model: access/README)
     cookie_domains = ["grafana.local.test"]
     whitelist_domains = [".local.test"]
     cookie_samesite = "lax"
@@ -32,7 +34,7 @@ extraArgs:
   # only TLS egress). use-system-trust-store adds the distro CAs on top.
   provider-ca-file: /etc/platform-ca/ca.crt
   use-system-trust-store: "true"
-  # PKCE S256 — Keycloak advertises it; mirrors the kubernetes client's challenge
+  # PKCE S256 — Rauthy advertises it (challenges: S256); mirrors the kubernetes client's challenge
   code-challenge-method: S256
   # kill the chart's default TLS listener (:4443) — TLS terminates at the Gateway
   https-address: ""

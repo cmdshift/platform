@@ -70,15 +70,16 @@ locals {
 
   # oauth2-proxy admin-ingress secrets (cmdshift/platform#41) — shared by all
   # three proxies; the cookie secret must match for the .local.test SSO cookie
-  # to validate across apps. client_secret mirrors realm.json's oauth2-proxy
-  # client; root_ca is the platform root (TLS trust for auth.cloud.test).
+  # to validate across apps. client-secret mirrors clients.json's oauth2-proxy
+  # client (rauthy: >= 64 chars, token-endpoint validation [a-zA-Z0-9] only,
+  # cmdshift/platform#154); root_ca is the platform root (TLS trust for auth.cloud.test).
   access = {
     # single payload = single server path: the webhook provider serves whole
     # JSON docs (no property projection), so the ExternalSecret's dataFrom
     # extract maps the keys directly
     oauth2_proxy_credentials = {
       client-id     = "oauth2-proxy"
-      client-secret = "oauth2-proxy-secret"
+      client-secret = "LXMLrmq38BZxuBMTINMYVXj97Kt6n0fM44jSOfV7iOmuJZUEpsIId5E7NcBoCqfV"
       cookie-secret = "Zk1MRldtSnhkV2RMY0hOc1pHbHVZWFJzWVhKcGJtZT0="
     }
 

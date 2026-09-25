@@ -53,12 +53,12 @@ Watch with `flux_wait` (interactive cap ~15), or `flux_wait -c` for an instant n
 | Rustfs buckets | `rustfs ls main/` | `flux`, `backups` |
 | Mimir | `kubectl -n observability get pods -l app.kubernetes.io/name=mimir` | 1/1 Running; ruler groups up (`prometheus_query 'count(up)'` non-empty) |
 | Host API path | `curl -skf --max-time 3 https://127.0.0.1:6443/version` | 401 = LB publisher alive (the binding is on the `cmd` container) |
-| Keycloak discovery | `curl -s -o /dev/null -w '%{http_code}' https://auth.cloud.test/realms/platform/.well-known/openid-configuration` | 200 |
+| Rauthy discovery | `curl -s https://auth.cloud.test/auth/v1/.well-known/openid-configuration` | 200; `issuer` == `https://auth.cloud.test/auth/v1/` exactly (trailing slash — apiserver exact-match, cmdshift/platform#154) |
 | Kubelet-serving CSRs | `kubectl get csr` | Pending until manually approved (`kubectl get csr -o name \| xargs -I{} kubectl certificate approve {}`) — nodes don't go Ready until then |
-| OIDC kubeconfig | `kubectl --kubeconfig .tmp/kubeconfig-oidc get nodes` | Lists nodes (user `test` → realm role `platform-admin` → `cluster-admin` via the `access/` group bindings, cmdshift/platform#91); impersonation check: `kubectl auth can-i list secrets -n default --as=u --as-group=platform-view` → no |
+| OIDC kubeconfig | `kubectl --kubeconfig .tmp/kubeconfig-oidc get nodes` | Lists nodes (user `admin@cloud.test` → rauthy group `platform-admin` → `cluster-admin` via the `access/` group bindings, cmdshift/platform#91); impersonation check: `kubectl auth can-i list secrets -n default --as=u --as-group=platform-view` → no |
 | OIDC viewer | login as `viewer`/`viewer123` → `get secrets -n default` | Forbidden (platform-view → built-in `view`: pods yes, secrets/nodes no). kubelogin cache is per-issuer+client, NOT per-user — delete `~/.kube/cache/oidc-login/` between identities; the `auth.cloud.test` SSO cookie decides who the browser flow logs in as |
 | Ingress | `curl -s -o /dev/null -w '%{http_code}' http://local.test` | 404 = correct wiring with zero HTTPRoutes (`server: envoy` header proves the Gateway path); 503 = haproxy backends down |
-| Admin ingress | `curl -sk -o /dev/null -w '%{http_code}' https://grafana.local.test` | 302 to `auth.cloud.test` login (PKCE S256 in the URL); full flow: login `test`/`test123` → 200 + grafana `api/user` identity (cmdshift/platform#41, access/README) |
+| Admin ingress | `curl -sk -o /dev/null -w '%{http_code}' https://grafana.local.test` | 302 to `auth.cloud.test` login (PKCE S256 in the URL); full flow: login `admin`/`admin123` → 200 + grafana `api/user` identity (cmdshift/platform#41, access/README) |
 | Trivy scan pod | `kubectl -n security get pods` | one `scan-vulnerabilityreport-*` pod in `Error` is EXPECTED (see below); all later scans `Completed`, VulnerabilityReports accumulating |
 | PolicyReports | `policy_report` | 0 failures |
 

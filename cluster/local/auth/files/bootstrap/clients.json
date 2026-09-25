@@ -1,0 +1,50 @@
+[
+  {
+    "id": "oauth2-proxy",
+    "name": "oauth2-proxy",
+    "secret": {
+      "Plain": "LXMLrmq38BZxuBMTINMYVXj97Kt6n0fM44jSOfV7iOmuJZUEpsIId5E7NcBoCqfV"
+    },
+    "redirect_uris": [
+      "https://grafana.local.test/oauth2/callback",
+      "https://hubble.local.test/oauth2/callback",
+      "https://seaweed.local.test/oauth2/callback"
+    ],
+    "allowed_origins": [
+      "https://grafana.local.test",
+      "https://hubble.local.test",
+      "https://seaweed.local.test"
+    ],
+    "enabled": true,
+    "flows_enabled": ["authorization_code", "refresh_token"],
+    "access_token_alg": "RS256",
+    "id_token_alg": "RS256",
+    "auth_code_lifetime": 300,
+    "access_token_lifetime": 3600,
+    "scopes": ["openid", "profile", "email", "groups"],
+    "default_scopes": ["openid", "profile", "email", "groups"],
+    "challenges": ["S256"],
+    "force_mfa": false
+  },
+  {
+    "id": "kubernetes",
+    "name": "kubernetes",
+    "secret": null,
+    "redirect_uris": [
+      "http://localhost:8000"
+    ],
+    "allowed_origins": [
+      "http://localhost:8000"
+    ],
+    "enabled": true,
+    "flows_enabled": ["authorization_code", "refresh_token"],
+    "access_token_alg": "RS256",
+    "id_token_alg": "RS256",
+    "auth_code_lifetime": 300,
+    "access_token_lifetime": 3600,
+    "scopes": ["openid", "profile", "email", "groups"],
+    "default_scopes": ["openid", "profile", "email", "groups"],
+    "challenges": ["S256"],
+    "force_mfa": false
+  }
+]

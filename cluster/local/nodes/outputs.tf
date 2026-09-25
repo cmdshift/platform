@@ -28,7 +28,7 @@ output "kubeconfig_oidc" {
   value = templatefile("${path.module}/templates/kubeconfig-oidc.tftpl.yaml", {
     local_api_endpoint = local.public_endpoint
     ca_data            = talos_cluster_kubeconfig.main.kubernetes_client_configuration.ca_certificate
-    issuer_url         = "https://auth.cloud.test/realms/platform"
+    issuer_url         = "https://auth.cloud.test/auth/v1/"
     client_id          = "kubernetes"
   })
 }

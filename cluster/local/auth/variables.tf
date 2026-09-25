@@ -8,3 +8,7 @@ variable "net" {
     private_network_id = string
   })
 }
+
+variable "trusted_proxies" {
+  type = string
+}
