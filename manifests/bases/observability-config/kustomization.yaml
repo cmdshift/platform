@@ -19,6 +19,7 @@ resources:
   # from git history whenever a reference view is wanted again
   - platform-deployment.grafana-dashboard.yaml
   - main-grafana-credentials.external-secret.yaml
+  - access-auth-proxy.referencegrant.yaml
 configMapGenerator:
   - name: platform-deployment-dashboard
     namespace: observability

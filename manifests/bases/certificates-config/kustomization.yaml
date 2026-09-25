@@ -3,5 +3,3 @@ kind: Kustomization
 resources:
   - resource-quota.yaml
   - selfsigned.cluster-issuer.yaml
-  - ztunnel-bootstrap.certificate.yaml
-  - ztunnel-ca.certificate.yaml

@@ -31,9 +31,8 @@ just bootstrap apply    # cilium + flux helm releases + the Bucket/root hooks
 Expect **~10 minutes**, progressing through the dependency chain in order:
 
 ```
-sources → crds → namespaces → certificates → certificates-config (ztunnel CA
-issuance gate) → networking (cilium: the long pole; boots unencrypted — the
-HelmRelease flips ztunnel on at first reconcile, cmdshift/platform#87)
+sources → crds → namespaces → certificates → certificates-config
+→ networking (cilium: the long pole; encryption = wireguard, cmdshift/platform#41)
 → flux → flux-config (adopts the Bucket + root) → policies
 → storage → objects → observability → observability-config
 → backups → security → security-config
@@ -59,6 +58,7 @@ Watch with `flux_wait` (interactive cap ~15), or `flux_wait -c` for an instant n
 | OIDC kubeconfig | `kubectl --kubeconfig .tmp/kubeconfig-oidc get nodes` | Lists nodes (user `test` → realm role `platform-admin` → `cluster-admin` via the `access/` group bindings, cmdshift/platform#91); impersonation check: `kubectl auth can-i list secrets -n default --as=u --as-group=platform-view` → no |
 | OIDC viewer | login as `viewer`/`viewer123` → `get secrets -n default` | Forbidden (platform-view → built-in `view`: pods yes, secrets/nodes no). kubelogin cache is per-issuer+client, NOT per-user — delete `~/.kube/cache/oidc-login/` between identities; the `auth.cloud.test` SSO cookie decides who the browser flow logs in as |
 | Ingress | `curl -s -o /dev/null -w '%{http_code}' http://local.test` | 404 = correct wiring with zero HTTPRoutes (`server: envoy` header proves the Gateway path); 503 = haproxy backends down |
+| Admin ingress | `curl -sk -o /dev/null -w '%{http_code}' https://grafana.local.test` | 302 to `auth.cloud.test` login (PKCE S256 in the URL); full flow: login `test`/`test123` → 200 + grafana `api/user` identity (cmdshift/platform#41, access/README) |
 | Trivy scan pod | `kubectl -n security get pods` | one `scan-vulnerabilityreport-*` pod in `Error` is EXPECTED (see below); all later scans `Completed`, VulnerabilityReports accumulating |
 | PolicyReports | `policy_report` | 0 failures |
 

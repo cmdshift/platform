@@ -2,3 +2,27 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - group-bindings.role-binding.yaml
+  - grafana-auth-proxy.helm-release.yaml
+  - hubble-auth-proxy.helm-release.yaml
+  - seaweed-auth-proxy.helm-release.yaml
+  - oauth2-proxy-secrets.external-secret.yaml
+  - auth-routes.httproute.yaml
+configMapGenerator:
+  - name: grafana-auth-proxy-values
+    namespace: access
+    files:
+      - values.yaml=grafana-auth-proxy-values.yaml
+    options:
+      disableNameSuffixHash: true
+  - name: hubble-auth-proxy-values
+    namespace: access
+    files:
+      - values.yaml=hubble-auth-proxy-values.yaml
+    options:
+      disableNameSuffixHash: true
+  - name: seaweed-auth-proxy-values
+    namespace: access
+    files:
+      - values.yaml=seaweed-auth-proxy-values.yaml
+    options:
+      disableNameSuffixHash: true

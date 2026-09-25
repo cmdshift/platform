@@ -1,0 +1,74 @@
+config:
+  # clientID/cookieName come from args — the chart's structured config only feeds
+  # the generated oauth2_proxy.cfg; everything env/flag-driven lives in extraArgs
+  clientID: oauth2-proxy
+  # real values arrive via the chart's existingSecret (env OAUTH2_PROXY_*) —
+  # placeholders satisfy requiredSecretKeys without minting a chart Secret
+  clientSecret: placeholder
+  cookieSecret: placeholder
+  existingSecret: oauth2-proxy-credentials
+  configFile: |-
+    upstreams = ["http://hubble-ui.kube-system.svc:80"]
+    provider = "oidc"
+    oidc_issuer_url = "https://auth.cloud.test/realms/platform"
+    redirect_url = "https://hubble.local.test/oauth2/callback"
+    # host-scoped: see grafana-auth-proxy-values.yaml (SSO via Keycloak session)
+    cookie_domains = ["hubble.local.test"]
+    whitelist_domains = [".local.test"]
+    cookie_samesite = "lax"
+    scope = "openid profile email"
+    email_domains = ["*"]
+    skip_provider_button = true
+    reverse_proxy = true
+    pass_authorization_header = false
+    pass_access_token = false
+    set_authorization_header = false
+    set_xauthrequest = true
+extraArgs:
+  # provider-ca-file is the legacy key for the alpha-config caFiles API —
+  # trust store for the IdP connection only (auth.cloud.test is the proxy's
+  # only TLS egress). use-system-trust-store adds the distro CAs on top.
+  provider-ca-file: /etc/platform-ca/ca.crt
+  use-system-trust-store: "true"
+  # PKCE S256 — Keycloak advertises it; mirrors the kubernetes client's challenge
+  code-challenge-method: S256
+  # kill the chart's default TLS listener (:4443) — TLS terminates at the Gateway
+  https-address: ""
+  cookie-name: _oauth2_proxy
+extraVolumes:
+  - name: platform-ca
+    secret:
+      secretName: platform-root-ca
+extraVolumeMounts:
+  - name: platform-ca
+    mountPath: /etc/platform-ca
+    readOnly: true
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 200m
+    memory: 96Mi
+replicaCount: 1
+httpScheme: http
+sessionStorage:
+  type: cookie
+service:
+  type: ClusterIP
+  portNumber: 4180
+serviceAccount:
+  automountServiceAccountToken: false
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+terminationGracePeriodSeconds: 30
+networkPolicy:
+  enabled: false

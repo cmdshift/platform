@@ -18,6 +18,7 @@ resources:
   - mimir.s3-policy.yaml
   - resource-quota.yaml
   - seaweedfs-admin.deployment.yaml
+  - access-auth-proxy.referencegrant.yaml
   - tempo.s3-bucket.yaml
   - tempo-s3-credentials.external-secret.yaml
   - tempo.s3-credentials.yaml

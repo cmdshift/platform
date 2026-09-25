@@ -71,9 +71,8 @@ terraform -chdir=cluster/local apply -auto-approve            # only bootstrap +
 Then watch convergence — **expect ~10 minutes**, progressing through the dependency chain in this order:
 
 ```
-sources → crds → namespaces → certificates → certificates-config (ztunnel CA
-issuance gate) → networking (cilium: the long pole; boots unencrypted — the
-HelmRelease flips ztunnel on at first reconcile, cmdshift/platform#87)
+sources → crds → namespaces → certificates → certificates-config
+→ networking (cilium: the long pole; encryption = wireguard, cmdshift/platform#41)
 → flux → flux-config (adopts the Bucket + root) → policies
 → storage → objects → observability → observability-config
 → backups
@@ -92,7 +91,7 @@ kubectl -n flux-system get kustomizations
 | Kustomizations | `flux_wait -c` | exit 0, all Ready |
 | HelmReleases | `kubectl get helmreleases -A` | all True (per-release: `helm_wait -c <ns> <name>`) |
 | Cilium encryption | `kubectl -n kube-system exec ds/cilium -- cilium-dbg status` | `Encryption: Ztunnel` (flips on at first reconcile — boots unencrypted, cmdshift/platform#87) |
-| ztunnel mesh | `kubectl -n kube-system port-forward ds/ztunnel-cilium 15000` → `curl -s localhost:15000/config_dump` | agent workload cert present, ztunnel pods HBONE-registered (no namespace is enrolled by default — the ad-hoc demo was deleted post-verification; enrollment + re-verify procedure: networking/README, cmdshift/platform#87) |
+| encryption | `kubectl exec -n kube-system ds/cilium -- cilium-dbg status | grep Encryption` | `Wireguard` (ztunnel removed with the 1.20.2 pin, cmdshift/platform#41) |
 | flux-config adoption | `kubectl -n flux-system get kustomization local -o json --show-managed-fields` | `kustomize-controller` owns the spec |
 | Velero BSL | `kubectl -n backups get bsl default` | `Available` |
 | Rustfs buckets | `rustfs ls main/` | `flux`, `backups` (auto-provisioned) |
