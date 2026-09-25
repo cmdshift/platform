@@ -9,7 +9,7 @@ All kyverno ValidatingPolicies run in **Deny** mode — non-compliant pods/jobs 
 
 ## 1. Sizing
 
-All containers + initContainers need cpu/memory **requests and limits**. Lean requests, generous CPU limits, memory = evidence not vibes → load the `resource-sizing` skill if unsure (its audits: `memory_audit` / `cpu_audit` / `request_audit` / `vpa_recs`). Part of the evidence is automatic: goldilocks maintains Off-mode VPAs for every non-system workload, so recommendations already exist — no per-workload step.
+All containers + initContainers need cpu/memory **requests and limits**. Lean requests, generous CPU limits, memory = evidence not vibes → load the `resource-sizing` skill if unsure (its audits: `memory_audit` / `cpu_audit` / `request_audit` / `vpa_recs`). Part of the evidence is a VPA: add a hand-written Off-mode VPA next to the workload (goldilocks the auto-creator was removed — recipe in the observability README) and the recommender fills in P99-shaped numbers over time.
 
 Multi-replica (replicas > 1)? A PDB (maxUnavailable: 1) is generated for you in flux-managed namespaces — skip via `pdb.kyverno.io/skip: "true"` only if the chart ships its own. In kube-system the generator silently does nothing (CEL-policy webhook inherits the kube-system namespaceSelector exclusion, cmdshift/platform#84) — write an explicit PDB there.
 

@@ -69,10 +69,10 @@ spec:
     resources:
       requests:
         cpu: 10m
-        memory: 224Mi # 7d max 189Mi — max x 1.2, limit 1.5x (cmdshift/platform#66)
+        memory: 320Mi # 12h max 256Mi on the ctrl (audit-tail) pod — max x 1.25, limit 1.5x
       limits:
         cpu: 200m
-        memory: 336Mi
+        memory: 480Mi
     service:
       enabled: true
   configReloader:

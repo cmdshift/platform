@@ -8,17 +8,19 @@
 # not ready" (HTTP non-200) from "forward dead" (refused/timeout). `--stop`
 # evicts the shared forwards. The lifecycle is duplicated in loki_query —
 # keep the two in lockstep.
+# Queries svc/mimir (the only metrics store since the kps removal,
+# cmdshift/platform#141 — the old svc/kube-prometheus-stack-prometheus
+# default died with it).
 #   prometheus_query '<promql>'              instant, raw JSON
 #   prometheus_query -v '<promql>'            values only (value + labels, or ts value)
 #   prometheus_query -c '<promql>'            compact: "<pod=... container=...> vals" per line
 #   prometheus_query -r 6h '<promql>'         range over the last 6h (m|h|d), auto step
-#   prometheus_query --query '<promql>'       against svc/mimir instead
 #   prometheus_query --stop                   evict the shared forwards
 # Exit 0 = query ran (check the JSON/values for emptiness), 1 = forward
 # failed to establish or the server stayed not-ready for 2m, 2 = usage error.
 
 usage() {
-  echo "usage: prometheus_query [-v|-c] [-r 6h] [--query] '<promql>' | prometheus_query --stop" >&2
+  echo "usage: prometheus_query [-v|-c] [-r 6h] '<promql>' | prometheus_query --stop" >&2
   exit 2
 }
 
@@ -88,24 +90,14 @@ port_forward() { # service_name — sets PORT_FORWARD_PORT / PORT_FORWARD_PID
   if [ -z "${PORT_FORWARD_PORT:-}" ]; then
     # fresh forward; one restart when kubectl dies (transient bind collision —
     # random-port collisions are rare but cheaper to retry than to fail)
-    # mimir's query API lives on 8080 under /prometheus, not 9090 —
-    # remap the port and switch the ready path (cmdshift/platform#128)
-    if [ "$service" = mimir ]; then
-      PORT_MAP="8080"
-    else
-      PORT_MAP="9090"
-    fi
+    # mimir's query API lives on 8080 under /prometheus, not 9090 (cmdshift/platform#128)
     for attempt in 1 2; do
       PORT_FORWARD_PORT=$((20000 + RANDOM % 1000))
-      kubectl -n observability port-forward "svc/$service" "$PORT_FORWARD_PORT:$PORT_MAP" >/dev/null 2>&1 &
+      kubectl -n observability port-forward "svc/$service" "$PORT_FORWARD_PORT:8080" >/dev/null 2>&1 &
       PORT_FORWARD_PID=$!
       # the ready check runs before port_forward returns; READY_PATH must be
       # set here, not just at the query-URL build site below
-      if [ "$service" = mimir ]; then
-        READY_PATH=/ready
-      else
-        READY_PATH=/-/ready
-      fi
+      READY_PATH=/ready
       i=0
       until http_answer "http://localhost:$PORT_FORWARD_PORT$READY_PATH"; do
         i=$((i + 1))
@@ -119,7 +111,7 @@ port_forward() { # service_name — sets PORT_FORWARD_PORT / PORT_FORWARD_PID
   else
     # reused forward: bounded liveness probe before trusting it — a wedged
     # kubectl keeps its PID while the port stops answering
-    if [ "$service" = mimir ]; then READY_PATH=/ready; else READY_PATH=/-/ready; fi
+    READY_PATH=/ready
     i=0
     until http_answer "http://localhost:$PORT_FORWARD_PORT$READY_PATH"; do
       i=$((i + 1))
@@ -176,7 +168,7 @@ format_compact() { # one line per series: short label subset + values (token-che
 }
 
 prometheus_query() {
-  local service=kube-prometheus-stack-prometheus mode=instant values=0 compact=0 range='' query=''
+  local service=mimir mode=instant values=0 compact=0 range='' query=''
   local start='' end='' step=''
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -184,7 +176,6 @@ prometheus_query() {
       -c) compact=1; shift ;;
       -r) [ -n "${2:-}" ] || usage # '-r' alone: the failed shift leaves $1='-r' forever
           range="$2"; mode=range; shift 2 ;;
-      --query) service=mimir; shift ;;
       -*) usage ;; # an unknown flag would silently be swallowed as/next to the query
       *) [ -z "$query" ] || usage # one query only — last-one-wins hides the mistake
          query="$1"; shift ;;
@@ -198,19 +189,13 @@ prometheus_query() {
 
   port_forward "$service" || return 1
   # mimir serves the prometheus query API under the /prometheus prefix
-  # (cmdshift/platform#128); READY_PATH for the liveness probe is set inside
-  # port_forward since the ready check runs before it returns
-  if [ "$service" = mimir ]; then
-    API_PREFIX=/prometheus
-  else
-    API_PREFIX=''
-  fi
-  local url="http://localhost:$PORT_FORWARD_PORT${API_PREFIX}/api/v1/query"
+  # (cmdshift/platform#128)
+  local url="http://localhost:$PORT_FORWARD_PORT/prometheus/api/v1/query"
 
   if [ "$mode" = range ]; then
     end=$(date +%s)
     step=$(( (end - start) / 30 )); [ "$step" -lt 60 ] && step=60
-    url="http://localhost:$PORT_FORWARD_PORT${API_PREFIX}/api/v1/query_range?start=$start&end=$end&step=$step"
+    url="http://localhost:$PORT_FORWARD_PORT/prometheus/api/v1/query_range?start=$start&end=$end&step=$step"
   fi
 
   if [ "$compact" = 1 ]; then

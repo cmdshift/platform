@@ -52,7 +52,7 @@ Watch with `flux_wait` (interactive cap ~15), or `flux_wait -c` for an instant n
 | flux-config adoption | `kubectl -n flux-system get kustomization local -o json --show-managed-fields` | `kustomize-controller` owns the spec |
 | Velero BSL | `kubectl -n backups get bsl default` | `Available` |
 | Rustfs buckets | `rustfs ls main/` | `flux`, `backups` |
-| Mimir | `kubectl -n observability get pods -l app.kubernetes.io/name=mimir` | 1/1 Running; ruler groups up (`prometheus_query --query 'count(up)'` non-empty) |
+| Mimir | `kubectl -n observability get pods -l app.kubernetes.io/name=mimir` | 1/1 Running; ruler groups up (`prometheus_query 'count(up)'` non-empty) |
 | Host API path | `curl -skf --max-time 3 https://127.0.0.1:6443/version` | 401 = publisher alive |
 | Keycloak discovery | `curl -s -o /dev/null -w '%{http_code}' https://auth.cloud.test/realms/platform/.well-known/openid-configuration` | 200 |
 | Kubelet-serving CSRs | `kubectl get csr` | Pending until manually approved (`kubectl get csr -o name \| xargs -I{} kubectl certificate approve {}`) — nodes don't go Ready until then |

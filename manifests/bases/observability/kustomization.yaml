@@ -9,7 +9,6 @@ resources:
   - alloy-telemetry.alloy.yaml
   - metrics-server.helm-release.yaml
   - vpa.helm-release.yaml
-  - goldilocks.helm-release.yaml
   - loki.helm-release.yaml
   - kube-state-metrics.helm-release.yaml
   - prometheus-node-exporter.helm-release.yaml
@@ -48,7 +47,7 @@ configMapGenerator:
       - values.yaml=alertmanager-values.yaml
     options:
       disableNameSuffixHash: true
-  # metrics-server/vpa/goldilocks install into kube-system (cluster plumbing);
+  # metrics-server/vpa install into kube-system (cluster plumbing);
   # their HelmReleases live in the observability group by domain
   - name: metrics-server-values
     namespace: kube-system
@@ -60,12 +59,6 @@ configMapGenerator:
     namespace: kube-system
     files:
       - values.yaml=vpa-values.yaml
-    options:
-      disableNameSuffixHash: true
-  - name: goldilocks-values
-    namespace: kube-system
-    files:
-      - values.yaml=goldilocks-values.yaml
     options:
       disableNameSuffixHash: true
   - name: alloy-operator-values

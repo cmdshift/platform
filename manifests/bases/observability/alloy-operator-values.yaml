@@ -6,11 +6,13 @@ crds:
 
 resources:
   requests:
-    cpu: 10m
-    memory: 64Mi
+    # 12h P99 81m CPU / 101Mi mem — the old 10m/64Mi left the operator the
+    # cluster's most-throttled container (23-29% of CFS periods)
+    cpu: 50m
+    memory: 140Mi
   limits:
     cpu: 500m
-    memory: 128Mi
+    memory: 210Mi
 
 securityContext:
   allowPrivilegeEscalation: false

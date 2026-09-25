@@ -26,7 +26,7 @@ memory_audit 50                                                  # usage vs limi
 prometheus_query -c -r 6h 'container_memory_working_set_bytes{namespace="<ns>",container="<name>"}'
 ```
 
-Snapshot proves nothing — judge the trend. For prometheus itself, check cardinality too (`prometheus_tsdb_head_series`, `topk(10, count by (job)({__name__=~".+"}))`) — memory growth usually tracks series growth.
+Snapshot proves nothing — judge the trend. A below-limit snapshot doesn't clear a limit either: transient bursts kill between snapshots (seaweed volume died at 240Mi with `kubectl top` at 183Mi) — headroom is judged against the range-query peak, not the last observed value. For prometheus itself, check cardinality too (`prometheus_tsdb_head_series`, `topk(10, count by (job)({__name__=~".+"}))`) — memory growth usually tracks series growth.
 
 The `ContainerOOMKilled` alert (ruler → alertmanager) catches ceiling hits invisible in logs; alerts land at http://mail.cloud.test (`mailpit`).
 

@@ -31,18 +31,18 @@ done
 tool_dir="$(cd "$(dirname "$0")" && pwd)"
 
 if [ -n "$raw" ]; then
-  exec "$tool_dir/prometheus_query" -c --query "$raw"
+  exec "$tool_dir/prometheus_query" -c "$raw"
 fi
 
-"$tool_dir/prometheus_query" -c --query 'count by (job) (up{job!~""})' \
+"$tool_dir/prometheus_query" -c 'count by (job) (up{job!~""})' \
   | sed -E 's/^job=([^:]+): ([0-9]+)$/\2 \1/' \
   | sort -k2
 
 if [ "$totals" -eq 1 ]; then
-  "$tool_dir/prometheus_query" -c --query 'count(up{job!~""})' | sed -E 's/^: ([0-9]+)$/TOTAL \1/'
+  "$tool_dir/prometheus_query" -c 'count(up{job!~""})' | sed -E 's/^: ([0-9]+)$/TOTAL \1/'
 fi
 
 if [ "$watchdog" -eq 1 ]; then
-  wd=$("$tool_dir/prometheus_query" -c --query 'ALERTS{alertname="Watchdog",alertstate="firing"}' | grep -c . || true)
+  wd=$("$tool_dir/prometheus_query" -c 'ALERTS{alertname="Watchdog",alertstate="firing"}' | grep -c . || true)
   echo "WATCHDOG firing=$wd"
 fi

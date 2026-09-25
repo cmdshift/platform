@@ -96,7 +96,7 @@ kubectl -n flux-system get kustomizations
 | flux-config adoption | `kubectl -n flux-system get kustomization local -o json --show-managed-fields` | `kustomize-controller` owns the spec |
 | Velero BSL | `kubectl -n backups get bsl default` | `Available` |
 | Rustfs buckets | `rustfs ls main/` | `flux`, `backups` (auto-provisioned) |
-| Mimir | `kubectl -n observability get pods -l app.kubernetes.io/name=mimir` | 1/1 Running; ruler groups served (`prometheus_query --query 'count(up)'` non-empty) |
+| Mimir | `kubectl -n observability get pods -l app.kubernetes.io/name=mimir` | 1/1 Running; ruler groups served (`prometheus_query 'count(up)'` non-empty) |
 | PolicyReports | `policy_report` | 0 failures |
 | Host API path | `curl -skf --max-time 3 https://127.0.0.1:6443/version` | 401 (publisher alive; kubeconfig server = 127.0.0.1:6443) |
 | Browser paths | `curl -s -o /dev/null -w '%{http_code}' http://mail.cloud.test` | 200 (s3 → 403 = auth challenge, also fine) |
