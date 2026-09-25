@@ -1,6 +1,11 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  # the Alloy CRs apply after the operator: same-group CRs fail the root dry-run
+  # on a fresh cluster (no CRDs yet) and wedge the whole observability group
+  - alloy-logging.alloy.yaml
+  - alloy-platform.alloy.yaml
+  - alloy-telemetry.alloy.yaml
   - resource-quota.yaml
   - logging-resource-quota.yaml
   - limit-range.yaml

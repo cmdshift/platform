@@ -42,6 +42,10 @@ module "dns" {
     bridge_network_id   = module.net.bridge_network_id
     private_network_id  = module.net.private_network_id
   }
+  cmd = {
+    hostname   = module.conf.nodes.cmd.hostname
+    private_ip = module.conf.nodes.cmd.private_ip
+  }
 }
 
 module "secrets" {
@@ -152,6 +156,10 @@ module "nodes" {
   }
   dns = {
     private_ip = module.dns.private_ip
+  }
+  cmd = {
+    hostname   = module.conf.nodes.cmd.hostname
+    private_ip = module.conf.nodes.cmd.private_ip
   }
   ctrl = module.conf.nodes.ctrl
   work = module.conf.nodes.work

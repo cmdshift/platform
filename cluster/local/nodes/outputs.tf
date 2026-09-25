@@ -17,14 +17,8 @@ output "boot_node" {
   value = local.boot_node
 }
 
-# The talos provider derives the embedded API address from the cluster endpoint (ctrl node
-# IP — private-network only); host-side consumers go through the loopback-published ports.
-locals {
-  local_api_endpoint = "https://${local.local_api_ip}:${local.ports.k8s}"
-}
-
 output "kubeconfig" {
-  value = replace(talos_cluster_kubeconfig.main.kubeconfig_raw, local.public_endpoint, local.local_api_endpoint)
+  value = talos_cluster_kubeconfig.main.kubeconfig_raw
 }
 
 # OIDC-login twin of the admin kubeconfig (cmdshift/platform#131): kubelogin exec plugin
@@ -32,7 +26,7 @@ output "kubeconfig" {
 # the `access/` group's bindings keyed on the `groups` claim (cmdshift/platform#91).
 output "kubeconfig_oidc" {
   value = templatefile("${path.module}/templates/kubeconfig-oidc.tftpl.yaml", {
-    local_api_endpoint = local.local_api_endpoint
+    local_api_endpoint = local.public_endpoint
     ca_data            = talos_cluster_kubeconfig.main.kubernetes_client_configuration.ca_certificate
     issuer_url         = "https://auth.cloud.test/realms/platform"
     client_id          = "kubernetes"
@@ -40,11 +34,9 @@ output "kubeconfig_oidc" {
 }
 
 output "k8s_client_config" {
-  value = merge(talos_cluster_kubeconfig.main.kubernetes_client_configuration, {
-    host = local.local_api_endpoint
-  })
+  value = talos_cluster_kubeconfig.main.kubernetes_client_configuration
 }
 
 output "talosconfig" {
-  value = data.talos_client_configuration.main.talos_config
+  value = replace(data.talos_client_configuration.main.talos_config, var.cmd.private_ip, var.cmd.hostname)
 }

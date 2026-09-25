@@ -98,13 +98,13 @@ metadata:
     pod-security.kubernetes.io/enforce-version: latest
 EOF
 
-  # the admin kubeconfig's server is the host loopback (127.0.0.1 — the
-  # published port on the ctrl container); in-pod that would hit the pod's own
+  # the admin kubeconfig's server is the host-loopback LB endpoint
+  # (cmd.local.test — dnsmasq → 127.0.0.1); in-pod that would hit the pod's own
   # loopback, so rewrite it to the in-cluster API service name (443 → apiserver
   # 6443; the serving cert carries the kubernetes.default.svc SANs, and
   # egress to it is the house `kube-apiserver` CNP entity — no node IPs here)
   local bench_kc; bench_kc=$(mktemp)
-  sed 's#server: https://127.0.0.1:6443#server: https://kubernetes.default.svc:443#' "$KC" > "$bench_kc"
+  sed 's#server: https://cmd.local.test:6443#server: https://kubernetes.default.svc:443#' "$KC" > "$bench_kc"
   kubectl -n bench-scan create secret generic bench-kubeconfig \
     --from-file=kubeconfig="$bench_kc" >/dev/null
   rm -f "$bench_kc"

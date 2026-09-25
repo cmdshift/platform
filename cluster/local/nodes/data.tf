@@ -2,11 +2,15 @@ data "docker_registry_image" "talos" {
   name = "ghcr.io/siderolabs/talos:v${var.cluster.talos_version}"
 }
 
+data "docker_registry_image" "haproxy" {
+  name = "ghcr.io/haproxytech/haproxy-docker-alpine:3.2.22"
+}
+
 data "talos_client_configuration" "main" {
   cluster_name         = var.cluster.name
   client_configuration = talos_machine_secrets.main.client_configuration
   endpoints = [
-    local.local_api_ip
+    var.cmd.hostname
   ]
   nodes = flatten([
     for node in docker_container.ctrl :

@@ -4,11 +4,7 @@ locals {
     apid = 50000
   }
 
-  # host-side API identity: the ctrl container publishes k8s/apid on the host loopback;
-  # the cluster endpoint itself is the ctrl node IP (L2-direct on the private network)
-  local_api_ip    = "127.0.0.1"
-  ctrl_ip         = cidrhost(var.net.ctrl_cidr, 1)
-  public_endpoint = "https://${local.ctrl_ip}:${local.ports.k8s}"
+  public_endpoint = "https://${var.cmd.hostname}:${local.ports.k8s}"
 
   # reviewed audit policy (cmdshift/platform#90); 1.13/1.14 mechanics in files/audit-policy.yaml
   audit_policy_body = file("${path.module}/files/audit-policy.yaml")
@@ -19,15 +15,15 @@ locals {
 
   cluster_machine_patch = templatefile("${path.module}/templates/cluster.tftpl.yaml", {
     public_endpoint = local.public_endpoint
-    local_api_ip    = local.local_api_ip
-    ctrl_ip         = local.ctrl_ip
+    cmd_hostname    = var.cmd.hostname
+    cmd_private_ip  = var.cmd.private_ip
     ctrl_cidr       = var.net.ctrl_cidr
     audit_policy    = local.audit_policy_body
   })
 
   base_machine_patch = templatefile("${path.module}/templates/base.tftpl.yaml", {
-    local_api_ip   = local.local_api_ip
-    ctrl_ip        = local.ctrl_ip
+    cmd_hostname   = var.cmd.hostname
+    cmd_private_ip = var.cmd.private_ip
     ctrl_cidr      = var.net.ctrl_cidr
     work_cidr      = var.net.work_cidr
     dns_private_ip = var.dns.private_ip
@@ -64,3 +60,4 @@ locals {
     ]
   ])[0]
 }
+
