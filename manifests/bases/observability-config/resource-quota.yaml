@@ -5,12 +5,11 @@ metadata:
   namespace: observability
 spec:
   hard:
-    # cmdshift/platform#146: the OTel collector swap (768Mi/250m req) became the
-    # alloy-telemetry release (same requests; a statefulset, so the cluster
-    # Service + config-reloader add one CPU-request unit vs the CR shape)
+    # cmdshift/platform#149: the parallel window runs both alloy stacks + the
+    # alloy-operator; commit 2 (old releases deleted) sheds ~7 pods back
     # requests ≈ 0.9Gi headroom, limits ≈ 3Gi burst headroom
-    requests.cpu: "2"
-    requests.memory: 8Gi
-    limits.cpu: 16
-    limits.memory: 12Gi
-    pods: "24"
+    requests.cpu: "3"
+    requests.memory: 10Gi
+    limits.cpu: 20
+    limits.memory: 16Gi
+    pods: "32"

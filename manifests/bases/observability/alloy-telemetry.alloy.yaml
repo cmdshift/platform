@@ -1,0 +1,71 @@
+# Cluster-metrics + traces collector (cmdshift/platform#149): kubelet/cadvisor/
+# apiserver/kcm/scheduler scrapes, kube-state-metrics + node-exporter (own
+# HelmReleases in this group), and the OTLP traces intake. Alloy CR reconciled
+# by the alloy-operator HelmRelease; config is a real file
+# (alloy-telemetry.config.alloy via configMapGenerator).
+apiVersion: collectors.grafana.com/v1alpha1
+kind: Alloy
+metadata:
+  name: alloy-telemetry
+  namespace: observability
+spec:
+  controller:
+    type: statefulset
+    replicas: 1
+    # clustering peers need stable identities — the operator renders a headless
+    # cluster Service for the statefulset; the regular Service carries 4317/4318
+    volumes:
+      extra:
+        - name: tmp
+          emptyDir: {}
+  alloy:
+    clustering:
+      # mimir-style peer gossip — safe scale-out for the scrape load later; with
+      # replicas=1 it is a no-op but keeps the single instance from split-running
+      # the component sharding after any future scale-up
+      enabled: true
+      name: alloy-telemetry
+    # no phone-home
+    enableReporting: false
+    configMap:
+      create: false
+      name: alloy-telemetry-config
+      key: config.alloy
+    # writable /tmp: --storage.path lives there (WAL for prometheus.remote_write)
+    storagePath: /tmp/alloy/data
+    mounts:
+      extra:
+        - name: tmp
+          mountPath: /tmp
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      seccompProfile:
+        type: RuntimeDefault
+      readOnlyRootFilesystem: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 768Mi
+      limits:
+        cpu: 2000m
+        memory: 1536Mi
+    service:
+      enabled: true
+    extraPorts:
+      # OTLP receivers (traces) — workloads push to alloy-telemetry:4317/4318
+      - name: otlp-grpc
+        port: 4317
+        targetPort: 4317
+        protocol: TCP
+      - name: otlp-http
+        port: 4318
+        targetPort: 4318
+        protocol: TCP
+  configReloader:
+    resources:
+      limits:
+        cpu: 100m
+        memory: 50Mi

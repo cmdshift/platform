@@ -1,0 +1,82 @@
+# Node-local logging collector (cmdshift/platform#149): pod logs + JSON
+# normalize + kube-apiserver audit tail. Alloy CR reconciled by the
+# alloy-operator HelmRelease; config is a real file (alloy-logging.config.alloy
+# via configMapGenerator). The collector name stays "alloy-logging" — the
+# dashboards and metrics_summary select on the job label, and the operator
+# stamps app.kubernetes.io/instance from the CR name, which the platform
+# collector's self-scrape keep-rule matches.
+apiVersion: collectors.grafana.com/v1alpha1
+kind: Alloy
+metadata:
+  name: alloy-logging
+  namespace: observability
+spec:
+  controller:
+    type: daemonset
+    # audit logs live on the ctrl node — its taint must be tolerated or the
+    # audit tail never runs there
+    tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+    volumes:
+      extra:
+        - name: tmp
+          emptyDir: {}
+        # kube-apiserver audit logs on every node (written on ctrl) (cmdshift/platform#90)
+        - name: audit
+          hostPath:
+            path: /var/log/audit
+            type: DirectoryOrCreate
+  alloy:
+    # no phone-home
+    enableReporting: false
+    clustering:
+      # per-node sharding: clustering is meaningless for a DaemonSet (one
+      # instance per node, disjoint inputs) but keeps the operator's chart
+      # defaults explicit
+      enabled: false
+    configMap:
+      create: false
+      name: alloy-logging-config
+      key: config.alloy
+    # writable /tmp: --storage.path=/tmp/alloy (WAL + positions)
+    storagePath: /tmp/alloy
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+        # read-only access to the 0700 root-owned audit log dir (cmdshift/platform#90)
+        add:
+          - DAC_READ_SEARCH
+      seccompProfile:
+        type: RuntimeDefault
+      # NSA hardening: immutable root fs; WAL/positions live in the /tmp emptyDir
+      readOnlyRootFilesystem: true
+    mounts:
+      extra:
+        - name: tmp
+          mountPath: /tmp
+        - name: audit
+          mountPath: /var/log/audit
+          readOnly: true
+    extraEnv:
+      - name: K8S_NODE_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: spec.nodeName
+    resources:
+      requests:
+        cpu: 10m
+        memory: 224Mi # 7d max 189Mi — max x 1.2, limit 1.5x (cmdshift/platform#66)
+      limits:
+        cpu: 200m
+        memory: 336Mi
+    service:
+      enabled: true
+  configReloader:
+    resources:
+      limits:
+        cpu: 100m
+        memory: 50Mi

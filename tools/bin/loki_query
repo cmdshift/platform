@@ -42,7 +42,10 @@ range_start() { # e.g. 4h -> epoch seconds; bash math off `date +%s` (portable �
 
 # --- shared port-forward lifecycle (duplicated in prometheus_query — keep in lockstep) ---
 
-REPO_ROOT="$(git -C "$(dirname "$0")/.." rev-parse --show-toplevel 2>/dev/null || cd "$(dirname "$0")/../.." && pwd)"
+# { } around the fallback — bash parses `a || b && c` as `(a || b) && c`, so
+# with the plain form `cd && pwd` ran even on the git success path and its
+# output got appended to REPO_ROOT (two lines), producing a garbage LOCK_DIR
+REPO_ROOT="$(git -C "$(dirname "$0")/.." rev-parse --show-toplevel 2>/dev/null || { cd "$(dirname "$0")/../.." && pwd; })"
 LOCK_DIR="$REPO_ROOT/.agents/temp"
 mkdir -p "$LOCK_DIR"
 

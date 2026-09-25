@@ -1,0 +1,25 @@
+crds:
+  # PodLogs CRD was installed by the k8s-monitoring release we replaced — keep
+  # it owned here so it isn't orphaned when that release was removed
+  # (cmdshift/platform#149)
+  deployPodLogsCRD: true
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 128Mi
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault

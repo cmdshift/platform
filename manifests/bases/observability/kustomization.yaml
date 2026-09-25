@@ -3,14 +3,16 @@ kind: Kustomization
 resources:
   - grafana-operator.helm-release.yaml
   - alertmanager.helm-release.yaml
-  - prometheus-node-exporter.helm-release.yaml
-  - kube-state-metrics.helm-release.yaml
+  - alloy-operator.helm-release.yaml
+  - alloy-logging.alloy.yaml
+  - alloy-platform.alloy.yaml
+  - alloy-telemetry.alloy.yaml
   - metrics-server.helm-release.yaml
   - vpa.helm-release.yaml
   - goldilocks.helm-release.yaml
   - loki.helm-release.yaml
-  - alloy-logging.helm-release.yaml
-  - alloy-telemetry.helm-release.yaml
+  - kube-state-metrics.helm-release.yaml
+  - prometheus-node-exporter.helm-release.yaml
   - tempo.helm-release.yaml
   - mimir.statefulset.yaml
   - mimir.service.yaml
@@ -46,18 +48,6 @@ configMapGenerator:
       - values.yaml=alertmanager-values.yaml
     options:
       disableNameSuffixHash: true
-  - name: prometheus-node-exporter-values
-    namespace: observability
-    files:
-      - values.yaml=prometheus-node-exporter-values.yaml
-    options:
-      disableNameSuffixHash: true
-  - name: kube-state-metrics-values
-    namespace: observability
-    files:
-      - values.yaml=kube-state-metrics-values.yaml
-    options:
-      disableNameSuffixHash: true
   # metrics-server/vpa/goldilocks install into kube-system (cluster plumbing);
   # their HelmReleases live in the observability group by domain
   - name: metrics-server-values
@@ -78,16 +68,28 @@ configMapGenerator:
       - values.yaml=goldilocks-values.yaml
     options:
       disableNameSuffixHash: true
+  - name: alloy-operator-values
+    namespace: observability
+    files:
+      - values.yaml=alloy-operator-values.yaml
+    options:
+      disableNameSuffixHash: true
+  - name: kube-state-metrics-values
+    namespace: observability
+    files:
+      - values.yaml=kube-state-metrics-values.yaml
+    options:
+      disableNameSuffixHash: true
+  - name: prometheus-node-exporter-values
+    namespace: observability
+    files:
+      - values.yaml=prometheus-node-exporter-values.yaml
+    options:
+      disableNameSuffixHash: true
   - name: loki-values
     namespace: observability
     files:
       - values.yaml=loki-values.yaml
-    options:
-      disableNameSuffixHash: true
-  - name: alloy-logging-values
-    namespace: observability
-    files:
-      - values.yaml=alloy-logging-values.yaml
     options:
       disableNameSuffixHash: true
   - name: tempo-values
@@ -102,10 +104,10 @@ configMapGenerator:
       - config.alloy=alloy-logging.config.alloy
     options:
       disableNameSuffixHash: true
-  - name: alloy-telemetry-values
+  - name: alloy-platform-config
     namespace: observability
     files:
-      - values.yaml=alloy-telemetry-values.yaml
+      - config.alloy=alloy-platform.config.alloy
     options:
       disableNameSuffixHash: true
   - name: alloy-telemetry-config
