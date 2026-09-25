@@ -55,4 +55,12 @@ resource "docker_container" "secrets" {
     file    = "/www/backups/velero-s3-credentials"
     content = jsonencode(local.backups.velero_s3_credentials)
   }
+  upload {
+    file    = "/www/access/oauth2-proxy-credentials"
+    content = jsonencode(local.access.oauth2_proxy_credentials)
+  }
+  upload {
+    file    = "/www/access/platform-root-ca"
+    content = jsonencode(local.access.platform_root_ca)
+  }
 }

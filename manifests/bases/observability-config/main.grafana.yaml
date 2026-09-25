@@ -9,6 +9,19 @@ spec:
   config:
     log:
       mode: console
+    # auth via the oauth2-proxy side of the Gateway (cmdshift/platform#41):
+    # the proxy validates the OIDC session and forwards X-Forwarded-Email on
+    # every upstream request (pass_user_headers default) — X-Auth-Request-*
+    # headers only ride the auth flow, not cookie-authed requests
+    auth.proxy:
+      enabled: "true"
+      header_name: X-Forwarded-Email
+      header_property: email
+      auto_sign_up: "true"
+    users:
+      allow_sign_up: "true"
+      auto_assign_org: "true"
+      auto_assign_org_role: "Viewer"
   disableDefaultAdminSecret: true
   deployment:
     spec:

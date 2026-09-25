@@ -1,0 +1,64 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: access
+  namespace: access
+spec:
+  endpointSelector: {}
+  # gateway→backend traffic arrives with the reserved:ingress identity —
+  # without an explicit ingress allow, cilium's L7 proxy denies it before it
+  # reaches the proxy pods (symptom: 403 "Access denied" from envoy, while
+  # direct pod:4180 curls 302 fine)
+  ingress:
+    # no toPorts: the gateway L7LB evaluates its listener policy against the
+    # host/frontend identity — restricting to 4180 here denied the frontend
+    # check itself (403 "Access denied" from envoy before any upstream dial)
+    - fromEntities:
+        - ingress
+        - host
+  egress:
+    # selectors mirror the actual pod labels (grafana operator, hubble-ui,
+    # seaweedfs-operator statefulsets) — not chart-invented ones
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: observability
+            app: grafana
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: hubble-ui
+      toPorts:
+        - ports:
+            # enforced post-DNAT — service port 80 maps to targetPort 8081,
+            # so the policy must match the targetPort (grafana/seaweed only
+            # worked because their service ports equal their targetPorts)
+            - port: "8081"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: objects
+            app.kubernetes.io/component: filer
+            app.kubernetes.io/name: seaweedfs
+      toPorts:
+        - ports:
+            - port: "8888"
+              protocol: TCP
+    # Keycloak discovery + token endpoints — TLS through the companion haproxy
+    # (the :443 frontend, not the container's direct :8080)
+    - toFQDNs:
+        - matchName: auth.cloud.test
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    # secrets server (external-secrets → secrets.cloud.test, plain :80)
+    - toFQDNs:
+        - matchName: secrets.cloud.test
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP

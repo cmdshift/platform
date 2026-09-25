@@ -6,10 +6,19 @@ metadata:
 spec:
   interval: 1h
   retryInterval: 5s
+  dependsOn:
+    - name: namespaces
+    - name: sources
+    - name: secrets-config
+    - name: networking-config
+    - name: policies
   sourceRef:
     kind: Bucket
     name: main
   path: ./manifests/bases/access
   prune: true
   wait: true
-  timeout: 2m
+  # 3 HelmReleases × 5m helm-install budget + remediation cycles — 5m here
+  # timed out mid-install on first apply AND blocked each retry attempt for
+  # its full duration while releases converged (cmdshift/platform#41)
+  timeout: 10m

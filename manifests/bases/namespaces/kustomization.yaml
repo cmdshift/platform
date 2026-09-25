@@ -11,3 +11,4 @@ resources:
   - objects.namespace.yaml
   - backups.namespace.yaml
   - security.namespace.yaml
+  - access.namespace.yaml

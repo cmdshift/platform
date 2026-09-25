@@ -1,0 +1,20 @@
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: allow-ingress-proxy-egress
+spec:
+  # cilium's own recommendation for Gateway/ingress in policy- enforcement
+  # (docs: servicemesh/ingress-and-network-policy) — the reserved:ingress
+  # endpoint (per-node Envoy L7LB) checks its EGRESS policy on the
+  # matched-route→upstream step; without this rule the upstream dial is
+  # denied as 403 "Access denied" (src reserved:ingress → dst reserved:host,
+  # the ClusterIP frontend identity) while all L3/L4 packets forward
+  # (cilium/cilium#47617, #43519)
+  endpointSelector:
+    matchExpressions:
+      - key: reserved:ingress
+        operator: Exists
+  egress:
+    - toEntities:
+        - cluster
+        - host

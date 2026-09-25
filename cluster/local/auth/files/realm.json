@@ -19,6 +19,44 @@
   },
   "clients": [
     {
+      "clientId": "oauth2-proxy",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "secret": "oauth2-proxy-secret",
+      "redirectUris": [
+        "https://grafana.local.test/oauth2/callback",
+        "https://hubble.local.test/oauth2/callback",
+        "https://seaweed.local.test/oauth2/callback"
+      ],
+      "webOrigins": [
+        "https://grafana.local.test",
+        "https://hubble.local.test",
+        "https://seaweed.local.test"
+      ],
+      "defaultClientScopes": [
+        "profile",
+        "email"
+      ],
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "claim.name": "groups",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
       "clientId": "kubernetes",
       "enabled": true,
       "protocol": "openid-connect",
@@ -80,7 +118,8 @@
       ],
       "realmRoles": [
         "platform-admin"
-      ]
+      ],
+      "emailVerified": true
     },
     {
       "username": "viewer",
@@ -97,7 +136,8 @@
       ],
       "realmRoles": [
         "platform-view"
-      ]
+      ],
+      "emailVerified": true
     }
   ]
 }
