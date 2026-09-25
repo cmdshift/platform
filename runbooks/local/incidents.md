@@ -115,6 +115,22 @@ Two debug-round sinks during the thanos→mimir cutover, recorded as traps:
 
 Also re-hit live, exactly as catalogued: the quota-ordering deadlock (cmdshift/platform#83 — the mimir pod couldn't schedule until the `observability-config` quota bumps applied, which flux orders after the pods that need them; broken out-of-band with `kubectl apply` of the declared manifests mid-rollout).
 
+## k8s-monitoring removal: uninstalling-state wedge + haproxy OOM (cmdshift/platform#149, 2026-09-24)
+
+Three incident shapes from the Alloy-CR migration, each with a distinct tell:
+
+**Failed uninstall-remediation hook wedged the release in `uninstalling`.** Symptom: the k8s-monitoring HR deletion hung; helm state read "Could not determine release state". Root cause: the chart's `waitForAlloyRemoval` helm hooks (add-finalizer / pre-delete jobs) were admission-denied by kyverno (`require-resource-limits` — the chart shipped them with no resources knob until `alloy-operator.waitForAlloyRemoval.resources` was set), so uninstall remediation itself failed. Recovery: suspend the HR → delete the `sh.helm.release.v1.<release>.*` secrets → resume → fresh install. Even then the flux delete left the helm release deployed (the pre-delete hook race stopped helm-controller from uninstalling) — a direct `helm uninstall k8s-monitoring -n observability` finished the job.
+
+**Operator release-name collision → "upgrade failed; rollback required" fights.** An operator-managed helm release sharing its name with a previous flux HelmRelease of the same name upgrades against the old release storage: immutable StatefulSet fields (volumeClaimTemplates, selector) reject the diff, remediation rolls back, version churn follows. Rule: when migrating a workload to an Alloy CR (or any operator-managed CR), the release name is either fresh or the old storage is purged first (`sh.helm.release.v1.<name>.*` secrets + HR deletion).
+
+**Companion haproxy OOM (exit 137) silently stalled the GitOps pipeline.** Symptom: `sync_wait` hung forever, `Bucket/main` flapping "no route to host", sync container logging `mirror failed; retrying` — while the cluster ran on, applying whatever CM content was last delivered. Root cause: the cloud-test container (external haproxy, s3.cloud.test frontend) ran a 256M docker limit sized for TLS termination, and the observability pipeline's sustained S3 mirroring traffic pushed it over — memory bumped 256→512 in `cluster/local/external/main.tf`. Recovery: `docker start cloud-test` + `flux reconcile source bucket main`, then **verify the CM content landed** — `sync_wait` convergence alone can mask a window during which the cluster kept running old config. Docker-limit sizing is evidence-based like everything else: a companion whose traffic profile changes needs its limit re-audited, not just the pods.
+
+**Tells for next time**:
+
+- An HR deletion that hangs with helm's "Could not determine release state" = failed uninstall-remediation hooks (admission) — check kyverno events, then the suspend/storage-delete/resume ladder.
+- "upgrade failed; rollback required" on a freshly created operator-managed release = stale release storage under the same name — purge before fighting the diff.
+- `sync_wait` hanging + bucket "no route to host" = companion down, not a manifest problem; `docker ps` before digging into flux. And after any companion outage, spot-check CM content: the cluster happily runs stale config while every kustomization reports Ready.
+
 ## Beyla host kernel panic → removal (2026-09-18)
 
 **Symptom**: within a day of the beyla adoption (cmdshift/platform#83, merged as PR #124) the host kernel panicked with beyla's eBPF probes attached. No exact panic text captured (cluster destroyed for a clean rebuild immediately after); symptom-level evidence only: the panic correlated with beyla's DaemonSet running probes on the work nodes.

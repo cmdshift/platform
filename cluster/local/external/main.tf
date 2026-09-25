@@ -30,8 +30,10 @@ resource "docker_container" "cloud" {
     external = 443
     ip       = "127.0.10.1"
   }
-  memory      = 256
-  memory_swap = 256
+  # 256M was OOM-killed under the observability pipeline's sustained S3 traffic
+  # (exit 137, cmdshift/platform#149) — 512M covers haproxy + TLS buffers
+  memory      = 512
+  memory_swap = 512
   upload {
     file    = "/usr/local/etc/haproxy/cloud.test.pem"
     content = file("${path.root}/.tmp/tls/cloud.test.pem")
