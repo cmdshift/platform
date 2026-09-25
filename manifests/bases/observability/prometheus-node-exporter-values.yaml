@@ -1,6 +1,6 @@
 podLabels:
-  # kubernetes-mixin node rules select job="node-exporter"; alloy-telemetry's
-  # targets_node_exporter maps target job from this pod label (cmdshift/platform#146)
+  # kubernetes-mixin node rules select job="node-exporter" — the job label is
+  # hard-set by alloy-telemetry's scrape `job_name` (cmdshift/platform#149)
   jobLabel: node-exporter
 resources:
   requests:

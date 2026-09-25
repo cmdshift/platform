@@ -1,0 +1,68 @@
+# Platform service-metrics + traces collector (cmdshift/platform#149). Owns
+# everything that is not cluster plumbing: the per-service scrape families and
+# the collector self-scrapes. Config is a real file
+# (alloy-platform.config.alloy via configMapGenerator) — no extraConfig
+# string-embedding in chart values. The alloy-operator HelmRelease
+# reconciles this CR.
+apiVersion: collectors.grafana.com/v1alpha1
+kind: Alloy
+metadata:
+  name: alloy-platform
+  namespace: observability
+spec:
+  controller:
+    type: statefulset
+    replicas: 1
+    # clustering peers need stable identities — the operator renders a headless
+    # cluster Service for the statefulset; the regular Service carries 4317/4318
+    podMetadata:
+      labels:
+        alloy-platform: metrics
+    volumes:
+      extra:
+        - name: tmp
+          emptyDir: {}
+  alloy:
+    clustering:
+      # mimir-style peer gossip — safe scale-out for the scrape load later; with
+      # replicas=1 it is a no-op but keeps the single instance from split-running
+      # the component sharding after any future scale-up
+      enabled: true
+      name: alloy-platform
+    # no phone-home
+    enableReporting: false
+    configMap:
+      create: false
+      name: alloy-platform-config
+      key: config.alloy
+    # writable /tmp: --storage.path lives there (WAL for prometheus.remote_write)
+    storagePath: /tmp/alloy/data
+    mounts:
+      extra:
+        - name: tmp
+          mountPath: /tmp
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      seccompProfile:
+        type: RuntimeDefault
+      readOnlyRootFilesystem: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 768Mi
+      limits:
+        cpu: 2000m
+        memory: 1536Mi
+    service:
+      enabled: true
+  configReloader:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 50Mi

@@ -1,14 +1,13 @@
-// alloy-telemetry: metrics (scrape -> mimir remote_write) + traces (OTLP -> tempo).
-// Logs live in the alloy-logging release. Replaces the OTel collector + target
-// allocator as the sole scraper and OTLP receiver (cmdshift/platform#146).
+// alloy-platform: service metrics (scrape -> mimir remote_write) + traces
+// (OTLP -> tempo). Owns everything the k8s-monitoring chart cannot know about:
+// the per-service scrape families that replace the old ServiceMonitor set, the
+// OTLP intake, and the collector self-scrapes. The chart's alloy-telemetry
+// collector owns the cluster plumbing (kubelet/cadvisor/apiserver/kcm/scheduler
+// via clusterMetrics, node-exporter via hostMetrics, kube-state-metrics via
+// telemetryServices) — cmdshift/platform#149.
 //
-// Label parity: the five control-plane jobs keep the exact job names the OTel
-// collector produced (apiserver/cadvisor/kubelet/kube-controller-manager/
-// kube-scheduler) — mimir-rules.yaml and the dashboards select on them. The
-// ServiceMonitor-replacement families never landed in mimir (the target
-// allocator's prometheusCR watcher was dead from cache-sync failure since
-// 2026-09-22), so their job labels are a fresh baseline named after each
-// service.
+// Label parity: the control-plane job names live on the chart side now; these
+// families keep the job names the ServiceMonitor-replacement set introduced.
 
 logging {
   level  = "info"
@@ -29,10 +28,6 @@ prometheus.remote_write "mimir" {
   }
 }
 
-discovery.kubernetes "nodes" {
-  role = "node"
-}
-
 discovery.kubernetes "pods" {
   role = "pod"
 }
@@ -43,145 +38,9 @@ discovery.kubernetes "services" {
 
 // endpoints role expands to one target per backing pod — service-role targets
 // would scrape the ClusterIP, load-balancing across replicas and losing
-// per-pod series (node-exporter/cilium-agent/alloy-logging/alertmanager)
+// per-pod series (cilium-agent/alloy-logging/alertmanager)
 discovery.kubernetes "endpoints" {
   role = "endpoints"
-}
-
-// ---------------------------------------------------------------------------
-// Control-plane scrapes (ported 1:1 from the OTel collector config).
-// TLS + SA bearer token; kubelet/cadvisor authorize via SubjectAccessReview
-// on nodes/{subresource} (nodes/metrics + nodes/proxy RBAC, see
-// alloy-telemetry.rbac.yaml).
-// ---------------------------------------------------------------------------
-
-prometheus.scrape "kubelet" {
-  job_name          = "kubelet"
-  targets           = discovery.kubernetes.nodes.targets
-  scheme            = "https"
-  bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-  forward_to        = [prometheus.remote_write.mimir.receiver]
-
-  tls_config {
-    insecure_skip_verify = true
-  }
-}
-
-prometheus.scrape "cadvisor" {
-  job_name          = "cadvisor"
-  targets           = discovery.kubernetes.nodes.targets
-  scheme            = "https"
-  metrics_path      = "/metrics/cadvisor"
-  bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-  forward_to        = [prometheus.remote_write.mimir.receiver]
-
-  tls_config {
-    insecure_skip_verify = true
-  }
-}
-
-// apiserver via the default/kubernetes endpoints
-discovery.kubernetes "apiserver_endpoints" {
-  role = "endpoints"
-
-  namespaces {
-    names = ["default"]
-  }
-}
-
-discovery.relabel "keep_apiserver" {
-  targets = discovery.kubernetes.apiserver_endpoints.targets
-
-  rule {
-    source_labels = ["__meta_kubernetes_service_label_component", "__meta_kubernetes_service_label_provider"]
-    action        = "keep"
-    regex         = "apiserver;kubernetes"
-  }
-}
-
-prometheus.scrape "apiserver" {
-  job_name          = "apiserver"
-  targets           = discovery.relabel.keep_apiserver.output
-  scheme            = "https"
-  bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-  forward_to        = [prometheus.remote_write.mimir.receiver]
-
-  tls_config {
-    ca_file = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
-  }
-}
-
-// host-network static pods — SD by pod label, fixed host ports
-discovery.relabel "keep_controller_manager" {
-  targets = discovery.kubernetes.pods.targets
-
-  rule {
-    source_labels = ["__meta_kubernetes_pod_label_component"]
-    action        = "keep"
-    regex         = "kube-controller-manager"
-  }
-
-  rule {
-    source_labels = ["__meta_kubernetes_pod_phase"]
-    action        = "drop"
-    regex         = "Pending|Succeeded|Failed|Completed"
-  }
-
-  rule {
-    source_labels = ["__meta_kubernetes_pod_host_ip"]
-    action        = "replace"
-    target_label  = "__address__"
-    regex         = "(.+)"
-    replacement   = "${1}:10257"
-  }
-}
-
-prometheus.scrape "kube_controller_manager" {
-  job_name          = "kube-controller-manager"
-  targets           = discovery.relabel.keep_controller_manager.output
-  scheme            = "https"
-  bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-  forward_to        = [prometheus.remote_write.mimir.receiver]
-
-  tls_config {
-    insecure_skip_verify = true
-  }
-}
-
-discovery.relabel "keep_scheduler" {
-  targets = discovery.kubernetes.pods.targets
-
-  rule {
-    source_labels = ["__meta_kubernetes_pod_label_component"]
-    action        = "keep"
-    regex         = "kube-scheduler"
-  }
-
-  rule {
-    source_labels = ["__meta_kubernetes_pod_phase"]
-    action        = "drop"
-    regex         = "Pending|Succeeded|Failed|Completed"
-  }
-
-  rule {
-    source_labels = ["__meta_kubernetes_pod_host_ip"]
-    action        = "replace"
-    target_label  = "__address__"
-    regex         = "(.+)"
-    replacement   = "${1}:10259"
-  }
-}
-
-prometheus.scrape "kube_scheduler" {
-  job_name          = "kube-scheduler"
-  targets           = discovery.relabel.keep_scheduler.output
-  scheme            = "https"
-  bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-  forward_to        = [prometheus.remote_write.mimir.receiver]
-
-  tls_config {
-    insecure_skip_verify = true
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -489,29 +348,9 @@ prometheus.scrape "alertmanager" {
   forward_to = [prometheus.remote_write.mimir.receiver]
 }
 
-discovery.relabel "targets_kube_state_metrics" {
-  targets = discovery.kubernetes.services.targets
-
-  rule {
-    // kube-state-metrics runs as its own HelmRelease — the release name lands
-    // in app.kubernetes.io/instance (cmdshift/platform#149)
-    source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_service_label_app_kubernetes_io_instance", "__meta_kubernetes_service_label_app_kubernetes_io_name"]
-    action        = "keep"
-    regex         = "observability;kube-state-metrics;kube-state-metrics"
-  }
-
-  rule {
-    source_labels = ["__meta_kubernetes_service_port_name"]
-    action        = "keep"
-    regex         = "http"
-  }
-}
-
-prometheus.scrape "kube_state_metrics" {
-  job_name   = "kube-state-metrics"
-  targets    = discovery.relabel.targets_kube_state_metrics.output
-  forward_to = [prometheus.remote_write.mimir.receiver]
-}
+// kube-state-metrics is scraped by the chart's alloy-telemetry collector
+// (clusterMetrics.kube-state-metrics feature) — not duplicated here. Its
+// keep-filter covers every family the rules and dashboards reference.
 
 discovery.relabel "targets_loki" {
   targets = discovery.kubernetes.services.targets
@@ -557,37 +396,39 @@ prometheus.scrape "tempo" {
   forward_to = [prometheus.remote_write.mimir.receiver]
 }
 
-// node-exporter job label = "node-exporter": the kubernetes-mixin node rules
-// select on it (set by job_name, not the target's pod label)
-discovery.relabel "targets_node_exporter" {
+// ---------------------------------------------------------------------------
+// Self-scrape: platform collector's own metrics via the default Service port.
+// ---------------------------------------------------------------------------
+
+discovery.relabel "targets_platform" {
   targets = discovery.kubernetes.endpoints.targets
 
   rule {
-    // node-exporter runs as its own HelmRelease — the release name lands in
-    // app.kubernetes.io/instance (cmdshift/platform#149)
-    source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_service_label_app_kubernetes_io_instance", "__meta_kubernetes_service_label_app_kubernetes_io_name"]
+    source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_pod_label_alloy_platform"]
     action        = "keep"
-    regex         = "observability;prometheus-node-exporter;prometheus-node-exporter"
+    regex         = "observability;metrics"
   }
 
   rule {
-    source_labels = ["__meta_kubernetes_endpoint_port_name"]
-    action        = "keep"
-    regex         = "metrics"
+    source_labels = ["__meta_kubernetes_pod_ip"]
+    action        = "replace"
+    target_label  = "__address__"
+    regex         = "(.+)"
+    replacement   = "${1}:12345"
   }
 }
 
-prometheus.scrape "node_exporter" {
-  job_name   = "node-exporter"
-  targets    = discovery.relabel.targets_node_exporter.output
+prometheus.scrape "platform" {
+  job_name   = "alloy-platform"
+  targets    = discovery.relabel.targets_platform.output
   forward_to = [prometheus.remote_write.mimir.receiver]
 }
 
+// Logging collector self-scrape: its default Service carries http-metrics.
 discovery.relabel "targets_alloy_logging" {
   targets = discovery.kubernetes.endpoints.targets
 
   rule {
-    // the SM the chart renders selects instance=alloy-logging / name=alloy
     source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_service_label_app_kubernetes_io_instance", "__meta_kubernetes_service_label_app_kubernetes_io_name"]
     action        = "keep"
     regex         = "observability;alloy-logging;alloy"
@@ -604,47 +445,4 @@ prometheus.scrape "alloy_logging" {
   job_name   = "alloy-logging"
   targets    = discovery.relabel.targets_alloy_logging.output
   forward_to = [prometheus.remote_write.mimir.receiver]
-}
-
-// ---------------------------------------------------------------------------
-// Traces: OTLP receivers -> tempo (workloads push to alloy-telemetry:4317/4318).
-// Untested until instrumented workloads exist (cmdshift/platform#146) — the
-// receiver+pipeline are live so the ports answer as soon as something sends.
-// ---------------------------------------------------------------------------
-
-otelcol.receiver.otlp "workloads" {
-  grpc {
-    endpoint = "0.0.0.0:4317"
-  }
-  http {
-    endpoint = "0.0.0.0:4318"
-  }
-
-  output {
-    metrics = []
-    logs    = []
-    traces  = [otelcol.processor.k8sattributes.traces.input]
-  }
-}
-
-otelcol.processor.k8sattributes "traces" {
-  output {
-    traces = [otelcol.processor.memory_limiter.traces.input]
-  }
-}
-
-otelcol.processor.memory_limiter "traces" {
-  check_interval         = "5s"
-  limit_percentage       = 80
-  spike_limit_percentage = 20
-
-  output {
-    traces = [otelcol.exporter.otlphttp.tempo.input]
-  }
-}
-
-otelcol.exporter.otlphttp "tempo" {
-  client {
-    endpoint = "http://tempo.observability.svc:4318"
-  }
 }
