@@ -12,7 +12,10 @@ config:
     provider = "oidc"
     oidc_issuer_url = "https://auth.cloud.test/realms/platform"
     redirect_url = "https://grafana.local.test/oauth2/callback"
-    cookie_domains = [".local.test"]
+    # host-scoped: the cookie is the admin bearer credential and must never be
+    # sent to other *.local.test hosts (3rd-party software may live there) —
+    # SSO comes from the Keycloak session instead (threat model: access/README)
+    cookie_domains = ["grafana.local.test"]
     whitelist_domains = [".local.test"]
     cookie_samesite = "lax"
     scope = "openid profile email"

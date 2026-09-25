@@ -15,9 +15,23 @@ browser → internal haproxy (TLS :443) → Gateway local-test (cilium, TLS term
 One oauth2-proxy **per app** (`grafana-auth-proxy`, `hubble-auth-proxy`, `seaweed-auth-proxy`)
 — legacy-config oauth2-proxy selects its upstream by path, not Host, so a single instance
 cannot fan out across subdomains. Subdomains (not path prefixes) were chosen because
-hubble-ui has no base-path support at all. All three releases share one cookie secret, so
-the `_oauth2_proxy` cookie (domain `.local.test`) validates across apps — log into one,
-you're logged into all.
+hubble-ui has no base-path support at all. All three releases share one cookie secret
+(so a cookie from any proxy validates at any proxy), but each proxy sets a **host-scoped
+cookie** (`cookie_domains = ["<app>.local.test"]` — the cookie is only ever sent back to
+the app that issued it.
+
+**Why host-scoped, not a shared `.local.test` cookie:** the proxy cookie is a *bearer
+credential for all admin apps* — with `Domain=.local.test`, every host under the domain
+(including future 3rd-party software at `app.local.test`) receives it in request headers
+from admins browsing as end-users, and can replay it against e.g. `grafana.local.test`.
+HttpOnly/Secure/SameSite don't prevent server-side capture, and SameSite can't — all
+`*.local.test` hosts are one site. Cross-app SSO instead rides the **Keycloak session**
+(`AUTH_SESSION_ID`, host-scoped to `auth.cloud.test`): visiting a second app triggers a
+transparent 302 through the IdP and back, no prompt, no shared credential. Containment
+rule: keep non-admin services off `local.test` entirely (follow-up for the cloud cluster:
+a dedicated `admin.<domain>` zone with its own listener + nested-wildcard cert). Cookie
+tuning for the cloud: default expiry is 168h with refresh disabled — consider a shorter
+`cookie_expire`.
 
 ## PKCE + the Keycloak client
 
@@ -81,6 +95,7 @@ release name suffixes `-oauth2-proxy` onto every object — HTTPRoute backendRef
 
 Unauthed GET → 302 to Keycloak (PKCE S256); login as `test`/`test123` → callback chain →
 200; grafana `api/user` returns `test@cloud.test` (isExternal: true); hubble/seaweed 200 on
-the same cookie jar (shared `.local.test` cookie). Seaweed serves the **filer UI**
+the same cookie jar (cross-app SSO via the Keycloak session — each proxy's cookie is
+host-scoped). Seaweed serves the **filer UI**
 (`<title>SeaweedFS Filer`) — the bucket browser, per the operator's choice; the master UI
 would need alpha-config `upstreamConfig` path splitting.

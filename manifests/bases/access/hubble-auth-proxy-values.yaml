@@ -12,7 +12,8 @@ config:
     provider = "oidc"
     oidc_issuer_url = "https://auth.cloud.test/realms/platform"
     redirect_url = "https://hubble.local.test/oauth2/callback"
-    cookie_domains = [".local.test"]
+    # host-scoped: see grafana-auth-proxy-values.yaml (SSO via Keycloak session)
+    cookie_domains = ["hubble.local.test"]
     whitelist_domains = [".local.test"]
     cookie_samesite = "lax"
     scope = "openid profile email"
