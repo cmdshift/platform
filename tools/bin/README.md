@@ -568,8 +568,9 @@ runbooks/local/cilium-connectivity-test.md.
 Episodic kube-bench CIS scan: applies the temp scaffolding (privileged-PSS
 `bench-scan` namespace, scoped PolicyException `allow-bench` in `policies`,
 temp CNP — kube-dns + the house `kube-apiserver` entity, admin-kubeconfig
-Secret from `$KUBECONFIG` with the server rewritten from `127.0.0.1:6443` to
-`kubernetes.default.svc:443` — in-pod, `127.0.0.1` would hit the pod loopback),
+Secret from `$KUBECONFIG` with the server rewritten from the host-loopback LB
+endpoint (`https://cmd.local.test:6443`) to
+`kubernetes.default.svc:443` — in-pod, the host-loopback endpoint would hit the pod loopback),
 runs two Jobs
 (ctrl node: sections master/controlplane/etcd/policies/node with a Talos
 podspec dump prelude; workers: node section, one pod per worker via

@@ -29,9 +29,10 @@ flowchart TB
         SC["angos scanner trivy (scanner-cloud-test)\n10.0.128.8 · :8766"]
         AU["keycloak (auth-cloud-test)\n10.0.128.9 · :8080"]
       end
+      CMD["cmd haproxy (cmd-local-test)\n10.0.8.1 · control-plane LB\n:6443 leastconn · :50000 leastconn"]
       subgraph nodes["talos node containers"]
         direction LR
-        CP["ctrl 10.0.16.1\napiserver :6443 · apid :50000"]
+        CP["ctrl ×3 · 10.0.16.1-3\napiserver :6443 · apid :50000"]
         WK["work ×4 · 10.0.32.1-4\ncilium envoy hostNet :30080/30443 (Gateway listeners, cmdshift/platform#70)"]
       end
       LB["internal haproxy (local-test)\n10.0.64.1 → nodePorts 30080/30443"]
@@ -41,12 +42,13 @@ flowchart TB
   DNSMASQ -. names .-> BR & KC
   BR -- "127.0.10.1:80" --> X
   BR -- "127.0.0.1:80/443" --> LB
-  KC -- "127.0.0.1:6443 / :50000" --> CP
+  KC -- "cmd.local.test:6443/:50000\n(host dnsmasq → 127.0.0.1)" --> CMD
   X --> SE & RU & AN & MP
   AN -- "scanner.cloud.test" --> X
   SC -- "registry.cloud.test pulls" --> X
   LB --> WK
-  WK -- "cluster endpoint 10.0.16.1:6443" --> CP
+  CMD -- "leastconn" --> CP
+  WK -- "cluster endpoint cmd.local.test:6443" --> CMD
   SY -- "s3.cloud.test" --> X
   WK & CP -- "hostDNS → forward" --> CD
   CD -- "*.cloud.test wildcard" --> X
@@ -58,28 +60,30 @@ flowchart TB
 | CIDR | Used for |
 |---|---|
 | `10.0.0.0/8` | ipvlan "internal" network subnet (gateway `.1` is the host) |
-| `10.0.16.0/24` | ctrl nodes — `.1` is the single fixed control plane node |
+| `10.0.8.0/24` | cmd haproxy (control-plane LB) — `.1` (`cmd_cidr`) |
+| `10.0.16.0/24` | ctrl nodes — `.1`-`.3` (count = `ctrl_nodes`, default 3) |
 | `10.0.32.0/24` | workers (`.1`-`.4`, count = `work_nodes`, default 4) |
 | `10.0.64.0/24` | internal haproxy (ingress LB) — `.1` |
 | `10.0.128.0/24` | companions — external proxy `.1`, coredns `.2`, secrets `.3`, rustfs `.4`, angos `.5`, mailpit `.6`, sync `.7`, scanner `.8`, keycloak `.9` |
 
 The bridge network carries no static IPs — every container attaches to it solely for NAT'd outbound internet (ipvlan L2 has none).
 
-## API endpoint (no LB, cmdshift/platform#54)
+## API endpoint (LB-fronted, cmdshift/platform#140)
 
-The control plane is a **single fixed node** — there is no API LB and no ctrl-count knob (the old `cmd` haproxy and `ctrl_nodes` variable are gone; 3-node etcd saturated the Docker VM during the install burst — see the runbook's multi-ctrl ceiling note).
+The control plane is **3 ctrl nodes behind the `cmd` haproxy** (10.0.8.1, leastconn) — the `ctrl_nodes` knob and the `cmd` LB were re-introduced in cmdshift/platform#140, reverting cmdshift/platform#54's macOS-VM assumption: the install-burst saturation that fixed the control plane at 1 node did not reproduce on the supported Linux host (ctrl CPU peaked ≤26% during the install burst; the historical macOS VM pegged 175-200% with etcd `request timed out` stalls — runbook history).
 
-- Cluster endpoint (baked into certs/machine configs): `https://10.0.16.1:6443` — nodes reach it L2-direct
-- Host access: the ctrl container publishes `6443`/`50000` on **`127.0.0.1` only** (not LAN-reachable)
-- **The talos provider embeds the cluster endpoint as the kubeconfig/talosconfig host** — `talos_cluster_kubeconfig.endpoint` is only the fetch path. `nodes/outputs.tf` rewrites `kubeconfig` and `k8s_client_config.host` to `https://127.0.0.1:6443`; kubectl and the bootstrap terraform providers depend on that rewrite. In-cluster consumers must NOT use `127.0.0.1` (pod loopback) — `tools/bin/bench` rewrites the mounted kubeconfig's server to `kubernetes.default.svc:443` (a standard apiserver cert SAN; egress via the house `kube-apiserver` CNP entity)
-- talosctl reaches **worker** apids through the ctrl node's apid proxying, same as it did through the LB. The nodes module's `talos_machine_configuration_apply` resources follow the same loopback pattern (`endpoint` = 127.0.0.1, `node` = the target's private IP, worker applies routed through the ctrl apid) — the provider's private-IP default hangs in silent transport-retry, and the loopback pattern keeps the outputs rewrite uniform.
+- Cluster endpoint (baked into cert SANs — cmd hostname + cmd private IP in both `cluster.tftpl.yaml` apiServer.certSANs and `base.tftpl.yaml` machine.certSANs): `https://cmd.local.test:6443` — nodes reach it through the cmd LB
+- Host access: the cmd container publishes `6443`/`50000` on **`127.0.0.1` only** (not LAN-reachable); the host resolves `cmd.local.test` → `127.0.0.1` via host dnsmasq
+- **The kubeconfig/talosconfig embed the cmd hostname verbatim — no outputs rewrite anymore** (the cmdshift/platform#54 loopback-rewrite shapes are gone): `nodes/outputs.tf` emits `kubeconfig = kubeconfig_raw`, `k8s_client_config` raw, and `talosconfig` with only the cmd-IP→hostname replace. In-cluster consumers must NOT use the host loopback (pod loopback) — `tools/bin/bench` rewrites the mounted kubeconfig's server to `kubernetes.default.svc:443` (a standard apiserver cert SAN; egress via the house `kube-apiserver` CNP entity)
+- talosctl reaches **all node apids through the cmd LB** (endpoint `cmd.local.test:50000` → haproxy leastconn) — nodes publish no host ports at all. The LB's leastconn balance is also why the node machine config must boot WITH its USERDATA: a maintenance-mode (unconfigured) node presents an unauthenticated self-signed apid cert, and routing CA-verified provisioning traffic to it fails nondeterministically (`certificate signed by unknown authority` on worker applies) — see the configless-experiment post-mortem in the rebuild runbook
 
 ## DNS
 
 | Zone / name | Resolves to | Served by |
 |---|---|---|
 | `*.cloud.test` | `10.0.128.1` (external proxy) | coredns `cloud.zone` (cluster side); host dnsmasq → `127.0.10.1` (browser side) |
-| `*.local.test` | `10.0.64.1` (internal haproxy) | coredns `local.zone` |
+| `cmd.local.test` | `10.0.8.1` (cmd haproxy, cluster side) | coredns `local.zone`; host dnsmasq → `127.0.0.1` (host side) |
+| `*.local.test` (rest) | `10.0.64.1` (internal haproxy) | coredns `local.zone` |
 | `*.test` (host) | `127.0.0.1` | host dnsmasq (setup: root README) |
 | everything else | upstream resolvers | coredns `.:53` forward |
 
@@ -91,7 +95,7 @@ Pod DNS: kube-dns → talos hostDNS (`forwardKubeDNSToHost`) → coredns. Compan
 |---|---|---|
 | `127.0.10.1:80` / `127.0.10.1:443` | cloud-test | `*.cloud.test` host-routing proxy (:443 TLS-terminates with the wildcard leaf, cmdshift/platform#130) — the **only** host route into the ipvlan network |
 | `127.0.0.1:80` / `127.0.0.1:443` | local-test | ingress LB → nodePorts 30080/30443 |
-| `127.0.0.1:6443` / `127.0.0.1:50000` | ctrl container | kube-apiserver / talos apid |
+| `127.0.0.1:6443` / `127.0.0.1:50000` | cmd container | control-plane LB → kube-apiserver / talos apid (leastconn over the 3 ctrl backends) |
 | `:25` (cloud-test, private net) | — | SMTP passthrough → mailpit :1025 (alertmanager) |
 
 ## Request paths
@@ -109,15 +113,15 @@ Pod DNS: kube-dns → talos hostDNS (`forwardKubeDNSToHost`) → coredns. Compan
 1. `cluster/local` — network, companions, talos nodes, secrets, kubeconfig/talosconfig (`.tmp/`); apply is not health-gated (the former `talos_cluster_health` gate was removed as redundant — the bootstrap root's apiserver readiness poll is the apply gate, cmdshift/platform#73 and cmdshift/platform#72). Outputs `bootstrap` (k8s client config + flux bucket credentials)
 2. `cluster/local/bootstrap` — reads that output via local remote state; gates on an apiserver readiness poll before applying resources (cmdshift/platform#72); installs cilium + flux and the helm-hook Bucket/root Kustomization (flux-config force-adopts them on first reconcile; the bootstrap twin's `path` — `./manifests/clusters/local` — must match the root Kustomization CR's path in `manifests/clusters/local/flux-config/local.kustomization.yaml`). Carries `lifecycle.prevent_destroy` — `just bootstrap destroy` always fails by design
 
-Companion state is disposable except the angos cache volume (see the registry landmine in the runbook). Node containers bake the machine config into the container env first-boot-only (`ignore_changes = [env]`), but template edits now converge via the nodes module's `talos_machine_configuration_apply` resources — `terraform apply` applies config to the running nodes without recreating them (cmdshift/platform#73); the applied config persists in the `/system/state` docker volume.
+Companion state is disposable except the angos cache volume (see the registry landmine in the runbook). Node containers bake the machine config into the container env first-boot-only (`ignore_changes = [env]`) — **a machine-config template change requires a full cluster rebuild** (the cmdshift/platform#73 `talos_machine_configuration_apply` iteration path was removed in cmdshift/platform#140: provisioning through the leastconn LB fails nondeterministically against still-maintenance-mode nodes — post-mortem in the rebuild runbook).
 
 ## Memory budget (docker-level limits)
 
-Every container carries a `memory` limit with swap disabled (`memory_swap = memory`): ctrl 6Gi, work 4Gi each, rustfs 1Gi, external haproxy 512Mi (256M was OOM-killed — exit 137 — by sustained S3 mirroring traffic through the s3.cloud.test frontend, cmdshift/platform#149; the internal haproxy stays 256Mi), coredns/mailpit/angos 256Mi, secrets/sync 64Mi, scanner 768Mi (start-then-audit — trivy DB + scan working set; no OOM on the first real scan, cmdshift/platform#102), keycloak 3Gi (cmdshift/platform#131 — see below) — **Σ ≈ 28Gi**. Sizing is evidence-based (observed peaks: ctrl ≤4.1Gi, work ≤3.0Gi, rustfs ≤287Mi; keycloak settled 1.05GiB after import / ~730MiB post-restart idle; other companion peaks ≤91Mi). The limits run against host RAM (60Gi, 41Gi free at setup) — they bound real consumption, not scheduler capacity. Sizing rule learned on the haproxy OOM: a companion whose traffic profile changes (the observability pipeline's continuous S3 mirroring vs the original browser-traffic sizing) needs its docker limit re-audited like any pod.
+Every container carries a `memory` limit with swap disabled (`memory_swap = memory`): ctrl 6Gi each (×3 since cmdshift/platform#140), cmd haproxy 256Mi, work 4Gi each, rustfs 1Gi, external haproxy 512Mi (256M was OOM-killed — exit 137 — by sustained S3 mirroring traffic through the s3.cloud.test frontend, cmdshift/platform#149; the internal haproxy stays 256Mi), coredns/mailpit/angos 256Mi, secrets/sync 64Mi, scanner 768Mi (start-then-audit — trivy DB + scan working set; no OOM on the first real scan, cmdshift/platform#102), keycloak 3Gi (cmdshift/platform#131 — see below) — **Σ ≈ 40Gi** (was ≈28Gi at 1 ctrl node: +2×6Gi ctrl, +256Mi cmd; the `cmd` haproxy's own limit was re-specified in cmdshift/platform#140 at 256Mi, matching the internal haproxy). Sizing is evidence-based (observed peaks: ctrl ≤4.1Gi, work ≤3.0Gi, rustfs ≤287Mi; keycloak settled 1.05GiB after import / ~730MiB post-restart idle; other companion peaks ≤91Mi). The limits run against host RAM (60Gi, 41Gi free at setup) — they bound real consumption, not scheduler capacity. Sizing rule learned on the haproxy OOM: a companion whose traffic profile changes (the observability pipeline's continuous S3 mirroring vs the original browser-traffic sizing) needs its docker limit re-audited like any pod.
 
 Keycloak is the heaviest companion by far (cmdshift/platform#131): docker-level limits of 1280Mi then 2Gi were OOM-killed (exit 137) mid-realm-import — JVM `MaxRAMPercentage=70` + 256Mi MaxMetaspace + H2 import churn — and 3Gi held. If it's ever slimmed, the import burst is the sizing event to re-test, not idle.
 
-**Limits do not influence the scheduler** (cmdshift/platform#54): each kubelet advertises the container's full `/proc/meminfo` as node capacity (~117Gi of phantom capacity across 5 nodes is inherent to Talos-in-Docker — verified on the historical macOS VM where it was ~23.4Gi apiece; same mechanism on Linux, the kubelets advertise the host's meminfo). The limits only bound real consumption: breaching one OOM-kills that node container (node reboot, flux re-converges) instead of thrashing the host. The monitoring stack's node-memory alerts fire on kubelet accounting, so they lag real pressure — the docker layer is the actual backstop.
+**Limits do not influence the scheduler** (cmdshift/platform#54): each kubelet advertises the container's full `/proc/meminfo` as node capacity (~58Gi apiece — ~410Gi of phantom capacity across the 7 node containers is inherent to Talos-in-Docker; same mechanism on the historical macOS VM, where it was ~23.4Gi apiece). The limits only bound real consumption: breaching one OOM-kills that node container (node reboot, flux re-converges) instead of thrashing the host. The monitoring stack's node-memory alerts fire on kubelet accounting, so they lag real pressure — the docker layer is the actual backstop.
 
 ## Decision records
 

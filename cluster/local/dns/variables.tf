@@ -17,3 +17,10 @@ variable "net" {
     private_network_id  = string
   })
 }
+
+variable "cmd" {
+  type = object({
+    hostname   = string
+    private_ip = string
+  })
+}

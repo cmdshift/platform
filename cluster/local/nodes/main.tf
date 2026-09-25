@@ -18,17 +18,6 @@ resource "docker_container" "ctrl" {
   name     = join("-", compact([each.value.name, random_id.ctrl[each.key].hex]))
   hostname = join("-", compact([each.value.name, random_id.ctrl[each.key].hex]))
   image    = docker_image.talos.name
-  # loopback-only: the API server and apid are reachable from the host, not the LAN
-  ports {
-    internal = local.ports.k8s
-    external = local.ports.k8s
-    ip       = "127.0.0.1"
-  }
-  ports {
-    internal = local.ports.apid
-    external = local.ports.apid
-    ip       = "127.0.0.1"
-  }
   networks_advanced {
     name = var.net.bridge_network_id
   }
@@ -63,6 +52,57 @@ resource "docker_container" "ctrl" {
     ignore_changes = [
       env
     ]
+  }
+}
+
+resource "docker_image" "haproxy" {
+  name          = data.docker_registry_image.haproxy.name
+  keep_locally  = true
+  pull_triggers = [data.docker_registry_image.haproxy.sha256_digest]
+}
+
+resource "docker_container" "cmd" {
+  depends_on = [
+    docker_container.ctrl
+  ]
+  name     = replace(var.cmd.hostname, ".", "-")
+  hostname = var.cmd.hostname
+  image    = docker_image.haproxy.name
+  ports {
+    internal = local.ports.k8s
+    external = local.ports.k8s
+    ip       = "127.0.0.1"
+  }
+  ports {
+    internal = local.ports.apid
+    external = local.ports.apid
+    ip       = "127.0.0.1"
+  }
+  networks_advanced {
+    name = var.net.bridge_network_id
+  }
+  networks_advanced {
+    name         = var.net.private_network_id
+    ipv4_address = var.cmd.private_ip
+    aliases = [
+      var.cmd.hostname
+    ]
+  }
+  memory      = 256
+  memory_swap = 256
+  upload {
+    file = "/usr/local/etc/haproxy/haproxy.cfg"
+    content = templatefile("${path.module}/templates/haproxy.tftpl.cfg", {
+      node_count = length(docker_container.ctrl)
+      nodes = [
+        for node in docker_container.ctrl : {
+          name = node.name
+          ipv4 = [
+            for n in node.networks_advanced : n.ipv4_address if n.name == var.net.private_network_id
+          ][0]
+        }
+      ]
+    })
   }
 }
 
@@ -112,46 +152,14 @@ resource "docker_container" "work" {
   }
 }
 
-# Converges running nodes to the generated machine config — the iteration path for
-# template changes. USERDATA is first-boot only; an applied config persists in the
-# /system/state volume, so template changes don't recreate containers (cmdshift/platform#73).
-resource "talos_machine_configuration_apply" "ctrl" {
-  for_each = docker_container.ctrl
-
-  client_configuration        = talos_machine_secrets.main.client_configuration
-  machine_configuration_input = data.talos_machine_configuration.ctrl.machine_configuration
-  node                        = [for n in each.value.networks_advanced : n.ipv4_address if n.name == var.net.private_network_id][0]
-  endpoint                    = local.local_api_ip
-  apply_mode                  = "auto"
-  # the provider silently retries transport errors within the create timeout — 2m
-  # covers a fresh node's apid coming up while keeping a down node a fast failure
-  timeouts = {
-    create = "2m"
-  }
-}
-
-resource "talos_machine_configuration_apply" "work" {
-  for_each = docker_container.work
-
-  client_configuration        = talos_machine_secrets.main.client_configuration
-  machine_configuration_input = data.talos_machine_configuration.work.machine_configuration
-  node                        = [for n in each.value.networks_advanced : n.ipv4_address if n.name == var.net.private_network_id][0]
-  endpoint                    = local.local_api_ip
-  apply_mode                  = "auto"
-  # applies route through the ctrl node's apid (no host ports on workers)
-  depends_on = [talos_machine_configuration_apply.ctrl]
-  timeouts = {
-    create = "2m"
-  }
-}
-
 resource "talos_machine_bootstrap" "main" {
   depends_on = [
-    talos_machine_configuration_apply.ctrl
+    docker_container.cmd,
+    docker_container.ctrl
   ]
   client_configuration = talos_machine_secrets.main.client_configuration
   node                 = local.boot_node
-  endpoint             = local.local_api_ip
+  endpoint             = var.cmd.hostname
   # the default 10m create timeout silently retries every transport error; the healthy
   # path is sub-second, so fail fast (stale Docker port binding — runbooks/local/cluster-rebuild.md)
   timeouts = {
@@ -165,7 +173,7 @@ resource "talos_cluster_kubeconfig" "main" {
   ]
   client_configuration = talos_machine_secrets.main.client_configuration
   node                 = local.boot_node
-  endpoint             = local.local_api_ip
+  endpoint             = var.cmd.hostname
   timeouts = {
     create = "10s"
   }

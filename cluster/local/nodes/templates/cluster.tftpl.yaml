@@ -11,8 +11,8 @@ cluster:
     endpoint: ${public_endpoint}
   apiServer:
     certSANs:
-      - ${local_api_ip}
-      - ${ctrl_ip}
+      - ${cmd_hostname}
+      - ${cmd_private_ip}
     # OIDC authn against the auth companion (cmdshift/platform#131) — authz stays
     # admin-kubeconfig-only until cmdshift/platform#91. The strict static-pod decoder
     # drops the ctrl node on a bad flag name — validate against `kube-apiserver --help`.

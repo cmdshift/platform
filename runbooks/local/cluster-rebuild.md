@@ -42,20 +42,20 @@ The API-up window is now enforced by terraform itself (cmdshift/platform#72): th
 
 ### The bootstrap hang: stale Docker port binding (root-caused 2026-09-07, cmdshift/platform#4)
 
-`talos_machine_bootstrap` used to "hang indefinitely" sometimes. The root cause is **not** the (former) LB, a node race, or the network — it is the host port publisher going **stale after rapid container churn**: when a port-publishing container is destroyed and recreated within ~a minute, the host listener still ACCEPTS connections on 50000/6443 (SYN-ACK, ESTABLISHED) but black-holes the forward — no bytes reach the container. Container, node and everything else are perfectly healthy at that point.
+`talos_machine_bootstrap` used to "hang indefinitely" sometimes. The root cause is **not** the LB, a node race, or the network — it is the host port publisher going **stale after rapid container churn**: when a port-publishing container is destroyed and recreated within ~a minute, the host listener still ACCEPTS connections on 50000/6443 (SYN-ACK, ESTABLISHED) but black-holes the forward — no bytes reach the container. Container, node and everything else are perfectly healthy at that point.
 
 The failure was first root-caused on the historical macOS/Docker Desktop host, where the black-hole lived in the Docker Desktop VM's `com.docker.backend` publisher path. macOS/Docker Desktop is no longer a supported host — but the failure shape (a published path that accepts and never delivers) is the reference for diagnosing any host→container publish-path wedge.
 
 The talos provider turns that into the hang: `talos_machine_bootstrap` silently retries every transport error for its **10-minute default create timeout** (final error: `rpc error: code = Unavailable desc = "transport: authentication handshake failed: context deadline exceeded"`). A fresh `terraform apply` right after a clean destroy rarely trips it; back-to-back churn (killed apply → destroy → apply) does. The failure mode is per-container, not per-port — the companions hit the same thing after a Docker daemon restart ([companion landmine below](#companions-the-caching-registry)).
 
-Since cmdshift/platform#54 there is no API LB: the published ports (6443/50000, host loopback only) live on the **ctrl node container itself**, so a stale binding puts the recovery on that container — restarting it is a node reboot (API blip, etcd restart; flux re-converges, nothing is lost):
+The published API ports (6443/50000, host loopback only) live on the **cmd LB container** (re-introduced in cmdshift/platform#140 after the cmdshift/platform#54 no-LB interval), so a stale binding puts the recovery on that container — a restart is an LB blip, not a node reboot (the ctrl nodes keep running; connections through the LB drop and re-establish):
 
 ```
-docker restart $(docker ps -q --filter name=ctrl-local-test)  # re-establishes the binding; ~30s to Ready
+docker restart $(docker ps -q --filter name=cmd-local-test)  # re-establishes the binding
 terraform -chdir=cluster/local apply -auto-approve            # only bootstrap + kubeconfig remain; ~seconds
 ```
 
-**Diagnostics** (the evidence, if it recurs — the former haproxy stats socket is gone with the LB):
+**Diagnostics** (the evidence, if it recurs — the cmd LB has a stats socket on :8404 but the container restart usually re-establishes the binding without it):
 
 - `curl -skf --max-time 3 https://127.0.0.1:6443/version` from the host — hang/black-hole = dead binding; 401 = publisher alive (it can't 401 unless bytes reach the API server)
 - **Isolate wiring from publisher** (2026-09-09, the local-test 80/443 wedge): if the container's own frontend answers from inside — `docker exec <container> sh -c 'printf "GET / HTTP/1.0\r\n\r\n" | nc -w3 127.0.0.1 <port>'` — the container wiring is proven and only the host→container published path is dead
@@ -66,7 +66,7 @@ terraform -chdir=cluster/local apply -auto-approve            # only bootstrap +
 
 **Mitigations now in the tree:** fail-fast `timeouts` on the bootstrap and kubeconfig resources in `nodes/main.tf` (10s each — the healthy path is sub-second; the hang surfaces as a real error in seconds instead of 10 silent minutes).
 
-**Multi-ctrl ceiling (historical, knob removed in cmdshift/platform#54):** `ctrl_nodes = 3` was verified working (3 ctrl + 4 workers registered, all nodes Ready) but **saturated the Docker VM during the install burst** — ctrl nodes pegged 175-200% CPU, etcd write-stalled (`etcdserver: request timed out` across the flux tree), apiserver connections reset mid-write. That is the host machine's CPU/IOPS ceiling, not a software defect; the ctrl node is now a **single fixed entry** (no count knob, no LB — one backend needs neither). If a beefier host ever wants 3 ctrl nodes, that's a terraform change plus re-verifying the install-burst stall.
+**Multi-ctrl ceiling (retired):** the cmdshift/platform#54-era note said `ctrl_nodes = 3` saturated the historical macOS/Docker Desktop VM during the install burst (ctrl nodes pegged 175-200% CPU, etcd write-stalled `etcdserver: request timed out`, apiserver connections reset mid-write) and fixed the control plane at a single node. That ceiling was a **host-machine CPU/IOPS limit, not a software defect** — on the supported Linux host (60Gi, Docker Engine) the same 3-node shape re-verified clean in cmdshift/platform#140: ctrl CPU peaked ≤26% during the install burst, no etcd stalls. The `ctrl_nodes` knob (default 3) and the `cmd` LB are restored; when sizing ctrl-count, re-verify the install-burst behavior on the target host.
 
 Then watch convergence — **expect ~10 minutes**, progressing through the dependency chain in this order:
 
@@ -98,7 +98,7 @@ kubectl -n flux-system get kustomizations
 | Rustfs buckets | `rustfs ls main/` | `flux`, `backups` (auto-provisioned) |
 | Mimir | `kubectl -n observability get pods -l app.kubernetes.io/name=mimir` | 1/1 Running; ruler groups served (`prometheus_query 'count(up)'` non-empty) |
 | PolicyReports | `policy_report` | 0 failures |
-| Host API path | `curl -skf --max-time 3 https://127.0.0.1:6443/version` | 401 (publisher alive; kubeconfig server = 127.0.0.1:6443) |
+| Host API path | `curl -skf --max-time 3 https://127.0.0.1:6443/version` | 401 (LB publisher alive; the kubeconfig server = `https://cmd.local.test:6443`, dnsmasq-resolved) |
 | Browser paths | `curl -s -o /dev/null -w '%{http_code}' http://mail.cloud.test` | 200 (s3 → 403 = auth challenge, also fine) |
 | Companion TLS | `curl -s -o /dev/null -w '%{http_code}' https://mail.cloud.test` | 200 (s3 → 403; registry → 200; `openssl s_client -connect 127.0.10.1:443 -servername secrets.cloud.test` → TLSv1.3, chain verifies against `root_ca.crt`) — trust the root CA on the host for browser/curl convenience: add `cluster/local/.tmp/tls/root_ca.crt` to the host trust store (e.g. copy to `/usr/local/share/ca-certificates/` + `update-ca-certificates` on Linux) |
 | Ingress | `curl -s -o /dev/null -w '%{http_code} loc=%header{location}' http://local.test` | **301** → `https://local.test:443/` (the redirect route; `server: envoy` header proves the Gateway path; 503 = haproxy backends down). `https://local.test` → **404** (no service routes; TLS passthrough to the Gateway) |
@@ -145,16 +145,15 @@ docker run --rm -v platform-registry-data:/data busybox:1.37.0 chown -R 65534:65
 
 **Landmine — haproxy template directives stay at column 0.** The `~}` trim markers in `external/templates/haproxy.tftpl.cfg` eat the newline after the tag; indenting `%{ for %}` / `%{ endfor ~}` renders a dangling whitespace line at EOF that haproxy treats as fatal truncation ("Missing LF on last line") — the container crash-loops with every `*.cloud.test` route down, internal traffic included (hit while wiring the scanner through the template, cmdshift/platform#102; nothing about the haproxy image changed — the old template's directives were simply column-0). A `cloud-test` recreation also re-publishes `127.0.10.1:80` — the stale-binding watch in the host path section below applies.
 
-**Node machine config iteration is apply, not rebuild** (cmdshift/platform#73 — supersedes the old "template edits need a full rebuild" rule). `nodes/main.tf` carries `talos_machine_configuration_apply` resources (ctrl + work) that converge running nodes to the generated config (`apply_mode = "auto"` — reboots only if a config change demands it): editing a machine-config template + `terraform apply` lands it without recreating containers. The `USERDATA` env the containers boot from stays first-boot-only (`lifecycle { ignore_changes = [env] }`) — an applied config persists in the `/system/state` docker volume, which is what makes the apply path authoritative. Two landmines:
+**Node machine config changes need a full rebuild again** (cmdshift/platform#140 — re-supersedes the cmdshift/platform#73 apply path). The `talos_machine_configuration_apply` resources from cmdshift/platform#73 were REMOVED from `nodes/main.tf`: they were pulled experimentally to boot nodes configless (maintenance mode), and provisioning through the cmd LB's leastconn balance fails **nondeterministically** against a mixed configured/maintenance backend pool — worker applies got `certificate signed by unknown authority` (the LB routed CA-verified TLS to a still-maintenance node presenting its self-signed cert) and bootstrap got `bootstrap is only available on control plane nodes`. USERDATA + `lifecycle { ignore_changes = [env] }` are restored (with USERDATA the applies were converge no-ops at first boot anyway, so the resources were deleted outright). The transferable rule: **a maintenance-mode node's apid is unauthenticated/self-signed — any leastconn LB in front of a mixed configured/maintenance backend pool breaks CA-verified provisioning; USERDATA is what makes the LB shape safe in this repo.** So: editing a machine-config template = full rebuild.
 
-- **Endpoint**: the talos provider defaults the apply resource's `endpoint` to the node's private IP — the provider's private-IP default hangs in silent transport-retry, and the loopback pattern is what keeps `nodes/outputs.tf`'s rewrite uniform. Keep `endpoint = 127.0.0.1` (the host-published ctrl apid) with `node` = the target's private IP; worker applies route through the ctrl node's apid and depend on the ctrl applies. Same pattern as the bootstrap/kubeconfig resources.
 - Registry-map changes remain companion-side config only (angos container recreate) — no node machine config involved, immune by design.
 
 **Host → companion path:** `*.cloud.test` names resolve to `127.0.10.1`, which lands on the container port publisher (dockerd publishing the ports natively on Linux). If host curls to mail/secrets/s3 hang while the cluster itself works (check `docker logs cloud-test` — internal traffic is unaffected), `docker restart cloud-test` re-establishes the binding (hit 2026-09-07 on the historical macOS host).
 
 ## Terraform plan churn
 
-Plans against the live cluster routinely show replacements, in-place updates, and drift on resources nobody edited — churn from the kreuzwerker/docker provider's internals (arbitrary ordering, block re-serialization, usually after a provider version change), not config drift. The verdict rule: **read the diff, not the action verb** — values identical on both sides (or the old side `(known after apply)`) means churn, safe to apply through; any meaningful value differing means stop and diagnose. The known shapes and the not-safe-to-ignore list live in the `terraform-churn` skill (provenance: cmdshift/platform#102, whose apply surfaced the full set in one plan — a `docker_image` replacement that was pure state bookkeeping, a rewritten `.tmp/talosconfig`, in-place machine-config applies, and identical `networks_advanced` blocks removed and re-added with `gw_priority = 0` newly serialized).
+Plans against the live cluster routinely show replacements, in-place updates, and drift on resources nobody edited — churn from the kreuzwerker/docker provider's internals (arbitrary ordering, block re-serialization, usually after a provider version change), not config drift. The verdict rule: **read the diff, not the action verb** — values identical on both sides (or the old side `(known after apply)`) means churn, safe to apply through; any meaningful value differing means stop and diagnose. The known shapes and the not-safe-to-ignore list live in the `terraform-churn` skill (provenance: cmdshift/platform#102, whose apply surfaced the full set in one plan — a `docker_image` replacement that was pure state bookkeeping, a rewritten `.tmp/talosconfig`, and identical `networks_advanced` blocks removed and re-added with `gw_priority = 0` newly serialized).
 
 ## Daemon restart (no rebuild)
 
@@ -163,9 +162,10 @@ Restarting the docker daemon (no rebuild) stops **all** containers — the Talos
 ```
 # companions first — dns + registry are what the nodes need to boot clean
 docker start $(docker ps -a --format '{{.Names}}' | rg 'cloud-test$')
-# ingress LB, then control plane (etcd), then workers — the -xxxx suffix is
-# terraform-random per cluster, so match the name pattern
+# ingress LB, then the API LB, then control plane (etcd), then workers — the
+# -xxxx suffix is terraform-random per cluster, so match the name pattern
 docker start local-test
+docker start $(docker ps -a --format '{{.Names}}' | rg '^cmd-local-test')
 docker start $(docker ps -a --format '{{.Names}}' | rg '^ctrl-local-test')
 docker start $(docker ps -a --format '{{.Names}}' | rg '^work-local-test')
 ```

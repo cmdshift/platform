@@ -10,6 +10,7 @@ spec:
     - name: namespaces
     - name: sources
     - name: crds
+    - name: storage-config
   sourceRef:
     kind: Bucket
     name: main

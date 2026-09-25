@@ -4,9 +4,6 @@ resources:
   - grafana-operator.helm-release.yaml
   - alertmanager.helm-release.yaml
   - alloy-operator.helm-release.yaml
-  - alloy-logging.alloy.yaml
-  - alloy-platform.alloy.yaml
-  - alloy-telemetry.alloy.yaml
   - metrics-server.helm-release.yaml
   - vpa.helm-release.yaml
   - loki.helm-release.yaml

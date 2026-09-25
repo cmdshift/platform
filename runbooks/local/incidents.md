@@ -12,20 +12,34 @@ Incidents documented in their owning runbooks (kept there for context):
 
 ---
 
+## Configless boot behind the leastconn LB fails nondeterministically (cmdshift/platform#140)
+
+**Symptom** (fresh rebuild): with the `talos_machine_configuration_apply` resources removed and `USERDATA` dropped experimentally (nodes booting configless into maintenance mode), worker provisioning fails nondeterministically — `talos_machine_configuration_apply`-equivalent worker applies error `certificate signed by unknown authority`, and bootstrap fails `bootstrap is only available on control plane nodes`. Retrying sometimes passes, which makes it look flaky rather than broken.
+
+**Root cause**: the cmd haproxy balances 6443/50000 with **leastconn** over all configured backends. A maintenance-mode (unconfigured) node's apid is **unauthenticated with a self-signed cert**, so when the LB routes a CA-verified TLS connection to a still-maintenance node, the client rejects the cert (`certificate signed by unknown authority`); bootstrap requests landing on a maintenance ctrl fail with `bootstrap is only available on control plane nodes`. With 3 ctrl backends at boot, a leastconn LB will reliably find the wrong backend for some connection — the failure is a property of the LB shape, not a race to wait out.
+
+**Fix**: USERDATA restored on all node containers (`lifecycle { ignore_changes = [env] }` back) — a node boots WITH its machine config, so every backend presents a CA-signed apid cert from first boot and the LB shape is safe. With USERDATA restored, the cmdshift/platform#73 apply resources were converge no-ops at first boot and were deleted entirely from `nodes/main.tf`.
+
+**Tells for next time**:
+
+- **A maintenance-mode apid is unauthenticated/self-signed — any leastconn LB in front of a mixed configured/maintenance backend pool breaks CA-verified provisioning nondeterministically.** USERDATA is what makes the cmd-LB shape safe in this repo; never boot nodes configless behind the LB.
+- A flaky-looking `certificate signed by unknown authority` against a *known-good* CA during provisioning is a wrong-backend symptom, not a CA problem — check which backend the LB picked.
+- Consequence of the removal: **machine-config template changes require a full cluster rebuild again** (the cmdshift/platform#73 iterate-via-apply path is gone) — see the machine-config section in [cluster-rebuild.md](cluster-rebuild.md).
+
 ## Audit policy field wedged the apiserver (cmdshift/platform#90)
 
 **Symptom**: after templating a kube-apiserver audit Policy into the ctrl machine config, the ctrl node dropped out of the cluster — pods on it unschedulable, API blipping.
 
 **Root cause**: the Policy rule field `responseStages` does not exist in the Kubernetes audit Policy schema. Talos's RenderConfigsStaticPodController failed strict decoding: `error generating configuration "auditpolicy.yaml" for "kube-apiserver": error unmarshaling audit policy configuration: strict decoding error: unknown field "rules[0].responseStages"` — the kube-apiserver static pod went down on the ctrl node.
 
-**Fix**: remove the invalid field from the policy file, `terraform apply` (the `talos_machine_configuration_apply` resource re-lands the config), and restart the ctrl container. **Talos-in-Docker container mode does NOT support `talosctl reboot`** (`FailedPrecondition: method is not supported in container mode`) — node-level convergence after an apiserver-render failure is `docker restart <ctrl-container>` (~30s to Ready; k8s API drops briefly).
+**Fix**: remove the invalid field from the policy file and rebuild — **machine-config template changes require a full cluster rebuild since cmdshift/platform#140 removed the `talos_machine_configuration_apply` resources** (see the configless-LB incident above). **Talos-in-Docker container mode does NOT support `talosctl reboot`** (`FailedPrecondition: method is not supported in container mode`).
 
 **Kyverno re-pick-up lag collateral** (known shape, re-hit): during the churn the thanos-operator's STS update was denied by kyverno → ThanosRuler `main` went Ready=False ("failed to create or update 1 resources"). A reconcile + annotation bump on the PolicyException cleared it — no manifest change needed there. Related DaemonSet gotcha: a DS at `desired=5 current=4` with no PodScheduled-pending pod means the DS controller hasn't created the 5th pod yet; an annotation nudge (`platform.nudge`) forces the controller loop — but the annotate itself goes through kyverno admission, which was also mid-lag. Once stable, the nudge landed the pod.
 
 **Tells for next time**:
 
 - Anything templated into a static-pod render path gets validated by Talos's **strict decoder** — verify every field against the real Kubernetes audit Policy schema before it touches the machine config; one unknown field takes down the control plane, not just the feature.
-- After an apiserver-render fix, the recovery is machine-config apply + `docker restart` of the ctrl container (container mode has no `talosctl reboot`).
+- After an apiserver-render fix, the recovery is a full rebuild (the apply path is gone since cmdshift/platform#140); in-container convergence for a single node remains `docker restart <ctrl-container>`.
 - A downstream controller failing "create or update" mid-cluster-churn is often kyverno admission lag, not a real spec error — bump the PolicyException annotation and reconcile before rewriting anything.
 
 ## Gateway-API ingress born dead (cmdshift/platform#70)

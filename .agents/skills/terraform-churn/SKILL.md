@@ -13,7 +13,6 @@ Plans against the live cluster routinely show churn the docker provider's intern
 |---|---|
 | `docker_image … must be replaced` (`pull_triggers` → known after apply) | state bookkeeping — the digest is unchanged; `keep_locally = true` means the image and the containers using it stay put |
 | `local_sensitive_file.talosconfig must be replaced` (sensitive content) | `talos_client_configuration` re-resolved — rewrites the `.tmp/talosconfig` file, nothing else |
-| `talos_machine_configuration_apply … updated in-place` (sensitive input) | identical machine config re-applied — no reboot |
 | `docker_container … has changed` with identical `networks_advanced` blocks removed **and** re-added (e.g. `gw_priority = 0` newly serialized) | provider normalizing its own block serialization — in-place no-op |
 
 ## When NOT to apply through it

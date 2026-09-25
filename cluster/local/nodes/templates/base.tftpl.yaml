@@ -4,8 +4,8 @@ machine:
       enabled: true
       forwardKubeDNSToHost: true
   certSANs:
-    - ${local_api_ip}
-    - ${ctrl_ip}
+    - ${cmd_hostname}
+    - ${cmd_private_ip}
   kubelet:
     extraArgs:
       rotate-server-certificates: "true"
