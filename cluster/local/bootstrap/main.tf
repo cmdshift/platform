@@ -5,9 +5,9 @@ resource "helm_release" "cilium" {
   name       = "cilium"
   repository = "https://helm.cilium.io"
   chart      = "cilium"
-  # pre-release: 1.20.x crashes at startup on kernel 7.2 hosts — the FnSetRetval
-  # probe fails verification (cilium/cilium#48016); revisit when 1.20.2 ships
-  version          = "1.21.0-pre.2"
+  # stable 1.20.2: kernel-7.2 startup crash fixed here (cilium/cilium#48016) —
+  # must match the HelmRelease pin or adoption drifts the live release
+  version          = "1.20.2"
   namespace        = "kube-system"
   create_namespace = false
   values = [
@@ -19,9 +19,6 @@ resource "helm_release" "cilium" {
         hostRoot = "/sys/fs/cgroup"
       }
       encryption = {
-        # unencrypted twin: ztunnel mode needs cilium-ztunnel-secrets, which only
-        # cert-manager (flux, post-bootstrap) can issue — the flux HelmRelease
-        # flips encryption to ztunnel on first reconcile (cmdshift/platform#87)
         enabled = false
       }
       # no standalone envoy DaemonSet in the twin: the bootstrap boots with no L7
@@ -46,7 +43,6 @@ resource "helm_release" "cilium" {
         }
         ui = {
           enabled = true
-          # chart 1.21-pre nil-pointers when hubble.ui.httpRoute is absent
           httpRoute = {
             enabled = false
           }

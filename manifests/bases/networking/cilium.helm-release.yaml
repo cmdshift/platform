@@ -9,9 +9,11 @@ spec:
   chart:
     spec:
       chart: cilium
-      # pre-release: 1.20.x crashes at startup on kernel 7.2 hosts (cilium/cilium#48016);
-      # must match the bootstrap pin or adoption downgrades back to a broken release
-      version: 1.21.0-pre.2
+      # stable 1.20.2: kernel-7.2 startup crash fixed here (b73ca6e8
+      # bpf_core_enum_value_exists for HAVE_SET_RETVAL, cilium/cilium#48016) —
+      # the pre-release pin is no longer needed; must match the bootstrap pin
+      # or adoption downgrades back to a broken release
+      version: 1.20.2
       sourceRef:
         kind: HelmRepository
         name: cilium
@@ -29,57 +31,3 @@ spec:
     - kind: ConfigMap
       name: cilium-values
       valuesKey: values.yaml
-  # remaps the cert-manager secrets onto the filenames cilium's ztunnel CA server reads
-  # from /etc/ztunnel; adds the mesh-CA volume the agent DS doesn't mount (cmdshift/platform#87).
-  # COUPLED TO THE CHART VERSION — re-verify volumeMount shapes on every bump (networking/README.md)
-  postRenderers:
-    - kustomize:
-        patches:
-          - target:
-              kind: DaemonSet
-              name: cilium
-            patch: |
-              - op: replace
-                path: /spec/template/spec/containers/0/volumeMounts/11
-                value:
-                  name: cilium-ztunnel-secrets
-                  mountPath: /etc/ztunnel/bootstrap-root.crt
-                  subPath: tls.crt
-                  readOnly: true
-              - op: add
-                path: /spec/template/spec/containers/0/volumeMounts/-
-                value:
-                  name: cilium-ztunnel-secrets
-                  mountPath: /etc/ztunnel/bootstrap-private.key
-                  subPath: tls.key
-                  readOnly: true
-              - op: add
-                path: /spec/template/spec/containers/0/volumeMounts/-
-                value:
-                  name: cilium-ztunnel-ca
-                  mountPath: /etc/ztunnel/ca-root.crt
-                  subPath: tls.crt
-                  readOnly: true
-              - op: add
-                path: /spec/template/spec/containers/0/volumeMounts/-
-                value:
-                  name: cilium-ztunnel-ca
-                  mountPath: /etc/ztunnel/ca-private.key
-                  subPath: tls.key
-                  readOnly: true
-              - op: add
-                path: /spec/template/spec/volumes/-
-                value:
-                  name: cilium-ztunnel-ca
-                  secret:
-                    secretName: cilium-ztunnel-ca
-          - target:
-              kind: DaemonSet
-              name: ztunnel-cilium
-            patch: |
-              - op: replace
-                path: /spec/template/spec/volumes/1/secret/items/0
-                value:
-                  key: tls.crt
-                  path: bootstrap-root.crt
-                  mode: 420

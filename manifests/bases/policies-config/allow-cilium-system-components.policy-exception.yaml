@@ -27,4 +27,4 @@ spec:
   matchConditions:
     # startsWith is required for hubble-relay: autogen pods carry RS-hash suffixes (cmdshift/platform#100)
     - name: match-cilium
-      expression: "object.metadata.namespace == 'kube-system' && (object.metadata.name.startsWith('cilium') || object.metadata.name.startsWith('hubble-relay') || object.metadata.name.startsWith('ztunnel-cilium'))"
+      expression: "object.metadata.namespace == 'kube-system' && (object.metadata.name.startsWith('cilium') || object.metadata.name.startsWith('hubble-relay'))"
