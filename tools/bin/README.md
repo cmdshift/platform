@@ -257,7 +257,7 @@ comparisons.
 ### `cpu_audit [threshold_pct]`
 
 CPU sibling. First the silent-killer check: top 10 containers by % of CFS
-periods throttled (1h rate, >5% worth a look — queries prometheus via the
+periods throttled (1h rate, >5% worth a look — queries mimir via the
 sibling `prometheus_query`, same dir required). Then usage-vs-CPU-limit
 table (default 50%, millicores normalized). Same threshold validation.
 
@@ -276,13 +276,13 @@ VPA recommendations vs current requests — the **evidence** side of sizing
 (request_audit/memory_audit are the usage side; a VPA target is a P99-shaped
 candidate request, not a drop-in — cross-check against the audits and the
 sizing convention). One row per container: `req → target  Δ%` for CPU and
-memory, from the Off-mode VPAs goldilocks maintains (metrics/ group) joined
-against the workload controllers' current requests. Footer explains
+memory, from the Off-mode VPAs (hand-maintained per workload — the
+goldilocks auto-creator was removed) joined against the workload
+controllers' current requests. Footer explains
 `pending` (no recommendation yet) and `*` (uncapped differs from target);
-counts workload containers without a VPA (kube-system/flux-system excluded,
-mirroring the goldilocks exclude list). Optional namespace filter. Exit 0 =
-audited, 2 = usage or kubectl error. Dashboard (port-forward):
-`kubectl -n kube-system port-forward svc/goldilocks-dashboard 8080:80`.
+counts workload containers without a VPA (kube-system/flux-system excluded —
+system plumbing). Optional namespace filter. Exit 0 = audited, 2 = usage or
+kubectl error.
 
 ## Admission / policy
 
@@ -326,14 +326,16 @@ runbooks/local/namespace-migration.md.
 
 ## Observability queries
 
-### `prometheus_query [-v|-c] [-r 6h] [--query] '<promql>' | prometheus_query --stop`
+### `prometheus_query [-v|-c] [-r 6h] '<promql>' | prometheus_query --stop`
 
-Port-forwards svc/kube-prometheus-stack-prometheus:9090 (or svc/mimir:8080
-with `--query` — the mimir path also sends `X-Scope-OrgID: self-monitoring`
-and uses `/ready` for the ready check, since mimir serves the query API
-under `/prometheus` with no prometheus-style `/-/ready`) — one forward per
-service, SHARED across invocations via the lock file
-`.agents/temp/prometheus_query.<service>.forward` (`<pid> <port>`).
+Port-forwards svc/mimir:8080 (the only metrics store since the kps removal,
+cmdshift/platform#141; the pre-LGTM svc/kube-prometheus-stack-prometheus
+default died with it — the former `--query` mimir switch is now the only
+behavior, its flag removed). The mimir path sends
+`X-Scope-OrgID: self-monitoring` and uses `/ready` for the ready check,
+since mimir serves the query API under `/prometheus` with no prometheus-style
+`/-/ready` — one forward, SHARED across invocations via the lock file
+`.agents/temp/prometheus_query.mimir.forward` (`<pid> <port>`).
 (Git history note: `--query` targeted svc/thanos-query-main before the LGTM
 migration, cmdshift/platform#128 — a reused-forward lock recorded under the
 old service name silently 302'd the ready check; the per-service lock file
@@ -372,11 +374,13 @@ keying makes that a non-issue going forward.)
   `{ cd ...; pwd; }` grouping around the fallback. Same bug class anywhere
   a `||` fallback is chained with `&&`: group it or it runs unconditionally.
 - **per-service knobs live inside `port_forward`**: the service-specific
-  port (mimir 8080 vs prometheus 9090) and ready path (`/ready` vs
-  `/-/ready`) must be set on BOTH the fresh-forward and reused-forward
-  branches — the ready check runs before the query-URL build site, so a
-  knob set only next to the URL build leaves the reused path probing the
-  wrong endpoint (hit as a 302→non-200 ready loop, cmdshift/platform#128).
+  port and ready path must be set on BOTH the fresh-forward and
+  reused-forward branches — the ready check runs before the query-URL
+  build site, so a knob set only next to the URL build leaves the reused
+  path probing the wrong endpoint (hit as a 302→non-200 ready loop,
+  cmdshift/platform#128; still the rule now that the port/ready-path are
+  single-valued — future multi-service splits re-learn this the hard way
+  otherwise).
 
 ### `metrics_summary [-t] [-w] | metrics_summary --raw '<promql>'`
 
