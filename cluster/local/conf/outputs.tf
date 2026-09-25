@@ -24,6 +24,7 @@ output "net" {
     cmd_cidr     = local.cmd_cidr
     ctrl_cidr    = local.ctrl_cidr
     work_cidr    = local.work_cidr
+    cloud_cidr   = local.cloud_cidr
   }
 }
 

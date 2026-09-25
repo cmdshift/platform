@@ -1,0 +1,42 @@
+# strict parser: unknown keys panic at boot — verify every field against the
+# 0.36 reference config before adding one
+[server]
+# TLS terminates at the external haproxy (cmdshift/platform#130); with
+# proxy_mode the issuer always renders as https://<pub_url> even on the plain
+# HTTP listener (rauthy#1108) — do not set scheme = 'https' here
+scheme = 'http'
+pub_url = 'auth.cloud.test'
+proxy_mode = true
+trusted_proxies = ['${trusted_proxies}']
+http_workers = 1
+
+[encryption]
+# key material must be exactly 32 bytes, base64-encoded; 'keyID/material'
+keys = ['${encryption_key_id}/${encryption_key}']
+key_active = '${encryption_key_id}'
+
+[cluster]
+node_id = 1
+nodes = ["1 localhost:8100 localhost:8200"]
+secret_raft = '${cluster_secret_raft}'
+secret_api = '${cluster_secret_api}'
+# single instance: no peer to re-sync a corrupt WAL from (0.36 reference config)
+log_sync = 'immediate'
+
+[database]
+hiqlite = true
+
+[bootstrap]
+# the default admin stays admin@localhost — the OIDC fixture admin
+# (admin@cloud.test, users.json) must not collide with it on the users.email UNIQUE
+admin_email = 'admin@localhost'
+password_plain = '${bootstrap_admin_password}'
+
+[webauthn]
+rp_id = 'auth.cloud.test'
+# must always carry an explicit port (0.36 validation) — 443 is the front door
+rp_origin = 'https://auth.cloud.test:443'
+rp_name = 'platform'
+
+[logging]
+level = 'info'

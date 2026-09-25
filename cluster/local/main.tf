@@ -117,6 +117,9 @@ module "auth" {
     private_network_id = module.net.private_network_id
     private_ip         = module.conf.auth.private_ip
   }
+  # the external haproxy fronts every *.cloud.test companion — its CIDR is the
+  # only trusted proxy source for X-Forwarded-*
+  trusted_proxies = module.conf.net.cloud_cidr
 }
 
 module "sync" {

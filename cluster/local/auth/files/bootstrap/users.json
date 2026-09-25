@@ -1,0 +1,27 @@
+[
+  {
+    "email": "admin@cloud.test",
+    "preferred_username": "admin",
+    "given_name": "Admin",
+    "family_name": "User",
+    "password": {
+      "Plain": "admin123"
+    },
+    "roles": ["user"],
+    "groups": ["platform-admin"],
+    "enabled": true,
+    "email_verified": true
+  },
+  {
+    "email": "viewer@cloud.test",
+    "given_name": "Viewer",
+    "family_name": "User",
+    "password": {
+      "Plain": "viewer123"
+    },
+    "roles": ["user"],
+    "groups": ["platform-view"],
+    "enabled": true,
+    "email_verified": true
+  }
+]
