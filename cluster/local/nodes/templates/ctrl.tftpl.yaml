@@ -15,8 +15,11 @@ machine:
       enabled: true
       allowedRoles:
         - os:reader
+        - os:etcd:backup
       # kubelet verifies image pulls through the Talos API on ctrl — namespaces hosting
-      # workloads that must schedule there have to be listed or pulls fail (cmdshift/platform#90)
+      # workloads that must schedule there have to be listed or pulls fail (cmdshift/platform#90);
+      # backups needs the talos-backup ServiceAccount secret consumption too
       allowedKubernetesNamespaces:
         - kube-system
         - logging
+        - backups

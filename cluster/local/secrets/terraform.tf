@@ -3,5 +3,8 @@ terraform {
     docker = {
       source = "kreuzwerker/docker"
     }
+    age = {
+      source = "clementblaise/age"
+    }
   }
 }

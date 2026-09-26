@@ -1,0 +1,12 @@
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: talos-backup
+  namespace: backups
+spec:
+  targetRef:
+    apiVersion: batch/v1
+    kind: CronJob
+    name: talos-backup
+  updatePolicy:
+    updateMode: Off

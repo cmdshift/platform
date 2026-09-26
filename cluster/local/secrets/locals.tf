@@ -66,6 +66,18 @@ locals {
         aws_secret_access_key=password
       EOF
     }
+
+    # env-style keys — talos-backup reads AWS_* via the Go SDK env chain
+    talos_backup_s3_credentials = {
+      AWS_ACCESS_KEY_ID     = "backups-user"
+      AWS_SECRET_ACCESS_KEY = "password"
+    }
+
+    # private key lives only in tfstate + this payload is public half — decryption
+    # procedure in runbooks/local/etcd-backups.md
+    talos_backup_age_public_key = {
+      AGE_RECIPIENT_PUBLIC_KEY = age_secret_key.etcd_backup.public_key
+    }
   }
 
   # oauth2-proxy admin-ingress secrets (cmdshift/platform#41) — shared by all
