@@ -134,3 +134,13 @@ The rauthy companion (`auth.cloud.test`, cmdshift/platform#154 — replaced keyc
 
 - **kyverno `global.image.registry: ghcr.io`** (override of the chart's reg.kyverno.io default; rationale comment in `manifests/bases/policies/kyverno-values.yaml`): harmless in the cloud — a registry override works the same without the cache, and ghcr is the real upstream behind reg.kyverno.io anyway.
 - **vpa** (in the local `observability` group): port as-is, including the lowered VPA recommendation floors (2m CPU / 10Mi) — nothing in the sizing stack depends on the local cluster shape. The VPA CRDs ship in the chart's `crds/` dir (`install.crds: Create` / `upgrade.crds: CreateReplace`), so no separate CRD handling either. goldilocks was removed — new workloads get a hand-written Off-mode VPA in the group manifest (observability README). Group decisions: `manifests/bases/observability/README.md`.
+
+## Etcd snapshots: talos-backup (local: `manifests/bases/backups/`, cmdshift/platform#94)
+
+The talos-backup CronJob shape (Talos `ServiceAccount` CR → snapshot → zstd → age → S3) **carries over**, with cloud deltas:
+
+- **The machine-config prereqs must be re-decided against a real quorum**: `kubernetesTalosAPIAccess.allowedRoles: [os:etcd:backup]` + `allowedKubernetesNamespaces: [backups]` live in the cloud ctrl patches (the local template is `nodes/templates/ctrl.tftpl.yaml`; the `logging` entry there is a container-mode artifact). Snapshotting from one member of a 3-node quorum is fine (the read is serialized through the leader), but verify which node the `default/talos` Service routes to.
+- **The age keypair must be re-generated cloud-side** — the private key lives in the local tfstate (terraform `age_secret_key`, secrets module); never carry it over. Cloud should generate its own keypair in its own state.
+- **S3 endpoint/TLS**: the local job runs plain-HTTP `s3.cloud.test` (companion haproxy, `:80` baseline). Cloud S3 is TLS — minio-go then uses the system CA pool, so the platform root CA must reach the job container's trust store (a mounted secret, not the `:80` dodge).
+- The restore drill (single-node restore path) is unvalidated even locally — phase 2 of cmdshift/platform#94; the cloud version needs its own quorum-safe procedure (`etcdutl snapshot restore` onto a fresh member, not the local single-node `/var/lib/etcd` swap). See `runbooks/local/etcd-backups.md`.
+- The virtual-host/path-style haproxy recursion landmine is local-companion-only (no companion haproxy in the cloud), but the **image tag rule stands anywhere**: use a tag carrying upstream `b9fd478`+ (path-style wiring); release tags through `v0.1.0-beta.3` PUT virtual-host style against custom endpoints.

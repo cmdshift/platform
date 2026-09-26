@@ -1,0 +1,92 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: talos-backup
+  namespace: backups
+spec:
+  # after velero's 03:00 — the two pipelines stay independent
+  schedule: "0 4 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: talos-backup
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: talos-backup
+              # pinned; the tag carries USE_PATH_STYLE wiring (upstream b9fd478 —
+              # beta.3 lacks it and PUTs virtual-host style, which recursed the
+              # external haproxy into OOM)
+              image: ghcr.io/siderolabs/talos-backup:v0.1.0-beta.3-10-gb9fd478
+              imagePullPolicy: IfNotPresent
+              workingDir: /tmp
+              command: ["/talos-backup"]
+              env:
+                - name: CUSTOM_S3_ENDPOINT
+                  value: http://s3.cloud.test
+                - name: USE_PATH_STYLE
+                  value: "true"
+                - name: BUCKET
+                  value: backups
+                - name: AWS_REGION
+                  value: local
+                - name: ENABLE_COMPRESSION
+                  value: "true"
+                - name: CLUSTER_NAME
+                  value: local-test
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: talos-backup-s3-credentials
+                      key: AWS_ACCESS_KEY_ID
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: talos-backup-s3-credentials
+                      key: AWS_SECRET_ACCESS_KEY
+                - name: AGE_X25519_PUBLIC_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: talos-backup-age-public-key
+                      key: AGE_RECIPIENT_PUBLIC_KEY
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 1000
+                runAsGroup: 1000
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+                seccompProfile:
+                  type: RuntimeDefault
+              resources:
+                # VPA recs (Off, post-snapshot): cpu 11m, mem 36Mi — 88MiB etcd streamed,
+                # compressed+encrypted to 16MiB in ~40s
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
+              volumeMounts:
+                - mountPath: /tmp
+                  name: tmp
+                - mountPath: /.talos
+                  name: talos
+                - mountPath: /var/run/secrets/talos.dev
+                  name: talos-secrets
+          terminationGracePeriodSeconds: 30
+          volumes:
+            - name: tmp
+              emptyDir: {}
+            - name: talos
+              emptyDir: {}
+            - name: talos-secrets
+              secret:
+                secretName: talos-backup

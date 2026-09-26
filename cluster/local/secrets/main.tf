@@ -4,6 +4,8 @@ resource "docker_image" "busybox" {
   pull_triggers = [data.docker_registry_image.busybox.sha256_digest]
 }
 
+resource "age_secret_key" "etcd_backup" {}
+
 resource "docker_container" "secrets" {
   name         = var.name
   image        = docker_image.busybox.name
@@ -54,6 +56,14 @@ resource "docker_container" "secrets" {
   upload {
     file    = "/www/backups/velero-s3-credentials"
     content = jsonencode(local.backups.velero_s3_credentials)
+  }
+  upload {
+    file    = "/www/backups/talos-backup-s3-credentials"
+    content = jsonencode(local.backups.talos_backup_s3_credentials)
+  }
+  upload {
+    file    = "/www/backups/talos-backup-age-public-key"
+    content = jsonencode(local.backups.talos_backup_age_public_key)
   }
   upload {
     file    = "/www/access/oauth2-proxy-credentials"

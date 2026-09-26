@@ -1,5 +1,7 @@
 # Velero backup operations
 
+Etcd/cluster-state snapshots are a separate pipeline (talos-backup CronJob, 04:00) — see [etcd-backups.md](etcd-backups.md). Velero covers workload data only.
+
 ## Architecture
 
 Velero backs up to **rustfs** (out-of-cluster): bucket `backups` at `s3.cloud.test`, user `backups-user` via the secrets-server payload `backups/velero-s3-credentials` (secret key `default`), egress through the backups CNP's `toFQDNs: s3.cloud.test` rule. The BSL is `default` (`manifests/bases/backups-config/default.backup-storage-location.yaml`); the `pvcs` schedule (03:00 daily, all namespaces, fs-backup, 72h TTL — keeps at most 3 backup generations live) is the nightly run.
