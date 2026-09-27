@@ -1,13 +1,17 @@
 ---
 name: velero-ops
-description: Velero backup and restore operations — the nightly backup check (per-PVC PodVolumeBackups), kopia repo-maintenance health, test backups, the kubectl-delete resurrection trap, validated restore drills, and velero_wait polling. Use for anything backup/restore related.
+description: Velero backup and restore operations — the nightly backup check (per-PVC PodVolumeBackups), kopia repo-maintenance health, test backups, the kubectl-delete resurrection trap, validated restore drills, the BSL-prefix validation trap, RTO/RPO targets, and velero_wait polling. Use for anything backup/restore related.
 ---
 
 # Velero backup operations
 
 ## Architecture
 
-BSL `default` → rustfs bucket `backups` at `s3.cloud.test` (user `backups-user` via secrets-server payload `backups/velero-s3-credentials`; egress via the backups CNP's `toFQDNs: s3.cloud.test` rule). The `pvcs` schedule (03:00 daily, all namespaces, fs-backup, 72h TTL — at most 3 backup generations live) is the nightly run.
+BSL `default` → rustfs bucket `backups` **under prefix `velero/`** at `s3.cloud.test` (user `backups-user` via secrets-server payload `backups/velero-s3-credentials`; egress via the backups CNP's `toFQDNs: s3.cloud.test` rule). The `pvcs` schedule (03:00 daily, all namespaces, fs-backup, 72h TTL — at most 3 backup generations live) is the nightly run. talos-backup (etcd snapshots) owns prefix `talos/` in the same bucket — shared-bucket prefix rule in `backups/README.md`; etcd snapshot ops in the etcd-backups runbook.
+
+## RTO/RPO (recorded 2026-09-27, cmdshift/platform#94)
+
+RPO 24h (both pipelines daily); RTO ~15-20m etcd restore path vs ~10m rebuild fallback. Etcd restore drilled 2026-09-27 — the post-restore checklist (crashlooping controllers, cilium VIP-backend loss, kubelet pod-sync wedge, node-agent rolls) lives in [etcd-backups.md](../../../runbooks/local/etcd-backups.md) and applies to ANY full-cluster restore. Drill cadence: quarterly + after storage changes.
 
 ## Morning check
 
@@ -27,6 +31,10 @@ All BackupRepositories `Failed` + Warning events every ~5m = kopia maintenance J
 - **`status.recentMaintenance[0]` is the NEWEST entry** — naive jq on index 0 reports `Failed` even when the latest attempt `Succeeded`; use the last entry / `lastMaintenanceTime`.
 - Blocked-job Warning events land in the **`default`** namespace and persist ~1h as stale events after a fix — they age out, don't chase them.
 - Reading the image's uid needs `docker create` + `docker export` (no shell/coreutils in the image — `kubectl exec id` fails). `runAsUser` must be numeric; re-resolve on any velero image base/user bump.
+
+## BSL unavailable = silent schedule skips
+
+Velero's BSL validation rejects foreign top-level dirs in the bucket — one stray writer makes the BSL `Unavailable` and **every schedule fire skips silently** (no Backup CR, flat `velero_backup_attempt_total`, only `VeleroBackupStale`'s absent-arm fires). Fingerprint + rule: the velero-backups runbook. Every bucket writer owns a distinct top-level prefix.
 
 ## Deleting — the resurrection trap
 
@@ -54,4 +62,4 @@ Three velero alerts in `observability/mimir-rules.yaml` (`backup-alerts` — mov
 
 ## Full detail
 
-[runbooks/local/velero-backups.md](../../../runbooks/local/velero-backups.md)
+[runbooks/local/velero-backups.md](../../../runbooks/local/velero-backups.md); etcd snapshots: [runbooks/local/etcd-backups.md](../../../runbooks/local/etcd-backups.md)

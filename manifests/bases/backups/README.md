@@ -4,7 +4,9 @@ Velero + talos-backup (etcd snapshots) + `backups-config/` (BSL, backup schedule
 
 ## talos-backup (etcd snapshots, cmdshift/platform#94 phase 1)
 
-In-cluster CronJob (04:00 daily, after velero's 03:00 — the pipelines stay independent): `talosctl etcd snapshot` via a Talos `ServiceAccount` CR (`os:etcd:backup` role), zstd-compressed, age-encrypted, pushed to rustfs `backups/<cluster>/`. Restore/decrypt: the etcd-backups runbook.
+In-cluster CronJob (04:00 daily, after velero's 03:00 — the pipelines stay independent): `talosctl etcd snapshot` via a Talos `ServiceAccount` CR (`os:etcd:backup` role), zstd-compressed, age-encrypted, pushed to rustfs `backups/talos/`. Restore/decrypt: the etcd-backups runbook.
+
+- **Explicit `S3_PREFIX: talos` on the CronJob** (cmdshift/platform#94): without it the image derives the key from `CLUSTER_NAME` and PUTs at the bucket root — and velero's BSL validation (`IsValid`) **rejects any top-level directory it doesn't own**, marking the shared BSL `Unavailable` and silently skipping every schedule fire (no Backup CR, flat `velero_backup_attempt_total`, only the `VeleroBackupStale` absent-arm fires). The BSL carries the matching `objectStorage.prefix: velero`; shared-bucket rule: **every writer to the `backups` bucket must own a distinct top-level prefix**.
 
 - **Image is a SHA-suffixed tag (`v0.1.0-beta.3-10-gb9fd478`), not a beta release**: the tag boundary matters — every release tag through beta.3 PUTs virtual-host style (`backups.s3.cloud.test`); the path-style-for-custom-endpoints wiring only exists from upstream `b9fd478` (2026-04). The virtual-host PUT hit the external haproxy with an unmatched Host, which `set-dst`-no-oped into a self-recursion flood (25k conns, OOM 137 — the cluster-rebuild runbook's haproxy note).
 - **The job rides the wildcard registry mirror** — the image caches angos-side after the first pull; no build plumbing.
@@ -12,8 +14,9 @@ In-cluster CronJob (04:00 daily, after velero's 03:00 — the pipelines stay ind
 - **S3 creds reuse the `backups-user` rustfs identity** (env-style payload `backups/talos-backup-s3-credentials`), scoped R/W/L/D to the `backups` bucket by the entrypoint.
 - **Machine-config prereqs live in `ctrl.tftpl.yaml`**: `kubernetesTalosAPIAccess.allowedRoles` carries `os:etcd:backup` and `allowedKubernetesNamespaces` lists `backups` (both for SA-secret consumption and the kubelet image-verify trap, cmdshift/platform#90). Editing that template = full rebuild (cmdshift/platform#140).
 - **The SA controller names the issued secret after the CR** (`talos-backup`), not `talos-backup-secrets` as the upstream sample shows — the CronJob mounts that name.
+- **The image has no prefix knob besides `S3_PREFIX`** (default: `CLUSTER_NAME`): the object key is `<S3_PREFIX>/<CLUSTER_NAME>-<ts>.snap.zst.age` — the cluster name folds into the filename under the prefix, not a nested dir.
 - **Endpoint stays `http://s3.cloud.test`** with the other cluster consumers (`:80` baseline, cmdshift/platform#131 migrates) — no CA mount needed while minio-go is on plain HTTP; a TLS migration must add the platform root CA to the job container's trust store.
-- Retention/pruning is **deferred** (cmdshift/platform#94 phase 2): snapshots accumulate under `local-test/` until a lifecycle decision lands.
+- **Restore is drilled** (2026-09-27, cmdshift/platform#94 phase 2): full quorum loss → `talosctl bootstrap --recover-from` with a 24h-old rustfs artifact → 3 members rejoined, cluster re-converged. Procedure, container-mode landmines, and the post-restore checklist: the etcd-backups runbook.
 
 ## Deliberately local-only settings
 

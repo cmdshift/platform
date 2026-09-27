@@ -37,6 +37,7 @@ Chart traps, per-group decisions, and pipeline mechanics live with the thing the
 
 ## Don't
 
+- **Don't escalate privileges — never sudo** (added 2026-09-27): no `sudo`, no host-root paths, no permission escalation of any kind. The docker socket (docker group) is the sanctioned surface for companion containers and docker volumes; everything else happens through the cluster/terraform/tools APIs as the running user.
 - **Don't write outside the repo** — no `/tmp`; agent and tool scratch goes in `.agents/temp/` (see the Do list).
 - **Don't re-export `KUBECONFIG`** — direnv already exports it (`.envrc`); tools that ignore it get an explicit `--kubeconfig` flag (the `velero-ops` pattern).
 - **Don't commit without stopping, and don't push** — the agent's job ends at a green reconcile + docs swept: propose the commit (message + natural split) and **stop; wait for the human's explicit approval before running `git commit`/`git push`**. The human reviews the diff and approves history.

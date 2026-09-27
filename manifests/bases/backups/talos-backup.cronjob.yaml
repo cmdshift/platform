@@ -33,6 +33,10 @@ spec:
                   value: "true"
                 - name: BUCKET
                   value: backups
+                - name: S3_PREFIX
+                  # root-level CLUSTER_NAME keys made velero's BSL validation
+                  # reject the whole bucket (cmdshift/platform#94) — nest under talos/
+                  value: talos
                 - name: AWS_REGION
                   value: local
                 - name: ENABLE_COMPRESSION

@@ -4,7 +4,18 @@ Etcd/cluster-state snapshots are a separate pipeline (talos-backup CronJob, 04:0
 
 ## Architecture
 
-Velero backs up to **rustfs** (out-of-cluster): bucket `backups` at `s3.cloud.test`, user `backups-user` via the secrets-server payload `backups/velero-s3-credentials` (secret key `default`), egress through the backups CNP's `toFQDNs: s3.cloud.test` rule. The BSL is `default` (`manifests/bases/backups-config/default.backup-storage-location.yaml`); the `pvcs` schedule (03:00 daily, all namespaces, fs-backup, 72h TTL — keeps at most 3 backup generations live) is the nightly run.
+Velero backs up to **rustfs** (out-of-cluster): bucket `backups` **under prefix `velero/`**, at `s3.cloud.test`, user `backups-user` via the secrets-server payload `backups/velero-s3-credentials` (secret key `default`), egress through the backups CNP's `toFQDNs: s3.cloud.test` rule. The BSL is `default` (`manifests/bases/backups-config/default.backup-storage-location.yaml`); the `pvcs` schedule (03:00 daily, all namespaces, fs-backup, 72h TTL — keeps at most 3 backup generations live) is the nightly run. talos-backup owns prefix `talos/` in the same bucket — shared-bucket prefix rule: bases/backups README.
+
+### RTO/RPO targets (recorded 2026-09-27, cmdshift/platform#94)
+
+- **RPO 24h** — both pipelines are daily (velero 03:00, talos-backup 04:00); worst-case exposure is one cycle. Demonstrated: the etcd restore drill recovered the cluster from a 24h-old snapshot (velero's workload data in that snapshot was the same cadence).
+- **RTO ~15-20m cluster-state recovery** (etcd restore path, drilled: ~6-7m to members rejoined + ~10m flux/helmrelease conformance) vs ~10m full terraform rebuild as the fallback. For single-node loss: zero-touch auto-rejoin, no operator action.
+- Cloud cluster carries different targets (real quorum, cloud object store) — tracked in `manifests/cloud/notes.md`.
+
+### Drill cadence
+
+- **Etcd restore drill: quarterly**, and after any storage/etcd-machine-config change (the same trigger as the velero data-path drill below). Validated 2026-09-27 — procedure + container-mode landmines + the post-restore checklist: [etcd-backups.md](etcd-backups.md).
+- **Velero data-path drill**: re-run after any storage change (existing rule; the 2026-09-05 drill procedure below stands).
 
 ## Check the nightly backup (morning routine)
 
@@ -60,7 +71,7 @@ EOF
 Verify it landed in rustfs:
 
 ```
-rustfs ls main/backups --recursive
+rustfs ls main/backups/velero --recursive
 ```
 
 ## Deleting backups — the resurrection trap
@@ -69,7 +80,11 @@ rustfs ls main/backups --recursive
 - kubectl only removes the CR — the S3 objects stay
 - velero's backup-sync then **re-creates the Backup CR from storage** within minutes, resurrecting what you thought you deleted
 
-After a proper deletion, verify the objects are gone from `main/backups`.
+After a proper deletion, verify the objects are gone from `main/backups/velero`.
+
+## BSL validation landmine — a foreign top-level dir makes the BSL Unavailable (silent)
+
+Velero's BSL validation (`IsValid`) rejects **any top-level directory in the bucket that velero doesn't own** — before the 2026-09-27 prefix fix (cmdshift/platform#94), talos-backup's root-level `local-test/` keys marked the BSL `Unavailable` and **every schedule fire silently skipped**: no Backup CR created, `velero_backup_attempt_total` flat, no failure counters — the ONLY signal was `VeleroBackupStale` firing via its `absent()` arm (the last-success gauge can't exist before a first Completed). An unavailable BSL also blocks backup-sync and restores. Fingerprint: BSL `Unavailable` with `invalid top-level directories: [X]` + schedule `lastBackup` stale + zero CRs. Defense: every bucket writer owns a distinct top-level prefix (talos-backup `S3_PREFIX: talos`, BSL `prefix: velero`). The `FailedValidation` Backup CRs minted during such a window linger ~2d (their TTL) — delete via `velero backup delete --confirm`.
 
 ## Restores — validated 2026-09-05 (drill)
 
