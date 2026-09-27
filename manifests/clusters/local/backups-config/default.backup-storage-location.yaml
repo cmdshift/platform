@@ -8,6 +8,10 @@ spec:
   default: true
   objectStorage:
     bucket: backups
+    # owned top-level prefix; without it velero's IsValid rejects ANY other
+    # top-level dir in the bucket (talos-backup's made the BSL Unavailable,
+    # silently skipping every schedule fire since the 09-26 rebuild)
+    prefix: velero
   config:
     s3Url: http://s3.cloud.test
     s3ForcePathStyle: "true"
