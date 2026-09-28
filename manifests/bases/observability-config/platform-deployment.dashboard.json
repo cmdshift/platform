@@ -15,12 +15,85 @@
       }
     ]
   },
-  "description": "Deployment-scoped view (issue #39): per-container CPU/memory usage vs requests/limits, pods & nodes, PVC disk usage, recent logs. The Deployment variable defaults to a sentinel All that matches nothing - pick a deployment to populate the dashboard.",
+  "description": "Deployment-scoped view (issue #39): per-container CPU/memory usage vs requests/limits, pods & nodes, PVC disk usage, recent logs. The Deployment variable defaults to All \u2014 every deployment in the selected namespace; pick one to narrow the dashboard.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "id": null,
-  "links": [],
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Logs: errors (detected_level)",
+      "tooltip": "Logs panel query preset: | detected_level=\"error\"",
+      "type": "link",
+      "url": "/d/platform-deployment?var-log_query=%7C%20detected_level%3D%22error%22"
+    },
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Logs: warnings",
+      "tooltip": "Logs panel query preset: | detected_level=\"warn\"",
+      "type": "link",
+      "url": "/d/platform-deployment?var-log_query=%7C%20detected_level%3D%22warn%22"
+    },
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Logs: debug",
+      "tooltip": "Logs panel query preset: | detected_level=\"debug\"",
+      "type": "link",
+      "url": "/d/platform-deployment?var-log_query=%7C%20detected_level%3D%22debug%22"
+    },
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Logs: json level=error",
+      "tooltip": "Logs panel query preset: | json | level=\"error\"",
+      "type": "link",
+      "url": "/d/platform-deployment?var-log_query=%7C%20json%20%7C%20level%3D%22error%22"
+    },
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Logs: contains \"error\"",
+      "tooltip": "Logs panel query preset: |= \"error\"",
+      "type": "link",
+      "url": "/d/platform-deployment?var-log_query=%7C%3D%20%22error%22"
+    },
+    {
+      "asDropdown": false,
+      "icon": "bolt",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Explore logs",
+      "tooltip": "Open the current namespace/pod selection in Explore (LogQL)",
+      "type": "link",
+      "url": "/explore?schemaVersion=1&panes={\"e\":{\"datasource\":\"${loki_ds}\",\"queries\":[{\"refId\":\"A\",\"expr\":\"{namespace=\\\"$namespace\\\", pod=~\\\"${pods:regexformat}\\\"}\",\"queryType\":\"range\",\"datasource\":{\"type\":\"loki\",\"uid\":\"${loki_ds}\"}}],\"range\":{\"from\":\"${__from}\",\"to\":\"${__to}\"}}}&orgId=1"
+    }
+  ],
   "liveNow": false,
   "panels": [
     {
@@ -466,34 +539,10 @@
     },
     {
       "datasource": {
-        "type": "datasource",
-        "uid": "grafana"
-      },
-      "gridPos": {
-        "h": 2,
-        "w": 24,
-        "x": 0,
-        "y": 18
-      },
-      "id": 6,
-      "options": {
-        "code": {
-          "language": "markdown",
-          "showLineNumbers": false
-        },
-        "content": "<div style=\"display:flex;align-items:center;gap:8px;flex-wrap:wrap;\"><span style=\"color:#8e8e8e;font-size:13px;\">Log query presets</span><a href=\"/d/platform-deployment?var-namespace=$namespace&var-deployment=$deployment&from=$__from&to=$__to&var-log_query=%7C%20detected_level%3D%22error%22\" style=\"padding:3px 12px;background:#22252b;color:#d8d9da;border:1px solid #464c54;border-radius:4px;text-decoration:none;font-size:13px;\">errors</a><a href=\"/d/platform-deployment?var-namespace=$namespace&var-deployment=$deployment&from=$__from&to=$__to&var-log_query=%7C%20detected_level%3D%22warn%22\" style=\"padding:3px 12px;background:#22252b;color:#d8d9da;border:1px solid #464c54;border-radius:4px;text-decoration:none;font-size:13px;\">warnings</a><a href=\"/d/platform-deployment?var-namespace=$namespace&var-deployment=$deployment&from=$__from&to=$__to&var-log_query=%7C%20detected_level%3D%22debug%22\" style=\"padding:3px 12px;background:#22252b;color:#d8d9da;border:1px solid #464c54;border-radius:4px;text-decoration:none;font-size:13px;\">debug</a><a href=\"/d/platform-deployment?var-namespace=$namespace&var-deployment=$deployment&from=$__from&to=$__to&var-log_query=%7C%20json%20%7C%20level%3D%22error%22\" style=\"padding:3px 12px;background:#22252b;color:#d8d9da;border:1px solid #464c54;border-radius:4px;text-decoration:none;font-size:13px;\">json level=error</a><a href=\"/d/platform-deployment?var-namespace=$namespace&var-deployment=$deployment&from=$__from&to=$__to&var-log_query=%7C%3D%20%22error%22\" style=\"padding:3px 12px;background:#22252b;color:#d8d9da;border:1px solid #464c54;border-radius:4px;text-decoration:none;font-size:13px;\">contains \"error\"</a><a href=\"/d/platform-deployment?var-namespace=$namespace&var-deployment=$deployment&from=$__from&to=$__to&var-log_query=%7C~%20%22timeout%7Crefused%7Cunreachable%22\" style=\"padding:3px 12px;background:#22252b;color:#d8d9da;border:1px solid #464c54;border-radius:4px;text-decoration:none;font-size:13px;\">network errors</a><a href=\"/d/platform-deployment?var-namespace=$namespace&var-deployment=$deployment&from=$__from&to=$__to&var-log_query=%7C%20json%20%7C%20duration%20%3E%201s\" style=\"padding:3px 12px;background:#22252b;color:#d8d9da;border:1px solid #464c54;border-radius:4px;text-decoration:none;font-size:13px;\">slow &gt;1s</a><a href=\"/d/platform-deployment?var-namespace=$namespace&var-deployment=$deployment&from=$__from&to=$__to&var-log_query=\" style=\"padding:3px 12px;background:#22252b;color:#ff7383;border:1px solid #464c54;border-radius:4px;text-decoration:none;font-size:13px;\">clear</a><span style=\"color:#8e8e8e;font-size:13px;margin-left:8px;\">current:</span><code>$log_query</code><span style=\"color:#666;font-size:12px;\">— free-form queries: panel menu → Explore</span></div>",
-        "mode": "html"
-      },
-      "pluginVersion": "13.1.3",
-      "title": "",
-      "type": "text"
-    },
-    {
-      "datasource": {
         "type": "loki",
         "uid": "${loki_ds}"
       },
-      "description": "Logs of the deployment's pods. The Log query variable is any LogQL pipeline applied after the namespace/pod selector (| json | level=\"error\", |= \"text\", …). Time range follows the dashboard picker; panel menu → Explore for arbitrary queries.",
+      "description": "Logs of the deployment's pods. The Log query variable is any LogQL pipeline applied after the namespace/pod selector (| json | level=\"error\", |= \"text\", \u2026). Time range follows the dashboard picker; panel menu \u2192 Explore for arbitrary queries.",
       "fieldConfig": {
         "defaults": {
           "mappings": [],
@@ -513,7 +562,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 20
+        "y": 18
       },
       "id": 5,
       "options": {
@@ -547,7 +596,7 @@
         "type": "tempo",
         "uid": "${tempo_ds}"
       },
-      "description": "Recent traces in the selected namespace (empty until an instrumentation source exports to tempo — beyla was removed over a host-kernel panic). Click a trace to open it; panel menu → Explore for TraceQL.",
+      "description": "Recent traces in the selected namespace (empty until an instrumentation source exports to tempo \u2014 beyla was removed over a host-kernel panic). Click a trace to open it; panel menu \u2192 Explore for TraceQL.",
       "fieldConfig": {
         "defaults": {},
         "overrides": []
@@ -556,7 +605,7 @@
         "h": 12,
         "w": 24,
         "x": 0,
-        "y": 30
+        "y": 28
       },
       "id": 7,
       "options": {
@@ -651,7 +700,11 @@
         "type": "datasource"
       },
       {
-        "current": {},
+        "current": {
+          "selected": true,
+          "text": "kube-system",
+          "value": "kube-system"
+        },
         "datasource": {
           "type": "prometheus",
           "uid": "${datasource}"
@@ -678,7 +731,7 @@
         "current": {
           "selected": true,
           "text": "All",
-          "value": "__none__"
+          "value": "$__all"
         },
         "datasource": {
           "type": "prometheus",
@@ -687,7 +740,7 @@
         "definition": "label_values(kube_deployment_status_replicas{namespace=\"$namespace\"}, deployment)",
         "hide": 0,
         "includeAll": true,
-        "label": "Deployment (All = none selected)",
+        "label": "Deployment",
         "multi": true,
         "name": "deployment",
         "options": [],
@@ -700,8 +753,7 @@
         "regex": "",
         "skipUrlSync": false,
         "sort": 1,
-        "type": "query",
-        "allValue": "__none__"
+        "type": "query"
       },
       {
         "current": {
@@ -810,7 +862,7 @@
     ]
   },
   "timezone": "browser",
-  "title": "Platform / Deployment",
+  "title": "Platform / Deployments",
   "uid": "platform-deployment",
   "version": 1,
   "weekStart": ""

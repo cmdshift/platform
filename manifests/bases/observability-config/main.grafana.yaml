@@ -21,7 +21,10 @@ spec:
     users:
       allow_sign_up: "true"
       auto_assign_org: "true"
-      auto_assign_org_role: "Viewer"
+      # Editor, not Viewer: Explore is gated to Editor+ in OSS and there is no
+      # RBAC way to grant it to Viewers (cmdshift/platform#155) — log
+      # exploration is a core workflow for every rauthy-authed user
+      auto_assign_org_role: "Editor"
   disableDefaultAdminSecret: true
   deployment:
     spec:
@@ -46,11 +49,6 @@ spec:
                 # [log] format alone, so the env override is the only path
                 - name: GF_LOG_CONSOLE_FORMAT
                   value: json
-                # the dashboard's preset strip renders button-styled links via a text
-                # panel (html + inline styles) — the sanitizer strips style attributes.
-                # Content is repo-authored only, so the guard is off
-                - name: GF_PANELS_DISABLE_SANITIZE_HTML
-                  value: "true"
                 - name: GF_SECURITY_ADMIN_USER
                   valueFrom:
                     secretKeyRef:
