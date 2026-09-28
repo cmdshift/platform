@@ -32,6 +32,7 @@ Chart traps, per-group decisions, and pipeline mechanics live with the thing the
 - **Keep docs in the change** — a change isn't ready to commit or PR until the docs it made stale are updated in the same branch (see Docs map below; run the `docs-sweep` skill for heavy sweeps).
 - **Wait with bounded helpers, not blind polls** (`flux_wait`/`helm_wait`/`velero_wait`/`bench`, image pulls, rebuild polls) — and diagnose early failures immediately (StartError, admission denial, failed mounts at t=10s) instead of polling to a timeout.
 - **Agent scratch goes in `.agents/temp/`** — temp outputs, throwaway token/cache dirs, downloaded artifacts. The dir is gitignored via its checked-in marker file (`.agents/temp/.gitignore`), repo-relative, stable across sessions. `cluster/local/.tmp/` stays reserved for `.envrc`/terraform-owned artifacts (`kubeconfig`, `talosconfig`, `tls/`) — don't scatter agent files there. Never write outside the repo — no `/tmp`.
+- **Cache fetched API/web responses in `.agents/temp/`** — fetch an endpoint once, store the response, re-read from disk. Re-hitting the same endpoint per question burns rounds and trips companion rate limiting (rauthy 429s its API after repeated calls). Cloning a repo for source questions beats hammering raw file URLs (cmdshift/platform#155 session). If you need the data again, read the scratch file, not the wire.
 - **Size resources on evidence, not defaults**: requests lean (10-50m CPU), CPU limits generous for bursts (200m-2000m), memory request ≈ P99 × 1.2 / limit 1.5 × request (velero is 2× deliberately — rationale at the value). Throttling is the silent killer — audit procedure: the `resource-sizing` skill.
 - **Verify flux API shapes against the on-cluster CRD schema before pushing** — undeclared fields fail the root dry-run and wedge the whole dependency chain. Mechanics: [manifests/bases/flux/README.md](manifests/bases/flux/README.md).
 
@@ -55,7 +56,7 @@ Chart traps, per-group decisions, and pipeline mechanics live with the thing the
 - **`manifests/bases/<group>/README.md`** — the group's timeless decisions and landmines (chart traps, sizing rationale pointers, local-only settings)
 - **`manifests/README.md`** — cross-cutting conventions + the hardening-deviations baseline
 - **`cluster/local/README.md`** — terraform/docker-side traps and endpoint mechanics
-- **`manifests/cloud/notes.md`** — what the cloud cluster must do differently
+- **`manifests/clusters/cloud/notes.md`** — what the cloud cluster must do differently
 - **`runbooks/local/`** — procedures and incident post-mortems
 - **`.agents/skills/*/SKILL.md`** — procedures; their trap lists must stay current (`skill-improvement` is the authority)
 

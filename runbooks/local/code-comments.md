@@ -65,14 +65,14 @@ memory: 256Mi # OOM-killed at 128Mi during kopia repo prep (cmdshift/platform#20
 
 | Marker | Meaning | Cloud-side action lives in |
 |---|---|---|
-| `# remove in the cloud` | delete the line when the manifests move to real Talos | `manifests/cloud/notes.md` |
-| `# true in the cloud` | flip the value when the manifests move | `manifests/cloud/notes.md` |
+| `# remove in the cloud` | delete the line when the manifests move to real Talos | `manifests/clusters/cloud/notes.md` |
+| `# true in the cloud` | flip the value when the manifests move | `manifests/clusters/cloud/notes.md` |
 | `# NSA hardening:` | setting that came from the NSA hardening baseline (kubescape-era, kept) | `manifests/README.md` accepted-deviations ledger |
 
 Rules:
 
 - Never invent new spellings or paraphrase these (`# remove in prod`, `# cloud:` — no). The cloud-migration sweep is `grep -rn "in the cloud"`.
-- Adding a marker obligates a matching entry in `manifests/cloud/notes.md`.
+- Adding a marker obligates a matching entry in `manifests/clusters/cloud/notes.md`.
 - Marker semantics are about the **cloud migration**, not general rationale — ordinary surprising choices get a plain rationale comment instead.
 
 ## Where a comment ends and docs begin
@@ -91,6 +91,6 @@ If a comment won't fit in 3 lines, it's docs — move the narrative out and leav
 3. Stacked/superseded evidence generations → collapse to current.
 4. Tool-mechanics explanations → delete or replace with a link to the owning README/runbook.
 5. TODOs without an issue ref → file the issue (`file-issue` skill) or delete.
-6. Marker spellings exact? (`grep -rn "in the cloud" <path>`); each marker has its `manifests/cloud/notes.md` counterpart.
+6. Marker spellings exact? (`grep -rn "in the cloud" <path>`); each marker has its `manifests/clusters/cloud/notes.md` counterpart.
 7. Surface syntax: River (alloy) comments are `//`, not `#` — `#` crashlooped the pods (cmdshift/platform#39).
 8. Values you changed this session: comment updated in the same change, not "later".
