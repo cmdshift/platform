@@ -1,19 +1,42 @@
 #!/usr/bin/env bash
-# Mailpit subjects (where alert emails land), newest first.
-#   mailpit [limit]   # default 10
-# Exit 0 = fetched, 2 = usage error.
+# Mailpit (where alert emails land): subjects newest-first, or a full body.
+#   mailpit [limit]        # subjects, default 10
+#   mailpit -s <subject>   # newest message whose subject contains <subject>
+#   mailpit -b <id>        # body (text if present, else HTML) of message <id>
+# Exit 0 = fetched, 1 = not found, 2 = usage error.
 
 usage() {
-  echo "usage: mailpit [limit]" >&2
+  echo "usage: mailpit [limit] | mailpit -s <subject-substring> | mailpit -b <id>" >&2
   exit 2
 }
 
+api() {
+  curl -s --max-time 5 "$1"
+}
+
 mailpit() {
-  [ $# -le 1 ] || usage
-  local limit="${1:-10}"
-  case "$limit" in ''|*[!0-9]*|0) usage ;; esac # non-numeric goes straight into the API query string
-  curl -s --max-time 5 "http://mail.cloud.test/api/v1/messages?limit=$limit" \
-    | jq -r '.messages[]? | .Subject[0:120]'
+  if [ "${1:-}" = "-b" ]; then
+    [ $# -eq 2 ] || usage
+    local body
+    body=$(api "http://mail.cloud.test/api/v1/message/$2")
+    [ -n "$body" ] || { echo "no message $2" >&2; exit 1; }
+    # jq -r prints nulls as "null"; prefer text, fall back to html
+    printf '%s' "$body" | jq -r 'if .Text != "" then .Text else .HTML end'
+  elif [ "${1:-}" = "-s" ]; then
+    [ $# -eq 2 ] || usage
+    local id
+    id=$(api "http://mail.cloud.test/api/v1/messages?limit=50" \
+      | jq -r --arg s "$2" '[.messages[] | select(.Subject | ascii_downcase | contains($s | ascii_downcase))][0].ID // empty')
+    [ -n "$id" ] || { echo "no message matching '$2'" >&2; exit 1; }
+    echo "id: $id"
+    mailpit -b "$id"
+  else
+    [ $# -le 1 ] || usage
+    local limit="${1:-10}"
+    case "$limit" in ''|*[!0-9]*|0) usage ;; esac # non-numeric goes straight into the API query string
+    api "http://mail.cloud.test/api/v1/messages?limit=$limit" \
+      | jq -r '.messages[]? | "\(.ID)  \(.Subject[0:120])"'
+  fi
 }
 
 mailpit "$@"
