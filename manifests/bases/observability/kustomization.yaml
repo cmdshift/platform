@@ -94,12 +94,6 @@ configMapGenerator:
       - config.alloy=alloy-logging.config.alloy
     options:
       disableNameSuffixHash: true
-  - name: alloy-platform-config
-    namespace: observability
-    files:
-      - config.alloy=alloy-platform.config.alloy
-    options:
-      disableNameSuffixHash: true
   - name: alloy-telemetry-config
     namespace: observability
     files:

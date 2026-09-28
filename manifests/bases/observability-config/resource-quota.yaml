@@ -5,9 +5,9 @@ metadata:
   namespace: observability
 spec:
   hard:
-    # cmdshift/platform#149: the parallel window runs both alloy stacks + the
-    # alloy-operator; commit 2 (old releases deleted) sheds ~7 pods back
-    # requests ≈ 0.9Gi headroom, limits ≈ 3Gi burst headroom
+    # sized for the current namespace pod set (26 pods incl. 2 DS × 7 nodes);
+    # the surge headroom below admits a grafana-deployment rolling update
+    # (blocked at 16 on logging-compute in cmdshift/platform#155)
     requests.cpu: "3"
     requests.memory: 10Gi
     limits.cpu: 20

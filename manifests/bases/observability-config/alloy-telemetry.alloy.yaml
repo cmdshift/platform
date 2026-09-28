@@ -1,7 +1,10 @@
-# Cluster-metrics + traces collector (cmdshift/platform#149): kubelet/cadvisor/
-# apiserver/kcm/scheduler scrapes, kube-state-metrics + node-exporter (own
-# HelmReleases in this group), and the OTLP traces intake. Alloy CR reconciled
-# by the alloy-operator HelmRelease; config is a real file
+# Cluster-metrics + traces collector (cmdshift/platform#149; absorbed the
+# per-service families + self-scrape of the deleted alloy-platform CR in
+# cmdshift/platform#155 — one metrics collector, all scrapes land here).
+# kubelet/cadvisor/apiserver/kcm/scheduler scrapes, kube-state-metrics +
+# node-exporter (own HelmReleases in this group), the per-service families,
+# the OTLP traces intake, and the alloy self-scrape. Alloy CR reconciled by
+# the alloy-operator HelmRelease; config is a real file
 # (alloy-telemetry.config.alloy via configMapGenerator).
 apiVersion: collectors.grafana.com/v1alpha1
 kind: Alloy
@@ -14,6 +17,8 @@ spec:
     replicas: 1
     # clustering peers need stable identities — the operator renders a headless
     # cluster Service for the statefulset; the regular Service carries 4317/4318
+    podLabels:
+      alloy-telemetry: metrics
     volumes:
       extra:
         - name: tmp

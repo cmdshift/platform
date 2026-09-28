@@ -8,10 +8,12 @@ metadata:
   namespace: observability
 spec:
   hard:
-    # sized = `compute` in this namespace (both quotas admit the same pod set);
-    # lockstep history: cmdshift/platform#83, cmdshift/platform#128, cmdshift/platform#146
-    requests.cpu: "2"
-    requests.memory: 8Gi
-    limits.cpu: 16
-    limits.memory: 12Gi
+    # sized = `compute` in this namespace (both quotas admit the same pod set;
+    # lockstep history: cmdshift/platform#83, cmdshift/platform#128, #146);
+    # raised from 16 in cmdshift/platform#155 — a grafana-deployment surge pod
+    # did not fit (7-node DSs alone charge 11.1 CPU: node-exporter 7 + alloy-logging 4.1)
+    requests.cpu: "3"
+    requests.memory: 10Gi
+    limits.cpu: 20
+    limits.memory: 16Gi
     pods: "36"
