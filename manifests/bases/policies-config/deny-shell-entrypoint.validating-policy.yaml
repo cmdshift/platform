@@ -23,8 +23,11 @@ spec:
         - jobs
         - cronjobs
   matchConditions:
+    # phase-4 wave 1 (cmdshift/platform#60): every flux-managed namespace except
+    # objects (seaweed's /bin/sh -ec entrypoint is operator-hardcoded — see
+    # security/README.md). Lockstep with the exec-deny-list-* TracingPolicies.
     - name: operator-namespaces
-      expression: "object.metadata.namespace in ['flux-system', 'policies', 'secrets']"
+      expression: "object.metadata.namespace in ['flux-system', 'policies', 'secrets', 'access', 'backups', 'certificates', 'datastores', 'observability', 'scanning', 'security', 'storage']"
   variables:
     - name: allContainers
       expression: >-
