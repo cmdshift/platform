@@ -6,5 +6,6 @@ resources:
   - local-test-redirect.httproute.yaml
   - backups.cilium-network-policy.yaml
   - observability.cilium-network-policy.yaml
+  - scanning.cilium-network-policy.yaml
   - secrets.cilium-network-policy.yaml
   - security.cilium-network-policy.yaml

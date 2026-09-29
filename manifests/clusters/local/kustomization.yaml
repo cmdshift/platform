@@ -13,6 +13,14 @@ resources:
   - networking-config.yaml
   - flux.yaml
   - flux-config.yaml
+  # security applies in the early wave (right after networking) — tetragon's
+  # BPF policies must be loaded before the bulk of workload namespaces boot, or
+  # containers that start during the bootstrap window are invisible to the
+  # pod-scoped enforcement until their next container restart (security/README.md).
+  # It no longer waits on storage/policies — tetragon needs neither; trivy moved
+  # to the scanning/ group precisely to keep this dependency set minimal.
+  - security.yaml
+  - security-config.yaml
   # policies/datastores/backups/security were trimmed for the cmdshift/platform#146
   # bootstrap (the full stack drowned the install failure being diagnosed) and are
   # re-enabled group-by-group — policies (kyverno) landed clean first. The trim
@@ -29,5 +37,5 @@ resources:
   - observability-config.yaml
   - backups.yaml
   - backups-config.yaml
-  - security.yaml
-  - security-config.yaml
+  - scanning.yaml
+  - scanning-config.yaml
