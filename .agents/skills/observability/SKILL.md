@@ -38,13 +38,12 @@ loki_query -c 'sum by (x) (count_over_time(...))'  # labels per series + latest 
   plus `instance` (`ns/pod:container`), `job`, `service_name`,
   `detected_level`. Select natively: `{namespace="observability",
   pod=~"grafana-.*"}`; `instance` prefix selectors still work
-- Metrics are split across **two collectors** (cmdshift/platform#149):
-  `alloy-telemetry` (cluster plumbing: kubelet/cadvisor/apiserver/kcm/
-  scheduler, kube-state-metrics, node-exporter) and `alloy-platform`
-  (per-service families + collector self-scrapes) — both push to mimir, so
-  `metrics_summary`/`up` cover the union; a missing job family is a keep-rule
-  or release-name problem on whichever collector owns it (instance label =
-  helm release name in the keep regexes).
+- Metrics come from **one collector** (cmdshift/platform#155, merged from
+  two): `alloy-telemetry` (cluster plumbing: kubelet/cadvisor/apiserver/kcm/
+  scheduler, kube-state-metrics, node-exporter, per-service families,
+  self-scrape) pushes to mimir, so `metrics_summary`/`up` cover everything;
+  a missing job family is a keep-rule or release-name problem on
+  alloy-telemetry (instance label = helm release name in the keep regexes).
 - Platform components log **JSON** — kyverno, grafana-operator, seaweedfs-operator,
   metrics-server and alloy flipped at the source; the alloy
   pipeline **normalizes the rest** (logfmt lines → JSON fields; plain-text
@@ -56,10 +55,12 @@ loki_query -c 'sum by (x) (count_over_time(...))'  # labels per series + latest 
 ## mailpit
 
 ```
-mailpit [limit]                    # subjects of the latest alert emails, newest first
+mailpit [limit]                    # "<id>  <subject>" of the latest alert emails, newest first
+mailpit -s <substring>             # newest message whose subject matches (case-insensitive) → body
+mailpit -b <id>                    # body of message <id> (text if present, else HTML)
 ```
 
-Alert delivery path: mimir ruler → alertmanager → mailpit. Alerts land at **http://mail.cloud.test** — use it to confirm a rule fired (e.g. after touching `observability/mimir-rules.yaml`) or to read `ContainerOOMKilled` events.
+Alert delivery path: mimir ruler → alertmanager → mailpit. Alerts land at **http://mail.cloud.test** — use it to confirm a rule fired (e.g. after touching `observability/mimir-rules.yaml`) or to read `ContainerOOMKilled` events. Verifying templated alert annotations (dashboard links etc.) rendered requires the body — `mailpit -s` to find the alert email, `-b` to read it (exit 0/1/2 = found/not-found/usage). Bare listing prints the ID prefix needed for `-b` (cmdshift/platform#155).
 
 ## tetra (Tetragon process events)
 

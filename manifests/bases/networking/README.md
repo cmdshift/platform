@@ -12,7 +12,7 @@ The live release is the flux **HelmRelease** `kube-system/cilium` (helm storage 
 
 ## Cilium — deliberately local-only settings
 
-The cloud deltas are spelled out in [manifests/cloud/notes.md](../../cloud/notes.md) (the old in-repo `# remove in the cloud` / `# true in the cloud` markers are gone — the KPR/proxy.disabled deltas they marked resolved in cmdshift/platform#70; this list is the remaining inventory):
+The cloud deltas are spelled out in [manifests/cloud/notes.md](../../clusters/cloud/notes.md) (the old in-repo `# remove in the cloud` / `# true in the cloud` markers are gone — the KPR/proxy.disabled deltas they marked resolved in cmdshift/platform#70; this list is the remaining inventory):
 
 - **`version: 1.20.2`** — back on stable (cmdshift/platform#41): the pre-release pin was a kernel-7.2 workaround (`FnSetRetval` probe crash, cilium/cilium#48016) and 1.20.2 ships the fix (`b73ca6e8` — `bpf_core_enum_value_exists()` for HAVE_SET_RETVAL) plus the `policy: fix host identity check` commit. Still pinned in BOTH places — the bootstrap helm_release in `cluster/local/bootstrap/main.tf` AND this HelmRelease — and the two must move in **lockstep**: flux adoption converges the live release to the HelmRelease's pin, so a stale bootstrap pin silently downgrades on the next reconcile.
 - **`hubble.ui.httpRoute.enabled: false`** — the chart nil-pointers when the key is absent (verified on 1.21-pre installs; kept explicit on 1.20.x, harmless). Set in both this values file and the bootstrap values.

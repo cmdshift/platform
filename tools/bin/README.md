@@ -72,7 +72,7 @@ whole dependency tree.
 | `metrics_summary` | post-scrape-change gate: per-job up-target counts + Watchdog |
 | `loki_query` | LogQL with tenant + time math preset |
 | `alloy_components` | dump the alloy components a pod is actually running (config-mismatch triage) |
-| `mailpit` | alert-email subjects from mailpit |
+| `mailpit` | alert-email subjects, or `-s <subj>` / `-b <id>` for body fetch |
 | `velero_wait` | poll a velero backup/restore to Completed |
 | `rustfs` | rustfs `rc` CLI inside the storage container, alias preset |
 | `cilium_test` | `cilium connectivity test` with temp admission scaffolding |
@@ -439,11 +439,17 @@ components healthy, 1 = any unhealthy/unreachable.
   `loki.source.kubernetes.pods`, `loki.process.wrap`,
   `loki.write.endpoint`
 
-### `mailpit [limit]`
+### `mailpit [limit]` / `mailpit -s <subject>` / `mailpit -b <id>`
 
-Subjects of the latest alert emails from http://mail.cloud.test (ruler →
-alertmanager delivery), newest first. Default 10; non-numeric/zero limit is
-a usage error (it used to go straight into the API query string).
+Alert emails from http://mail.cloud.test (ruler → alertmanager delivery).
+Bare `mailpit [limit]` prints `<id>  <subject>`, newest first (default 10;
+non-numeric/zero limit is a usage error — it would go straight into the API
+query string). `-s <substring>` finds the newest message whose subject
+contains the substring (case-insensitive) and prints its body; `-b <id>`
+prints the body of a specific message (text if present, else HTML). Exit
+0 = fetched, 1 = not found, 2 = usage error. Subject matching + body fetch
+was added for alert-link verification (cmdshift/platform#155) — listing
+alone can't show whether annotations rendered as links.
 
 ## Operations
 

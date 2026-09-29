@@ -53,7 +53,10 @@ persistence:
 
 config:
   enabled: true
-  templates: []
+  # link annotations (dashboard_url/explore_logs_url, cmdshift/platform#155):
+  # the default template prints only summary — this one adds a Links block
+  templates:
+    - '/etc/alertmanager/email.tmpl'
   # camelCase keys are the AlertmanagerConfig-CR spelling — the raw am config
   # uses snake_case; the chart renders this verbatim into alertmanager.yml
   route:
@@ -81,7 +84,56 @@ config:
           from: alertmanager@cloud.test
           require_tls: false
           send_resolved: true
+          # raw am config passes straight through the chart (configmap.yaml
+          # `toYaml`) — html/text override the built-in email templates to
+          # render the link annotations (email.tmpl below, cmdshift/platform#155)
+          html: '{{ template "email.default.html" . }}'
+          text: '{{ template "email.default.text" . }}'
+          # raw am config passes straight through the chart (configmap.yaml
+          # `toYaml`) — html/text override the built-in email templates to
+          # render the link annotations (email.tmpl below, cmdshift/platform#155)
+          html: '{{ template "email.default.html" . }}'
+          text: '{{ template "email.default.text" . }}'
 
 
 testFramework:
   enabled: false
+
+# custom email template (rendered into the alertmanager ConfigMap, mounted at
+# /etc/alertmanager): the built-in default only prints the summary annotation,
+# so the dashboard_url/explore_logs_url links (mimir-rules.yaml, #155) never
+# reach the inbox — email.default.text/html are overridden to include them.
+# Validated with `amtool check-config` (v0.34.1 image) before landing
+templates:
+  email.tmpl: |-
+    {{ define "email.default.text" }}{{ template "__subject" . }}
+
+    {{ range .Alerts }}
+    Labels:
+    {{ range .Labels.SortedPairs }} - {{ .Name }} = {{ .Value }}
+    {{ end }}Annotations:
+    {{ range .Annotations.SortedPairs }} - {{ .Name }} = {{ .Value }}
+    {{ end }}{{ with .Annotations.dashboard_url }}Dashboard: {{ . }}
+    {{ end }}{{ with .Annotations.explore_logs_url }}Logs: {{ . }}
+    {{ end }}Source: {{ .GeneratorURL }}
+    {{ end }}
+    Sent by Alertmanager ( {{ template "__alertmanagerURL" . }} )
+    {{ end }}
+
+    {{ define "email.default.html" }}<!DOCTYPE html>
+    <html>
+      <body>
+        {{ template "__subject" . }}
+        <ul>
+          {{ range .Alerts }}
+          <li>
+            <strong>{{ .Annotations.summary }}</strong>
+            {{ range .Labels.SortedPairs }}<br/>{{ .Name }} = {{ .Value }}{{ end }}
+            {{ with .Annotations.dashboard_url }}<br/><a href="{{ . }}">Dashboard</a>{{ end }}
+            {{ with .Annotations.explore_logs_url }} | <a href="{{ . }}">Logs</a>{{ end }}
+          </li>
+          {{ end }}
+        </ul>
+      </body>
+    </html>
+    {{ end }}

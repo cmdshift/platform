@@ -34,7 +34,7 @@ Surfaces — pick by what the learnings touch (details + examples: AGENTS.md →
   changed (skills are thin dispatchers; the trap list must stay current)
 - tools/bin/README.md — new or changed helper scripts: args, defaults, exit
   codes, gotchas
-- manifests/cloud/notes.md — what the cloud cluster must do differently
+- manifests/clusters/cloud/notes.md — what the cloud cluster must do differently
 
 Writing rules (AGENTS.md → Docs map):
 - Timeless rules go in skills/READMEs/runbooks — no dates, no "as of" language;

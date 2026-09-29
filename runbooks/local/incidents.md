@@ -12,6 +12,22 @@ Incidents documented in their owning runbooks (kept there for context):
 
 ---
 
+## Duplicate scrape coverage masked a wedged collector (cmdshift/platform#155)
+
+**Symptom**: `alloy-platform-0` sat 0/1 for ~45m (ResourceQuota `logging-compute` exhausted — `limits.cpu 15940m/16`; node-exporter DS 7×1CPU + alloy-logging DS 7 pods alone charge ~11.1 CPU), with quota FailedCreate events piling up. Every `up{job=...}` metric stayed green the whole time and `metrics_summary` looked healthy.
+
+**Root cause**: nothing was wrong with the metrics pipeline — because it wasn't the only source. The two-collector split (alloy-platform + alloy-telemetry) carried 16 duplicate job families, each also scraping alloy-logging; the healthy alloy-telemetry kept supplying every `up` series the dead collector would have. Duplicate coverage made `up` — the standard collector-health signal — structurally blind to a collector outage.
+
+**Fix**: the Alloy CR merge — alloy-platform deleted, all per-service scrape families + self-scrape folded into a single metrics collector (alloy-telemetry). Both observability quotas raised (limits.cpu 16→20) so the grafana rolling-update surge pod fits; the stale failed ReplicaSet still needed a one-time metadata nudge (`kubectl annotate rs ... platform.local/quota-bump-retrigger=<ts>`) — a quota-exceeded RS does not self-heal when the quota rises (rs-controller caches the ReplicaFailure until RS metadata changes).
+
+**Tells for next time**:
+
+- `up` green proves the *metrics are flowing*, not that *every collector is alive* — only true with zero duplicate scrape families. After any merge, also check `kubectl get pods -n observability` / quota events, not just mimir.
+- Quota FailedCreate events are a health signal `up` cannot substitute for — scan them when a collector's sts/ds shows fewer pods than desired.
+- A failed ReplicaSet stuck in `ReplicaFailure: exceeded quota` stays failed after a quota bump — annotate the RS to retrigger (one-time unstick, not config).
+
+---
+
 ## Configless boot behind the leastconn LB fails nondeterministically (cmdshift/platform#140)
 
 **Symptom** (fresh rebuild): with the `talos_machine_configuration_apply` resources removed and `USERDATA` dropped experimentally (nodes booting configless into maintenance mode), worker provisioning fails nondeterministically — `talos_machine_configuration_apply`-equivalent worker applies error `certificate signed by unknown authority`, and bootstrap fails `bootstrap is only available on control plane nodes`. Retrying sometimes passes, which makes it look flaky rather than broken.

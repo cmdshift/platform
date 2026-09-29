@@ -8,9 +8,9 @@ local-path-provisioner (helm release) + `storage-config/` (the StorageClasses).
 
 ## StorageClass decisions
 
-- **`allowVolumeExpansion: false` on purpose** — local-path-provisioner has no volume-expansion support (verified in the v0.0.37 source: only `create`/`delete` ActionTypes, zero resize/expand code), and non-CSI external provisioners can't expand regardless. A `true` value is accepted by the API but nothing can ever act on it: a PVC resize would hang forever. Resize path locally = recreate the PVC at the larger size (velero FSB restore for data). Cloud CSI expands natively — set `true` there ([manifests/cloud/notes.md](../../cloud/notes.md)).
+- **`allowVolumeExpansion: false` on purpose** — local-path-provisioner has no volume-expansion support (verified in the v0.0.37 source: only `create`/`delete` ActionTypes, zero resize/expand code), and non-CSI external provisioners can't expand regardless. A `true` value is accepted by the API but nothing can ever act on it: a PVC resize would hang forever. Resize path locally = recreate the PVC at the larger size (velero FSB restore for data). Cloud CSI expands natively — set `true` there ([manifests/cloud/notes.md](../../clusters/cloud/notes.md)).
 - **`defaultVolumeType: local`** — makes local-path emit `local` PVs (not hostPath), which velero FSB backs up natively. Only affects **new** PVs; see [backups/README.md](../backups/README.md).
-- **`volumeBindingMode: WaitForFirstConsumer`** + `reclaimPolicy: Delete` — rationale for the cloud in [manifests/cloud/notes.md](../../cloud/notes.md).
+- **`volumeBindingMode: WaitForFirstConsumer`** + `reclaimPolicy: Delete` — rationale for the cloud in [manifests/cloud/notes.md](../../clusters/cloud/notes.md).
 
 ## local-path quirks
 

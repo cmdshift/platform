@@ -10,7 +10,7 @@ Velero backs up to **rustfs** (out-of-cluster): bucket `backups` **under prefix 
 
 - **RPO 24h** — both pipelines are daily (velero 03:00, talos-backup 04:00); worst-case exposure is one cycle. Demonstrated: the etcd restore drill recovered the cluster from a 24h-old snapshot (velero's workload data in that snapshot was the same cadence).
 - **RTO ~15-20m cluster-state recovery** (etcd restore path, drilled: ~6-7m to members rejoined + ~10m flux/helmrelease conformance) vs ~10m full terraform rebuild as the fallback. For single-node loss: zero-touch auto-rejoin, no operator action.
-- Cloud cluster carries different targets (real quorum, cloud object store) — tracked in `manifests/cloud/notes.md`.
+- Cloud cluster carries different targets (real quorum, cloud object store) — tracked in `manifests/clusters/cloud/notes.md`.
 
 ### Drill cadence
 

@@ -1,19 +1,19 @@
 apiVersion: grafana.integreatly.org/v1beta1
 kind: GrafanaDatasource
 metadata:
-  name: prometheus
+  name: mimir
   namespace: observability
 spec:
   instanceSelector:
     matchLabels:
       dashboards: grafana
   datasource:
-    name: Prometheus
+    name: Mimir
     type: prometheus
     access: proxy
     # mimir monolith — prometheus-compatible query API lives under /prometheus
-    # (the OTel collector remote-writes here with the same OrgID,
-    # cmdshift/platform#128)
+    # (alloy remote-writes here with the same OrgID, cmdshift/platform#128;
+    # display name Mimir, query protocol stays prometheus — cmdshift/platform#155)
     url: http://mimir.observability.svc:8080/prometheus
     isDefault: true
     jsonData:
