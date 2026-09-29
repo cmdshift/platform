@@ -1,0 +1,58 @@
+# Exec deny-list, scanning namespace (trivy-operator, trivy-server) — phase-4 wave 1
+# (cmdshift/platform#60), sibling of exec-deny-list-security. trivy moved out of
+# security/ into its own group so tetragon can bootstrap early (rebuild ordering).
+# Scoping label: the charts' release instance labels. The scan Jobs exec /bin/sh -c
+# wrappers legitimately — they carry only managed-by=trivy-operator (no instance
+# label), so they're out of scope here; the kyverno backstop carries the matching
+# PolicyException instead.
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: exec-deny-list-scanning
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/instance
+        operator: In
+        values:
+          - trivy-operator
+          - trivy-server
+  options:
+    - name: policy-mode
+      value: enforce
+  kprobes:
+    - call: security_bprm_check
+      syscall: false
+      args:
+        - index: 0
+          type: linux_binprm
+      message: "exec of denied binary in operator namespace"
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: Prefix
+              values:
+                - /bin/sh
+                - /bin/bash
+                - /bin/dash
+                - /bin/ash
+                - /bin/zsh
+                - /usr/bin/sh
+                - /usr/bin/bash
+                - /usr/bin/dash
+                - /usr/bin/zsh
+                - /usr/bin/python
+                - /usr/bin/perl
+                - /usr/bin/ruby
+                - /usr/bin/node
+                - /usr/bin/env
+                - /usr/bin/nc
+                - /bin/nc
+                - /usr/bin/socat
+                - /bin/socat
+                - /usr/bin/wget
+                - /bin/wget
+                - /usr/bin/curl
+                - /bin/curl
+          matchActions:
+            - action: Sigkill
