@@ -16,4 +16,6 @@ local-path-provisioner (helm release) + `storage-config/` (the StorageClasses).
 
 - local-path creates **world-writable (0777)** dirs so non-root workloads can write PVCs — but only on fresh deploy; retrofitting root-owned data needs a one-time chown (helper-pod pattern, used by seaweedfs and the thanos ruler in its day).
 - The helper pod image is pinned via `helperImage.tag` — must not be `:latest` (admission denies it, **silently breaking all PVC provisioning**).
+- **The helper pod runs `/bin/sh /script/setup`** (provisioner-hardcoded, verified in the v0.0.37 source) — `allow-local-path-helper-pod` in `policies-config/` excepts it from `deny-shell-entrypoint` or **every PVC create/delete is admission-denied** (cmdshift/platform#60 phase-4 wave). Live-verified: PVC binds, helper runs, volume writes.
+- The helper pod shares the provisioner's `app.kubernetes.io/instance` label, so `exec-deny-list-storage` scope-matches it — its shell exec escapes pod-scoped enforcement anyway (container-init gap), and that's the accepted posture: admission-layer excepted explicitly, runtime layer a no-op here.
 - `kubelet_volume_stats_*` PVC metrics exist because the PVs are `local` — hostPath PVs are skipped by kubelet (series silently absent, no error anywhere).

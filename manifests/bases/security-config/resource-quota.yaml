@@ -6,7 +6,8 @@ metadata:
 spec:
   hard:
     # tetragon (x4 daemons) dominates: the 8-CPU limits sum is daemon bursts, so the
-    # limits quota sits at 12 to keep one rollout overlap from blocking (cmdshift/platform#93)
+    # limits quota sits at 12 to keep one rollout overlap from blocking (cmdshift/platform#93);
+    # trivy moved to scanning/ — this quota is tetragon-only now
     requests.cpu: 1
     requests.memory: 11Gi
     limits.cpu: 12

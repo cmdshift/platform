@@ -1,15 +1,23 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - bpf-activity.tracing-policy.yaml
+  - resource-quota.yaml
+  - exec-deny-list-access.tracing-policy.yaml
+  - exec-deny-list-backups.tracing-policy.yaml
+  - exec-deny-list-backups-jobs.tracing-policy.yaml
+  - exec-deny-list-backups-talos.tracing-policy.yaml
+  - exec-deny-list-certificates.tracing-policy.yaml
+  - exec-deny-list-datastores.tracing-policy.yaml
   - exec-deny-list-flux-system.tracing-policy.yaml
+  - exec-deny-list-observability.tracing-policy.yaml
+  - exec-deny-list-observability-grafana.tracing-policy.yaml
+  - exec-deny-list-observability-mimir.tracing-policy.yaml
   - exec-deny-list-policies.tracing-policy.yaml
+  - exec-deny-list-scanning.tracing-policy.yaml
   - exec-deny-list-secrets.tracing-policy.yaml
+  - exec-deny-list-security.tracing-policy.yaml
+  - exec-deny-list-storage.tracing-policy.yaml
   - exec-inventory.tracing-policy.yaml
-  - k8s-nsa-1.0.cluster-compliance-report.yaml
-  - k8s-pss-baseline-0.1.cluster-compliance-report.yaml
-  - k8s-pss-restricted-0.1.cluster-compliance-report.yaml
   - kernel-modules.tracing-policy.yaml
   - privileges-raise.tracing-policy.yaml
-  - resource-quota.yaml
   - sensitive-host-paths.tracing-policy.yaml

@@ -46,7 +46,8 @@ Watch with `flux_wait` (interactive cap ~15), or `flux_wait -c` for an instant n
 |---|---|---|
 | Kustomizations | `flux_wait -c` | exit 0, all Ready |
 | HelmReleases | `kubectl get helmreleases -A` | all True; per-release: `helm_wait -c <ns> <name>` |
-| Tetragon policies | `tetra --server-address localhost:54321 tracingpolicy list` (after `kubectl -n security port-forward ds/tetragon 54321:54321`) | 4 × enabled, monitor_only; FILTERID non-zero for privileges-raise + sensitive-host-paths |
+| Tetragon policies | `tetra --server-address localhost:54321 tracingpolicy list` (after `kubectl -n security port-forward ds/tetragon 54321:54321`) | deny-list policies enabled + enforce; FILTERID non-zero for privileges-raise + sensitive-host-paths |
+| **Tetragon enforcement live** | `tetragon_probe exec-deny-list-flux-system` | **exit 137 + NENFORCE +1** — **MANDATORY**: containers started during the bootstrap window are invisible to pod-scoped policies until their next container restart (security/README.md). If it reads 0, roll-restart the deny-list workloads (flux controllers one at a time) and re-probe |
 | Policy load failures | `prometheus_query 'tetragon_tracingpolicy_loaded{state=~"error\|load_error"} > 0'` | empty (the gauge exports zero-valued states too — filter with `> 0`) |
 | flux-config adoption | `kubectl -n flux-system get kustomization local -o json --show-managed-fields` | `kustomize-controller` owns the spec |
 | Velero BSL | `kubectl -n backups get bsl default` | `Available` |

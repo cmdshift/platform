@@ -10,5 +10,6 @@ resources:
   - observability.namespace.yaml
   - objects.namespace.yaml
   - backups.namespace.yaml
+  - scanning.namespace.yaml
   - security.namespace.yaml
   - access.namespace.yaml

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: scanning
+  labels:
+    # kept privileged to match the old security-namespace posture the scan jobs were
+    # deployed under (trivy scan pods run non-root 65534 via scanJobPodTemplate*, but
+    # the chart also renders admission-controller-mutating scaffolding that predates
+    # the hardening pass — revisit for restricted when the chart's job template is
+    # audited end-to-end; kyverno deviations scoped by allow-trivy-scan-jobs)
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/warn: privileged
