@@ -1,3 +1,6 @@
+host_os = "macos"
+
+libvirt_uri         = "qemu:///system?socket=/opt/homebrew/var/run/libvirt/libvirt-sock"
 image_arch          = "arm64"
 domain_type         = "hvf"
 machine_arch        = "aarch64"

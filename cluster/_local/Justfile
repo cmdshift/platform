@@ -1,14 +1,6 @@
 set quiet
 set fallback
 
-socket:
-  #!/usr/bin/env bash
-  if [ "$(uname)" != 'Darwin' ]; then
-    exit 0
-  fi
-  sudo mkdir -p /var/run/libvirt
-  sudo ln -sf "$HOME/.cache/libvirt/libvirt-sock" /var/run/libvirt/libvirt-sock
-
 image:
   curl -sX POST \
     --data-binary @image/schematic.yaml \
