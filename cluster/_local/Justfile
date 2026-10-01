@@ -38,7 +38,7 @@ init *args:
   terraform init {{args}}
   terraform -chdir=bootstrap init {{args}}
 
-cluster action *args: socket
+cluster action *args:
   terraform {{action}} -var-file="$VARFILE" {{args}}
 
 bootstrap action *args:

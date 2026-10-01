@@ -1,4 +1,3 @@
-libvirt_uri         = "qemu:///session"
 image_arch          = "arm64"
 domain_type         = "hvf"
 machine_arch        = "aarch64"

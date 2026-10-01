@@ -1,4 +1,3 @@
-libvirt_uri         = "qemu:///system"
 image_arch          = "amd64"
 domain_type         = "kvm"
 machine_arch        = "x86_64"
