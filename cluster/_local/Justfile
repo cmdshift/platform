@@ -1,0 +1,45 @@
+set quiet
+set fallback
+
+socket:
+  #!/usr/bin/env bash
+  if [ "$(uname)" != 'Darwin' ]; then
+    exit 0
+  fi
+  sudo mkdir -p /var/run/libvirt
+  sudo ln -sf "$HOME/.cache/libvirt/libvirt-sock" /var/run/libvirt/libvirt-sock
+
+image:
+  curl -sX POST \
+    --data-binary @image/schematic.yaml \
+    --header "Content-Type: application/yaml" https://factory.talos.dev/schematics | \
+  jq -r '.id'
+
+certs:
+  step certificate create "platform-intermediate" $STEPPATH/intermediate_ca.crt $STEPPATH/intermediate_ca.key \
+    --profile intermediate-ca \
+    --ca $STEPPATH/root_ca.crt \
+    --ca-key $STEPPATH/root_ca.key \
+    --not-after 8760h \
+    --no-password \
+    --insecure
+  step certificate create "*.cloud.test" $STEPPATH/cloud.test.crt $STEPPATH/cloud.test.key \
+    --profile leaf \
+    --ca $STEPPATH/intermediate_ca.crt \
+    --ca-key $STEPPATH/intermediate_ca.key \
+    --san "*.cloud.test" \
+    --not-after 8760h \
+    --no-password \
+    --insecure
+  cat $STEPPATH/cloud.test.key $STEPPATH/cloud.test.crt $STEPPATH/intermediate_ca.crt \
+    > $STEPPATH/cloud.test.pem
+
+init *args:
+  terraform init {{args}}
+  terraform -chdir=bootstrap init {{args}}
+
+cluster action *args: socket
+  terraform {{action}} -var-file="$VARFILE" {{args}}
+
+bootstrap action *args:
+  terraform -chdir=bootstrap {{action}} -var-file="$VARFILE" {{args}}

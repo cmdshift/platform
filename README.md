@@ -154,6 +154,12 @@ This repository is built to be operated by coding agents as much as by humans. T
 
 Same body of knowledge, two entry points: humans read the runbooks, agents load the skills.
 
+## macOS (`libvirt`)
+
+```shell
+sudo ln -s /opt/homebrew/var/run/libvirt /var/run/libvirt
+```
+
 ## Known Issues
 
 ### Local Talos Machine Bootstrap hang

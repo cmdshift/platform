@@ -1,0 +1,7 @@
+customization:
+  systemExtensions:
+    officialExtensions:
+      - siderolabs/qemu-guest-agent
+  extraKernelArgs:
+    - net.ifnames=0
+    - console=ttyS0,115200
