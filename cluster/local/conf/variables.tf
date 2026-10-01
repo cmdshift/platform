@@ -22,7 +22,7 @@ variable "internal_hostname" {
 # install-burst saturation that fixed it at 1 (cmdshift/platform#54) did not reproduce
 variable "ctrl_nodes" {
   type    = number
-  default = 3
+  default = 1
 }
 
 variable "work_nodes" {

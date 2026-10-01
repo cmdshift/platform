@@ -24,6 +24,8 @@ cluster:
       oidc-username-claim: preferred_username
       oidc-groups-claim: groups
       oidc-ca-file: /var/etc/oidc/ca.crt
+      max-requests-inflight: "100"
+      max-mutating-requests-inflight: "50"
     # fixed hostPath set — without this mount the container can't see /var/etc/oidc/ca.crt
     # and crash-loops at OIDC init with no container logs (cmdshift/platform#131)
     extraVolumes:
@@ -42,3 +44,6 @@ ${indent(6, audit_policy)}
   etcd:
     advertisedSubnets:
       - ${ctrl_cidr}
+    extraArgs:
+      heartbeat-interval: "500"
+      election-timeout: "5000"

@@ -5,6 +5,7 @@ provider "registry.terraform.io/clementblaise/age" {
   version = "0.1.1"
   hashes = [
     "h1:RLhkLC6jQPHiinFHxrd6BF5i+szkfwAEkqSdG2wNyJ8=",
+    "h1:TfefAE7jcX7fHjLd6T5DIY7N/r+MREVYXlV3EPCQWtU=",
     "zh:0809283e626d14964582fbc80edc7163e3a72b78033041d343ce563b7c211dac",
     "zh:1b5c3b125d22baab92ea8c65ef3650671dee19b17f5ccb1f09167228c6468fc9",
     "zh:25919262fba877f9e122e13b5273cc154be61105849eaa477c7fc1a4cfe2f5a4",
