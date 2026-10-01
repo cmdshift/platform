@@ -2,12 +2,12 @@ resource "libvirt_pool" "main" {
   name = "main"
   type = "dir"
   target = {
-    path = var.pool_path
+    path = abspath("${path.root}/.temp/pool")
   }
 }
 
 resource "libvirt_network" "main" {
-  count     = local.libvirt_network_count[var.host_os]
+  count     = local.libvirt_network_count[var.platform]
   name      = "main"
   autostart = false
   forward = {
@@ -135,4 +135,138 @@ resource "libvirt_cloudinit_disk" "infra" {
     instance-id: infra
     local-hostname: infra
   EOT
+}
+
+resource "null_resource" "nvram" {
+  provisioner "local-exec" {
+    command = "scripts/init_nvram.bash ${var.uefi_nvram_template} ${path.root}/.temp/storage ${join(" ", local.nvram_names)}"
+  }
+}
+
+resource "libvirt_domain" "ctrl" {
+  count = var.ctrl_nodes
+  depends_on = [
+    null_resource.nvram
+  ]
+  name        = "ctrl-${count.index}"
+  running     = true
+  memory      = var.ctrl_memory_megabytes
+  memory_unit = "MiB"
+  vcpu        = var.ctrl_vcpus
+  type        = "hvf"
+  cpu = {
+    mode = "host-passthrough"
+  }
+  features = {
+    gic = {
+      version = "3"
+    }
+  }
+  qemu_commandline = {
+    args = [
+      { value = "-netdev" },
+      { value = "vmnet-shared,id=net0" },
+      { value = "-device" },
+      { value = "virtio-net-device,netdev=net0" }
+    ]
+  }
+  os = {
+    type         = "hvm"
+    type_arch    = "aarch64"
+    type_machine = "virt"
+    loader       = var.uefi_loader
+    nv_ram = {
+      nv_ram   = abspath("${path.root}/.temp/storage/ctrl-${count.index}_VARS.fd")
+      template = var.uefi_nvram_template
+      format   = "raw"
+    }
+  }
+  devices = {
+    disks = [
+      {
+        driver = {
+          type = "qcow2"
+        }
+        source = {
+          file = {
+            file = libvirt_volume.ctrl_disk[count.index].id
+          }
+        }
+        target = {
+          dev = "vda"
+          bus = "virtio"
+        }
+      }
+    ]
+  }
+}
+
+resource "libvirt_domain" "work" {
+  count = var.work_nodes
+  depends_on = [
+    null_resource.nvram
+  ]
+  name        = "work-${count.index}"
+  running     = true
+  memory      = var.work_memory_megabytes
+  memory_unit = "MiB"
+  vcpu        = var.work_vcpus
+  type        = var.domain_type
+  cpu = {
+    mode = "host-passthrough"
+  }
+  features = {
+    gic = {
+      version = "3"
+    }
+  }
+  qemu_commandline = {
+    for args in toset(range(local.libvirt_network_count[var.platform])) : args => [
+      { value = "-netdev" },
+      { value = "vmnet-shared,id=net0" },
+      { value = "-device" },
+      { value = "virtio-net-device,netdev=net0" }
+    ]
+  }
+  os = {
+    type         = "hvm"
+    type_arch    = "aarch64"
+    type_machine = "virt"
+    loader       = var.uefi_loader
+    nv_ram = {
+      nv_ram   = abspath("${path.root}/.temp/storage/work-${count.index}_VARS.fd")
+      template = var.uefi_nvram_template
+      format   = "raw"
+    }
+  }
+  devices = {
+    disks = [
+      {
+        driver = {
+          type = "qcow2"
+        }
+        source = {
+          file = {
+            file = libvirt_volume.work_disk[count.index].id
+          }
+        }
+        target = {
+          dev = "vda"
+          bus = "virtio"
+        }
+      }
+    ]
+    interfaces = [
+      for _ in range(local.libvirt_network_count[var.platform]) : {
+        model = {
+          type = "virtio"
+        }
+        source = {
+          network = {
+            network = libvirt_network.main[0].name
+          }
+        }
+      }
+    ]
+  }
 }
