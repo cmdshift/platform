@@ -3,5 +3,5 @@ kind: Kustomization
 resources:
   - ../../../bases/policies-config
   - allow-hostpath-local-path-provisioner.policy-exception.yaml
-  - allow-kyverno-host-network.policy-exception.yaml
+  # - allow-kyverno-admission-controller-host-network.policy-exception.yaml
   - allow-local-path-helper-pod.policy-exception.yaml

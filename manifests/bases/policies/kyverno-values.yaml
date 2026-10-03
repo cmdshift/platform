@@ -37,7 +37,7 @@ config:
             - policies
 admissionController:
   replicas: 1
-  hostNetwork: true # remove in the cloud
+  # hostNetwork: true # remove in the cloud
   container:
     resources:
       requests:
@@ -50,7 +50,7 @@ admissionController:
     runAsNonRoot: true
 backgroundController:
   replicas: 1
-  hostNetwork: true # remove in the cloud
+  # hostNetwork: true # remove in the cloud
   resources:
     requests:
       cpu: 10m
@@ -62,7 +62,7 @@ backgroundController:
     runAsNonRoot: true
 cleanupController:
   replicas: 1
-  hostNetwork: true # remove in the cloud
+  # hostNetwork: true # remove in the cloud
   resources:
     requests:
       cpu: 10m
@@ -74,7 +74,7 @@ cleanupController:
     runAsNonRoot: true
 reportsController:
   replicas: 1
-  hostNetwork: true # remove in the cloud
+  # hostNetwork: true # remove in the cloud
   resources:
     requests:
       # 7d peak 101m during scan churn — 20m request, limit keeps burst room (cmdshift/platform#66)

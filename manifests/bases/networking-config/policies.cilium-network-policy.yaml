@@ -7,14 +7,21 @@ spec:
   endpointSelector: {}
   egress:
     - toEntities:
-      - kube-apiserver
+        - kube-apiserver
+        - host
+        - remote-node
   ingress:
+    # Allow API Server / Node / KubePrism traffic to Kyverno Webhook
     - fromEntities:
         - kube-apiserver
+        - host
+        - remote-node
       toPorts:
         - ports:
-            - port: "443"
+            - port: "9443" # Kyverno admission controller container port
               protocol: TCP
+            - port: "443"  # Service port
+    # Allow intra-namespace pod communication
     - fromEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: policies
