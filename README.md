@@ -1,12 +1,12 @@
 # platform
 
-A local Kubernetes platform testbed: Talos nodes running in Docker, provisioned with terraform (`cluster/local`), and deployed entirely by Flux v2 from the manifests in `manifests/local/`. Out-of-cluster companions (S3, secrets server, alert delivery) emulate the cloud services a production deployment would use. The supported host is **Linux with Docker Engine** (tested on Arch) — the cluster runs natively on the host kernel, no VM. macOS/Docker Desktop was the original host but the project outgrew it: the Docker Desktop VM capped the memory budget (24Gi), the VM port publisher added a stale-binding failure class, and its bind mounts dropped inotify events — all three classes are gone on Linux. Historical notes about the macOS host survive in the runbooks where the failure shapes they document are still the best reference.
+A local Kubernetes platform testbed: Talos nodes running in Docker, provisioned with terraform (`cluster/local`), and deployed entirely by Flux v2 from the manifests in `manifests/local/`. Out-of-cluster companions (S3, secrets server, alert delivery) emulate the cloud services a production deployment would use. Supported hosts: **Linux with Docker Engine** (tested on Arch — the cluster runs natively on the host kernel) and **macOS with Docker Desktop** (the VMM beta's memory/CPU profile carries the cluster — cmdshift/platform#173). Docker Desktop's VM caps the memory budget and its port publisher adds a stale-binding failure class (see [Known Issues](#known-issues)); the node container limits are sized to fit inside it.
 
 ## Prerequisites
 
 ### Required binaries
 
-The tested binary list is installable in one shot via Homebrew (also available through most Linux package managers):
+The tested binary list is installable in one shot via Homebrew (also available through most Linux package managers — on Linux, substitute `dnsmasq`/`docker` with the distro packages where the casks differ):
 
 ```shell
 brew bundle --file=tools/Brewfile
@@ -54,11 +54,42 @@ step certificate install --all $STEPPATH/root_ca.crt
 
 ## Cloud service emulation: the `.test` domains
 
-The companion services resolve under `*.cloud.test` (S3, secrets server, mailpit). Two things make that work: a second loopback address (`127.0.10.1`), and a local resolver that maps `*.test` → `127.0.0.1` and `*.cloud.test` → `127.0.10.1`. On Linux the whole `127/8` block is loopback-reachable by default and `dnsmasq` installs via the package manager. The recipe is verified live on the Arch test host (Docker Engine 29.7.2). (The historical macOS setup — a `lo0` alias + Homebrew dnsmasq — is gone with macOS support; the dnsmasq config below is identical.)
+The companion services resolve under `*.cloud.test` (S3, secrets server, mailpit). Two things make that work: a second loopback address (`127.0.10.1`), and a local resolver that maps `*.test` → `127.0.0.1` and `*.cloud.test` → `127.0.10.1`. On Linux and Windows the whole `127/8` block is loopback-reachable by default; macOS needs a one-time `lo0` alias.
+
+### macOS
+
+Add the loopback alias (not persistent across reboots — re-run after reboot, or bake it into a launchd script/`/etc/network-setup` equivalent):
+
+```shell
+sudo ifconfig lo0 alias 127.0.10.1 up
+ping -c1 127.0.10.1
+```
+
+Install `dnsmasq` via Homebrew (`brew install dnsmasq`) with this config at `$(brew --prefix)/etc/dnsmasq.conf`:
+
+```conf
+address=/.test/127.0.0.1
+address=/.cloud.test/127.0.10.1
+
+# include fallback servers so your normal DNS works
+server=1.1.1.1 # cloudflare
+server=8.8.8.8 # google
+# additional servers
+```
+
+Start it and point the system resolver at it (macOS resolver picks up `/etc/resolver` automatically — no port-53 conflict dance like systemd-resolved):
+
+```shell
+brew services start dnsmasq
+sudo mkdir -p /etc/resolver
+printf 'nameserver 127.0.0.1\n' | sudo tee /etc/resolver/test
+```
+
+Verify: `dig +short s3.cloud.test` and `scutil --dns | grep 127.0.0.1` (dig queries dnsmasq directly; apps use the resolver entry).
 
 ### Linux
 
-Linux is the supported host (tested on Arch, Docker Engine 29.7.2 — the cluster runs natively on the host kernel, no Docker Desktop VM). No loopback alias needed — the entire `127.0.0.0/8` block routes to `lo` by default. Verify with `ping -c1 127.0.10.1`.
+Tested on Arch (Docker Engine 29.7.2) — the cluster runs natively on the host kernel, no Docker Desktop VM. No loopback alias needed — the entire `127.0.0.0/8` block routes to `lo` by default. Verify with `ping -c1 127.0.10.1`.
 
 Install `dnsmasq` with your package manager (`apt install dnsmasq`, `dnf install dnsmasq`, ...) with this config at `/etc/dnsmasq.d/test.conf`:
 
