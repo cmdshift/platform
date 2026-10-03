@@ -44,7 +44,7 @@ The API-up window is now enforced by terraform itself (cmdshift/platform#72): th
 
 `talos_machine_bootstrap` used to "hang indefinitely" sometimes. The root cause is **not** the LB, a node race, or the network — it is the host port publisher going **stale after rapid container churn**: when a port-publishing container is destroyed and recreated within ~a minute, the host listener still ACCEPTS connections on 50000/6443 (SYN-ACK, ESTABLISHED) but black-holes the forward — no bytes reach the container. Container, node and everything else are perfectly healthy at that point.
 
-The failure was first root-caused on the historical macOS/Docker Desktop host, where the black-hole lived in the Docker Desktop VM's `com.docker.backend` publisher path. macOS/Docker Desktop is no longer a supported host — but the failure shape (a published path that accepts and never delivers) is the reference for diagnosing any host→container publish-path wedge.
+The failure was first root-caused on the historical macOS/Docker Desktop host, where the black-hole lived in the Docker Desktop VM's `com.docker.backend` publisher path. macOS/Docker Desktop is a supported host again (cmdshift/platform#173), so this failure class is live there — the failure shape (a published path that accepts and never delivers) is the reference for diagnosing any host→container publish-path wedge.
 
 The talos provider turns that into the hang: `talos_machine_bootstrap` silently retries every transport error for its **10-minute default create timeout** (final error: `rpc error: code = Unavailable desc = "transport: authentication handshake failed: context deadline exceeded"`). A fresh `terraform apply` right after a clean destroy rarely trips it; back-to-back churn (killed apply → destroy → apply) does. The failure mode is per-container, not per-port — the companions hit the same thing after a Docker daemon restart ([companion landmine below](#companions-the-caching-registry)).
 
@@ -66,7 +66,7 @@ terraform -chdir=cluster/local apply -auto-approve            # only bootstrap +
 
 **Mitigations now in the tree:** fail-fast `timeouts` on the bootstrap and kubeconfig resources in `nodes/main.tf` (10s each — the healthy path is sub-second; the hang surfaces as a real error in seconds instead of 10 silent minutes).
 
-**Multi-ctrl ceiling (retired):** the cmdshift/platform#54-era note said `ctrl_nodes = 3` saturated the historical macOS/Docker Desktop VM during the install burst (ctrl nodes pegged 175-200% CPU, etcd write-stalled `etcdserver: request timed out`, apiserver connections reset mid-write) and fixed the control plane at a single node. That ceiling was a **host-machine CPU/IOPS limit, not a software defect** — on the supported Linux host (60Gi, Docker Engine) the same 3-node shape re-verified clean in cmdshift/platform#140: ctrl CPU peaked ≤26% during the install burst, no etcd stalls. The `ctrl_nodes` knob (default 3) and the `cmd` LB are restored; when sizing ctrl-count, re-verify the install-burst behavior on the target host.
+**Multi-ctrl ceiling:** the default is `ctrl_nodes = 1` (single-node etcd — cmdshift/platform#173; HA etcd's complexity and 3× apiserver overhead buy a testbed nothing). The knob exists and has flipped before: it was 1 on the original macOS/Docker Desktop host, 3 on the Linux host (cmdshift/platform#140 — install burst re-verified clean, ctrl CPU ≤26%), and back to 1. The historical macOS VM saturated at 3 nodes (175-200% CPU, etcd `request timed out` stalls) — that was a **host-machine CPU/IOPS limit, not a software defect**; when sizing ctrl-count up, re-verify the install-burst behavior on the target host.
 
 Then watch convergence — **expect ~10 minutes**, progressing through the dependency chain in this order:
 
@@ -99,7 +99,7 @@ kubectl -n flux-system get kustomizations
 | PolicyReports | `policy_report` | 0 failures |
 | Host API path | `curl -skf --max-time 3 https://127.0.0.1:6443/version` | 401 (LB publisher alive; the kubeconfig server = `https://cmd.local.test:6443`, dnsmasq-resolved) |
 | Browser paths | `curl -s -o /dev/null -w '%{http_code}' http://mail.cloud.test` | 200 (s3 → 403 = auth challenge, also fine) |
-| Companion TLS | `curl -s -o /dev/null -w '%{http_code}' https://mail.cloud.test` | 200 (s3 → 403; registry → 200; `openssl s_client -connect 127.0.10.1:443 -servername secrets.cloud.test` → TLSv1.3, chain verifies against `root_ca.crt`) — trust the root CA on the host for browser/curl convenience: add `cluster/local/.tmp/tls/root_ca.crt` to the host trust store (e.g. copy to `/usr/local/share/ca-certificates/` + `update-ca-certificates` on Linux) |
+| Companion TLS | `curl -s -o /dev/null -w '%{http_code}' https://mail.cloud.test` | 200 (s3 → 403; registry → 200; `openssl s_client -connect 127.0.10.1:443 -servername secrets.cloud.test` → TLSv1.3, chain verifies against `root_ca.crt`) — trust the root CA on the host for browser/curl convenience: add `cluster/local/.tmp/tls/root_ca.crt` to the host trust store (`update-ca-certificates` on Linux; Keychain Access / `security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain <crt>` on macOS) |
 | Ingress | `curl -s -o /dev/null -w '%{http_code} loc=%header{location}' http://local.test` | **301** → `https://local.test:443/` (the redirect route; `server: envoy` header proves the Gateway path; 503 = haproxy backends down). `https://local.test` → **404** (no service routes; TLS passthrough to the Gateway) |
 | Rauthy discovery | `curl -s https://auth.cloud.test/auth/v1/.well-known/openid-configuration` | 200; `issuer` inside must be exactly `https://auth.cloud.test/auth/v1/` — the apiserver flag exact-matches it **including the trailing slash** (http issuer means the `pub_url`/`proxy_mode` config is wrong, cmdshift/platform#154) |
 | Kubelet-serving CSRs | `kubectl get csr` | **Pending until manually approved** — `kubectl get csr -o name \| xargs -I{} kubectl certificate approve {}`; nodes don't go Ready until this runs (re-confirmed on the cmdshift/platform#131 rebuild) |
@@ -153,7 +153,7 @@ docker run --rm -v platform-registry-data:/data busybox:1.37.0 chown -R 65534:65
 
 - Registry-map changes remain companion-side config only (angos container recreate) — no node machine config involved, immune by design.
 
-**Host → companion path:** `*.cloud.test` names resolve to `127.0.10.1`, which lands on the container port publisher (dockerd publishing the ports natively on Linux). If host curls to mail/secrets/s3 hang while the cluster itself works (check `docker logs cloud-test` — internal traffic is unaffected), `docker restart cloud-test` re-establishes the binding (hit 2026-09-07 on the historical macOS host).
+**Host → companion path:** `*.cloud.test` names resolve to `127.0.10.1`, which lands on the container port publisher. If host curls to mail/secrets/s3 hang while the cluster itself works (check `docker logs cloud-test` — internal traffic is unaffected), `docker restart cloud-test` re-establishes the binding (hit 2026-09-07 on macOS/Docker Desktop, where the VM publisher is the flakier path).
 
 ## Terraform plan churn
 

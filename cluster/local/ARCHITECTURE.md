@@ -1,19 +1,19 @@
 # Local cluster architecture
 
-Topology of the Talos-in-Docker test cluster that terraform in this directory builds (`just cluster apply` → `just bootstrap apply`; rebuild procedure and data implications: [runbooks/local/cluster-rebuild.md](../../runbooks/local/cluster-rebuild.md)). The supported host is **Linux with Docker Engine** (tested on Arch, Docker Engine 29.7.2, 60Gi host RAM, 41Gi free at setup): containers run natively against host RAM, no VM, no publisher indirection, docker bridges host-routable. macOS/Docker Desktop was the original development host and the project outgrew it (VM memory budget, stale VM port-publisher bindings, bind mounts dropping inotify events); historical notes that reference the macOS/VM shape are kept in the runbooks where the failure shapes remain the best reference.
+Topology of the Talos-in-Docker test cluster that terraform in this directory builds (`just cluster apply` → `just bootstrap apply`; rebuild procedure and data implications: [runbooks/local/cluster-rebuild.md](../../runbooks/local/cluster-rebuild.md)). The cluster runs identically on any Docker-capable host — **Linux with Docker Engine** (tested on Arch, containers native on the host kernel, no VM) and **macOS with Docker Desktop** (the VMM beta carries it — cmdshift/platform#173) differ only in host setup (loopback alias + dnsmasq wiring, root README) and the port-publisher failure class in [Known Issues](../../README.md#known-issues).
 
 ## Topology
 
 ```mermaid
 flowchart TB
-  subgraph host["host — Linux (Docker Engine)"]
+  subgraph host["host (Docker)"]
     direction LR
     BR["browser"]
     KC["kubectl / talosctl / terraform"]
     DNSMASQ["dnsmasq: *.test → 127.0.0.1\n*.cloud.test → 127.0.10.1"]
   end
 
-  subgraph vm["Docker Engine native"]
+  subgraph vm["docker engine / VM"]
     direction TB
     subgraph iv["ipvlan L2 · 10.0.0.0/8 (static IPs, no NAT — bridge net is the egress path)"]
       direction LR
@@ -32,8 +32,8 @@ flowchart TB
       CMD["cmd haproxy (cmd-local-test)\n10.0.8.1 · control-plane LB\n:6443 leastconn · :50000 leastconn"]
       subgraph nodes["talos node containers"]
         direction LR
-        CP["ctrl ×3 · 10.0.16.1-3\napiserver :6443 · apid :50000"]
-        WK["work ×4 · 10.0.32.1-4\ncilium envoy hostNet :30080/30443 (Gateway listeners, cmdshift/platform#70)"]
+        CP["ctrl ×1 · 10.0.16.1\napiserver :6443 · apid :50000"]
+        WK["work ×2 · 10.0.32.1-2\ncilium envoy hostNet :30080/30443 (Gateway listeners, cmdshift/platform#70)"]
       end
       LB["internal haproxy (local-test)\n10.0.64.1 → nodePorts 30080/30443"]
     end
@@ -61,8 +61,8 @@ flowchart TB
 |---|---|
 | `10.0.0.0/8` | ipvlan "internal" network subnet (gateway `.1` is the host) |
 | `10.0.8.0/24` | cmd haproxy (control-plane LB) — `.1` (`cmd_cidr`) |
-| `10.0.16.0/24` | ctrl nodes — `.1`-`.3` (count = `ctrl_nodes`, default 3) |
-| `10.0.32.0/24` | workers (`.1`-`.4`, count = `work_nodes`, default 4) |
+| `10.0.16.0/24` | ctrl nodes — `.1` (count = `ctrl_nodes`, default 1) |
+| `10.0.32.0/24` | workers (`.1`-`.2`, count = `work_nodes`, default 2) |
 | `10.0.64.0/24` | internal haproxy (ingress LB) — `.1` |
 | `10.0.128.0/24` | companions — external proxy `.1`, coredns `.2`, secrets `.3`, rustfs `.4`, angos `.5`, mailpit `.6`, sync `.7`, scanner `.8`, rauthy `.9` |
 
@@ -70,7 +70,7 @@ The bridge network carries no static IPs — every container attaches to it sole
 
 ## API endpoint (LB-fronted, cmdshift/platform#140)
 
-The control plane is **3 ctrl nodes behind the `cmd` haproxy** (10.0.8.1, leastconn) — the `ctrl_nodes` knob and the `cmd` LB were re-introduced in cmdshift/platform#140, reverting cmdshift/platform#54's macOS-VM assumption: the install-burst saturation that fixed the control plane at 1 node did not reproduce on the supported Linux host (ctrl CPU peaked ≤26% during the install burst; the historical macOS VM pegged 175-200% with etcd `request timed out` stalls — runbook history).
+The control plane is **1 ctrl node behind the `cmd` haproxy** (10.0.8.1, leastconn — with a single backend the LB is a stable endpoint, not an HA layer). Single-node etcd is a deliberate testbed tradeoff (cmdshift/platform#173): simulating etcd loss on 3 nodes complicated operations, and 3 kube-apiserver instances bloated RAM/CPU for no realism the testbed needs. (History: `ctrl_nodes` flipped 1 → 3 in cmdshift/platform#140 when the project moved to the Linux host — the historical macOS VM pegged 175-200% CPU with etcd `request timed out` stalls during the install burst — and back to 1 here; the knob stays, so re-verify the install-burst behavior if you raise it again.)
 
 - Cluster endpoint (baked into cert SANs — cmd hostname + cmd private IP in both `cluster.tftpl.yaml` apiServer.certSANs and `base.tftpl.yaml` machine.certSANs): `https://cmd.local.test:6443` — nodes reach it through the cmd LB
 - Host access: the cmd container publishes `6443`/`50000` on **`127.0.0.1` only** (not LAN-reachable); the host resolves `cmd.local.test` → `127.0.0.1` via host dnsmasq
@@ -95,7 +95,7 @@ Pod DNS: kube-dns → talos hostDNS (`forwardKubeDNSToHost`) → coredns. Compan
 |---|---|---|
 | `127.0.10.1:80` / `127.0.10.1:443` | cloud-test | `*.cloud.test` host-routing proxy (:443 TLS-terminates with the wildcard leaf, cmdshift/platform#130) — the **only** host route into the ipvlan network |
 | `127.0.0.1:80` / `127.0.0.1:443` | local-test | ingress LB → nodePorts 30080/30443 |
-| `127.0.0.1:6443` / `127.0.0.1:50000` | cmd container | control-plane LB → kube-apiserver / talos apid (leastconn over the 3 ctrl backends) |
+| `127.0.0.1:6443` / `127.0.0.1:50000` | cmd container | control-plane LB → kube-apiserver / talos apid (leastconn over the ctrl backends) |
 | `:25` (cloud-test, private net) | — | SMTP passthrough → mailpit :1025 (alertmanager) |
 
 ## Request paths
@@ -117,11 +117,11 @@ Companion state is disposable except the angos cache volume (see the registry la
 
 ## Memory budget (docker-level limits)
 
-Every container carries a `memory` limit with swap disabled (`memory_swap = memory`): ctrl 6Gi each (×3 since cmdshift/platform#140), cmd haproxy 256Mi, work 4Gi each, rustfs 1Gi, external haproxy 512Mi (256M was OOM-killed — exit 137 — by sustained S3 mirroring traffic through the s3.cloud.test frontend, cmdshift/platform#149; the internal haproxy stays 256Mi), coredns/mailpit/angos 256Mi, secrets/sync 64Mi, scanner 768Mi (start-then-audit — trivy DB + scan working set; no OOM on the first real scan, cmdshift/platform#102), rauthy 256Mi (cmdshift/platform#154 — start-then-audit; re-audit if login flows ever OOM) — **Σ ≈ 37.25Gi** (was ≈40Gi with keycloak: −2.75Gi; the `cmd` haproxy's own limit was re-specified in cmdshift/platform#140 at 256Mi, matching the internal haproxy). Sizing is evidence-based (observed peaks: ctrl ≤4.1Gi, work ≤3.0Gi, rustfs ≤287Mi; rauthy settled ~46MiB post-bootstrap; other companion peaks ≤91Mi). The limits run against host RAM (60Gi, 41Gi free at setup) — they bound real consumption, not scheduler capacity. Sizing rule learned on the haproxy OOM: a companion whose traffic profile changes (the observability pipeline's continuous S3 mirroring vs the original browser-traffic sizing) needs its docker limit re-audited like any pod.
+Every container carries a `memory` limit with swap disabled (`memory_swap = memory`): ctrl 6Gi (cmdshift/platform#173), cmd haproxy 256Mi, work 8Gi each ×2 (cmdshift/platform#173 — fatter nodes, fewer of them), rustfs 1Gi, external haproxy 512Mi (256M was OOM-killed — exit 137 — by sustained S3 mirroring traffic through the s3.cloud.test frontend, cmdshift/platform#149; the internal haproxy stays 256Mi), coredns/mailpit/angos 256Mi, secrets/sync 64Mi, scanner 768Mi (start-then-audit — trivy DB + scan working set; no OOM on the first real scan, cmdshift/platform#102), rauthy 256Mi (cmdshift/platform#154 — start-then-audit; re-audit if login flows ever OOM) — **Σ ≈ 27Gi**. Sizing is evidence-based (observed peaks: ctrl ≤4.1Gi, work ≤3.0Gi, rustfs ≤287Mi; rauthy settled ~46MiB post-bootstrap; other companion peaks ≤91Mi) — the work bump from 4Gi headrooms the 3.0Gi peak against the observability stack. The limits run against host RAM — they bound real consumption, not scheduler capacity, and are sized to fit a 24-32Gi Docker Desktop VM budget as well as a workstation. Sizing rule learned on the haproxy OOM: a companion whose traffic profile changes (the observability pipeline's continuous S3 mirroring vs the original browser-traffic sizing) needs its docker limit re-audited like any pod.
 
 Keycloak (pre-cmdshift/platform#154) was the heaviest companion by far (cmdshift/platform#131): docker-level limits of 1280Mi then 2Gi were OOM-killed (exit 137) mid-realm-import — JVM `MaxRAMPercentage=70` + 256Mi MaxMetaspace + H2 import churn — and 3Gi held. Replaced by rauthy 0.36.2 (Rust/Hiqlite, ~46MiB settled) for exactly this reason — "keycloak is simply too fat" (cmdshift/platform#154).
 
-**Limits do not influence the scheduler** (cmdshift/platform#54): each kubelet advertises the container's full `/proc/meminfo` as node capacity (~58Gi apiece — ~410Gi of phantom capacity across the 7 node containers is inherent to Talos-in-Docker; same mechanism on the historical macOS VM, where it was ~23.4Gi apiece). The limits only bound real consumption: breaching one OOM-kills that node container (node reboot, flux re-converges) instead of thrashing the host. The monitoring stack's node-memory alerts fire on kubelet accounting, so they lag real pressure — the docker layer is the actual backstop.
+**Limits do not influence the scheduler** (cmdshift/platform#54): each kubelet advertises the container's full `/proc/meminfo` as node capacity (~58Gi apiece on a 64Gi host — phantom capacity across the 3 node containers is inherent to Talos-in-Docker). The limits only bound real consumption: breaching one OOM-kills that node container (node reboot, flux re-converges) instead of thrashing the host. The monitoring stack's node-memory alerts fire on kubelet accounting, so they lag real pressure — the docker layer is the actual backstop.
 
 ## Decision records
 

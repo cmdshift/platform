@@ -128,8 +128,8 @@ resource "docker_container" "work" {
     "USERDATA=${base64encode(data.talos_machine_configuration.work.machine_configuration)}"
   ]
   # observed peak 3.0Gi; same limit-vs-scheduler caveat as ctrl
-  memory      = 4096
-  memory_swap = 4096
+  memory      = 8192
+  memory_swap = 8192
   privileged  = true
   dynamic "mounts" {
     for_each = local.mounts.tmpfs
