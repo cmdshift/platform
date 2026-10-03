@@ -1,6 +1,10 @@
-# File-integrity baseline: opens of the node's crown-jewel host paths by containerized
-# processes; monitor_only — stage-2 Override candidates decided from this stream. Plain
-# kprobe (BTF lacks lsmhooks symbols), podSelector-only scoping — security/README.md
+# File-integrity enforcement: opens of the node's crown-jewel host paths by containerized
+# processes (stage-2 flip, cmdshift/platform#60 phase 5). 7-day monitor burn-in was EMPTY —
+# both paths are touched only by host-ns processes (etcd static pod, kubelet/containerd),
+# so the pod-ns filter arms a policy that cannot fire from any flux-managed workload;
+# enforcement is defense-in-depth. Override(EACCES) — Sigkill would kill interpreters
+# mid-open; the stream evidence and carve-out analysis: security/README.md. Plain
+# kprobe (BTF lacks lsmhooks symbols), podSelector-only scoping
 apiVersion: cilium.io/v1alpha1
 kind: TracingPolicy
 metadata:
@@ -9,6 +13,10 @@ spec:
   # k8s pod processes only (see privileges-raise for the live finding)
   podSelector:
     matchLabels: {}
+  # list-of-{name,value}; "enforce"/"monitor" only — the display strings fail agent-side
+  options:
+    - name: policy-mode
+      value: enforce
   kprobes:
     - call: security_file_open
       syscall: false
@@ -27,8 +35,8 @@ spec:
               values:
                 - /var/lib/etcd
           matchActions:
-            - action: Post
-              rateLimit: "1m"
+            - action: Override
+              argError: -13 # EACCES — open fails before any read lands
         - matchNamespaces:
             - namespace: Pid
               operator: NotIn
@@ -40,5 +48,5 @@ spec:
               values:
                 - /run/containerd/containerd.sock
           matchActions:
-            - action: Post
-              rateLimit: "1m"
+            - action: Override
+              argError: -13 # EACCES — CRI socket reach is kubelet/host-only

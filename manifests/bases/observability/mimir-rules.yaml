@@ -120,7 +120,7 @@ groups:
           summary: "Tetragon on {{ $labels.pod }} ({{ $labels.node }}) has a tracing policy in {{ $labels.state }} — a policy file may be invalid or use a hook this kernel lacks"
       - alert: TetragonEnforcementKill
         expr: |
-          increase(tetragon_policy_events_total{policy=~"kernel-modules|exec-deny-list-.*"}[10m]) > 0
+          increase(tetragon_policy_events_total{policy=~"kernel-modules|exec-deny-list-.*|sensitive-host-paths"}[10m]) > 0
         for: 5m
         labels:
           severity: critical
@@ -129,6 +129,8 @@ groups:
         # tetragon_kill_events_total does not exist (cmdshift/platform#57) —
         # policy_events_total materializes on first enforcement; for: 5m absorbs
         # rebuild one-shot spikes (cmdshift/platform#60) — full story: security/README.md
+        # sensitive-host-paths added with the phase-5 flip (Override; can't fire from
+        # flux-managed workloads — a sustained stream means the assumption broke)
   - name: trivy-alerts
     rules:
       - alert: TrivyCriticalImageVulnerabilities
