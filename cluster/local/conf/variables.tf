@@ -18,14 +18,12 @@ variable "internal_hostname" {
   default = "local.test"
 }
 
-# 3-node etcd re-verified on the Linux host (cmdshift/platform#140): the macOS VM
-# install-burst saturation that fixed it at 1 (cmdshift/platform#54) did not reproduce
 variable "ctrl_nodes" {
   type    = number
-  default = 1
+  default = 1 # single-node etcd (cmdshift/platform#173) — HA etcd's install-burst and loss-simulation complexity isn't worth the RAM/CPU on a testbed
 }
 
 variable "work_nodes" {
   type    = number
-  default = 2 # cilium gatewayAPI and kyverno bind hostNetwork ports on work nodes — too few starve those placements
+  default = 2 # cilium gatewayAPI binds hostNetwork ports on work nodes — too few starve those placements
 }
