@@ -45,7 +45,7 @@
   "row_template": "Repo: {repo} | failures: {value}",
   "row_template_type": "String",
   "description": "Warning: velero kopia repo maintenance failed",
-  "enabled": true,
+  "enabled": false,
   "tz_offset": 0,
   "creates_incident": false
 }

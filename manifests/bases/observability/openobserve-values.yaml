@@ -11,6 +11,13 @@ image:
     # pinned per convention; SQLite migration trap — see the HelmRelease
     tag: v1.0.1
 
+podAnnotations:
+  # skip the data PVC in FSB: it holds disposable SQLite metadata + WAL/parquet
+  # staging (config is GitOps-recovered via o2-sync, data lives in rustfs) —
+  # backing it up live fails ~90% through with an empty data-path error and
+  # burns ~7GB of kopia churn per backup (cmdshift/platform#171)
+  backup.velero.io/backup-volumes-excludes: data
+
 podSecurityContext:
   fsGroup: 2000
   runAsUser: 10000

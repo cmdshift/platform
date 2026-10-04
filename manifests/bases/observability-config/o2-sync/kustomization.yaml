@@ -39,7 +39,10 @@ configMapGenerator:
       - alerts/job_failed.json
       - alerts/velero_backup_stale.json
       - alerts/velero_backup_failed.json
-      - alerts/velero_repo_maintenance_failed.json
+      # velero_repo_maintenance alert parked: its stream materializes only on
+      # a FAILED maintenance run — none since the repo re-init. Re-add after
+      # the nightly maintenance fires (cmdshift/platform#171).
+      # - alerts/velero_repo_maintenance_failed.json
       - alerts/tetragon_tracingpolicy_load_failed.json
       - alerts/tetragon_enforcement_kill.json
       # trivy alert parked: trivy_image_vulnerabilities stream materializes

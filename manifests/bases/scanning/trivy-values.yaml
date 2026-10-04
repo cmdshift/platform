@@ -4,6 +4,10 @@ operator:
   scanJobsConcurrentLimit: 3
   scanJobTTL: 10m
   builtInServerRegistryInsecure: true
+  # dev-mode zap logger — the vulnerability-report path logs its decision
+  # points (Submit/skip/server-unavailable) at V(1), invisible at the default
+  # level; this is how the "no scan jobs" mystery gets debugged
+  logDevMode: true
 trivy:
   ignoreUnfixed: false
   image:
