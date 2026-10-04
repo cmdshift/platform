@@ -101,12 +101,11 @@ config:
   ZO_MEM_DUMP_THREAD_NUM: "2"
   ZO_FILE_MOVE_THREAD_NUM: "2"
   ZO_FILE_MERGE_THREAD_NUM: "2"
-  # halved intervals (doubled frequency): smaller units of zstd/merge work per
-  # cycle — bursts cool between them instead of one core pinned for long
-  # stretches (cmdshift/platform#171)
-  ZO_COMPACT_INTERVAL: "150"
-  ZO_COMPACT_MAX_FILE_SIZE: "128"
   ZO_FILE_PUSH_INTERVAL: "60"
+  # compaction OFF: local box queries recent data; background merge of ~1400
+  # streams was the last sustained-CPU source (re-enable when querying old
+  # data matters — cmdshift/platform#171)
+  ZO_COMPACT_ENABLED: "false"
   # query-engine cache caps — spikes pushed 830m CPU; datafusion cache
   # competes with ingest for the same 2Gi limit (cmdshift/platform#171)
   ZO_MEMORY_CACHE_MAX_SIZE: "512"
