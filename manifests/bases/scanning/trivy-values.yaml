@@ -4,10 +4,6 @@ operator:
   scanJobsConcurrentLimit: 3
   scanJobTTL: 10m
   builtInServerRegistryInsecure: true
-  # dev-mode zap logger — the vulnerability-report path logs its decision
-  # points (Submit/skip/server-unavailable) at V(1), invisible at the default
-  # level; this is how the "no scan jobs" mystery gets debugged
-  logDevMode: true
 trivy:
   ignoreUnfixed: false
   image:
@@ -66,6 +62,9 @@ trivy:
         drop:
           - ALL
 trivyOperator:
+  # scan jobs run in scanning/ so their egress (trivy-server :4954, registry)
+  # is governed by the scanning CNP — no per-target-namespace CNP changes
+  scanJobsInSameNamespace: true
   scanJobPodTemplatePodSecurityContext:
     runAsNonRoot: true
     runAsUser: 65534

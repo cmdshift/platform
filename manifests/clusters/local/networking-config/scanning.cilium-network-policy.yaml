@@ -24,4 +24,16 @@ spec:
         - ports:
             - port: "443"
               protocol: TCP
+    # trivy-operator → built-in trivy-server, and scan jobs → server for the
+    # cached trivy-db (:4954 — the chart's "4975" comment is stale, verified
+    # in the template). This rule was LOST in the security→scanning split
+    # (a0a41ce) — vuln scanning silently never ran without it
+    # (cmdshift/platform#171)
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: scanning
+      toPorts:
+        - ports:
+            - port: "4954"
+              protocol: TCP
   # no ingress section: egress-only default-deny; metrics ports stay scrapeable
