@@ -5,6 +5,14 @@ description: A HelmRelease is failing or stuck reconciling. Check kyverno admiss
 
 # Stuck HelmRelease escalation
 
+## First: triage, don't guess
+
+`flux_triage [names...]` is the instant scoreboard: per-kustomization
+attempted/applied revision lag + per-HelmRelease verdicts. An **INTERVENE**
+verdict (RetriesExceeded/Stalled/MissingRollbackTarget) means the release
+replays its cached error without re-attempting — jump straight to ladder
+step 2; WAITING/PROGRESSING means leave it alone. Read-only.
+
 ## First: is it admission?
 
 Under kyverno Deny mode a blocked install shows as a `ReconciliationFailed` event, not a helm error:
@@ -16,6 +24,14 @@ kubectl get events -n <ns> --sort-by=.lastTimestamp
 `admission webhook ... denied the request: Policy <name> failed` — the pod/job (including **helm hook jobs**) violated a policy. Fix by sizing the workload or adding a scoped PolicyException in `policies-config/`. The ladder below won't help here.
 
 Also not ladder material: the release is **kyverno itself** and its pods sit Pending — that's the hostNetwork port deadlock (local-only). Run `kyverno_unblock`, then re-run `flux_wait`.
+
+**Or it isn't stuck at all — valuesFrom staleness (cmdshift/platform#171, hit 4+ times)**: a values-ConfigMap-only change does NOT re-trigger helm-controller; the HR reconciles clean while `status.lastAttemptedConfigDigest` stays frozen. Check it first when "the values didn't land":
+
+```
+kubectl get hr <name> -o jsonpath='{.status.lastAttemptedConfigDigest}'
+```
+
+If stale after reconcile + requestedAt annotate, run ladder step 2 then 3 (suspend/uninstall/resume) — the digest only moves when the release is actually re-attempted. `flux_triage` shows attempted-vs-applied revision lag to recognize the state.
 
 **Operator-crud denial mid-churn ≠ a spec error**: a controller failing "failed to create or update N resources" during cluster churn can be kyverno's CEL/exception re-pick-up lag — the exception exists and is correct, the admission engine just hasn't re-read it (hit live: ThanosRuler `main` Ready=False, cmdshift/platform#90; the pattern generalizes to any operator-driven CR). Fix: reconcile the HR + annotation-bump the PolicyException to force re-pick-up. Don't rewrite the workload spec first.
 
@@ -53,3 +69,5 @@ All HelmReleases carry `install/upgrade.remediation.retries: 3` and version-pinn
 ## Full detail
 
 [runbooks/local/helmrelease-stuck.md](../../../runbooks/local/helmrelease-stuck.md)
+
+Tools: `flux_triage` / `helm_wait -c` for the no-mutation verdict; `flux_unstick` is the kustomization-side sibling (in-flight health-check wait cannot be preempted by annotate — suspend/resume).

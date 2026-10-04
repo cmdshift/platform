@@ -60,6 +60,9 @@ whole dependency tree.
 | `flux_wait` | reconcile from the root + bounded poll to all-green |
 | `helm_wait` | reconcile one HelmRelease + bounded poll; exits fast on terminal failure |
 | `cr_validate` | server-side dry-run: validate CRs against on-cluster CRD schemas + admission (pre-reconcile) |
+| `dryrun_check` | kustomize build + per-object server-side dry-run — reports EVERY failing object (pre-reconcile) |
+| `flux_triage` | convergence scoreboard: kustomization revision lag + HelmRelease verdicts |
+| `flux_unstick` | suspend/resume/annotate a kustomization stuck behind an in-flight health-check wait |
 | `pod_status` | pod table with restarts + last exit code/reason (crashloop triage) |
 | `memory_audit` | memory usage-vs-limits table |
 | `cpu_audit` | CPU throttling top-N + usage-vs-limits table |
@@ -235,6 +238,54 @@ run for real.
 - Exit 0: all PASS. Exit 1: any FAIL (per-file PASS/FAIL printed); exit 2
   usage; `-h` prints the header comment block
 
+### `dryrun_check <path|built.yaml>`
+
+Pre-reconcile gate one step past `cr_validate`: builds the group (or takes an
+already-built multi-doc file), then server-side dry-runs **every document
+individually**, printing `FAIL <kind>/<name>: <reason>` per failing object.
+
+- `kubectl apply` on a full multi-doc file **stops at the first failure** and
+  interleaves objects — one bad object (undeclared CR field, a CM over the
+  ~256KB `last-applied-configuration` dry-run cap, kyverno denial,
+  strict-decode mismatch) masks the rest and reads as a group-wide failure;
+  this tool splits the build output and reports each one
+- Unlike `cr_validate` it accepts generated CMs/values (no "apiVersion not
+  set" filter) — that's the point: CM-size and content traps live here
+- Exit 0 = every object passes (or nothing to validate); 1 = at least one
+  failed; 2 = usage or kustomize build error
+
+### `flux_triage [names...]`
+
+Read-only convergence scoreboard — the diagnosis layer over `flux_wait`'s
+pending list: per-kustomization attempted/applied revision lag (lagging
+attempted = not picking up the bucket artifact; advancing attempted with
+stalled applied = the apply/dry-run is failing) and per-HelmRelease verdicts
+with `lastAttemptedReleaseAction`. Verdicts: OK / WAITING (dependency
+cascade — leave alone) / PROGRESSING / HEALTHFAIL (applied but health check
+failing — diagnose the workload) / FAILED (reconcile error, message printed)
+/ **INTERVENE** (RetriesExceeded/Stalled/MissingRollbackTarget — the object
+replays its cached error without re-attempting; needs annotate or
+suspend/uninstall/resume, the `helmrelease-stuck` ladder). Exit 0 = all OK;
+1 = any FAILED/INTERVENE/HEALTHFAIL; 2 = only WAITING/PROGRESSING remain;
+3 = usage. Names filter kustomizations only; helmreleases always print.
+
+### `flux_unstick <name> [-l]`
+
+Unsticks a kustomization whose reconcile is wedged **behind an in-flight
+health-check wait**: the controller serializes reconciles per object and a
+wait (up to `spec.timeout`) cannot be preempted by a `requestedAt` annotate —
+a manifest fix queued behind it sits unreachable for the whole window
+(previously 10m; timeouts now 3m tree-wide). Suspend cancels the in-flight
+reconcile context (the documented abort path); resume immediately
+re-attempts against the CURRENT bucket artifact.
+
+- One pass: suspend → resume → annotate. `-l` runs up to 3 passes, 5s apart
+- Compares the kustomization's `lastAttemptedRevision` against the bucket
+  artifact revision — exit 0 once it's attempting the current artifact
+- Exit 1 = still stuck after the passes (diagnose hint printed); 2 = usage.
+  Mutates the kustomization (suspend/resume/annotate) — this is an unstick,
+  not config; never scripted into a pipeline
+
 ## Resource sizing audits
 
 The three siblings — pick by question:
@@ -326,7 +377,19 @@ runbooks/local/namespace-migration.md.
 
 ## Observability queries
 
+**OpenObserve-era note (cmdshift/platform#171)**: mimir/loki are gone —
+`prometheus_query` and `loki_query` are **ORPHANED** (their target services no
+longer exist; queries fail at the port-forward). Both tools survive for a
+future Prometheus-API-compatible store; flag, don't delete. `metrics_summary`
+inherits the same fate. The audit tools (`memory_audit`/`cpu_audit`/
+`request_audit`) ride `prometheus_query` for the throttle check — that path
+needs a store decision before the next audit run. O2 has its own query API
+(not Prometheus-wire-compatible enough to reuse these tools as-is).
+
 ### `prometheus_query [-v|-c] [-r 6h] '<promql>' | prometheus_query --stop`
+
+(ORPHANED with the OpenObserve migration, cmdshift/platform#171 — see the
+note above; the usage below is kept for a future store re-pointing.)
 
 Port-forwards svc/mimir:8080 (the only metrics store since the kps removal,
 cmdshift/platform#141; the pre-LGTM svc/kube-prometheus-stack-prometheus
@@ -407,6 +470,10 @@ log lines; `-c` prints one line per series (`labels: latest-value`, sorted
 by value desc) — the only way to see aggregation group labels, which the
 default output drops. Exit codes: 0 = query ran (check the output for
 emptiness), 1 = forward failed or loki stayed not-ready, 2 = usage.
+**ORPHANED with the OpenObserve migration** (cmdshift/platform#171 — the
+`loki_query.loki.forward` lock file will fail at the port-forward); kept for
+a future Prometheus-API-compatible store re-pointing. The label-landmine
+notes below stay valid for any log store.
 
 - **LANDMINE — tetragon events carry the EXPORTER's labels**: all event
   streams live under `{namespace="security", pod="tetragon-*"}`; the event's

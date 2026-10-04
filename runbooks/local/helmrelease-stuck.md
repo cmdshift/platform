@@ -32,6 +32,16 @@ And not even a failure: an upgrade timing out with `Deployment/... status: 'InPr
    helm uninstall <release> -n <ns>
    ```
 
+## valuesFrom staleness: the frozen config digest (cmdshift/platform#171, hit 4+ times)
+
+A values-ConfigMap-only change does **not** re-trigger helm-controller — the CM updates, the HR reconciles clean, and the values never land. The tell: `status.lastAttemptedConfigDigest` stays frozen:
+
+```
+kubectl get hr <name> -o jsonpath='{.status.lastAttemptedConfigDigest}'
+```
+
+If it's stale after a reconcile + `reconcile.fluxcd.io/requestedAt` annotate, the annotate alone won't move it — run the suspend → `helm uninstall` → resume dance (or a full group bounce). `flux_triage` shows the attempted-vs-applied lag to recognize the state without hand-rolling jsonpath.
+
 ## Context
 
 All 15 HelmReleases have `install/upgrade.remediation.retries: 3` and are version-pinned. Release manifests are persisted in the `sh.helm.release.*` Secrets (1MB cap) — an install failing with `data: Too long` is a chart-adoption problem, not a stuck release: see [adopting-a-chart.md](adopting-a-chart.md).

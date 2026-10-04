@@ -9,16 +9,18 @@ carries the RBAC group bindings (OIDC `groups` claim → RBAC, cmdshift/platform
 ```
 browser → internal haproxy (TLS :443) → Gateway local-test (cilium, TLS terminate)
         → HTTPRoute <app>-auth (namespace access) → oauth2-proxy :4180
-        → app upstream (grafana-service:3000 / hubble-ui:80 / main-filer:8888)
+        → app upstream (hubble-ui:80 / openobserve.observability.svc:5080)
 ```
 
-One oauth2-proxy **per app** (`grafana-auth-proxy`, `hubble-auth-proxy`, `seaweed-auth-proxy`)
+One oauth2-proxy **per app** (`hubble-auth-proxy`, `openobserve-auth-proxy` — grafana's and seaweed's proxies were deleted with their apps, cmdshift/platform#171)
 — legacy-config oauth2-proxy selects its upstream by path, not Host, so a single instance
 cannot fan out across subdomains. Subdomains (not path prefixes) were chosen because
-hubble-ui has no base-path support at all. All three releases share one cookie secret
-(so a cookie from any proxy validates at any proxy), but each proxy sets a **host-scoped
+hubble-ui has no base-path support at all. Each proxy sets a **host-scoped
 cookie** (`cookie_domains = ["<app>.local.test"]` — the cookie is only ever sent back to
-the app that issued it.
+the app that issued it. openobserve's cookie name is `_oauth2_proxy_o2` — distinct from
+hubble's so the two proxies' cookies can't collide on their respective hosts.
+All three releases share one cookie secret
+(so a cookie from any proxy validates at any proxy)
 
 **Why host-scoped, not a shared `.local.test` cookie:** the proxy cookie is a *bearer
 credential for all admin apps* — with `Domain=.local.test`, every host under the domain
@@ -35,8 +37,9 @@ tuning for the cloud: default expiry is 168h with refresh disabled — consider 
 ## PKCE + the Rauthy clients
 
 The `oauth2-proxy` client in `cluster/local/auth/files/bootstrap/clients.json` is confidential
-(PKCE S256 via `challenges: ["S256"]`, mirrored by the `kubernetes` client). Three redirect
-URIs (one per subdomain), no wildcards. **Bootstrap JSON is first-boot only** — editing
+(PKCE S256 via `challenges: ["S256"]`, mirrored by the `kubernetes` client). One redirect
+URI per protected app (hubble, openobserve — grafana's redirect went with the grafana
+teardown and seaweed's with the seaweed teardown, cmdshift/platform#171), no wildcards. **Bootstrap JSON is first-boot only** — editing
 clients/users/groups requires a container recreate (data lives in the container layer; every
 `terraform apply -target=module.auth` wipes hiqlite and re-seeds) — `terraform apply
 -target=module.auth` after editing the bootstrap files. Users need `email_verified: true` in
@@ -77,16 +80,31 @@ Trust for the IdP connection: `--provider-ca-file /etc/platform-ca/ca.crt` +
    `reserved:ingress` (that's the identity label form — dry-run catches it).
 3. **Egress to upstreams enforces post-DNAT targetPorts, not service ports.** hubble-ui is
    `svc:80 → targetPort 8081`: the CNP must allow `8081` or the upstream dial times out
-   (502). grafana/seaweed worked by luck (service port == targetPort).
+   (502). The grafana/seaweed upstreams worked by luck (service port == targetPort); openobserve does too (5080 == 5080).
 
 ## Grafana auth.proxy
 
-Grafana reads `X-Forwarded-Email` (oauth2-proxy's `pass_user_headers` default, sent on
+(Removed with grafana in the OpenObserve migration, cmdshift/platform#171 — kept as the
+contrast case for the cookie-gate rule below.)
+
+Grafana read `X-Forwarded-Email` (oauth2-proxy's `pass_user_headers` default, sent on
 every upstream request). `X-Auth-Request-*` headers only ride the auth flow — pointing
-grafana at them yields a 401 on every API call with `gap-auth` visible at the edge.
-The Grafana CR carries the config but **the operator does not roll the deployment on
+grafana at them yielded a 401 on every API call with `gap-auth` visible at the edge.
+The Grafana CR carried the config but **the operator did not roll the deployment on
 ConfigMap-only ini changes** — delete the grafana pod (or force a rollout) after changing
-`auth.proxy`. Verify with `grep auth.proxy /etc/grafana/grafana.ini` inside the pod.
+`auth.proxy`.
+
+## Cookie-gate vs header-passthrough: the openobserve rule (cmdshift/platform#171)
+
+`openobserve-auth-proxy` is **cookie-gate ONLY**: `pass_authorization_header`,
+`pass_access_token`, `set_authorization_header`, `set_xauthrequest` all false — no auth
+headers reach O2. O2's own session guards its API, and O2 trusting forwarded identity
+headers is an unvalidated path. The contrast is the grafana `auth.proxy` pattern above,
+which trusted `X-Forwarded-Email` on ANY direct pod API call — in-pod probing with a
+fabricated header minted real user rows (`auto_sign_up`; three phantom users
+accumulated, deleted). Rule: **only pass identity headers to an upstream that has a
+documented, hardened trusted-proxy mode**; otherwise the proxy is a gate, not an
+identity bridge. The grafana auth.proxy section above is retained as precedent.
 
 ## Chart adoption notes
 
@@ -108,11 +126,10 @@ flow completes as; kubelogin's cache is per-issuer+client, delete
 + `preferred_username` ride access and id tokens (RS256 pinned per client).
 
 oauth2-proxy app flows: unauthed GET → 302 to Rauthy (PKCE S256); login → callback chain →
-200; grafana `api/user` returns the proxy identity (isExternal: true); hubble/seaweed 200 on
-the same cookie jar (cross-app SSO via the Rauthy session — each proxy's cookie is
-host-scoped). Seaweed serves the **filer UI**
-(`<title>SeaweedFS Filer`) — the bucket browser, per the operator's choice; the master UI
-would need alpha-config `upstreamConfig` path splitting.
+200; hubble 200 on the same cookie jar (cross-app SSO via the Rauthy session — each proxy's
+cookie is host-scoped). Grafana was removed with the OpenObserve migration
+(cmdshift/platform#171); openobserve.local.test now verifies the same flow
+(cookie-gate only — see the cookie-gate rule above).
 
 **Landmine — stale proxy sessions survive an IdP swap** (cmdshift/platform#154): the
 cookie-secret is stable across migrations, oauth2-proxy stores the whole session in the

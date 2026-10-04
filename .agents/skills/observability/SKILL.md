@@ -1,9 +1,17 @@
 ---
 name: observability
-description: Querying cluster metrics, logs, and alert delivery — prometheus_query (PromQL against mimir, port-forward lifecycle handled), loki_query (LogQL), and mailpit (alert emails). Use when you need metrics, log lines, or to confirm alerts fired.
+description: Querying cluster metrics, logs, and alert delivery — prometheus_query (PromQL, port-forward lifecycle handled), loki_query (LogQL), and mailpit (alert emails). Use when you need metrics, log lines, or to confirm alerts fired. NOTE: mimir/loki are gone since the OpenObserve migration (cmdshift/platform#171) — prometheus_query and loki_query are orphaned until a store decision lands; mailpit and tetra still work.
 ---
 
 # Observability queries
+
+**Store status (cmdshift/platform#171)**: the mimir and loki targets no longer exist —
+`prometheus_query` and `loki_query` (and `metrics_summary`, which rides the mimir forward)
+fail at the port-forward. They are **flagged, not deleted**: a future
+Prometheus-API-compatible store can re-point them. Until then, queries against the
+current stack (OpenObserve) go through O2's own API/UI — not Prometheus-wire-compatible
+enough to reuse these tools as-is. The skill sections below are kept for that future
+re-pointing; `mailpit` and `tetra` are unaffected.
 
 ## prometheus_query
 
@@ -21,6 +29,8 @@ prometheus_query 'count(kube_pod_container_status_restarts_total)'
 Useful one-liners: `container_cpu_cfs_throttled_periods_total` (throttling), `container_memory_working_set_bytes` (memory trends), `prometheus_tsdb_head_series` (cardinality), `up` (scrape health), `prometheus_scrape_targets_gauge{component_id=...}` (per-collector discovery — the ksm double-target phantom's first check, cmdshift/platform#149), `alloy_components` (what config a collector is actually running).
 
 ## loki_query
+
+(ORPHANED — the loki target is gone, cmdshift/platform#171; kept for a future re-pointing.)
 
 ```
 loki_query '{instance=~"observability/loki-0.*"}'   # LogQL, tenant preset, default window 1h
@@ -60,7 +70,7 @@ mailpit -s <substring>             # newest message whose subject matches (case-
 mailpit -b <id>                    # body of message <id> (text if present, else HTML)
 ```
 
-Alert delivery path: mimir ruler → alertmanager → mailpit. Alerts land at **http://mail.cloud.test** — use it to confirm a rule fired (e.g. after touching `observability/mimir-rules.yaml`) or to read `ContainerOOMKilled` events. Verifying templated alert annotations (dashboard links etc.) rendered requires the body — `mailpit -s` to find the alert email, `-b` to read it (exit 0/1/2 = found/not-found/usage). Bare listing prints the ID prefix needed for `-b` (cmdshift/platform#155).
+Alert delivery path: O2 native alerts (thin detectors in `observability-config/o2-sync/alerts/`, synced by the o2-sync Job) → alertmanager → mailpit. Alerts land at **http://mail.cloud.test** — use it to confirm a detector fired or to read `ContainerOOMKilled` events. Verifying templated alert annotations (dashboard links etc.) rendered requires the body — `mailpit -s` to find the alert email, `-b` to read it (exit 0/1/2 = found/not-found/usage). Bare listing prints the ID prefix needed for `-b` (cmdshift/platform#155).
 
 ## tetra (Tetragon process events)
 
@@ -74,7 +84,7 @@ tetra --server-address localhost:54321 tracingpolicy list
 - Subcommand is `getevents` (there is no `events`). Global flag `--server-address` goes before the subcommand. There is no `--policy` filter flag in 1.7 — pipe the compact output through grep.
 - **bprm_check enforcement events (exec deny-lists) are pod-less**: they render in compact as `❓ syscall <node> /usr/bin/runc security_bprm_check` (attributed to the pre-exec runc fork — looks like runc noise) and never reach Loki (exporter drops namespace=""). Use `tetra getevents -o json` and grep `process_kprobe.policy_name` to see them fully; the alert surface is `tetragon_policy_events_total` (see `security/README.md`).
 - Events also stream to container stdout (`kubectl -n security logs ds/tetragon -c export-stdout`) with full k8s metadata; kube-system/host events are filtered from that sink by chart default, gRPC output is not.
-- Events are searchable in Loki too: `loki_query '{namespace="security", pod=~"tetragon-.*"}'` (the `export-stdout` container's JSON lines — was the fallback during the #27 ingestion outage, now primary again).
+- Events were searchable in Loki too: `loki_query '{namespace="security", pod=~"tetragon-.*"}'` (the `export-stdout` container's JSON lines) — orphaned with loki (cmdshift/platform#171); O2 is the searchable sink now.
 - **Stream labels are the EXPORTER's** (`pod="tetragon-*"`) — the event's workload namespace/pod/binary/policy are INSIDE the JSON (`process_kprobe.policy_name`, `process_kprobe.process.pod.namespace`, ...); extract with dot-path `json` stages, don't select the workload's namespace. Policies need a `podSelector` for their events to reach this sink at all (see `security/README.md`).
 
 ## Full detail

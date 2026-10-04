@@ -15,7 +15,7 @@ Every skill links out to its human-readable runbook in `runbooks/local/` — rea
 
 Chart traps, per-group decisions, and pipeline mechanics live with the thing they describe — **read the README nearest the area being worked on before diagnosing or changing it** (the `troubleshooting` skill routes):
 
-- `manifests/bases/<group>/README.md` — the group's chart landmines and decisions (kyverno, cilium/ztunnel, velero, mimir/alloy, seaweedfs, cert-manager, local-path, …)
+- `manifests/bases/<group>/README.md` — the group's chart landmines and decisions (kyverno, cilium/ztunnel, velero, openobserve/otel-collector, cert-manager, local-path, …)
 - `manifests/bases/flux/README.md` — flux API traps, the pipeline's own objects, propagation mechanics
 - `cluster/local/README.md` — terraform/docker traps (endpoint rewrite, bootstrap pins, port publishing)
 - `manifests/README.md` — cross-cutting conventions, dependency order, hardening-deviations baseline
@@ -25,7 +25,7 @@ Chart traps, per-group decisions, and pipeline mechanics live with the thing the
 - **Push back on bad ideas** — argue with rationale instead of complying; agreement is not helpfulness.
 - **Consider security implications of a decision** — secrets exposure, RBAC breadth, admission posture, network policy before landing a change.
 - **Ask clarifying questions when instructions are ambiguous** — one round of questions is cheaper than a wrong large assumption.
-- **Maintain a checklist for each session** — keep the todo list current as work progresses; it's the record of what's done and what's left.
+- **Maintain a checklist for each session** — keep the todo list current as work progresses; it's the record of what's done and what's left. For a tracked issue (`cmdshift/platform#N`), the checklist + decisions ledger lives in `.agents/temp/issues/<issue>.md` (gitignored, survives the session; the pattern: front-load READ-ONLY recon there before executing — charts, versions, live state, open questions — so execution doesn't interleave with discovery, then update in real time as each step lands).
 - **Use the tools/bin helpers before formulating commands by hand** — direnv auto-loads `tools/bin` onto PATH inside the repo (`.envrc`), so invoke them as bare `<name>` — never `tools/bin/<name>` or any other qualified form. Audits (`memory_audit`/`cpu_audit`/`request_audit`/`vpa_recs`/`policy_report`), observability (`prometheus_query`/`loki_query`/`mailpit`), waits (`flux_wait`/`helm_wait`/`velero_wait`), and the rest already handle the plumbing you'd get inline. Args, defaults, exit codes, gotchas: [tools/bin/README.md](tools/bin/README.md). Promote repeated throwaway plumbing to a new script there instead of re-deriving it (cmdshift/platform#21).
 - **Minimize comments; check existing ones before overriding "odd" config** — the default when writing code is **no comment**; a comment needs a reason (bug ref, cloud marker, or a one-line why that doesn't fit the nearest README). If a choice looks wrong, find the rationale first — it lives at the value or in the group README (full rules: the `writing-code` skill, Comments section).
 - **Work on a feature branch** (`feat/<topic>` / `fix/<topic>`) — never `main` (the `platform-workflow` skill, step 0).
@@ -59,5 +59,6 @@ Chart traps, per-group decisions, and pipeline mechanics live with the thing the
 - **`manifests/clusters/cloud/notes.md`** — what the cloud cluster must do differently
 - **`runbooks/local/`** — procedures and incident post-mortems
 - **`.agents/skills/*/SKILL.md`** — procedures; their trap lists must stay current (`skill-improvement` is the authority)
+- **`.agents/temp/issues/<issue>.md`** — per-issue checklist + decisions ledger (gitignored scratch, see the Do list)
 
 Bar to clear: if this session hit a landmine, cost a debugging round, or produced a decision with rationale, it's documentation — write it down where the next operator (or agent) will find it. Timeless rules go in skills/READMEs/runbooks (no dates, `cmdshift/platform#N` refs as provenance); the dated story goes in the CHANGELOG. In-repo markers (`# remove in the cloud`, `# true in the cloud`) stay the source of truth at the value itself; the docs carry the "why" and the cloud-side action.
