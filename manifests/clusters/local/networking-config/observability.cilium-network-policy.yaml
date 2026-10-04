@@ -9,14 +9,11 @@ spec:
     - toEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: observability
-    - toEndpoints:
-        - matchLabels:
-            io.kubernetes.pod.namespace: objects
     - toEntities:
         - kube-apiserver
     - toEntities:
         - cluster
-    # alloy-telemetry scrapes all pods + control-plane (metrics)
+    # openobserve-collector agent scrapes kubelet + control-plane (metrics)
     - toEntities:
         - host
         - remote-node
@@ -28,21 +25,12 @@ spec:
               protocol: TCP
             - port: "10259"   # kube-scheduler
               protocol: TCP
-            - port: "9100"    # node-exporter
-              protocol: TCP
-    # Fetch Grafana dashboards
+    # openobserve writes parquet data to rustfs (companion haproxy :80, velero pattern)
     - toFQDNs:
-        - matchName: grafana.com
-        - matchPattern: "**.grafana.com"
+        - matchName: s3.cloud.test
       toPorts:
         - ports:
-            - port: "443"
-              protocol: TCP
-    - toFQDNs:
-        - matchName: raw.githubusercontent.com
-      toPorts:
-        - ports:
-            - port: "443"
+            - port: "80"
               protocol: TCP
     - toFQDNs:
         - matchName: smtp.cloud.test

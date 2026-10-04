@@ -1,51 +1,47 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  # - grafana-operator.helm-release.yaml
-  # - alertmanager.helm-release.yaml
-  # - alloy-operator.helm-release.yaml
+  - alertmanager.helm-release.yaml
+  - openobserve.helm-release.yaml
+  - openobserve-collector.helm-release.yaml
+  - kube-state-metrics.helm-release.yaml
   - metrics-server.helm-release.yaml
   - vpa.helm-release.yaml
-  # - loki.helm-release.yaml
-  # - kube-state-metrics.helm-release.yaml
-  # - prometheus-node-exporter.helm-release.yaml
-  # - tempo.helm-release.yaml
-  # - mimir.statefulset.yaml
-  # - mimir.service.yaml
-  # - loki-s3-credentials.external-secret.yaml
-  # - tempo-s3-credentials.external-secret.yaml
-  # - mimir-s3-credentials.external-secret.yaml
+  - openobserve-credentials.external-secret.yaml
+  - openobserve-s3-credentials.external-secret.yaml
 configMapGenerator:
-#   - name: mimir-config
-#     namespace: observability
-#     files:
-#       - mimir.config.yaml
-#       - runtime.yaml
-#     options:
-#       disableNameSuffixHash: true
-#   # mimir's local ruler backend scans <dir>/<tenant>/*.yaml — keys carry the tenant
-#   # prefix because ConfigMap keys can't contain '/' (subPath mount maps them)
-#   - name: mimir-rules
-#     namespace: observability
-#     files:
-#       - self-monitoring.mimir-rules.yaml=mimir-rules.yaml
-#       - self-monitoring.slo.rules.yaml=slo.rules.yaml
-#     options:
-#       disableNameSuffixHash: true
-#   - name: grafana-operator-values
-#     namespace: observability
-#     files:
-#       - values.yaml=grafana-operator-values.yaml
-#     options:
-#       disableNameSuffixHash: true
-#   - name: alertmanager-values
-#     namespace: observability
-#     files:
-#       - values.yaml=alertmanager-values.yaml
-#     options:
-#       disableNameSuffixHash: true
-#   # metrics-server/vpa install into kube-system (cluster plumbing);
-#   # their HelmReleases live in the observability group by domain
+  - name: alertmanager-values
+    namespace: observability
+    files:
+      - values.yaml=alertmanager-values.yaml
+    options:
+      disableNameSuffixHash: true
+  - name: openobserve-values
+    namespace: observability
+    files:
+      - values.yaml=openobserve-values.yaml
+    options:
+      disableNameSuffixHash: true
+  - name: openobserve-collector-agent-values
+    namespace: observability
+    files:
+      - values.yaml=openobserve-collector-agent-values.yaml
+    options:
+      disableNameSuffixHash: true
+  - name: openobserve-collector-gateway-values
+    namespace: observability
+    files:
+      - values.yaml=openobserve-collector-gateway-values.yaml
+    options:
+      disableNameSuffixHash: true
+  - name: kube-state-metrics-values
+    namespace: observability
+    files:
+      - values.yaml=kube-state-metrics-values.yaml
+    options:
+      disableNameSuffixHash: true
+  # metrics-server/vpa install into kube-system (cluster plumbing);
+  # their HelmReleases live in the observability group by domain
   - name: metrics-server-values
     namespace: kube-system
     files:
@@ -58,55 +54,3 @@ configMapGenerator:
       - values.yaml=vpa-values.yaml
     options:
       disableNameSuffixHash: true
-#   - name: alloy-operator-values
-#     namespace: observability
-#     files:
-#       - values.yaml=alloy-operator-values.yaml
-#     options:
-#       disableNameSuffixHash: true
-  # - name: kube-state-metrics-values
-  #   namespace: observability
-  #   files:
-  #     - values.yaml=kube-state-metrics-values.yaml
-  #   options:
-  #     disableNameSuffixHash: true
-  # - name: prometheus-node-exporter-values
-  #   namespace: observability
-  #   files:
-  #     - values.yaml=prometheus-node-exporter-values.yaml
-  #   options:
-  #     disableNameSuffixHash: true
-#   - name: loki-values
-#     namespace: observability
-#     files:
-#       - values.yaml=loki-values.yaml
-#     options:
-#       disableNameSuffixHash: true
-#   - name: tempo-values
-#     namespace: observability
-#     files:
-#       - values.yaml=tempo-values.yaml
-#     options:
-#       disableNameSuffixHash: true
-#   - name: alloy-logging-config
-#     namespace: observability
-#     files:
-#       - config.alloy=alloy-logging.config.alloy
-#     options:
-#       disableNameSuffixHash: true
-#   - name: alloy-telemetry-config
-#     namespace: observability
-#     files:
-#       - config.alloy=alloy-telemetry.config.alloy
-#     options:
-#       disableNameSuffixHash: true
-#   # loki ruler rules: the chart's sidecar watches label `loki_rule` (underscore —
-#   # a `loki-rule` label matches nothing and the ruler silently runs zero rules,
-#   # cmdshift/platform#120); this generator is the delivery channel, not dead config
-#   - name: loki-rule
-#     namespace: observability
-#     files:
-#       - loki-rules.yaml
-#     options:
-#       labels:
-#         loki_rule: "true"

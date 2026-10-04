@@ -9,9 +9,9 @@ metadata:
 spec:
   hard:
     # sized = `compute` in this namespace (both quotas admit the same pod set;
-    # lockstep history: cmdshift/platform#83, cmdshift/platform#128, #146);
-    # raised from 16 in cmdshift/platform#155 — a grafana-deployment surge pod
-    # did not fit (7-node DSs alone charge 11.1 CPU: node-exporter 7 + alloy-logging 4.1)
+    # lockstep history: cmdshift/platform#83, cmdshift/platform#128, #146).
+    # Pod counts shrank with the LGTM teardown (cmdshift/platform#171) —
+    # openobserve + collector replace loki/mimir/tempo/grafana/alloy/KSM/node-exporter
     requests.cpu: "3"
     requests.memory: 10Gi
     limits.cpu: 20

@@ -25,3 +25,11 @@ spec:
     - fromEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: policies
+    # the observability metrics collector scrapes kyverno's metrics-port (:8000)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: observability
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP

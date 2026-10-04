@@ -64,7 +64,9 @@ output "storage" {
     name       = join("-", ["storage", local.external_name])
     buckets = [
       "flux",
-      "backups"
+      "backups",
+      # openobserve parquet data + indexes (cmdshift/platform#171)
+      "openobserve"
     ]
     services = {
       s3 = {

@@ -26,32 +26,12 @@ resource "docker_container" "secrets" {
     content = jsonencode(local.flux_system.bucket_credentials)
   }
   upload {
-    file    = "/www/objects/loki-s3-credentials"
-    content = jsonencode(local.objects.loki_s3_credentials)
+    file    = "/www/observability/openobserve-credentials"
+    content = jsonencode(local.observability.openobserve_credentials)
   }
   upload {
-    file    = "/www/objects/tempo-s3-credentials"
-    content = jsonencode(local.objects.tempo_s3_credentials)
-  }
-  upload {
-    file    = "/www/objects/mimir-s3-credentials"
-    content = jsonencode(local.objects.mimir_s3_credentials)
-  }
-  upload {
-    file    = "/www/observability/main-grafana-credentials"
-    content = jsonencode(local.observability.main_grafana_credentials)
-  }
-  upload {
-    file    = "/www/observability/loki-s3-credentials"
-    content = jsonencode(local.observability.loki_s3_credentials)
-  }
-  upload {
-    file    = "/www/observability/tempo-s3-credentials"
-    content = jsonencode(local.observability.tempo_s3_credentials)
-  }
-  upload {
-    file    = "/www/observability/mimir-s3-credentials"
-    content = jsonencode(local.observability.mimir_s3_credentials)
+    file    = "/www/observability/openobserve-s3-credentials"
+    content = jsonencode(local.observability.openobserve_s3_credentials)
   }
   upload {
     file    = "/www/backups/velero-s3-credentials"

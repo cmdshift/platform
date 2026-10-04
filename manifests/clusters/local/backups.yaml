@@ -18,4 +18,4 @@ spec:
   path: ./manifests/bases/backups
   prune: true
   wait: true
-  timeout: 10m
+  timeout: 3m

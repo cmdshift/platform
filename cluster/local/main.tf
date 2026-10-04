@@ -122,6 +122,13 @@ module "auth" {
   trusted_proxies = module.conf.net.cloud_cidr
 }
 
+# build + push the OpenObserve sync image to angos (nodes pull it for the
+# dashboards/alerts sync Job — cmdshift/platform#171)
+module "images" {
+  source = "./images"
+  name   = "${module.conf.registry.services.main.hostname}/platform/o2-sync:1.1.2"
+}
+
 module "sync" {
   depends_on = [
     module.storage,

@@ -1,0 +1,134 @@
+# values for the openobserve-standalone chart (cmdshift/platform#171 —
+# replaces the LGTM stack: mimir/loki/tempo/grafana + seaweedfs)
+fullnameOverride: openobserve
+
+image:
+  oss:
+    # o2cr.ai is a 302 façade to public.ecr.aws/zinclabs/openobserve — angos
+    # doesn't follow cross-registry redirects on cache-miss, so point at the
+    # real home (already-mapped ecr upstream) (cmdshift/platform#171)
+    repository: public.ecr.aws/zinclabs/openobserve
+    # pinned per convention; SQLite migration trap — see the HelmRelease
+    tag: v1.0.1
+
+podSecurityContext:
+  fsGroup: 2000
+  runAsUser: 10000
+  runAsGroup: 3000
+  runAsNonRoot: true
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
+
+# writable cache dir for readOnlyRootFilesystem (chart NOTE: point
+# ZO_DATA_CACHE_DIR at the same path)
+cache:
+  enabled: true
+  mountPath: /var/lib/openobserve-cache
+  sizeLimit: 2Gi
+
+# SQLite + WAL only — parquet data lives in rustfs S3
+persistence:
+  enabled: true
+  size: 5Gi
+  storageClass: local-path
+  accessModes:
+    - ReadWriteOnce
+
+# chart renders ZO_ROOT_USER_* + ZO_S3_* into its Secret from these values —
+# empty here; the real values come from the secrets server via env overrides
+# (explicit env beats envFrom; ExternalSecrets below provide them)
+auth:
+  existingRootUserSecret:
+    name: openobserve-credentials
+    emailKey: ZO_ROOT_USER_EMAIL
+    passwordKey: ZO_ROOT_USER_PASSWORD
+  ZO_S3_ACCESS_KEY: ""
+  ZO_S3_SECRET_KEY: ""
+
+extraEnv:
+  - name: ZO_S3_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: openobserve-s3-credentials
+        key: ZO_S3_ACCESS_KEY
+  - name: ZO_S3_SECRET_KEY
+    valueFrom:
+      secretKeyRef:
+        name: openobserve-s3-credentials
+        key: ZO_S3_SECRET_KEY
+  # the chart's config CM is a hardcoded key allowlist — unknown config.* keys
+  # are silently dropped, so env-only flags ride extraEnv instead
+  - name: ZO_SKIP_SSRF_CHECKS
+    value: "true"
+  # alert destinations point at in-cluster services (alertmanager) whose
+  # ClusterIPs trip the SSRF guard — trusted environment (cmdshift/platform#171)
+
+config:
+  ZO_LOCAL_MODE: "true"
+  # writable cache dir matching the cache volume mount (chart NOTE)
+  ZO_DATA_CACHE_DIR: "/var/lib/openobserve-cache"
+  # S3 backend — data survives the PVC; the PVC only buffers WAL + queries cache
+  ZO_LOCAL_MODE_STORAGE: "s3"
+  ZO_S3_PROVIDER: "s3"
+  ZO_S3_SERVER_URL: "http://s3.cloud.test"
+  ZO_S3_REGION_NAME: "local"
+  ZO_S3_BUCKET_NAME: "openobserve"
+  # default is 3650 — a silent disk-full waiting to happen (cmdshift/platform#171)
+  ZO_COMPACT_DATA_RETENTION_DAYS: "7"
+  # don't phone home
+  ZO_TELEMETRY: "false"
+  # geoip downloads from zinclabs.dev are pointless locally
+  ZO_MMDB_DISABLE_DOWNLOAD: "true"
+  # default (0) derives 25% of container mem_total — at 1Gi that's a 256MB
+  # memtable, and ~240 metric streams overflow it on the first scrape cycle
+  # (MemoryTableOverflowError 503s, cmdshift/platform#171). 256 still overflowed
+  # at ~150/min with ~1400 streams; 768 + 4Gi limit holds the working set with
+  # the 2-thread drain caps (cmdshift/platform#171)
+  ZO_MEM_TABLE_MAX_SIZE: "768"
+  # ~1400 streams spread their zstd compression work across smaller, more
+  # frequent flushes; thread caps (2) keep at most 2 cores compressing at any
+  # instant — the 830m sustained-CPU burn was bursty dump/merge across all
+  # cores plus 60s compaction cycles (cmdshift/platform#171)
+  ZO_MAX_FILE_RETENTION_TIME: "30"
+  ZO_MAX_FILE_SIZE_IN_MEMORY: "64"
+  ZO_MEM_DUMP_THREAD_NUM: "2"
+  ZO_FILE_MOVE_THREAD_NUM: "2"
+  ZO_FILE_MERGE_THREAD_NUM: "2"
+  # halved intervals (doubled frequency): smaller units of zstd/merge work per
+  # cycle — bursts cool between them instead of one core pinned for long
+  # stretches (cmdshift/platform#171)
+  ZO_COMPACT_INTERVAL: "150"
+  ZO_COMPACT_MAX_FILE_SIZE: "128"
+  ZO_FILE_PUSH_INTERVAL: "60"
+  # query-engine cache caps — spikes pushed 830m CPU; datafusion cache
+  # competes with ingest for the same 2Gi limit (cmdshift/platform#171)
+  ZO_MEMORY_CACHE_MAX_SIZE: "512"
+  ZO_MEMORY_CACHE_DATAFUSION_MAX_SIZE: "256"
+  # local disk cache duplicates rustfs reads and burns CPU on GC — the data
+  # lives in rustfs with 7d retention, cache adds nothing locally
+  ZO_DISK_CACHE_ENABLED: "false"
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 2Gi
+  limits:
+    # memtable 768MB + datafusion 256 + cache 512 + arrow/parquet overhead;
+    # the 2-core limit is the deliberate heat ceiling (cgroup throttle)
+    cpu: "2"
+    memory: 4Gi
+
+service:
+  type: ClusterIP
+  http_port: 5080
+  grpc_port: 5081
+
+serviceMonitor:
+  enabled: false

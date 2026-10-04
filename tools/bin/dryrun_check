@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# Pre-reconcile gate: build a group's kustomization and server-side dry-run
+# EVERY generated document individually, reporting exactly which objects fail
+# and why. kubectl apply on a full multi-doc file stops at the first failure
+# and interleaves objects — a single bad object (undeclared CR field, CM over
+# the ~256KB last-applied annotation cap, kyverno denial, strict-decode
+# mismatch) masks the rest and reads as a group-wide failure. This tool
+# splits the build output and validates one object at a time.
+#
+#   dryrun_check <path>            # kustomize build <path>, per-doc dry-run
+#   dryrun_check <built.yaml>      # validate an already-built multi-doc file
+#
+# Exit 0 = every object passes (or nothing to validate). Exit 1 = at least
+# one object failed (each failure listed as `FAIL <kind>/<name>: <reason>`).
+# Exit 2 = usage or build error.
+
+set -euo pipefail
+
+usage() {
+  echo "usage: dryrun_check <path|built.yaml>" >&2
+  exit 2
+}
+
+total=0; failed=0
+
+split_docs() {
+  # split multi-doc YAML on top-level --- into one file per document
+  awk -v dir="$work" '
+    BEGIN { n = 0; out = sprintf("%s/doc-%03d.yaml", dir, n) }
+    /^---$/ { n++; out = sprintf("%s/doc-%03d.yaml", dir, n); next }
+    { print > out }
+  ' "$work/build.yaml"
+}
+
+check_docs() {
+  local doc ident out
+  for doc in "$work"/doc-*.yaml; do
+    [ -s "$doc" ] || continue
+    total=$((total + 1))
+    # ident: kind/name from the doc (best effort — a malformed doc reports its file)
+    ident=$(awk '/^kind:/{k=$2} /^  name:/{n=$2; exit} END{print k "/" n}' "$doc")
+    [ -n "${ident:-/}" ] && [ "$ident" != "/" ] || ident=$(basename "$doc")
+    if ! out=$(kubectl apply --dry-run=server -f "$doc" 2>&1); then
+      failed=$((failed + 1))
+      echo "FAIL $ident: $(echo "$out" | grep -m1 -oE '(Invalid|BadRequest|Forbidden|error).*' | head -c 400)"
+    fi
+  done
+}
+
+build_target() {
+  if [[ -d "$target" ]]; then
+    kustomize build "$target" > "$work/build.yaml" || {
+      echo "dryrun_check: kustomize build failed: $target" >&2
+      exit 2
+    }
+  elif [[ -f "$target" ]]; then
+    cp "$target" "$work/build.yaml"
+  else
+    usage
+  fi
+}
+
+dryrun_check() {
+  [ $# -eq 1 ] || usage
+  target=$1
+  work=$(mktemp -d)
+  trap 'rm -rf "$work"' EXIT
+  build_target
+  split_docs
+  check_docs
+  echo "dryrun_check: $total object(s) checked, $failed failed"
+  [ "$failed" -eq 0 ]
+}
+
+dryrun_check "$@"

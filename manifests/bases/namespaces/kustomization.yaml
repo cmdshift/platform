@@ -8,7 +8,6 @@ resources:
   - storage.namespace.yaml
   - datastores.namespace.yaml
   - observability.namespace.yaml
-  - objects.namespace.yaml
   - backups.namespace.yaml
   - scanning.namespace.yaml
   - security.namespace.yaml

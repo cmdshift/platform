@@ -7,4 +7,4 @@ resources:
     cpu: 500m
     memory: 60Mi
 metrics:
-  enabled: true # valkey-operator metrics — alloy-telemetry scrapes the metrics service
+  enabled: true # valkey-operator metrics — the metrics collector scrapes the metrics service

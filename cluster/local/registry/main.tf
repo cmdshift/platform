@@ -36,6 +36,7 @@ resource "docker_container" "registry" {
     content = templatefile("${path.module}/templates/config.tftpl.toml", {
       registries = local.registry_map
       scan       = var.scan
+      push       = local.push_identity
     })
   }
   command = ["-c", "/etc/angos/config.toml", "server"]

@@ -1,0 +1,51 @@
+{
+  "name": "pod_crashloop_backoff",
+  "stream_type": "metrics",
+  "stream_name": "kube_pod_container_status_waiting_reason",
+  "is_real_time": false,
+  "query_condition": {
+    "type": "promql",
+    "conditions": {
+      "version": 2,
+      "conditions": {
+        "filterType": "group",
+        "logicalOperator": "AND",
+        "conditions": []
+      }
+    },
+    "sql": null,
+    "promql": "kube_pod_container_status_waiting_reason{reason='CrashLoopBackOff', flag!='DATA_POINT_FLAGS_NO_RECORDED_VALUE_MASK'}",
+    "promql_condition": {
+      "column": "value",
+      "operator": ">=",
+      "value": 1,
+      "ignore_case": false
+    },
+    "aggregation": null,
+    "vrl_function": null,
+    "search_event_type": null,
+    "multi_time_range": []
+  },
+  "trigger_condition": {
+    "period": 2,
+    "operator": ">=",
+    "threshold": 1,
+    "frequency": 2,
+    "cron": "",
+    "frequency_type": "minutes",
+    "silence": 30,
+    "timezone": "UTC",
+    "tolerance_in_secs": null,
+    "align_time": true
+  },
+  "destinations": [
+    "alertmanager"
+  ],
+  "context_attributes": {},
+  "row_template": "*ClusterName:* {k8s_cluster} | Namespace: {namespace} | Pod: {pod} | Container: {container}",
+  "row_template_type": "String",
+  "description": "Critical: Container is in CrashLoopBackOff state. Check pod logs, resource limits, and application configuration.",
+  "enabled": true,
+  "tz_offset": 0,
+  "creates_incident": false
+}

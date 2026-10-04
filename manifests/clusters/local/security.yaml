@@ -21,4 +21,4 @@ spec:
   path: ./manifests/bases/security
   prune: true
   wait: true
-  timeout: 10m
+  timeout: 3m

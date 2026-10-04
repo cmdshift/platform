@@ -1,0 +1,51 @@
+{
+  "name": "node_not_ready",
+  "stream_type": "metrics",
+  "stream_name": "k8s_node_condition_ready",
+  "is_real_time": false,
+  "query_condition": {
+    "type": "promql",
+    "conditions": {
+      "version": 2,
+      "conditions": {
+        "filterType": "group",
+        "logicalOperator": "AND",
+        "conditions": []
+      }
+    },
+    "sql": null,
+    "promql": "min_over_time(kube_node_status_condition{condition='Ready',status='true'}[5m])",
+    "promql_condition": {
+      "column": "value",
+      "operator": "<=",
+      "value": 0,
+      "ignore_case": false
+    },
+    "aggregation": null,
+    "vrl_function": null,
+    "search_event_type": null,
+    "multi_time_range": []
+  },
+  "trigger_condition": {
+    "period": 5,
+    "operator": ">=",
+    "threshold": 1,
+    "frequency": 2,
+    "cron": "",
+    "frequency_type": "minutes",
+    "silence": 30,
+    "timezone": "UTC",
+    "tolerance_in_secs": null,
+    "align_time": true
+  },
+  "destinations": [
+    "alertmanager"
+  ],
+  "context_attributes": {},
+  "row_template": "*ClusterName:* {k8s_cluster} | Node: {node} | Status: NotReady",
+  "row_template_type": "String",
+  "description": "Critical: Node has been in NotReady state continuously for 5+ minutes. Uses min_over_time to filter out node churn during scale-in/termination.",
+  "enabled": true,
+  "tz_offset": 0,
+  "creates_incident": false
+}

@@ -1,0 +1,52 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: observability
+resources:
+  - service-account.yaml
+  - job.yaml
+configMapGenerator:
+  # the sync script itself — mounted, not baked into the image, so a script
+  # edit re-runs the Job via the hash suffix (cmdshift/platform#171)
+  - name: o2-sync-script
+    files:
+      - sync.sh=scripts/sync.sh
+  # alert destination + template — applied before dashboards/alerts by sync.sh
+  - name: o2-destinations
+    files:
+      - alertmanager.json=destinations/alertmanager.json
+      - alertmanager-template.json=destinations/alertmanager-template.json
+  # dashboards grouped by domain — each CM has its own ~256KB cap in the
+  # kustomize-controller dry-run (last-applied annotation, not the 1MiB data
+  # limit), so keep every generated object well under it (cmdshift/platform#171);
+  # kubernetes-overview.json dropped — 420KB alone, over the cap
+  - name: o2-dashboards-kubernetes
+    files:
+      - dashboards/kubernetes-namespace-pod.json
+      - dashboards/kubernetes-namespaces.json
+      - dashboards/kubernetes-nodes.json
+      - dashboards/kubernetes-nodes-pressure.json
+  - name: o2-dashboards-openobserve
+    files:
+      - dashboards/openobserve-infrastructure.json
+      - dashboards/openobserve-internals.json
+  - name: o2-alerts
+    files:
+      - alerts/pod_crashloop_backoff.json
+      - alerts/pod_oom_killed.json
+      - alerts/node_not_ready.json
+      - alerts/node_high_disk_usage.json
+      - alerts/deployment_replica_mismatch.json
+      - alerts/job_failed.json
+      - alerts/velero_backup_stale.json
+      - alerts/velero_backup_failed.json
+      - alerts/velero_repo_maintenance_failed.json
+      - alerts/tetragon_tracingpolicy_load_failed.json
+      - alerts/tetragon_enforcement_kill.json
+      # trivy alert parked: trivy_image_vulnerabilities stream materializes
+      # only after the first VulnerabilityReport — none exist yet (vuln scan
+      # investigation parked, cmdshift/platform#171). Re-add with the file.
+      # - alerts/trivy_critical_image_vulnerabilities.json
+      - alerts/cilium_datapath_fast_burn.json
+      - alerts/cilium_datapath_slow_burn.json
+      - alerts/watchdog.json
+      - alerts/high_error_rate.json

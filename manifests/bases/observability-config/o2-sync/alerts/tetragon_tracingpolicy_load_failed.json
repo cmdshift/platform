@@ -1,0 +1,51 @@
+{
+  "name": "tetragon_tracingpolicy_load_failed",
+  "stream_type": "metrics",
+  "stream_name": "tetragon_tracingpolicy_loaded",
+  "is_real_time": false,
+  "query_condition": {
+    "type": "promql",
+    "conditions": {
+      "version": 2,
+      "conditions": {
+        "filterType": "group",
+        "logicalOperator": "AND",
+        "conditions": []
+      }
+    },
+    "sql": null,
+    "promql": "tetragon_tracingpolicy_loaded{state=~'error|load_error'} > 0",
+    "promql_condition": {
+      "column": "value",
+      "operator": ">",
+      "value": 0,
+      "ignore_case": false
+    },
+    "aggregation": null,
+    "vrl_function": null,
+    "search_event_type": null,
+    "multi_time_range": []
+  },
+  "trigger_condition": {
+    "period": 5,
+    "operator": ">=",
+    "threshold": 1,
+    "frequency": 5,
+    "cron": "",
+    "frequency_type": "minutes",
+    "silence": 60,
+    "timezone": "UTC",
+    "tolerance_in_secs": null,
+    "align_time": true
+  },
+  "destinations": [
+    "alertmanager"
+  ],
+  "context_attributes": {},
+  "row_template": "Pod: {pod} | Node: {node} | state: {state}",
+  "row_template_type": "String",
+  "description": "Warning: Tetragon has a tracing policy in error state \u2014 a policy file may be invalid or use a hook this kernel lacks",
+  "enabled": true,
+  "tz_offset": 0,
+  "creates_incident": false
+}

@@ -1,0 +1,39 @@
+{
+  "name": "high_error_rate",
+  "stream_type": "logs",
+  "stream_name": "default",
+  "is_real_time": false,
+  "query_condition": {
+    "type": "sql",
+    "conditions": null,
+    "sql": "SELECT k8s_namespace_name, k8s_pod_name, k8s_container_name, count(*) as cnt FROM \"default\" WHERE body LIKE '%error%' GROUP BY k8s_namespace_name, k8s_pod_name, k8s_container_name HAVING cnt > 15",
+    "promql": null,
+    "promql_condition": null,
+    "aggregation": null,
+    "vrl_function": null,
+    "search_event_type": null,
+    "multi_time_range": []
+  },
+  "trigger_condition": {
+    "period": 5,
+    "operator": ">=",
+    "threshold": 15,
+    "frequency": 2,
+    "cron": "",
+    "frequency_type": "minutes",
+    "silence": 60,
+    "timezone": "UTC",
+    "tolerance_in_secs": null,
+    "align_time": true
+  },
+  "destinations": [
+    "alertmanager"
+  ],
+  "context_attributes": {},
+  "row_template": "Namespace: {k8s_namespace_name} | Pod: {k8s_pod_name} | errors: {cnt}",
+  "row_template_type": "String",
+  "description": "Warning: High error log volume in {k8s_namespace_name}/{k8s_pod_name} (>15 lines matching 'error' over 5m; the loki-ruler rule was >3/s sustained 2m \u2014 retuned to counts for O2 SQL)",
+  "enabled": true,
+  "tz_offset": 0,
+  "creates_incident": false
+}

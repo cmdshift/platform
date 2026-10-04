@@ -1,29 +1,11 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  # the Alloy CRs apply after the operator: same-group CRs fail the root dry-run
-  # on a fresh cluster (no CRDs yet) and wedge the whole observability group
-  - alloy-logging.alloy.yaml
-  - alloy-telemetry.alloy.yaml
   - resource-quota.yaml
   - logging-resource-quota.yaml
   - limit-range.yaml
-  - main.grafana.yaml
   - flux-system.alert.yaml
   - flux-system.provider.yaml
-  - mimir.grafana-datasource.yaml
-  - loki.grafana-datasource.yaml
-  - tempo.grafana-datasource.yaml
-  # the dotdc k8s-views dashboards (url:-pointer CRs) were removed — re-add
-  # from git history whenever a reference view is wanted again
-  - platform-deployment.grafana-dashboard.yaml
-  - main-grafana-credentials.external-secret.yaml
-  - access-auth-proxy.referencegrant.yaml
-configMapGenerator:
-  - name: platform-deployment-dashboard
-    namespace: observability
-    files:
-      - platform-deployment.dashboard.json
-    # name-referenced by the GrafanaDashboard CR — a hash suffix would break the ref
-    options:
-      disableNameSuffixHash: true
+  # after the group's workloads: the sync Job curls the O2 API, so openobserve
+  # must be ingesting first — observability-config reconciles after the group
+  - o2-sync

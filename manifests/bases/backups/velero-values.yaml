@@ -40,7 +40,7 @@ resources:
     cpu: 500m
     memory: 512Mi
 configuration:
-  # JSON logging: see observability/loki-values.yaml
+  # JSON logging: platform convention
   logFormat: json
   backupStorageLocation: null
   volumeSnapshotLocation: null
@@ -76,4 +76,4 @@ nodeAgent:
       cpu: 500m
       memory: 120Mi
 metrics:
-  enabled: true # velero server metrics :8085 — alloy-telemetry scrapes the metrics service
+  enabled: true # velero server metrics :8085 — the metrics collector scrapes the metrics service

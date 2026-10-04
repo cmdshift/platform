@@ -1,0 +1,5 @@
+{
+  "name": "alertmanager",
+  "type": "http",
+  "body": "{\"startsAt\":\"{alert_start_time}\",\"status\":\"firing\",\"labels\":{\"alertname\":\"{alert_name}\",\"severity\":\"{alert_severity}\",\"stream\":\"{stream_name}\"},\"annotations\":{\"summary\":\"{alert_description}\",\"rows\":\"{rows}\"}}"
+}

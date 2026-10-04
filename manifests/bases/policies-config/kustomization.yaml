@@ -1,10 +1,9 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - allow-alloy-host-logs.policy-exception.yaml
   - allow-cilium-system-components.policy-exception.yaml
   - allow-kube-system-system-components.policy-exception.yaml
-  - allow-node-exporter.policy-exception.yaml
+  - allow-openobserve-collector-host-access.policy-exception.yaml
   - allow-privileged-system-worloads.policy-exception.yaml
   - allow-tetragon-security-contexts.policy-exception.yaml
   - allow-trivy-scan-jobs.policy-exception.yaml

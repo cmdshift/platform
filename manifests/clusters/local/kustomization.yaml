@@ -29,12 +29,10 @@ resources:
   - policies-config.yaml
   - storage.yaml
   - storage-config.yaml
-  # - objects.yaml
-  # - objects-config.yaml
   - datastores.yaml
   - datastores-config.yaml
   - observability.yaml
-  # - observability-config.yaml
+  - observability-config.yaml
   - backups.yaml
   - backups-config.yaml
   - scanning.yaml

@@ -1,10 +1,8 @@
 # Exec deny-list, observability namespace, chart-release workloads (alertmanager,
-# alloy, grafana-operator, kube-state-metrics, loki, node-exporter, tempo) —
-# phase-4 wave 1 (cmdshift/platform#60), sibling of exec-deny-list-flux-system
-# (cmdshift/platform#28; full rationale there).
-# Scoping label: the release instance label. mimir and grafana carry different
-# label sets — split into sibling policies (k8s LabelSelectors AND their terms).
-# Future release workloads must be added to the values list or they're out of scope.
+# openobserve) — phase-4 wave 1 (cmdshift/platform#60), sibling of
+# exec-deny-list-flux-system (cmdshift/platform#28; full rationale there).
+# Scoping label: the release instance label. Future release workloads must be
+# added to the values list or they're out of scope.
 apiVersion: cilium.io/v1alpha1
 kind: TracingPolicy
 metadata:
@@ -16,14 +14,8 @@ spec:
         operator: In
         values:
           - alertmanager
-          - alloy-logging
-          - alloy-operator
-          - alloy-telemetry
-          - grafana-operator
-          - kube-state-metrics
-          - loki
-          - prometheus-node-exporter
-          - tempo
+          - openobserve
+          - openobserve-collector
   options:
     - name: policy-mode
       value: enforce

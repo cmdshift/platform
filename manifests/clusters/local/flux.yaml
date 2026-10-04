@@ -15,4 +15,4 @@ spec:
   path: ./manifests/bases/flux
   prune: true
   wait: true
-  timeout: 10m
+  timeout: 3m

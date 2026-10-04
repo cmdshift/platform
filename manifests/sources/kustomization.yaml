@@ -13,14 +13,12 @@ resources:
   - fairwinds.helm-repository.yaml
   - local-path-provisioner.git-repository.yaml
   - velero.helm-repository.yaml
-  - seaweedfs-operator.helm-repository.yaml
   - cloudnative-pg.helm-repository.yaml
   - cloudnative-pg-crds.git-repository.yaml
   - valkey.helm-repository.yaml
   - emqx.helm-repository.yaml
   - emqx-operator-crds.git-repository.yaml
-  - grafana.helm-repository.yaml
-  - grafana-community.helm-repository.yaml
+  - openobserve.helm-repository.yaml
   - open-telemetry.helm-repository.yaml
   - prometheus-community.helm-repository.yaml
   - oauth2-proxy.helm-repository.yaml

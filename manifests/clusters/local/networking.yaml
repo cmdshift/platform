@@ -16,4 +16,4 @@ spec:
   path: ./manifests/bases/networking
   prune: true
   wait: true
-  timeout: 10m
+  timeout: 3m

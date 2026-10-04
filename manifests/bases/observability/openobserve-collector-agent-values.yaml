@@ -1,0 +1,152 @@
+# values for the otel opentelemetry-collector chart, AGENT release
+# (daemonset) — logs (filelog) + host/node metrics + kubeletstats →
+# openobserve. Gateway release (deployment) carries OTLP + prometheus
+# scrapes; see openobserve-collector-gateway-values.yaml (cmdshift/platform#171)
+fullnameOverride: openobserve-collector-agent
+
+mode: daemonset
+
+image:
+  repository: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib
+  tag: 0.158.0
+
+# filelog reads /var/log/pods on the host; hostmetrics reads /hostfs —
+# PolicyException allow-openobserve-collector-host-access covers admission
+presets:
+  logsCollection:
+    enabled: true
+    includeCollectorLogs: false
+  hostMetrics:
+    enabled: true
+  kubeletMetrics:
+    enabled: true
+  kubernetesAttributes:
+    enabled: true
+    extractAllPodLabels: false
+  # k8s_cluster receiver → node conditions (k8s_node_condition_ready et al —
+  # the node_not_ready alert reads it); daemonset mode leader-elects so the
+  # 3 replicas don't duplicate (cmdshift/platform#171)
+  clusterMetrics:
+    enabled: true
+
+clusterRole:
+  # presets create the base role; kubeletstats with extra_metadata_labels needs
+  # nodes/proxy + nodes/pods beyond the preset's nodes/stats (the utilization
+  # metrics only scrape on the /pods summary endpoint — 403 without this)
+  create: true
+  rules:
+    - apiGroups: [""]
+      resources: [nodes/stats, nodes/proxy, nodes/metrics]
+      verbs: [get, list, watch]
+
+# allow-node-exporter-style host access; the chart's daemonset mounts
+# /var/log + /var/lib/docker/containers via the logsCollection preset
+podSecurityContext:
+  runAsNonRoot: false
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  runAsUser: 0
+  runAsNonRoot: false
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+tolerations:
+  - operator: Exists
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+ports:
+  # agent receives nothing — it pushes to openobserve; close the ingest ports
+  otlp:
+    enabled: false
+  otlp-http:
+    enabled: false
+  jaeger-compact:
+    enabled: false
+  jaeger-thrift:
+    enabled: false
+  jaeger-grpc:
+    enabled: false
+  zipkin:
+    enabled: false
+  metrics:
+    enabled: true
+    containerPort: 8888
+    servicePort: 8888
+
+# chart defaults we override explicitly — see config below.
+# NOTE: without rewriteDeprecatedComponentNames the config uses modern names
+# (filelog/k8sattributes/otlphttp) verbatim
+rewriteDeprecatedComponentNames: false
+
+config:
+  exporters:
+    # chart default debug exporter — dropped (noise)
+    debug: null
+    otlphttp/openobserve:
+      endpoint: http://openobserve.observability.svc:5080/api/default/
+      headers:
+        # root user, same identity as the UI — chart exposes no env passthrough
+        # into presets, so inlined; matches the secrets-server
+        # openobserve-credentials payload (cmdshift/platform#171)
+        Authorization: "Basic cm9vdEBjbG91ZC50ZXN0OkNvbXBsZXhwYXNzIzEyMw=="
+  receivers:
+    # chart default jaeger/zipkin/otlp receivers — agent pushes only, no ingest
+    jaeger: null
+    zipkin: null
+    otlp: null
+    prometheus: null
+    # computed utilization metrics are opt-in (stock preset ships them off);
+    # the o2 community dashboards/alerts read them (cmdshift/platform#171)
+    hostmetrics:
+      scrapers:
+        cpu:
+          metrics:
+            system.cpu.utilization:
+              enabled: true
+        memory:
+          metrics:
+            system.memory.utilization:
+              enabled: true
+    kubeletstats:
+      # metric_groups required for the summary API path the utilization
+      # metrics derive from (o2 chart ships node/pod/container/volume)
+      extra_metadata_labels:
+        - container.id
+        - k8s.volume.type
+      metric_groups:
+        - node
+        - pod
+        - container
+        - volume
+      metrics:
+        k8s.pod.cpu_limit_utilization:
+          enabled: true
+        k8s.pod.cpu_request_utilization:
+          enabled: true
+        k8s.pod.memory_limit_utilization:
+          enabled: true
+        k8s.pod.memory_request_utilization:
+          enabled: true
+  service:
+    pipelines:
+      logs:
+        receivers: [filelog]
+        processors: [memory_limiter, k8sattributes, batch]
+        exporters: [otlphttp/openobserve]
+      metrics:
+        receivers: [hostmetrics, kubeletstats]
+        processors: [memory_limiter, batch]
+        exporters: [otlphttp/openobserve]
+      traces: null
