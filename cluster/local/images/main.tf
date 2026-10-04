@@ -13,11 +13,9 @@ resource "docker_image" "o2_sync" {
 
 # angos accepts pushes (validated cmdshift/platform#171) — the pushed image
 # lands in the registry volume and nodes pull it via the wildcard mirror.
-# insecure_skip_verify: the local registry is plain HTTP (no TLS).
 resource "docker_registry_image" "o2_sync" {
-  name                 = var.name
-  keep_remotely        = true
-  insecure_skip_verify = true
+  name          = var.name
+  keep_remotely = true
 
   depends_on = [docker_image.o2_sync]
 
