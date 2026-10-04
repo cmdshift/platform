@@ -39,11 +39,11 @@ Maintenance Jobs are built by velero's server internally with no securityContext
 
 ## Alerts
 
-Defined in `observability/mimir-rules.yaml` (`backup-alerts` group — the rules moved from `observability-config/thanos-rules.yaml` with the LGTM migration, cmdshift/platform#128; semantics + rule-writing conventions: [manifests/bases/observability/README.md](../../manifests/bases/observability/README.md), cmdshift/platform#111):
+Encoded as OpenObserve detectors (JSONs in `observability-config/o2-sync/alerts/`, synced by the o2-sync Job — the alert semantics + naming conventions: [manifests/bases/observability/README.md](../../manifests/bases/observability/README.md), cmdshift/platform#111; the old mimir-rules encoding died with the LGTM stack, cmdshift/platform#171):
 
 - **VeleroBackupFailed** (critical, no `for:`) — `increase(velero_backup_failure_total[24h]) > 0 or increase(velero_backup_partial_failure_total[24h]) > 0`. The partial-failure arm is required: a schedule backup with failed PodVolumeBackups lands `PartiallyFailed`, which velero counts only in `velero_backup_partial_failure_total`. Fires within one evaluation (~1m) and lands in mailpit — verified live.
 - **VeleroBackupStale** (warning, `for: 1h`) — no successful `pvcs` backup in 26h **or none ever** (the `absent()` arm covers the never-succeeded state: the last-success gauge only materializes after a first Completed backup). The `for: 1h` means a fresh wedge pends ~1h before firing.
-- **VeleroRepoMaintenanceFailed** (warning, `for: 15m`) — kopia maintenance failure in the last 2h; an admission-blocked maintenance fleet shows here in ~2h.
+- **VeleroRepoMaintenanceFailed** (warning, `for: 15m`) — kopia maintenance failure in the last 2h; an admission-blocked maintenance fleet shows here in ~2h. **Repo-metadata loss** (rustfs bucket wipe, cmdshift/platform#171): maintenance jobs fail `repository not initialized` after the `backups` bucket's contents were wiped — the kopia repo metadata lived there and only the scheduled nightly `pvcs` backup re-initializes the repo on its next successful fire. If the failing state persists past the nightly schedule, investigate the backup itself before assuming a wedged job fleet.
 
 ## Data-mover hosting pods and admission
 

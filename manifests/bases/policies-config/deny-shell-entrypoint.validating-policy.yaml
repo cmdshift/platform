@@ -23,9 +23,10 @@ spec:
         - jobs
         - cronjobs
   matchConditions:
-    # phase-4 wave 1 (cmdshift/platform#60): every flux-managed namespace except
-    # objects (seaweed's /bin/sh -ec entrypoint is operator-hardcoded — see
-    # security/README.md). Lockstep with the exec-deny-list-* TracingPolicies.
+    # phase-4 wave 1 (cmdshift/platform#60): every flux-managed namespace.
+    # Lockstep with the exec-deny-list-* TracingPolicies.
+    # NOTE: the sync Job for OpenObserve dashboards/alerts curls the O2 API from
+    # an image whose ENTRYPOINT is the sync script — no shell command needed.
     - name: operator-namespaces
       expression: "object.metadata.namespace in ['flux-system', 'policies', 'secrets', 'access', 'backups', 'certificates', 'datastores', 'observability', 'scanning', 'security', 'storage']"
   variables:

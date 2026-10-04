@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+# Flux convergence scoreboard + stale-state classifier. One call answers the
+# questions flux_wait leaves implicit: which groups are broken vs progressing
+# vs replaying a cached failure, and per HelmRelease whether intervention is
+# warranted. Read-only — observes and classifies, never mutates.
+#
+#   flux_triage               # all kustomizations + all-namespaces helmreleases
+#   flux_triage <name>...     # restrict kustomizations to these names
+#
+# Verdicts:
+#   OK          applied revision, Ready
+#   WAITING     dependency-wait cascade state — leave alone
+#   PROGRESSING actively reconciling — leave alone (re-check in a minute)
+#   HEALTHFAIL  applied but health check failing — diagnose the workload
+#   FAILED      reconcile error — diagnose (message printed)
+#   INTERVENE   cached terminal state (RetriesExceeded/Stalled/
+#               MissingRollbackTarget) — the object replays its error without
+#               re-attempting; annotate requestedAt / remediate
+#
+# Exit 0 = all OK. 1 = any FAILED/INTERVENE/HEALTHFAIL. 2 = only
+# WAITING/PROGRESSING remain. 3 = usage error.
+
+set -euo pipefail
+
+usage() {
+  echo "usage: flux_triage [kustomization-name]..." >&2
+  exit 3
+}
+
+# classify_ks <ready> <message> -> verdict
+classify_ks() {
+  local ready=$1 msg=$2
+  case "$msg" in
+    *RetriesExceeded*|*Stalled*|*MissingRollbackTarget*)
+      echo "INTERVENE"; return ;;
+    *"health check failed"*|*HealthCheckFailed*)
+      echo "HEALTHFAIL"; return ;;
+  esac
+  if [[ "$ready" == "False" && "$msg" != *"in progress"* && "$msg" != *"not ready"* ]]; then
+    echo "FAILED"; return
+  fi
+  case "$msg" in
+    *"Reconciliation in progress"*|*Progressing*) echo "PROGRESSING" ;;
+    *"not ready"*|*"not up to date"*) echo "WAITING" ;;
+    *"Applied revision"*|*ReconciliationSucceeded*) echo "OK" ;;
+    *) echo "OTHER" ;;
+  esac
+}
+
+# classify_hr <ready> <message> -> verdict
+classify_hr() {
+  local ready=$1 msg=$2 low
+  low=$(echo "$msg" | tr '[:upper:]' '[:lower:]')
+  case "$low" in
+    *succeeded*) echo "OK" ;;
+    *retriesexceeded*|*stalled*|*missingrollbacktarget*) echo "INTERVENE" ;;
+    *"in progress"*|*running*) echo "PROGRESSING" ;;
+    *failed*) echo "FAILED" ;;
+    *) [[ "$ready" == "Unknown" ]] && { echo "PROGRESSING"; return; }
+       echo "OTHER" ;;
+  esac
+}
+
+# extract a field from a status JSON fragment: status field paths are fixed,
+# so pure-grep extraction keyed on the condition type; prints empty when absent
+cond_msg() { # $1=json $2=conditionType
+  local msg
+  msg=$(echo "$1" | jq -r --arg t "$2" \
+    '.conditions[]? | select(.type == $t) | .message // .reason // ""' 2>/dev/null | head -1)
+  echo "${msg:-}"
+}
+
+cond_status() { # $1=json $2=conditionType
+  jq -r --arg t "$2" \
+    '.conditions[]? | select(.type == $t) | .status // "Unknown"' 2>/dev/null <<< "$1" | head -1
+}
+
+ks_row() { # $1=namespace $2=name $3=status-json
+  local ns=$1 name=$2 json=$3 ready msg attempted applied verdict
+  ready=$(cond_status "$json" Ready)
+  msg=$(cond_msg "$json" Ready)
+  attempted=$(jq -r '.lastAttemptedRevision // "—"' <<< "$json" | cut -c1-12)
+  applied=$(jq -r '.lastAppliedRevision // "—"' <<< "$json" | cut -c1-12)
+  verdict=$(classify_ks "$ready" "$msg")
+  ROWS+=("$verdict"$'\t'"$name"$'\t'"$ready"$'\t'"${attempted}/${applied}"$'\t'"$msg")
+}
+
+hr_row() { # $1=namespace $2=name $3=status-json
+  local ns=$1 name=$2 json=$3 ready msg action verdict
+  name="$ns/$2"
+  ready=$(cond_status "$json" Ready)
+  msg=$(cond_msg "$json" Ready)
+  action=$(jq -r '.lastAttemptedReleaseAction // "—"' <<< "$json")
+  verdict=$(classify_hr "$ready" "$msg")
+  ROWS+=("$verdict"$'\t'"$name"$'\t'"$ready"$'\t'"$action"$'\t'"$msg")
+}
+
+collect() {
+  ROWS=()
+  local name json
+  while IFS=$'\t' read -r name json; do
+    [ -n "$name" ] || continue
+    if [[ ${#filters[@]} -eq 0 || " ${filters[*]} " == *" $name "* ]]; then
+      ks_row flux-system "$name" "$json"
+    fi
+  done < <(kubectl -n flux-system get kustomizations -o json |
+    jq -r '.items[] | [.metadata.name, (.status | tostring)] | @tsv')
+  while IFS=$'\t' read -r ns name json; do
+    [ -n "$name" ] || continue
+    hr_row "$ns" "$name" "$json"
+  done < <(kubectl get helmreleases -A -o json |
+    jq -r '.items[] | [.metadata.namespace, .metadata.name, (.status | tostring)] | @tsv')
+}
+
+report() {
+  local verdict name ready detail msg
+  printf '%-40s %-11s %-11s %s\n' "KUSTOMIZATION/RELEASE" "VERDICT" "READY" "DETAIL"
+  declare -A counts
+  local attention=0 progressing=0 ok=0
+  for row in "${ROWS[@]}"; do
+    IFS=$'\t' read -r verdict name ready detail msg <<< "$row"
+    printf '%-40s %-11s %-11s %s\n' "$name" "$verdict" "$ready" "$detail"
+    if [[ "$verdict" != "OK" ]]; then
+      printf '%-42s└ %s\n' "" "${msg:0:130}"
+    fi
+    case "$verdict" in
+      OK) ok=$((ok + 1)) ;;
+      PROGRESSING|WAITING) progressing=$((progressing + 1)) ;;
+      *) attention=$((attention + 1)) ;;
+    esac
+  done
+  echo "---"
+  echo "flux_triage: ok=$ok progressing=$progressing needs-attention=$attention"
+  if (( attention > 0 )); then exit 1; fi
+  if (( progressing > 0 )); then exit 2; fi
+  exit 0
+}
+
+flux_triage() {
+  local a
+  filters=()
+  for a in "$@"; do
+    case "$a" in -*) usage ;; esac
+    filters+=("$a")
+  done
+  collect
+  report
+}
+
+flux_triage "$@"

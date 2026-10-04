@@ -74,7 +74,7 @@ yaml_lint
 flux_wait
 ```
 
-Then: helmreleases green (`helm_wait -c <ns> <name>` per release), `policy_report` failures 0 (skips = exceptions; `--clean` for stale reports). If the workload exposes metrics: ServiceMonitor (+ trust-CRDs flag where the chart needs it), then verify scraping landed with `prometheus_query 'up{namespace="<ns>"}'`; if it logs and should ship to Loki, confirm with `loki_query '{namespace="<ns>"}'` (`-c` for a compact series list); if it should alert: rules in `observability/mimir-rules.yaml` → alerts land at http://mail.cloud.test (`mailpit`).
+Then: helmreleases green (`helm_wait -c <ns> <name>` per release), `policy_report` failures 0 (skips = exceptions; `--clean` for stale reports). If the workload exposes metrics: ServiceMonitor (+ trust-CRDs flag where the chart needs it), then verify scraping landed — **the mimir-backed `prometheus_query` is ORPHANED since the OpenObserve migration (cmdshift/platform#171)**; verify through O2's UI/API until a store decision re-points the tooling. If it should alert: a detector JSON in `observability-config/o2-sync/alerts/` (o2-sync pattern — see the observability README) → alerts land at http://mail.cloud.test (`mailpit`).
 
 ## Full detail
 

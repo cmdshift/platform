@@ -4,16 +4,13 @@ metadata:
   name: observability
   namespace: flux-system
 spec:
-  interval: 1h
+  interval: 30m
   retryInterval: 5s
   dependsOn:
     - name: namespaces
     - name: sources
     - name: networking
     - name: certificates
-    # loki-values.yaml names storageClassName: local-path
-    # - name: storage-config
-    # - name: objects-config
     - name: secrets-config
   sourceRef:
     kind: Bucket
@@ -21,4 +18,4 @@ spec:
   path: ./manifests/bases/observability
   prune: true
   wait: true
-  timeout: 10m
+  timeout: 3m

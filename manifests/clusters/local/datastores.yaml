@@ -20,4 +20,4 @@ spec:
   path: ./manifests/bases/datastores
   prune: true
   wait: true
-  timeout: 10m
+  timeout: 3m

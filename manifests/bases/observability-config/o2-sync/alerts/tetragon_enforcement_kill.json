@@ -1,0 +1,51 @@
+{
+  "name": "tetragon_enforcement_kill",
+  "stream_type": "metrics",
+  "stream_name": "tetragon_policy_events_total",
+  "is_real_time": false,
+  "query_condition": {
+    "type": "promql",
+    "conditions": {
+      "version": 2,
+      "conditions": {
+        "filterType": "group",
+        "logicalOperator": "AND",
+        "conditions": []
+      }
+    },
+    "sql": null,
+    "promql": "increase(tetragon_policy_events_total{policy=~'kernel-modules|exec-deny-list-.*|sensitive-host-paths'}[10m]) > 0",
+    "promql_condition": {
+      "column": "value",
+      "operator": ">",
+      "value": 0,
+      "ignore_case": false
+    },
+    "aggregation": null,
+    "vrl_function": null,
+    "search_event_type": null,
+    "multi_time_range": []
+  },
+  "trigger_condition": {
+    "period": 10,
+    "operator": ">=",
+    "threshold": 1,
+    "frequency": 5,
+    "cron": "",
+    "frequency_type": "minutes",
+    "silence": 60,
+    "timezone": "UTC",
+    "tolerance_in_secs": null,
+    "align_time": true
+  },
+  "destinations": [
+    "alertmanager"
+  ],
+  "context_attributes": {},
+  "row_template": "Policy: {policy} | events: {value}",
+  "row_template_type": "String",
+  "description": "Critical: Tetragon enforcement fired \u2014 check `tetra getevents -o json` and per-node `tetra tracingpolicy list` NENFORCE (policy_events_total materializes on first enforcement; the 10m window absorbs rebuild one-shot spikes, cmdshift/platform#60)",
+  "enabled": true,
+  "tz_offset": 0,
+  "creates_incident": false
+}

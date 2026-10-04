@@ -48,11 +48,11 @@ Watch with `flux_wait` (interactive cap ~15), or `flux_wait -c` for an instant n
 | HelmReleases | `kubectl get helmreleases -A` | all True; per-release: `helm_wait -c <ns> <name>` |
 | Tetragon policies | `tetra --server-address localhost:54321 tracingpolicy list` (after `kubectl -n security port-forward ds/tetragon 54321:54321`) | deny-list policies enabled + enforce; FILTERID non-zero for privileges-raise + sensitive-host-paths |
 | **Tetragon enforcement live** | `tetragon_probe exec-deny-list-flux-system` | **exit 137 + NENFORCE +1** — **MANDATORY**: containers started during the bootstrap window are invisible to pod-scoped policies until their next container restart (security/README.md). If it reads 0, roll-restart the deny-list workloads (flux controllers one at a time) and re-probe |
-| Policy load failures | `prometheus_query 'tetragon_tracingpolicy_loaded{state=~"error\|load_error"} > 0'` | empty (the gauge exports zero-valued states too — filter with `> 0`) |
+| Policy load failures | `prometheus_query 'tetragon_tracingpolicy_loaded{state=~"error\|load_error"} > 0'` | empty (the gauge exports zero-valued states too — filter with `> 0`) — **ORPHANED with mimir** (cmdshift/platform#171): until a store lands, verify via `tetra tracingpolicy list` states instead |
 | flux-config adoption | `kubectl -n flux-system get kustomization local -o json --show-managed-fields` | `kustomize-controller` owns the spec |
 | Velero BSL | `kubectl -n backups get bsl default` | `Available` |
-| Rustfs buckets | `rustfs ls main/` | `flux`, `backups` |
-| Mimir | `kubectl -n observability get pods -l app.kubernetes.io/name=mimir` | 1/1 Running; ruler groups up (`prometheus_query 'count(up)'` non-empty) |
+| Rustfs buckets | `rustfs ls main/` | `flux`, `backups`, `openobserve` |
+| OpenObserve | `kubectl -n observability get pods -l app.kubernetes.io/name=openobserve` | 1/1 Running; o2-sync Job completes (dashboards/alerts present in the O2 UI) |
 | Host API path | `curl -skf --max-time 3 https://127.0.0.1:6443/version` | 401 = LB publisher alive (the binding is on the `cmd` container) |
 | Rauthy discovery | `curl -s https://auth.cloud.test/auth/v1/.well-known/openid-configuration` | 200; `issuer` == `https://auth.cloud.test/auth/v1/` exactly (trailing slash — apiserver exact-match, cmdshift/platform#154) |
 | Kubelet-serving CSRs | `kubectl get csr` | Pending until manually approved (`kubectl get csr -o name \| xargs -I{} kubectl certificate approve {}`) — nodes don't go Ready until then |

@@ -1,0 +1,51 @@
+{
+  "name": "velero_backup_stale",
+  "stream_type": "metrics",
+  "stream_name": "velero_backup_last_successful_timestamp",
+  "is_real_time": false,
+  "query_condition": {
+    "type": "promql",
+    "conditions": {
+      "version": 2,
+      "conditions": {
+        "filterType": "group",
+        "logicalOperator": "AND",
+        "conditions": []
+      }
+    },
+    "sql": null,
+    "promql": "time() - velero_backup_last_successful_timestamp{schedule=\"pvcs\"} > 93600",
+    "promql_condition": {
+      "column": "value",
+      "operator": ">",
+      "value": 0,
+      "ignore_case": false
+    },
+    "aggregation": null,
+    "vrl_function": null,
+    "search_event_type": null,
+    "multi_time_range": []
+  },
+  "trigger_condition": {
+    "period": 60,
+    "operator": ">=",
+    "threshold": 1,
+    "frequency": 30,
+    "cron": "",
+    "frequency_type": "minutes",
+    "silence": 240,
+    "timezone": "UTC",
+    "tolerance_in_secs": null,
+    "align_time": true
+  },
+  "destinations": [
+    "alertmanager"
+  ],
+  "context_attributes": {},
+  "row_template": "Schedule: {schedule} | last success: {value}s ago",
+  "row_template_type": "String",
+  "description": "Warning: No successful velero backup in 26h or never succeeded (schedule pvcs) \u2014 nightly 03:00 run missed or failing. NOTE: the absence arm of the original (absent() gauge before first success) is not expressible in O2 promql conditions \u2014 rely on the stream materializing after the first nightly run.",
+  "enabled": true,
+  "tz_offset": 0,
+  "creates_incident": false
+}

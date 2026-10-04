@@ -1,0 +1,51 @@
+{
+  "name": "cilium_datapath_slow_burn",
+  "stream_type": "metrics",
+  "stream_name": "cilium_drop_count_total",
+  "is_real_time": false,
+  "query_condition": {
+    "type": "promql",
+    "conditions": {
+      "version": 2,
+      "conditions": {
+        "filterType": "group",
+        "logicalOperator": "AND",
+        "conditions": []
+      }
+    },
+    "sql": null,
+    "promql": "(sum(rate(cilium_drop_count_total[30m])) / clamp_min(sum(rate(cilium_forward_count_total[30m])), 1)) > 0.006 and (sum(rate(cilium_drop_count_total[6h])) / clamp_min(sum(rate(cilium_forward_count_total[6h])), 1)) > 0.006",
+    "promql_condition": {
+      "column": "value",
+      "operator": ">",
+      "value": 0,
+      "ignore_case": false
+    },
+    "aggregation": null,
+    "vrl_function": null,
+    "search_event_type": null,
+    "multi_time_range": []
+  },
+  "trigger_condition": {
+    "period": 180,
+    "operator": ">=",
+    "threshold": 1,
+    "frequency": 15,
+    "cron": "",
+    "frequency_type": "minutes",
+    "silence": 240,
+    "timezone": "UTC",
+    "tolerance_in_secs": null,
+    "align_time": true
+  },
+  "destinations": [
+    "alertmanager"
+  ],
+  "context_attributes": {},
+  "row_template": "Drop ratio: {value}",
+  "row_template_type": "String",
+  "description": "Warning: cilium datapath slow burn: drop ratio (6x budget) over 30m and 6h (SLO multiwindow multi-burn, cmdshift/platform#85)",
+  "enabled": true,
+  "tz_offset": 0,
+  "creates_incident": false
+}

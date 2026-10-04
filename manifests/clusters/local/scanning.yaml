@@ -18,4 +18,4 @@ spec:
   path: ./manifests/bases/scanning
   prune: true
   wait: true
-  timeout: 10m
+  timeout: 3m

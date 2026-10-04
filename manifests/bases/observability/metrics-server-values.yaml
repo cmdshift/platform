@@ -3,7 +3,7 @@ apiService:
 args:
   - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
   - --metric-resolution=15s
-  # JSON logging: see logging/loki-values.yaml (component-base logging flag)
+  # JSON logging: platform convention (pre-OpenObserve ref removed, cmdshift/platform#171)
   - --logging-format=json
 # chart's securityContext is CONTAINER-level; runAsGroup added for NSA hardening
 # (explicit container-level uid+gid required, not just runAsNonRoot)

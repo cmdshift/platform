@@ -37,6 +37,8 @@ If too big, pick a strategy:
 
 Charts whose CRDs render from `templates/` (no `crds/` dir) are a variant of the first two: stop the render with the chart's own skip knob and land the CRDs via a child kustomization — the first operator-adoption trap below.
 
+**Generated ConfigMaps have their own cap — ~256KB, in the kustomize-controller dry-run** (cmdshift/platform#171): client-side-apply embeds object content in `last-applied-configuration` (a 420KB dashboard JSON alone failed a whole group's dry-run with a confusing Job error — NOT the 1MiB CM data limit, a different check). Keep every generated CM (dashboards, rules, values bundles) well under ~250KB and split large content into multiple configMapGenerator entries; `dryrun_check` reports the failing object instead of kubectl's first-failure stop.
+
 ## 2. Admission compliance
 
 - **hook jobs are kyverno-checked**: `helm template <chart> | yq 'select(.kind == "Job")'` — size every hook (requests, limits, security contexts) before the first install

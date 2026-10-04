@@ -10,6 +10,12 @@ root_dir = "/data"
 [global.access_policy]
 default = "allow"
 
+# basic-auth identity for pushing locally-built images (cmdshift/platform#171);
+# anonymous pulls keep working through the default=allow policy
+[auth.identity.${push.username}]
+username = "${push.username}"
+password = "${push.password_hash}"
+
 [global.scan]
 url = "${scan.url}"
 token = "${scan.token}"

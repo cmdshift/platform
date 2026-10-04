@@ -17,16 +17,8 @@ spec:
         - ingress
         - host
   egress:
-    # selectors mirror the actual pod labels (grafana operator, hubble-ui,
-    # seaweedfs-operator statefulsets) — not chart-invented ones
-    - toEndpoints:
-        - matchLabels:
-            io.kubernetes.pod.namespace: observability
-            app: grafana
-      toPorts:
-        - ports:
-            - port: "3000"
-              protocol: TCP
+    # selectors mirror the actual pod labels (hubble-ui statefulset) —
+    # not chart-invented ones
     - toEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: kube-system
@@ -34,18 +26,18 @@ spec:
       toPorts:
         - ports:
             # enforced post-DNAT — service port 80 maps to targetPort 8081,
-            # so the policy must match the targetPort (grafana/seaweed only
-            # worked because their service ports equal their targetPorts)
+            # so the policy must match the targetPort
             - port: "8081"
               protocol: TCP
+    # openobserve-auth-proxy → O2 UI/API upstream (cookie-gated dashboard,
+    # cmdshift/platform#171)
     - toEndpoints:
         - matchLabels:
-            io.kubernetes.pod.namespace: objects
-            app.kubernetes.io/component: filer
-            app.kubernetes.io/name: seaweedfs
+            io.kubernetes.pod.namespace: observability
+            app.kubernetes.io/name: openobserve-standalone
       toPorts:
         - ports:
-            - port: "8888"
+            - port: "5080"
               protocol: TCP
     # Rauthy discovery + token endpoints — TLS through the companion haproxy
     # (the :443 frontend, not the container's direct :8080)

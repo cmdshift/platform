@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# Kill a stuck flux kustomization reconcile. The controller serializes
+# reconciles per object and an in-flight health-check wait (up to
+# spec.timeout, was 10m locally) cannot be preempted by annotate-requestedAt
+# — a manifest fix queued behind it sits unreachable for the whole window.
+# Suspend cancels the in-flight reconcile context (the documented abort
+# path); resume immediately re-attempts against the CURRENT artifact.
+#
+#   flux_unstick <name>           # suspend → resume → reconcile, one pass
+#   flux_unstick <name> -l        # loop: up to 3 unstick passes, 5s apart
+#
+# Exit 0 = kustomization picked up the latest artifact (attempted == bucket
+# revision) or is progressing with it. 1 = still stuck after the passes.
+# 2 = usage error.
+
+set -euo pipefail
+
+usage() {
+  echo "usage: flux_unstick <kustomization-name> [-l]" >&2
+  exit 2
+}
+
+artifact_rev() {
+  kubectl -n flux-system get bucket main -o jsonpath='{.status.artifact.revision}' 2>/dev/null | cut -c1-16
+}
+
+attempted_rev() {
+  kubectl -n flux-system get kustomization "$1" \
+    -o jsonpath='{.status.lastAttemptedRevision}' 2>/dev/null | cut -c1-16
+}
+
+unstick_once() {
+  local name=$1
+  flux suspend kustomization "$name" -n flux-system >/dev/null 2>&1 || true
+  sleep 1
+  flux resume kustomization "$name" -n flux-system >/dev/null 2>&1 || true
+  sleep 4
+  kubectl -n flux-system annotate kustomization "$name" \
+    reconcile.fluxcd.io/requestedAt="$(date +%s)" --overwrite >/dev/null 2>&1 || true
+}
+
+flux_unstick() {
+  local name="" loop=false
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -l) loop=true ;;
+      -*) usage ;;
+      *) name=$1 ;;
+    esac
+    shift
+  done
+  [ -n "$name" ] || usage
+
+  local want got pass=1 max_passes=1
+  $loop && max_passes=3
+  want=$(artifact_rev)
+  echo "flux_unstick: $name — bucket artifact $want"
+
+  while [ "$pass" -le "$max_passes" ]; do
+    got=$(attempted_rev "$name")
+    if [ "$got" = "$want" ]; then
+      echo "flux_unstick: pass $pass — attempting $got (current), done"
+      exit 0
+    fi
+    echo "flux_unstick: pass $pass — attempted $got, want $want; suspend/resume"
+    unstick_once "$name"
+    sleep 5
+    got=$(attempted_rev "$name")
+    if [ "$got" = "$want" ]; then
+      echo "flux_unstick: pass $pass — now attempting $got, done"
+      exit 0
+    fi
+    pass=$((pass + 1))
+    $loop || break
+    [ "$pass" -le "$max_passes" ] && sleep 5
+  done
+
+  echo "flux_unstick: still attempting $got (want $want) after $max_passes pass(es)"
+  echo "diagnose: kubectl -n flux-system describe kustomization $name"
+  exit 1
+}
+
+flux_unstick "$@"

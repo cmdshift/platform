@@ -15,4 +15,4 @@ spec:
   path: ./manifests/clusters/local/backups-config
   prune: true
   wait: true
-  timeout: 10m
+  timeout: 3m

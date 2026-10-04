@@ -9,12 +9,12 @@ image:
   # chart default (appVersion) — pinned explicitly per convention
   tag: v0.34.1
 
-# JSON logging: see observability/loki-values.yaml
+# JSON logging: platform convention (was loki-values.yaml, pre-OpenObserve)
 extraArgs:
   log.format: json
 
 service:
-  # mimir-ruler + loki-ruler + the flux provider address this name:port
+  # openobserve alert webhooks + the flux provider address this name:port
   # (chart service is <fullnameOverride>)
   type: ClusterIP
   port: 9093
@@ -89,20 +89,15 @@ config:
           # render the link annotations (email.tmpl below, cmdshift/platform#155)
           html: '{{ template "email.default.html" . }}'
           text: '{{ template "email.default.text" . }}'
-          # raw am config passes straight through the chart (configmap.yaml
-          # `toYaml`) — html/text override the built-in email templates to
-          # render the link annotations (email.tmpl below, cmdshift/platform#155)
-          html: '{{ template "email.default.html" . }}'
-          text: '{{ template "email.default.text" . }}'
-
 
 testFramework:
   enabled: false
 
 # custom email template (rendered into the alertmanager ConfigMap, mounted at
 # /etc/alertmanager): the built-in default only prints the summary annotation,
-# so the dashboard_url/explore_logs_url links (mimir-rules.yaml, #155) never
-# reach the inbox — email.default.text/html are overridden to include them.
+# so the dashboard_url/explore_logs_url links (openobserve alert webhooks carry
+# them, cmdshift/platform#155/#171) never reach the inbox —
+# email.default.text/html are overridden to include them.
 # Validated with `amtool check-config` (v0.34.1 image) before landing
 templates:
   email.tmpl: |-

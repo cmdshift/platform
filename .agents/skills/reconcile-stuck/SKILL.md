@@ -14,7 +14,7 @@ description: A flux kustomization won't go Ready, or a root reconcile isn't sett
 
 ## Diagnose
 
-0. **Instant verdict**: `flux_wait -c` — no reconcile, prints every not-Ready kustomization with its failure message (exit 0 all Ready, 3 still progressing). Most diagnoses start and end here.
+0. **Instant verdict**: `flux_triage` (scoreboard: verdicts + attempted/applied revision lag per kustomization, HelmRelease verdicts incl. the INTERVENE replay state) or `flux_wait -c` — no reconcile, prints every not-Ready kustomization with its failure message. Most diagnoses start and end here.
 1. **Which one is stuck, and why?**
    ```
    kubectl -n flux-system get kustomizations          # status column = immediate message
@@ -35,6 +35,7 @@ description: A flux kustomization won't go Ready, or a root reconcile isn't sett
 - **missing dependsOn target** — references a deleted/renamed kustomization; the error names it.
 - **health timeout** — `wait: true` + `healthCheckExprs` on a CR that never reports healthy; check the CR's status and its operator's logs. A **single** transient failure mid-rollout is not a wedge (terminating old pod counts unavailable via the CR status replicas — hit live with ThanosQuery `main` Failed once, self-healed next reconcile, cmdshift/platform#66): re-poll before diagnosing.
 - **kyverno rollout deadlock on host ports** — any kyverno controller bump, resource-only values changes included (cmdshift/platform#66): new-gen pod Pending because every worker already hosts a hostNetwork kyverno pod; run `kyverno_unblock` (deletes all old-gen pods in one call), then re-run `flux_wait`.
+- **health timeout / in-flight wait blocking a fix (cmdshift/platform#171)** — the controller serializes reconciles per object: an in-flight health-check wait (up to `spec.timeout`) CANNOT be preempted by `reconcile.fluxcd.io/requestedAt` — an annotate queued behind it sits unreachable for the whole window (was 10m; timeouts now 3m tree-wide, 2m/5m preserved where set). `flux_unstick <name>` is the unstick: suspend cancels the in-flight context, resume re-attempts against the current artifact. Still stuck after passes → real failure, `describe` it.
 - **helm release failing underneath** → load the `helmrelease-stuck` skill.
 - **`wait: true` on conditionless CRs** — CRs with no status/conditions (e.g. TracingPolicy) make the health check poll the full `timeout` window per attempt, and a stale discovery cache can keep it failing with `no matches for kind` while the CRD demonstrably exists (hit 3× 2m timeouts). Fix: don't wait on conditionless CRs — the real health signal lives elsewhere (agent metrics / `tetra tracingpolicy list` / a dedicated alert).
 - **dependency cycle via release-owned CRDs** — a config kustomization holding CRs whose CRDs are created by an operator from another group must `dependsOn` that group, never the reverse. Admission-critical exceptions (PolicyException needed before a release's pods are admitted) belong in a group the release does NOT own (`policies-config/`, applied early) — putting them in the same group as the dependent CRs deadlocks the chain both ways.
@@ -51,3 +52,5 @@ flux reconcile kustomization local --with-source
 ## Full detail
 
 [runbooks/local/reconciliation-stuck.md](../../../runbooks/local/reconciliation-stuck.md)
+
+Tools: `flux_triage` (scoreboard), `flux_unstick` (health-check-wait preemption).

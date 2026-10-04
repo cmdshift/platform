@@ -94,8 +94,8 @@ kubectl -n flux-system get kustomizations
 | encryption | `kubectl exec -n kube-system ds/cilium -- cilium-dbg status | grep Encryption` | `Wireguard` (ztunnel removed with the 1.20.2 pin, cmdshift/platform#41) |
 | flux-config adoption | `kubectl -n flux-system get kustomization local -o json --show-managed-fields` | `kustomize-controller` owns the spec |
 | Velero BSL | `kubectl -n backups get bsl default` | `Available` |
-| Rustfs buckets | `rustfs ls main/` | `flux`, `backups` (auto-provisioned) |
-| Mimir | `kubectl -n observability get pods -l app.kubernetes.io/name=mimir` | 1/1 Running; ruler groups served (`prometheus_query 'count(up)'` non-empty) |
+| Rustfs buckets | `rustfs ls main/` | `flux`, `backups`, `openobserve` (auto-provisioned) |
+| OpenObserve | `kubectl -n observability get pods -l app.kubernetes.io/name=openobserve` | 1/1 Running; the o2-sync Job completes (dashboards/alerts present in the O2 UI) |
 | PolicyReports | `policy_report` | 0 failures |
 | Host API path | `curl -skf --max-time 3 https://127.0.0.1:6443/version` | 401 (LB publisher alive; the kubeconfig server = `https://cmd.local.test:6443`, dnsmasq-resolved) |
 | Browser paths | `curl -s -o /dev/null -w '%{http_code}' http://mail.cloud.test` | 200 (s3 → 403 = auth challenge, also fine) |
@@ -181,9 +181,9 @@ Note: the docker daemon kills containers with SIGKILL (exit 137) on shutdown —
 ## Data implications
 
 A full destroy/apply wipes everything not in the local manifests:
-- rustfs (`storage-cloud-test`) — its data lives in the container layer; buckets re-provision from `cluster/local/conf/outputs.tf`, the `flux` bucket re-populates via the sync container, **all other bucket contents are gone** (velero backups included)
-- local-path PVCs and anything on them (seaweed, grafana, loki, mimir blocks)
-- seaweed buckets and their data
+- rustfs (`storage-cloud-test`) — its data lives in the container layer; buckets re-provision from `cluster/local/conf/outputs.tf`, the `flux` bucket re-populates via the sync container, **all other bucket contents are gone** (velero backups included — and the kopia repo metadata with them: maintenance jobs fail `repository not initialized` until the nightly `pvcs` backup re-initializes the repo, see the velero runbook)
+- local-path PVCs and anything on them (openobserve's SQLite/WAL — disposable by design, the o2-sync Job re-creates its metadata; velero restores re-create the rest)
+- other S3-backed state that lived in rustfs buckets (openobserve parquet data — gone with the bucket)
 
 If a rebuild stalls partway: [reconciliation-stuck.md](reconciliation-stuck.md) for kustomization failures, [pipeline-wedged.md](pipeline-wedged.md) if manifests stop applying.
 

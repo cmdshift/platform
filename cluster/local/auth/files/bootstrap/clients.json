@@ -8,12 +8,14 @@
     "redirect_uris": [
       "https://grafana.local.test/oauth2/callback",
       "https://hubble.local.test/oauth2/callback",
-      "https://seaweed.local.test/oauth2/callback"
+      "https://seaweed.local.test/oauth2/callback",
+      "https://openobserve.local.test/oauth2/callback"
     ],
     "allowed_origins": [
       "https://grafana.local.test",
       "https://hubble.local.test",
-      "https://seaweed.local.test"
+      "https://seaweed.local.test",
+      "https://openobserve.local.test"
     ],
     "enabled": true,
     "flows_enabled": ["authorization_code", "refresh_token"],

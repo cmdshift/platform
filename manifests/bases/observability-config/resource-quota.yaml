@@ -5,9 +5,8 @@ metadata:
   namespace: observability
 spec:
   hard:
-    # sized for the current namespace pod set (26 pods incl. 2 DS × 7 nodes);
-    # the surge headroom below admits a grafana-deployment rolling update
-    # (blocked at 16 on logging-compute in cmdshift/platform#155)
+    # sized for the namespace pod set (shrank with the LGTM teardown,
+    # cmdshift/platform#171 — openobserve + collector replace the LGTM pods)
     requests.cpu: "3"
     requests.memory: 10Gi
     limits.cpu: 20

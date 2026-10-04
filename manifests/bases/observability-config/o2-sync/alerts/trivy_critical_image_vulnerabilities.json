@@ -1,0 +1,51 @@
+{
+  "name": "trivy_critical_image_vulnerabilities",
+  "stream_type": "metrics",
+  "stream_name": "trivy_image_vulnerabilities",
+  "is_real_time": false,
+  "query_condition": {
+    "type": "promql",
+    "conditions": {
+      "version": 2,
+      "conditions": {
+        "filterType": "group",
+        "logicalOperator": "AND",
+        "conditions": []
+      }
+    },
+    "sql": null,
+    "promql": "sum by (namespace) (max_over_time(trivy_image_vulnerabilities{severity='Critical', namespace=~'kube-system|flux-system|certificates|secrets|policies|storage|observability|backups|security'}[30m])) > 0",
+    "promql_condition": {
+      "column": "value",
+      "operator": ">",
+      "value": 0,
+      "ignore_case": false
+    },
+    "aggregation": null,
+    "vrl_function": null,
+    "search_event_type": null,
+    "multi_time_range": []
+  },
+  "trigger_condition": {
+    "period": 30,
+    "operator": ">=",
+    "threshold": 1,
+    "frequency": 15,
+    "cron": "",
+    "frequency_type": "minutes",
+    "silence": 240,
+    "timezone": "UTC",
+    "tolerance_in_secs": null,
+    "align_time": true
+  },
+  "destinations": [
+    "alertmanager"
+  ],
+  "context_attributes": {},
+  "row_template": "Namespace: {namespace} | critical vulns: {value}",
+  "row_template_type": "String",
+  "description": "Warning: trivy reports CRITICAL image vulnerabilities \u2014 kubectl get vulnerabilityreports -A | grep {namespace} (max_over_time(30m) holds through rescan-gap flaps; Critical-only by design, cmdshift/platform#36)",
+  "enabled": true,
+  "tz_offset": 0,
+  "creates_incident": false
+}

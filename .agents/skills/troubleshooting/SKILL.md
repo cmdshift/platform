@@ -9,7 +9,7 @@ description: Something broke, behaves unexpectedly, or a change isn't landing �
 
 Chart traps, per-group decisions, and pipeline mechanics live with the thing they describe — read the README nearest the area being worked on **before** diagnosing:
 
-- `manifests/bases/<group>/README.md` — the group's chart landmines (kyverno, cilium/ztunnel, velero, mimir/alloy, seaweedfs, cert-manager, local-path, …)
+- `manifests/bases/<group>/README.md` — the group's chart landmines (kyverno, cilium/ztunnel, velero, openobserve/otel-collector, cert-manager, local-path, …; the LGTM-era mimir/alloy/seaweedfs entries died with cmdshift/platform#171)
 - `manifests/bases/flux/README.md` — flux API traps, the pipeline's own objects, propagation mechanics
 - `cluster/local/README.md` — terraform/docker traps (endpoint rewrite, bootstrap pins, port publishing)
 - `manifests/README.md` — cross-cutting conventions + the hardening-deviations baseline
@@ -23,7 +23,8 @@ Most live landmines are already written down with their fingerprints — the REA
 | Manifest edits not reaching the cluster (workloads run, nothing applies) | `pipeline-wedged` |
 | Manifest edits converge (sync_wait green) but the cluster keeps running OLD config — check the companions first (`docker ps`; the cloud-test haproxy OOM'd silently under S3 traffic, cmdshift/platform#149) | `pipeline-wedged` |
 | A flux Kustomization won't go Ready / `flux_wait` timed out | `reconcile-stuck` |
-| A HelmRelease failing or stuck reconciling | `helmrelease-stuck` |
+| A Kustomization is stuck behind an in-flight health-check wait (annotate does nothing) | `reconcile-stuck` → `flux_unstick` |
+| A HelmRelease failing or stuck reconciling — or values "didn't land" (`lastAttemptedConfigDigest` frozen) | `helmrelease-stuck` |
 | Pods crashlooping / OOMKilled / exiting silently | `crashloop-investigation` |
 | Need metrics, logs, or alert delivery evidence | `observability` |
 | Terraform plan shows unexpected replacements on untouched resources | `terraform-churn` |
@@ -33,12 +34,13 @@ Most live landmines are already written down with their fingerprints — the REA
 ```
 pod_status                 # pod table with restarts/exit codes — crashloop triage
 policy_report              # admission verdicts; failures > 0 = denials in play
+flux_triage                # scoreboard: verdicts + revision lag, INTERVENE = act
 flux_wait -c               # instant no-reconcile verdict on the tree
 helm_wait -c <ns> <name>   # instant verdict on one HelmRelease
 kubectl get events -A --sort-by=.lastTimestamp | tail -30
 ```
 
-Observability evidence (`prometheus_query`, `loki_query`, `mailpit`, `tetra`): the `observability` skill.
+Observability evidence (`prometheus_query`, `loki_query`, `mailpit`, `tetra`): the `observability` skill. Note the mimir/loki targets are gone since the OpenObserve migration (cmdshift/platform#171) — those two tools are orphaned until a store decision; O2 queries go through its own API.
 
 **No invocation longer than 60 seconds** (AGENTS.md rule): local ops either make progress or fail fast. No sleep loops, no blind polling to a long timeout — estimate the wait, cap the poll at ~2× that, and diagnose early failures (StartError, admission denial, failed mounts at t=10s) instead of waiting out the timeout. Bounded wait helpers (`flux_wait`, `helm_wait`, `velero_wait`) exist in `tools/bin/` precisely so this rule doesn't get improvised around.
 

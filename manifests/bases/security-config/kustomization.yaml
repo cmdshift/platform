@@ -10,8 +10,6 @@ resources:
   - exec-deny-list-datastores.tracing-policy.yaml
   - exec-deny-list-flux-system.tracing-policy.yaml
   - exec-deny-list-observability.tracing-policy.yaml
-  - exec-deny-list-observability-grafana.tracing-policy.yaml
-  - exec-deny-list-observability-mimir.tracing-policy.yaml
   - exec-deny-list-policies.tracing-policy.yaml
   - exec-deny-list-scanning.tracing-policy.yaml
   - exec-deny-list-secrets.tracing-policy.yaml

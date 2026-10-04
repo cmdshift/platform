@@ -1,0 +1,106 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: o2-sync
+  namespace: observability
+  annotations:
+    # a completed Job is never re-run — force tells flux to delete+recreate on
+    # spec change; the configMapGenerator hash suffix below changes the pod
+    # template whenever any dashboard/alert JSON (or the script) changes, so a
+    # commit is all it takes to re-sync (cmdshift/platform#171)
+    kustomize.toolkit.fluxcd.io/force: Enabled
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: o2-sync
+    spec:
+      serviceAccountName: o2-sync
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: sync
+          # plain alpine + curl + jq — the script is CM-mounted, not baked, so
+          # edits don't need image builds; image pushed by terraform module
+          # cluster/local/images (angos push validated cmdshift/platform#171)
+          image: registry.cloud.test/platform/o2-sync:1.1.1
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sync.sh"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: O2_URL
+              value: http://openobserve.observability.svc:5080
+            - name: O2_USER
+              valueFrom:
+                secretKeyRef:
+                  name: openobserve-credentials
+                  key: ZO_ROOT_USER_EMAIL
+            - name: O2_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: openobserve-credentials
+                  key: ZO_ROOT_USER_PASSWORD
+            # alerts on streams that don't exist yet (StreamNotFound) retry —
+            # first ingest + a sync-cycle gap is the normal case on fresh boot
+            - name: MAX_STREAM_RETRIES
+              value: "10"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 64Mi
+          volumeMounts:
+            - name: script
+              mountPath: /bin/sync.sh
+              subPath: sync.sh
+              readOnly: true
+            - name: destinations
+              mountPath: /destinations
+              readOnly: true
+            - name: dashboards-kubernetes
+              mountPath: /dashboards/kubernetes
+              readOnly: true
+            - name: dashboards-openobserve
+              mountPath: /dashboards/openobserve
+              readOnly: true
+            - name: alerts
+              mountPath: /alerts
+              readOnly: true
+            # curl needs a writable HOME for its .netrc-less state; ro-rootfs
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: script
+          configMap:
+            name: o2-sync-script
+            defaultMode: 0555
+        - name: destinations
+          configMap:
+            name: o2-destinations
+        # hash-suffixed names: a JSON edit changes the CM name → the Job spec
+        # → force-recreate (the GitOps trigger)
+        - name: dashboards-kubernetes
+          configMap:
+            name: o2-dashboards-kubernetes
+        - name: dashboards-openobserve
+          configMap:
+            name: o2-dashboards-openobserve
+        - name: alerts
+          configMap:
+            name: o2-alerts
+        - name: tmp
+          emptyDir: {}

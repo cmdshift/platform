@@ -13,7 +13,7 @@ config:
     # rauthy issuer — trailing slash is load-bearing (cmdshift/platform#154)
     oidc_issuer_url = "https://auth.cloud.test/auth/v1/"
     redirect_url = "https://hubble.local.test/oauth2/callback"
-    # host-scoped: see grafana-auth-proxy-values.yaml (SSO via Rauthy session)
+    # host-scoped: SSO via Rauthy session
     cookie_domains = ["hubble.local.test"]
     whitelist_domains = [".local.test"]
     cookie_samesite = "lax"
