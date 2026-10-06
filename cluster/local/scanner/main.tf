@@ -2,6 +2,16 @@ locals {
   scanner_volume_name = "platform-scanner-cache"
 }
 
+resource "random_password" "scan_token" {
+  length  = 32
+  special = false
+}
+
+output "scan_token" {
+  value     = random_password.scan_token.result
+  sensitive = true
+}
+
 resource "docker_image" "scanner" {
   name          = data.docker_registry_image.scanner.name
   keep_locally  = true
@@ -31,14 +41,13 @@ resource "docker_container" "scanner" {
     container_path = "/cache"
     volume_name    = null_resource.scanner_volume.triggers.volume_name
   }
-  # start-then-audit — trivy DB + scan working set (cmdshift/platform#102)
   memory      = 768
   memory_swap = 768
   upload {
     file = "/config.toml"
     content = templatefile("${path.module}/templates/config.tftpl.toml", {
       registry_url = var.registry_url
-      token        = var.token
+      token        = random_password.scan_token.result
     })
   }
   command = ["-c", "/config.toml", "scanner", "trivy"]

@@ -1,5 +1,3 @@
-# RustFS Operator wants a minimum of 8 bytes for accesskey and secretkey, hence "-user"
-
 locals {
   flux_system = {
     bucket_credentials = {
@@ -8,23 +6,19 @@ locals {
     }
   }
 
-  # ns refactor cmdshift/platform#31: locals/upload paths mirror the cluster namespaces
   certificates = {
     intermediate_ca = {
-      "tls.crt" = trimspace(file("${path.root}/.tmp/tls/intermediate_ca.crt"))
-      "tls.key" = trimspace(file("${path.root}/.tmp/tls/intermediate_ca.key"))
+      "tls.crt" = trimspace(file("${path.module}/../.tmp/tls/intermediate_ca.crt"))
+      "tls.key" = trimspace(file("${path.module}/../.tmp/tls/intermediate_ca.key"))
     }
   }
 
   observability = {
-    # openobserve root user (UI + API + alert webhook auth) — cmdshift/platform#171
     openobserve_credentials = {
       ZO_ROOT_USER_EMAIL    = "root@cloud.test"
       ZO_ROOT_USER_PASSWORD = "Complexpass#123"
     }
 
-    # rustfs S3 creds for the openobserve bucket — entrypoint.sh provisions
-    # <bucket>-user/password per bucket (cluster/local/storage)
     openobserve_s3_credentials = {
       ZO_S3_ACCESS_KEY = "openobserve-user"
       ZO_S3_SECRET_KEY = "password"
@@ -40,28 +34,17 @@ locals {
       EOF
     }
 
-    # env-style keys — talos-backup reads AWS_* via the Go SDK env chain
     talos_backup_s3_credentials = {
       AWS_ACCESS_KEY_ID     = "backups-user"
       AWS_SECRET_ACCESS_KEY = "password"
     }
 
-    # private key lives only in tfstate + this payload is public half — decryption
-    # procedure in runbooks/local/etcd-backups.md
     talos_backup_age_public_key = {
       AGE_RECIPIENT_PUBLIC_KEY = age_secret_key.etcd_backup.public_key
     }
   }
 
-  # oauth2-proxy admin-ingress secrets (cmdshift/platform#41) — shared by all
-  # three proxies; the cookie secret must match for the .local.test SSO cookie
-  # to validate across apps. client-secret mirrors clients.json's oauth2-proxy
-  # client (rauthy: >= 64 chars, token-endpoint validation [a-zA-Z0-9] only,
-  # cmdshift/platform#154); root_ca is the platform root (TLS trust for auth.cloud.test).
   access = {
-    # single payload = single server path: the webhook provider serves whole
-    # JSON docs (no property projection), so the ExternalSecret's dataFrom
-    # extract maps the keys directly
     oauth2_proxy_credentials = {
       client-id     = "oauth2-proxy"
       client-secret = "LXMLrmq38BZxuBMTINMYVXj97Kt6n0fM44jSOfV7iOmuJZUEpsIId5E7NcBoCqfV"
@@ -69,7 +52,7 @@ locals {
     }
 
     platform_root_ca = {
-      "ca.crt" = trimspace(file("${path.root}/.tmp/tls/root_ca.crt"))
+      "ca.crt" = trimspace(file("${path.module}/../.tmp/tls/root_ca.crt"))
     }
   }
 }

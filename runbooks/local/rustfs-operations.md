@@ -24,8 +24,14 @@ Without the wrapper (bare environment): `docker exec storage-cloud-test sh -c 'r
 
 Buckets, users, and policies are auto-provisioned by the container entrypoint from the `buckets` list in `cluster/local/conf/outputs.tf`:
 - bucket `<name>`, user `<name>-user` (password `password`), scoped R/W/L/D policy per bucket
-- **changing the list recreates the container** — its data lives in the container layer and is wiped. The `flux` bucket re-populates via the sync container; everything else is gone
+- **every step is idempotent** — the entrypoint tolerates already-existing buckets/users/policies, so a container recreate against the persistent `platform-storage-data` volume is non-destructive (provisioning only adds what's missing)
+- **changing the list recreates the container** — data persists on the volume; newly added buckets get provisioned on boot, but removing a bucket from the list does NOT delete its data (orphan it — clean up manually with `rc`)
 - current buckets: `flux` (the gitops source), `backups` (velero)
+
+## The data volume
+
+- rustfs data lives on the `platform-storage-data` docker volume (mounted at `/data`), not the container layer — it survives container destroys and terraform destroys
+- the volume is chowned to `10001:10001` (the `rustfs` uid in the image) at CREATE only, via the same `null_resource` pattern as the registry — same landmine applies: if the volume itself is wiped (`docker system prune --volumes`), `terraform apply` will NOT re-chown it (the trigger never re-fires); re-create the volume or chown by hand before first write or rustfs 500s every PUT with EACCES
 
 ## The flux bucket
 

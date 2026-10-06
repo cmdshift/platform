@@ -69,6 +69,17 @@ module "storage" {
   secret_key = module.secrets.flux_system_bucket_credentials.secretkey
 }
 
+module "scanner" {
+  source = "./scanner"
+  name   = module.conf.scanner.name
+  net = {
+    bridge_network_id  = module.net.bridge_network_id
+    private_network_id = module.net.private_network_id
+    private_ip         = module.conf.scanner.private_ip
+  }
+  registry_url = "http://${module.conf.registry.services.main.hostname}"
+}
+
 module "registry" {
   source = "./registry"
   name   = module.conf.registry.name
@@ -79,26 +90,8 @@ module "registry" {
   }
   scan = {
     url   = "http://${module.conf.scanner.services.main.hostname}"
-    token = random_password.scan_token.result
+    token = module.scanner.scan_token
   }
-}
-
-# specials would break the verbatim TOML embedding
-resource "random_password" "scan_token" {
-  length  = 32
-  special = false
-}
-
-module "scanner" {
-  source = "./scanner"
-  name   = module.conf.scanner.name
-  net = {
-    bridge_network_id  = module.net.bridge_network_id
-    private_network_id = module.net.private_network_id
-    private_ip         = module.conf.scanner.private_ip
-  }
-  registry_url = "http://${module.conf.registry.services.main.hostname}"
-  token        = random_password.scan_token.result
 }
 
 module "mail" {
@@ -117,16 +110,14 @@ module "auth" {
     private_network_id = module.net.private_network_id
     private_ip         = module.conf.auth.private_ip
   }
-  # the external haproxy fronts every *.cloud.test companion — its CIDR is the
-  # only trusted proxy source for X-Forwarded-*
   trusted_proxies = module.conf.net.cloud_cidr
 }
 
-# build + push the OpenObserve sync image to angos (nodes pull it for the
-# dashboards/alerts sync Job — cmdshift/platform#171)
 module "images" {
-  source = "./images"
-  name   = "${module.conf.registry.services.main.hostname}/platform/o2-sync:1.1.2"
+  source            = "./images"
+  providers         = { docker-push.push = docker.push }
+  depends_on        = [module.registry, module.external]
+  registry_hostname = module.conf.registry.services.main.hostname
 }
 
 module "sync" {

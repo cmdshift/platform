@@ -22,6 +22,7 @@ Chart traps, per-group decisions, and pipeline mechanics live with the thing the
 
 ## Do
 
+- **Always use `-chdir`-style flags instead of changing directories** — e.g. `terraform -chdir=cluster/local/<module> validate`, never `cd cluster/local/<module> && terraform validate`. The agent's working directory is the repo root; `cd`-ing breaks relative paths mid-session and scatters state. This applies to any tool that would otherwise require a directory change.
 - **Push back on bad ideas** — argue with rationale instead of complying; agreement is not helpfulness.
 - **Consider security implications of a decision** — secrets exposure, RBAC breadth, admission posture, network policy before landing a change.
 - **Ask clarifying questions when instructions are ambiguous** — one round of questions is cheaper than a wrong large assumption.
@@ -38,6 +39,7 @@ Chart traps, per-group decisions, and pipeline mechanics live with the thing the
 
 ## Don't
 
+- **Don't troubleshoot or work around network/DNS issues to the internet** — if an external endpoint (registry.terraform.io, ghcr.io, upstream image registries, …) is unreachable, stop and surface it; don't build mirrors, don't rewrite resolvers, don't retry with forced IPs. Work with what's already cached inside the repo, and leave the blocked step flagged for the human (added 2026-10-05).
 - **Don't escalate privileges — never sudo** (added 2026-09-27): no `sudo`, no host-root paths, no permission escalation of any kind. The docker socket (docker group) is the sanctioned surface for companion containers and docker volumes; everything else happens through the cluster/terraform/tools APIs as the running user.
 - **Don't write outside the repo** — no `/tmp`; agent and tool scratch goes in `.agents/temp/` (see the Do list).
 - **Don't re-export `KUBECONFIG`** — direnv already exports it (`.envrc`); tools that ignore it get an explicit `--kubeconfig` flag (the `velero-ops` pattern).

@@ -1,3 +1,15 @@
+resource "random_password" "push_password" {
+  length  = 32
+  special = false
+}
+
+resource "password_argon2" "push_password" {
+  password   = random_password.push_password.result
+  memory     = 19456
+  iterations = 2
+  thread     = 1
+}
+
 resource "docker_image" "angos" {
   name          = data.docker_registry_image.angos.name
   keep_locally  = true
@@ -9,9 +21,10 @@ resource "null_resource" "registry_volume" {
     volume_name = local.registry_volume_name
   }
   provisioner "local-exec" {
-    # fresh volumes default to root:root and angos runs as 65534 since 1.8.0 —
-    # the first write would fail EACCES (cmdshift/platform#102)
-    command = "docker volume create ${local.registry_volume_name} && docker run --rm -v ${local.registry_volume_name}:/data busybox:1.37.0 chown -R 65534:65534 /data"
+    command = <<-EOT
+      docker volume create ${local.registry_volume_name} && \
+      docker run --rm -v ${local.registry_volume_name}:/data busybox:1.37.0 chown -R 65534:65534 /data
+    EOT
   }
 }
 
@@ -36,7 +49,10 @@ resource "docker_container" "registry" {
     content = templatefile("${path.module}/templates/config.tftpl.toml", {
       registries = local.registry_map
       scan       = var.scan
-      push       = local.push_identity
+      push = {
+        username      = local.push_username
+        password_hash = password_argon2.push_password.hash
+      }
     })
   }
   command = ["-c", "/etc/angos/config.toml", "server"]

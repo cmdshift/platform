@@ -6,15 +6,11 @@
       "Plain": "LXMLrmq38BZxuBMTINMYVXj97Kt6n0fM44jSOfV7iOmuJZUEpsIId5E7NcBoCqfV"
     },
     "redirect_uris": [
-      "https://grafana.local.test/oauth2/callback",
       "https://hubble.local.test/oauth2/callback",
-      "https://seaweed.local.test/oauth2/callback",
       "https://openobserve.local.test/oauth2/callback"
     ],
     "allowed_origins": [
-      "https://grafana.local.test",
       "https://hubble.local.test",
-      "https://seaweed.local.test",
       "https://openobserve.local.test"
     ],
     "enabled": true,

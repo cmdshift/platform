@@ -40,13 +40,5 @@ locals {
 
   registry_volume_name = "platform-registry-data"
 
-  # push identity for locally-built images (cmdshift/platform#171) — the
-  # argon2id hash is of the plaintext in images/main.tf's registry_auth
-  # (local-only lab credential, same trust tier as secrets/locals.tf)
-  push_identity = {
-    username = "push-user"
-    # argon2id of "push-password-2026" — regenerate via `angos argon` (reads
-    # stdin) if the plaintext changes
-    password_hash = "$argon2id$v=19$m=19456,t=2,p=1$Tm2MgZgyzecS10ZE9krO/g$lz0BI6XsYxARaGYfWy3dg3gslZtAyPiylTUkN6B2Y/U"
-  }
+  push_username = "push-user"
 }
