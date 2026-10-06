@@ -2,12 +2,10 @@ resource "helm_release" "cilium" {
   depends_on = [
     data.http.kube_apiserver
   ]
-  name       = "cilium"
-  repository = "https://helm.cilium.io"
-  chart      = "cilium"
-  # stable 1.20.2: kernel-7.2 startup crash fixed here (cilium/cilium#48016) —
-  # must match the HelmRelease pin or adoption drifts the live release
-  version          = "1.20.2"
+  name             = "cilium"
+  repository       = "https://helm.cilium.io"
+  chart            = "cilium"
+  version          = var.cilium_chart_version
   namespace        = "kube-system"
   create_namespace = false
   values = [
@@ -21,8 +19,6 @@ resource "helm_release" "cilium" {
       encryption = {
         enabled = false
       }
-      # no standalone envoy DaemonSet in the twin: the bootstrap boots with no L7
-      # consumers — flux converges the rest on first reconcile (cmdshift/platform#87)
       envoy = {
         enabled = false
       }
@@ -39,21 +35,17 @@ resource "helm_release" "cilium" {
       }
       hubble = {
         relay = {
-          enabled = true
+          enabled = false
         }
         ui = {
-          enabled = true
-          httpRoute = {
-            enabled = false
-          }
+          enabled = false
         }
       }
       ipam = {
         mode = "kubernetes"
       }
-      k8sServiceHost = "localhost"
-      k8sServicePort = 7445
-      # gateway-api controller prerequisite (cmdshift/platform#70)
+      k8sServiceHost       = "localhost"
+      k8sServicePort       = 7445
       kubeProxyReplacement = true
       l2announcements = {
         enabled = true
@@ -135,9 +127,6 @@ resource "helm_release" "flux" {
           ]
         }
       }
-      # Fresh-install bootstrap twins of the Bucket + root Kustomization owned by
-      # manifests/clusters/local/flux-config/ — load-bearing only until its first reconcile
-      # force-adopts both. Never delete the on-cluster objects (flux/README.md).
       extraObjects = [
         {
           apiVersion = "source.toolkit.fluxcd.io/v1"

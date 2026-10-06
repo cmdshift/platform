@@ -42,8 +42,11 @@ Run, in order, before pushing anything through the reconciliation pipeline:
 
 ## 5. Writing HCL (terraform)
 
+**Module files are a fixed set**: `main.tf` (resources), `variables.tf`, `outputs.tf`, `locals.tf`, `data.tf`, `terraform.tf` (provider requirements + config). No other `.tf` spellings — don't invent `push.tf`/`network.tf`-style topic files; everything goes in the canonical file for its block type.
+
 1. `terraform fmt` — keep `cluster/local/**` formatted; run before finishing any `.tf`/`.tftpl` edit.
-2. `terraform plan` — check for errors and unintended changes before apply. Plan drift on resources you didn't touch is usually provider churn (the `terraform-churn` skill owns interpretation).
+2. `terraform validate` — every touched module, before any plan.
+3. `terraform plan` — check for errors and unintended changes before apply. Plan drift on resources you didn't touch is usually provider churn (the `terraform-churn` skill owns interpretation).
 
 ## 6. Sizing and security
 

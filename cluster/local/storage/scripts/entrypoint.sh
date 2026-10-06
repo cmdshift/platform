@@ -6,7 +6,7 @@ SERVER_PID=$!
 rc alias set main "http://localhost:9000" "rustfsadmin" "rustfsadmin"
 
 echo "Waiting for RustFS to be ready..."
-for i in $(seq 1 30); do
+for _ in $(seq 1 30); do
   sleep 1
   if rc ready main --timeout 1; then
     break
@@ -16,8 +16,8 @@ done
 for BUCKET in $RUSTFS_BUCKETS; do
   echo "Provisioning: $BUCKET"
 
-  rc mb "main/$BUCKET"
-  rc admin user add main/ "${BUCKET}-user" "password"
+  rc mb --ignore-existing "main/$BUCKET"
+  rc admin user add main/ "${BUCKET}-user" "password" 2>/dev/null || rc admin user info main/ "${BUCKET}-user" >/dev/null
 
   POLICY_FILE=$(mktemp)
   cat > "$POLICY_FILE" <<EOF
@@ -41,8 +41,8 @@ for BUCKET in $RUSTFS_BUCKETS; do
 }
 EOF
 
-  rc admin policy create main/ "${BUCKET}-policy" "$POLICY_FILE"
-  rc admin policy attach main/ "${BUCKET}-policy" --user "${BUCKET}-user"
+  rc admin policy create main/ "${BUCKET}-policy" "$POLICY_FILE" 2>/dev/null || true
+  rc admin policy attach main/ "${BUCKET}-policy" --user "${BUCKET}-user" 2>/dev/null || true
 
   rm -f "$POLICY_FILE"
 done

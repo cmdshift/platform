@@ -13,8 +13,3 @@ variable "net" {
 variable "registry_url" {
   type = string
 }
-
-variable "token" {
-  type      = string
-  sensitive = true
-}

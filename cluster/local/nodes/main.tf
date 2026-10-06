@@ -29,8 +29,6 @@ resource "docker_container" "ctrl" {
     "PLATFORM=container",
     "USERDATA=${base64encode(data.talos_machine_configuration.ctrl.machine_configuration)}"
   ]
-  # observed peak 4.1Gi; kubelet advertises the VM's full meminfo regardless — the
-  # limit only bounds actual consumption (whole-node OOM on breach)
   memory      = 6144
   memory_swap = 6144
   privileged  = true
@@ -127,7 +125,6 @@ resource "docker_container" "work" {
     "PLATFORM=container",
     "USERDATA=${base64encode(data.talos_machine_configuration.work.machine_configuration)}"
   ]
-  # observed peak 3.0Gi; same limit-vs-scheduler caveat as ctrl
   memory      = 8192
   memory_swap = 8192
   privileged  = true
@@ -160,8 +157,6 @@ resource "talos_machine_bootstrap" "main" {
   client_configuration = talos_machine_secrets.main.client_configuration
   node                 = local.boot_node
   endpoint             = var.cmd.hostname
-  # the default 10m create timeout silently retries every transport error; the healthy
-  # path is sub-second, so fail fast (stale Docker port binding — runbooks/local/cluster-rebuild.md)
   timeouts = {
     create = "10s"
   }

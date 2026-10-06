@@ -24,6 +24,28 @@ provider "registry.terraform.io/clementblaise/age" {
   ]
 }
 
+provider "registry.terraform.io/endevops/password" {
+  version = "0.0.1"
+  hashes = [
+    "h1:1tbILppi+N4R9M1/39PP0iyy7+UjdH0PygKTK1XGSI8=",
+    "zh:05e479039c1cfc77d77b6f25f71cd94842a60bc918fcc97ea81ad5a95dc20f06",
+    "zh:242a46bb658644ffa3704ba8a8916c4ea4d0c1d2fb80128a1f20a294aa2f4218",
+    "zh:2ac07870f64ad318f0e744762f32eb75a586f2a3a88ee9e37c23779ada98404d",
+    "zh:4cb3285d9d6066c8c4446e05fbaa0cb1226576fc65bb540242e2f53ee44c73a4",
+    "zh:5d8139538cdae2b4a4eaca85d84afc8a1a8cb0d2df707b1c3ad06e03a84301b7",
+    "zh:6cc83089d067c81ab13da024b7d1c665ff71ad53532eb6bc40e6114e57954b3f",
+    "zh:73c39df3a955eafc4817d696a92686628549d98b5d2050616e7186a0e1c719da",
+    "zh:80020ee191beb2aabd7f4979667fb6ef6be2dfd62fb37a4da4a650a4c326da18",
+    "zh:87173b320e3a943ad8fa1a52c99dc89f1e76bc99910fce8132c928cf430a0e43",
+    "zh:890df766e9b839623b1f0437355032a3c006226a6c200cd911e15ee1a9014e9f",
+    "zh:9858f3cb162af55f05f11e7e7140b1d9ed863ace0d9d9b272246bf89e2af6a16",
+    "zh:9bef91854d99ad909b3e69f317c0af0fd3ad34611dada33312ef19831e73220e",
+    "zh:cb6d0efc4bbd91cc6f0961d5ee13f03b7718df7aafdb524eb0cc574e01f095a4",
+    "zh:cf26055458ad7d9b6b6c41fb560bf2fbee109767734db115beaf9e86fed79675",
+    "zh:de98bb1bcc500f03dcf29d0a2f7d26b2caca50bee04d906a55c036cb2dfedfbd",
+  ]
+}
+
 provider "registry.terraform.io/hashicorp/local" {
   version = "2.9.0"
   hashes = [

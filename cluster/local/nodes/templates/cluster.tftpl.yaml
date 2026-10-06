@@ -1,6 +1,4 @@
 cluster:
-  # node metrics binds need pod-to-node reachability (prometheus scrapes 10257/10259
-  # by node IP); TLS + bearer token keep them closed to unauthenticated access
   controllerManager:
     extraArgs:
       bind-address: 0.0.0.0
@@ -13,12 +11,7 @@ cluster:
     certSANs:
       - ${cmd_hostname}
       - ${cmd_private_ip}
-    # OIDC authn against the auth companion (cmdshift/platform#131) — authz stays
-    # admin-kubeconfig-only until cmdshift/platform#91. The strict static-pod decoder
-    # drops the ctrl node on a bad flag name — validate against `kube-apiserver --help`.
     extraArgs:
-      # rauthy issuer — trailing slash is load-bearing: the apiserver exact-matches
-      # this against the discovery doc's `iss` (cmdshift/platform#154)
       oidc-issuer-url: https://auth.cloud.test/auth/v1/
       oidc-client-id: kubernetes
       oidc-username-claim: preferred_username
@@ -26,14 +19,10 @@ cluster:
       oidc-ca-file: /var/etc/oidc/ca.crt
       max-requests-inflight: "100"
       max-mutating-requests-inflight: "50"
-    # fixed hostPath set — without this mount the container can't see /var/etc/oidc/ca.crt
-    # and crash-loops at OIDC init with no container logs (cmdshift/platform#131)
     extraVolumes:
       - hostPath: /var/etc/oidc
         mountPath: /var/etc/oidc
         readonly: true
-    # reviewed audit policy (cmdshift/platform#90); full volume-control rationale
-    # in files/audit-policy.yaml
     auditPolicy:
 ${indent(6, audit_policy)}
   network:

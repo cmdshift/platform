@@ -1,24 +1,19 @@
 resource "docker_image" "o2_sync" {
-  name = var.name
+  provider = docker-push.push
+  name     = "${var.registry_hostname}/platform/o2-sync:default"
   build {
-    context = "${path.module}/../../../images/sync"
+    context = "${path.module}/../../../images/o2-sync"
   }
-  # plain alpine+curl+jq — the sync script is CM-mounted, so the image only
-  # changes when the Dockerfile does
   triggers = {
-    dockerfile_sha = filesha256("${path.module}/../../../images/sync/Dockerfile")
+    dockerfile_sha = filesha256("${path.module}/../../../images/o2-sync/Dockerfile")
   }
   keep_locally = true
 }
 
-# angos accepts pushes (validated cmdshift/platform#171) — the pushed image
-# lands in the registry volume and nodes pull it via the wildcard mirror.
 resource "docker_registry_image" "o2_sync" {
-  name          = var.name
+  provider      = docker-push.push
+  name          = docker_image.o2_sync.name
   keep_remotely = true
-
-  depends_on = [docker_image.o2_sync]
-
   triggers = {
     digest = docker_image.o2_sync.repo_digest
   }

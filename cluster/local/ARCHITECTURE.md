@@ -113,6 +113,29 @@ Pod DNS: kube-dns → talos hostDNS (`forwardKubeDNSToHost`) → coredns. Compan
 1. `cluster/local` — network, companions, talos nodes, secrets, kubeconfig/talosconfig (`.tmp/`); apply is not health-gated (the former `talos_cluster_health` gate was removed as redundant — the bootstrap root's apiserver readiness poll is the apply gate, cmdshift/platform#73 and cmdshift/platform#72). Outputs `bootstrap` (k8s client config + flux bucket credentials)
 2. `cluster/local/bootstrap` — reads that output via local remote state; gates on an apiserver readiness poll before applying resources (cmdshift/platform#72); installs cilium + flux and the helm-hook Bucket/root Kustomization (flux-config force-adopts them on first reconcile; the bootstrap twin's `path` — `./manifests/clusters/local` — must match the root Kustomization CR's path in `manifests/clusters/local/flux-config/local.kustomization.yaml`). Carries `lifecycle.prevent_destroy` — `just bootstrap destroy` always fails by design
 
+## Companion modules
+
+Each companion is a terraform module under this directory with its own README (mechanics, sizing rationale, landmines):
+
+| Module | Role | README |
+|---|---|---|
+| `conf/` | Address allocation, hostname/IP outputs, node counts | — (self-describing locals) |
+| `net/` | Bridge + ipvlan docker networks | — |
+| `dns/` | coredns companion (`.test` zones) | — |
+| `external/` | `*.cloud.test` front-door haproxy (host-routing maps, TLS termination) | [README](external/README.md) |
+| `internal/` | Ingress LB haproxy → Gateway hostNetwork listeners | [README](internal/README.md) |
+| `nodes/` | Talos node containers + cmd control-plane LB | [README](nodes/README.md) |
+| `bootstrap/` (root #2) | cilium + flux install, adoption twins | [README](bootstrap/README.md) |
+| `registry/` | angos pull-through cache + scan trigger + push identity | [README](registry/README.md) |
+| `scanner/` | angos-trivy scan endpoint (owns the scan token) | [README](scanner/README.md) |
+| `images/` | Builds + pushes locally-built images (o2-sync) | [README](images/README.md) |
+| `secrets/` | busybox secrets-server (External Secrets webhook backend) | [README](secrets/README.md) |
+| `storage/` | rustfs S3 (flux bucket, O2, velero) | [README](storage/README.md) |
+| `sync/` | Manifests mirror loop → rustfs flux bucket | [README](sync/README.md) |
+| `auth/` | Rauthy OIDC issuer | [README](auth/README.md) |
+| `mail/` | mailpit (alert sink) | — |
+
+
 Companion state is disposable except the angos cache volume (see the registry landmine in the runbook). Node containers bake the machine config into the container env first-boot-only (`ignore_changes = [env]`) — **a machine-config template change requires a full cluster rebuild** (the cmdshift/platform#73 `talos_machine_configuration_apply` iteration path was removed in cmdshift/platform#140: provisioning through the leastconn LB fails nondeterministically against still-maintenance-mode nodes — post-mortem in the rebuild runbook).
 
 ## Memory budget (docker-level limits)

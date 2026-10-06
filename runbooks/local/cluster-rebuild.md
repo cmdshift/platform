@@ -24,7 +24,8 @@ The two terraform modules are deliberately asymmetric: `cluster/local` (nodes + 
 just bootstrap destroy -auto-approve     # fails by design (prevent_destroy) — the plan
                                          # error ("Instance cannot be destroyed") IS the
                                          # guard, not a problem; skip straight to the next line
-just cluster destroy -auto-approve       # ~1m; wipes rustfs + PVCs (see Data implications)
+just cluster destroy -auto-approve       # ~1m; wipes PVCs; rustfs data persists on the
+                                         # platform-storage-data volume (see Data implications)
 just cluster apply -auto-approve         # can hang at bootstrap — recovery below
 just bootstrap apply -auto-approve       # ~90s incl. the API-up gate (cmdshift/platform#72);
                                          # blocks in plan polling the kube API until it answers
@@ -180,10 +181,11 @@ Note: the docker daemon kills containers with SIGKILL (exit 137) on shutdown —
 
 ## Data implications
 
-A full destroy/apply wipes everything not in the local manifests:
-- rustfs (`storage-cloud-test`) — its data lives in the container layer; buckets re-provision from `cluster/local/conf/outputs.tf`, the `flux` bucket re-populates via the sync container, **all other bucket contents are gone** (velero backups included — and the kopia repo metadata with them: maintenance jobs fail `repository not initialized` until the nightly `pvcs` backup re-initializes the repo, see the velero runbook)
+A full destroy/apply wipes everything not in the local manifests **except** the two docker volumes that outlive the terraform state: the registry's `platform-registry-data` (image cache) and storage's `platform-storage-data` (all rustfs buckets — S3 data survives the rebuild).
+
+Wiped and re-created:
+- rustfs (`storage-cloud-test`) container — the volume's contents persist, and the entrypoint provisions idempotently against the existing buckets; the `flux` bucket re-populates via the sync container. (Note the registry landmine in [rustfs-operations.md](rustfs-operations.md): the `null_resource` chown only fires at volume CREATE — if the volume itself was wiped rather than the container, re-chown to 10001 by hand before first write)
 - local-path PVCs and anything on them (openobserve's SQLite/WAL — disposable by design, the o2-sync Job re-creates its metadata; velero restores re-create the rest)
-- other S3-backed state that lived in rustfs buckets (openobserve parquet data — gone with the bucket)
 
 If a rebuild stalls partway: [reconciliation-stuck.md](reconciliation-stuck.md) for kustomization failures, [pipeline-wedged.md](pipeline-wedged.md) if manifests stop applying.
 

@@ -6,12 +6,9 @@ locals {
 
   public_endpoint = "https://${var.cmd.hostname}:${local.ports.k8s}"
 
-  # reviewed audit policy (cmdshift/platform#90); 1.13/1.14 mechanics in files/audit-policy.yaml
   audit_policy_body = file("${path.module}/files/audit-policy.yaml")
 
-  # platform root CA baked into the machine config for --oidc-ca-file
-  # (cmdshift/platform#131); read at apply time from the `just certs` output
-  platform_root_ca = trimspace(file("${path.root}/.tmp/tls/root_ca.crt"))
+  platform_root_ca = trimspace(file("${path.module}/../.tmp/tls/root_ca.crt"))
 
   cluster_machine_patch = templatefile("${path.module}/templates/cluster.tftpl.yaml", {
     public_endpoint = local.public_endpoint
@@ -45,7 +42,6 @@ locals {
 
   mounts = {
     tmpfs = ["/run", "/system", "/tmp"]
-    # volume mounts: k8s overlay dirs, node state (/var, /system/state), then cilium
     volume = concat(
       ["/etc/cni", "/etc/kubernetes", "/usr/libexec/kubernetes", "/opt"],
       ["/var", "/system/state"],

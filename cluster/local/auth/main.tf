@@ -12,10 +12,6 @@ resource "docker_container" "auth" {
     ipv4_address = var.net.private_ip
     aliases      = ["auth.cloud.test"]
   }
-  # bootstrap JSONs are first-boot only — data lives in the container layer, so a
-  # terraform recreate wipes hiqlite and re-seeds from files/bootstrap (cmdshift/platform#154;
-  # the cnpg-backed alternative was rejected for keycloak: a companion depending on the
-  # in-cluster DB inverts the bootstrap order)
   upload {
     file = "/app/config.toml"
     content = templatefile("${path.module}/templates/rauthy.tftpl.toml", {
@@ -39,8 +35,6 @@ resource "docker_container" "auth" {
     file    = "/app/bootstrap/clients.json"
     content = file("${path.module}/files/bootstrap/clients.json")
   }
-  # start-then-audit: Rust binary, single worker — keycloak needed 3Gi for the JVM
-  # import churn (cmdshift/platform#131); audit rauthy's real peak before trusting this
   memory      = 256
   memory_swap = 256
 }

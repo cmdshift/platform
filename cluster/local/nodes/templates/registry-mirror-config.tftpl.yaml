@@ -1,6 +1,3 @@
-# Wildcard mirror: every registry routes to the caching proxy, original /v2/ path
-# preserved — containerd appends the upstream host as ?ns=, which angos resolves to the
-# claiming repository. New upstreams only need a registry_map entry; node config is static.
 ---
 apiVersion: v1alpha1
 kind: RegistryMirrorConfig

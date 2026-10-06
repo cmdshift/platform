@@ -30,7 +30,7 @@ spec:
           # plain alpine + curl + jq — the script is CM-mounted, not baked, so
           # edits don't need image builds; image pushed by terraform module
           # cluster/local/images (angos push validated cmdshift/platform#171)
-          image: registry.cloud.test/platform/o2-sync:1.1.1
+          image: registry.cloud.test/platform/o2-sync:default
           imagePullPolicy: IfNotPresent
           command: ["/bin/sync.sh"]
           securityContext:

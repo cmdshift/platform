@@ -20,10 +20,15 @@ variable "internal_hostname" {
 
 variable "ctrl_nodes" {
   type    = number
-  default = 1 # single-node etcd (cmdshift/platform#173) — HA etcd's install-burst and loss-simulation complexity isn't worth the RAM/CPU on a testbed
+  default = 1
+
+  validation {
+    condition     = var.ctrl_nodes % 2 == 1
+    error_message = "ctrl node count must be odd (etcd quorum)."
+  }
 }
 
 variable "work_nodes" {
   type    = number
-  default = 2 # cilium gatewayAPI binds hostNetwork ports on work nodes — too few starve those placements
+  default = 2
 }
