@@ -1,21 +1,15 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - alertmanager.helm-release.yaml
   - openobserve.helm-release.yaml
   - openobserve-collector.helm-release.yaml
   - kube-state-metrics.helm-release.yaml
   - metrics-server.helm-release.yaml
   - vpa.helm-release.yaml
+  - openobserve.vpa.yaml
   - openobserve-credentials.external-secret.yaml
   - openobserve-s3-credentials.external-secret.yaml
 configMapGenerator:
-  - name: alertmanager-values
-    namespace: observability
-    files:
-      - values.yaml=alertmanager-values.yaml
-    options:
-      disableNameSuffixHash: true
   - name: openobserve-values
     namespace: observability
     files:

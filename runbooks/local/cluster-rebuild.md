@@ -97,6 +97,7 @@ kubectl -n flux-system get kustomizations
 | Velero BSL | `kubectl -n backups get bsl default` | `Available` |
 | Rustfs buckets | `rustfs ls main/` | `flux`, `backups`, `openobserve` (auto-provisioned) |
 | OpenObserve | `kubectl -n observability get pods -l app.kubernetes.io/name=openobserve` | 1/1 Running; the o2-sync Job completes (dashboards/alerts present in the O2 UI) |
+| Alert delivery | mailpit at http://mail.cloud.test (check via `mailpit -s`) | the O2 watchdog alert delivered (watchdog + expected fresh-boot detections like `velero_backup_stale` arrive via O2 SMTP → :25 passthrough, cmdshift/platform#182); o2-sync Job logs show the synced alert count |
 | PolicyReports | `policy_report` | 0 failures |
 | Host API path | `curl -skf --max-time 3 https://127.0.0.1:6443/version` | 401 (LB publisher alive; the kubeconfig server = `https://cmd.local.test:6443`, dnsmasq-resolved) |
 | Browser paths | `curl -s -o /dev/null -w '%{http_code}' http://mail.cloud.test` | 200 (s3 → 403 = auth challenge, also fine) |
@@ -111,7 +112,7 @@ kubectl -n flux-system get kustomizations
 
 **Landmine — rauthy exact-matches redirect URIs, no wildcards** (cmdshift/platform#154): kubelogin sends `redirect_uri=http://localhost:8000` (bare host, no path) — keycloak's `http://localhost:8000/*` shape produces a 400 "invalid redirect uri" at the authorize step. Register the bare host in `clients.json` (a path URI never gets requested).
 
-**First-converge races (expected, all self-heal in seconds-to-minutes; verified again 2026-09-09):** the ClusterIssuer/`intermediate-ca` can flip Failed→Ready within ~10s (the issuer is evaluated before the CA secret exists); the Seaweed CR reports `Volume: 0/1 ready` for a minute or two while the volume server registers with the master; the Alertmanager CR sits at `NoPodReady` for ~40-60s while its StatefulSet pod initializes (cold image pulls + PVC wait) — this no longer fails the `observability-config` health gate, whose Alertmanager expr dropped its `failed:` line (cmdshift/platform#69, verified on a full rebuild); the cnpg-crds kustomization can show `Source is not ready` for one poll window; kyverno's first image pulls may take a retry round. No manual action — verify convergence at the end.
+**First-converge races (expected, all self-heal in seconds-to-minutes; verified again 2026-09-09):** the ClusterIssuer/`intermediate-ca` can flip Failed→Ready within ~10s (the issuer is evaluated before the CA secret exists); the cnpg-crds kustomization can show `Source is not ready` for one poll window; kyverno's first image pulls may take a retry round. No manual action — verify convergence at the end. (Expected fresh-boot alert noise: `velero_backup_stale` fires before the first Completed backup — by design, cmdshift/platform#182; it clears on the first nightly run.)
 
 ## Companions: the caching registry
 

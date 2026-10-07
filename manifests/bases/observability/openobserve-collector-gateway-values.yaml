@@ -93,7 +93,7 @@ config:
       headers:
         # root user, same identity as the UI — matches the secrets-server
         # openobserve-credentials payload (cmdshift/platform#171)
-        Authorization: "Basic cm9vdEBjbG91ZC50ZXN0OkNvbXBsZXhwYXNzIzEyMw=="
+        Authorization: "Basic YWRtaW5AY2xvdWQudGVzdDpDb21wbGV4cGFzcyMxMjM="
     # drop the chart's default debug exporter noise
     debug: null
   receivers:
@@ -347,17 +347,6 @@ config:
               - source_labels: [__meta_kubernetes_service_port_name]
                 action: keep
                 regex: http
-          - job_name: alertmanager
-            scrape_interval: 30s
-            kubernetes_sd_configs:
-              - role: endpoints
-            relabel_configs:
-              - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_label_app_kubernetes_io_instance, __meta_kubernetes_service_label_app_kubernetes_io_name]
-                action: keep
-                regex: observability;alertmanager;alertmanager
-              - source_labels: [__meta_kubernetes_endpoint_port_name]
-                action: keep
-                regex: http
           - job_name: openobserve
             scrape_interval: 30s
             kubernetes_sd_configs:
@@ -380,6 +369,23 @@ config:
               - source_labels: [__meta_kubernetes_endpoint_port_name]
                 action: keep
                 regex: monitoring
+          # flux controllers — pod template carries only `app: <name>` (the
+          # app.kubernetes.io labels live on the Deployment, not the pod);
+          # job name feeds the o2-alerts-library fluxcd pack on
+          # gotk_resource_info (cmdshift/platform#182)
+          - job_name: flux-controllers
+            scrape_interval: 30s
+            kubernetes_sd_configs:
+              - role: pod
+                namespaces:
+                  names: [flux-system]
+            relabel_configs:
+              - source_labels: [__meta_kubernetes_pod_label_app]
+                action: keep
+                regex: (source-controller|helm-controller|kustomize-controller|notification-controller)
+              - source_labels: [__meta_kubernetes_pod_container_port_name]
+                action: keep
+                regex: http-prom
   service:
     pipelines:
       metrics:

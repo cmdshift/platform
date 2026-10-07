@@ -15,7 +15,7 @@ locals {
 
   observability = {
     openobserve_credentials = {
-      ZO_ROOT_USER_EMAIL    = "root@cloud.test"
+      ZO_ROOT_USER_EMAIL    = "admin@cloud.test"
       ZO_ROOT_USER_PASSWORD = "Complexpass#123"
     }
 

@@ -22,6 +22,10 @@ The root `local` Kustomization and `main` Bucket are managed by the `flux-config
 
 Bucket `main` 5m, root + child kustomizations 1h drift-heal (`retryInterval: 5s` everywhere). Propagation is **event-driven** — artifact change + `dependsOn` requeue at 5s — so the loosened intervals cost nothing in latency; what they buy is background reconciles not interleaving with interactive edits (the old 1m bucket poll could publish a half-mirrored artifact mid-edit and the whole chain would apply it). The bootstrap twins run 1m/10m until flux-config adopts and converges them — keeps fresh rebuilds fast. **Do not suspend kustomizations** — a suspended tree reconciles nothing on rebuild, breaking the one-shot requirement. Cloud keeps tighter 10m/1m (multiple operators make frequent drift-heal worthwhile).
 
+## Flux alerting (cmdshift/platform#182)
+
+The notification Provider + Alert objects (`flux-system.provider.yaml` / `flux-system.alert.yaml`) are **deleted** — transient error events lost to persistent not-ready metrics. Flux health now alerts off **scraped `gotk_resource_info` metrics** via the `o2-alerts-library` fluxcd pack (3 of 4 adopted: `flux_helmrelease_failure`, `flux_kustomization_failure`, `flux_source_issue`; `flux_image_issue` parked — image automation runs `create: false` here, so its stream can never exist). Detectors + delivery are O2-owned: the alert JSONs live in `observability-config/o2-sync/alerts/`, the scrape job (`flux-controllers`, pod-role SD on the `app` label, named port `http-prom`) in the gateway collector — mechanics and landmines: [bases/observability/README.md](../observability/README.md).
+
 ## Sizing
 
 Burst-heavy delivery components (source/helm-controllers) carry 1000m CPU / 512Mi-1Gi — starving them wedges the whole pipeline (evidence-bumped; see the resource-sizing skill).

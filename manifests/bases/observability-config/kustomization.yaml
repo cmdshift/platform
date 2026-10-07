@@ -4,8 +4,6 @@ resources:
   - resource-quota.yaml
   - logging-resource-quota.yaml
   - limit-range.yaml
-  - flux-system.alert.yaml
-  - flux-system.provider.yaml
   # after the group's workloads: the sync Job curls the O2 API, so openobserve
   # must be ingesting first — observability-config reconciles after the group
   - o2-sync

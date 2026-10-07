@@ -100,7 +100,7 @@ config:
         # root user, same identity as the UI — chart exposes no env passthrough
         # into presets, so inlined; matches the secrets-server
         # openobserve-credentials payload (cmdshift/platform#171)
-        Authorization: "Basic cm9vdEBjbG91ZC50ZXN0OkNvbXBsZXhwYXNzIzEyMw=="
+        Authorization: "Basic YWRtaW5AY2xvdWQudGVzdDpDb21wbGV4cGFzcyMxMjM="
   receivers:
     # chart default jaeger/zipkin/otlp receivers — agent pushes only, no ingest
     jaeger: null

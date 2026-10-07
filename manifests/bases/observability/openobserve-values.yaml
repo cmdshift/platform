@@ -60,6 +60,19 @@ auth:
   ZO_S3_SECRET_KEY: ""
 
 extraEnv:
+  # no ZO_SMTP_* key exists in the chart's config-CM allowlist, so SMTP rides
+  # extraEnv (cmdshift/platform#182); empty ZO_SMTP_ENCRYPTION is the documented
+  # plain-SMTP mode
+  - name: ZO_SMTP_ENABLED
+    value: "true"
+  - name: ZO_SMTP_HOST
+    value: "smtp.cloud.test"
+  - name: ZO_SMTP_PORT
+    value: "25"
+  - name: ZO_SMTP_FROM_EMAIL
+    value: "alerts@cloud.test"
+  - name: ZO_SMTP_ENCRYPTION
+    value: ""
   - name: ZO_S3_ACCESS_KEY
     valueFrom:
       secretKeyRef:
@@ -70,66 +83,48 @@ extraEnv:
       secretKeyRef:
         name: openobserve-s3-credentials
         key: ZO_S3_SECRET_KEY
-  # the chart's config CM is a hardcoded key allowlist — unknown config.* keys
-  # are silently dropped, so env-only flags ride extraEnv instead
-  - name: ZO_SKIP_SSRF_CHECKS
-    value: "true"
-  # alert destinations point at in-cluster services (alertmanager) whose
-  # ClusterIPs trip the SSRF guard — trusted environment (cmdshift/platform#171)
 
 config:
   ZO_LOCAL_MODE: "true"
-  # writable cache dir matching the cache volume mount (chart NOTE)
   ZO_DATA_CACHE_DIR: "/var/lib/openobserve-cache"
-  # S3 backend — data survives the PVC; the PVC only buffers WAL + queries cache
   ZO_LOCAL_MODE_STORAGE: "s3"
   ZO_S3_PROVIDER: "s3"
   ZO_S3_SERVER_URL: "http://s3.cloud.test"
   ZO_S3_REGION_NAME: "local"
   ZO_S3_BUCKET_NAME: "openobserve"
-  # default is 3650 — a silent disk-full waiting to happen (cmdshift/platform#171)
-  ZO_COMPACT_DATA_RETENTION_DAYS: "7"
-  # don't phone home
   ZO_TELEMETRY: "false"
-  # geoip downloads from zinclabs.dev are pointless locally
   ZO_MMDB_DISABLE_DOWNLOAD: "true"
-  # default (0) derives 25% of container mem_total — at 1Gi that's a 256MB
-  # memtable, and ~240 metric streams overflow it on the first scrape cycle
-  # (MemoryTableOverflowError 503s, cmdshift/platform#171). 256 still overflowed
-  # at ~150/min with ~1400 streams; 768 + 4Gi limit holds the working set with
-  # the 2-thread drain caps (cmdshift/platform#171)
-  ZO_MEM_TABLE_MAX_SIZE: "768"
-  # ~1400 streams spread their zstd compression work across smaller, more
-  # frequent flushes; thread caps (2) keep at most 2 cores compressing at any
-  # instant — the 830m sustained-CPU burn was bursty dump/merge across all
-  # cores plus 60s compaction cycles (cmdshift/platform#171)
-  ZO_MAX_FILE_RETENTION_TIME: "30"
-  ZO_MAX_FILE_SIZE_IN_MEMORY: "64"
+  ZO_MEM_TABLE_MAX_SIZE: "1024"
+  ZO_MAX_FILE_RETENTION_TIME: "600"
+  ZO_MAX_FILE_SIZE_IN_MEMORY: "256"
+  ZO_MAX_FILE_SIZE_ON_DISK: "256"
   ZO_MEM_DUMP_THREAD_NUM: "2"
   ZO_FILE_MOVE_THREAD_NUM: "2"
   ZO_FILE_MERGE_THREAD_NUM: "2"
-  ZO_FILE_PUSH_INTERVAL: "60"
-  # compaction OFF: local box queries recent data; background merge of ~1400
-  # streams was the last sustained-CPU source (re-enable when querying old
-  # data matters — cmdshift/platform#171)
-  ZO_COMPACT_ENABLED: "false"
-  # query-engine cache caps — spikes pushed 830m CPU; datafusion cache
-  # competes with ingest for the same 2Gi limit (cmdshift/platform#171)
-  ZO_MEMORY_CACHE_MAX_SIZE: "512"
-  ZO_MEMORY_CACHE_DATAFUSION_MAX_SIZE: "256"
-  # local disk cache duplicates rustfs reads and burns CPU on GC — the data
-  # lives in rustfs with 7d retention, cache adds nothing locally
-  ZO_DISK_CACHE_ENABLED: "false"
+  ZO_FILE_PUSH_INTERVAL: "300"
+  ZO_COMPACT_ENABLED: "true"
+  ZO_COMPACT_DATA_RETENTION_DAYS: "3"
+  ZO_COMPACT_INTERVAL: "120"
+  ZO_COMPACT_MAX_FILE_SIZE: "1024"
+  ZO_MEMORY_CACHE_MAX_SIZE: "1536"
+  ZO_MEMORY_CACHE_DATAFUSION_MAX_SIZE: "1536"
+  # relief valve for the 1536/1536 query caches — 1Gi of the 5Gi PVC,
+  # leaving the rest for SQLite + WAL (cmdshift/platform#182)
+  ZO_DISK_CACHE_ENABLED: "true"
+  ZO_DISK_CACHE_MAX_SIZE: "1024"
+  ZO_LOGS_FILE_RETENTION: "daily"
+  ZO_TRACES_FILE_RETENTION: "daily"
 
 resources:
+  # lean request: the quota charges requests (2/3 of the 3-cpu budget at the
+  # old 2-core request) and O2 reads host cores anyway — the 4-core limit is
+  # the burst cap (cmdshift/platform#182)
   requests:
-    cpu: 200m
-    memory: 2Gi
+    cpu: 500m
+    memory: 5Gi
   limits:
-    # memtable 768MB + datafusion 256 + cache 512 + arrow/parquet overhead;
-    # the 2-core limit is the deliberate heat ceiling (cgroup throttle)
-    cpu: "2"
-    memory: 4Gi
+    cpu: "4"
+    memory: 7Gi
 
 service:
   type: ClusterIP
