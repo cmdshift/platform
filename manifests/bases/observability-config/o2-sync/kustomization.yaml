@@ -10,11 +10,10 @@ configMapGenerator:
   - name: o2-sync-script
     files:
       - sync.sh=scripts/sync.sh
-  # alert destination + template — applied before dashboards/alerts by sync.sh
+  # email destination (cmdshift/platform#182) — replaces the alertmanager pair
   - name: o2-destinations
     files:
-      - alertmanager.json=destinations/alertmanager.json
-      - alertmanager-template.json=destinations/alertmanager-template.json
+      - email.json=destinations/email.json
   # dashboards grouped by domain — each CM has its own ~256KB cap in the
   # kustomize-controller dry-run (last-applied annotation, not the 1MiB data
   # limit), so keep every generated object well under it (cmdshift/platform#171);
@@ -53,3 +52,10 @@ configMapGenerator:
       - alerts/cilium_datapath_slow_burn.json
       - alerts/watchdog.json
       - alerts/high_error_rate.json
+      # flux_image_issue from the o2-alerts-library pack is not synced: image
+      # automation controllers are create:false in this cluster, so no
+      # ImagePolicy/ImageRepository/ImageUpdateAutomation objects exist and the
+      # gotk_resource_info{ready="False"} series can never materialize.
+      - alerts/flux_helmrelease_failure.json
+      - alerts/flux_kustomization_failure.json
+      - alerts/flux_source_issue.json

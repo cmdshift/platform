@@ -48,29 +48,18 @@ req_ok() {
 }
 
 # ---------- destinations first (alerts reference them) ----------
-# /destinations holds template + destination JSONs (CM-mounted, one flat dir);
-# template must exist before the destination references it
+# /destinations holds destination JSONs (CM-mounted, one flat dir)
 log "destinations dir contents: $(ls /destinations 2>&1)"
-for f in /destinations/alertmanager-template.json /destinations/alertmanager.json; do
+for f in /destinations/*.json; do
   [ -f "$f" ] || { log "missing $f"; exit 1; }
   log "destination file head: $(head -c 120 "$f")"
   name=$(jq -r '.name' "$f") || { log "jq failed on $f"; exit 1; }
-  if echo "$f" | grep -q template; then
-    existing=$(req_ok GET "alerts/templates" | jq -r --arg n "$name" \
-      '[.. | objects | select(.name? == $n) | .name] | first // empty' || true)
-    if [ -n "$existing" ]; then
-      log "template exists: $name"
-    else
-      req_ok POST "alerts/templates" "$f" >/dev/null && log "template created: $name"
-    fi
+  existing=$(req_ok GET "alerts/destinations" | jq -r --arg n "$name" \
+    '[.. | objects | select(.name? == $n) | .name] | first // empty' || true)
+  if [ -n "$existing" ]; then
+    log "destination exists: $name"
   else
-    existing=$(req_ok GET "alerts/destinations" | jq -r --arg n "$name" \
-      '[.. | objects | select(.name? == $n) | .name] | first // empty' || true)
-    if [ -n "$existing" ]; then
-      log "destination exists: $name"
-    else
-      req_ok POST "alerts/destinations" "$f" >/dev/null && log "destination created: $name"
-    fi
+    req_ok POST "alerts/destinations" "$f" >/dev/null && log "destination created: $name"
   fi
 done
 
@@ -96,6 +85,36 @@ find /dashboards -name '*.json' | sort | while read -r f; do
   else
     req_ok POST "dashboards" "$f" >/dev/null && log "dashboard created: $title"
   fi
+done
+
+# ---------- stream seeding: alert POSTs fail (StreamNotFound) on missing streams ----------
+for f in /alerts/*.json; do
+  [ -f "$f" ] || continue
+  stream_name=$(jq -r '.stream_name' "$f")
+  stream_type=$(jq -r '.stream_type' "$f")
+  [ -n "$stream_name" ] && [ "$stream_name" != "null" ] || { log "no stream_name in $f"; exit 1; }
+  streams_list=$(req_ok GET "streams?type=$stream_type" || echo '{}')
+  # list shape varies by API version — walk either without indexing non-objects;
+  # the `up` stream must never be touched here (no fake up=1 rows)
+  existing_stream=$(echo "$streams_list" | jq -r --arg s "$stream_name" \
+    '[.. | objects | select(.name? == $s) | .name] | first // empty' || true)
+  if [ -n "$existing_stream" ]; then
+    log "stream exists: $stream_name"
+    continue
+  fi
+  seed_file=$(mktemp)
+  case $stream_type in
+    metrics)
+      echo "[{\"__name__\": \"$stream_name\", \"__type__\": \"gauge\", \"value\": 0, \"_timestamp\": $(date +%s)000000}]" > "$seed_file"
+      req_ok POST "ingest/metrics/_json" "$seed_file" >/dev/null \
+        && log "stream seeded: $stream_name ($stream_type)" ;;
+    logs)
+      echo "[{\"_timestamp\": $(date +%s)000000, \"message\": \"seed\"}]" > "$seed_file"
+      req_ok POST "$stream_name/_json" "$seed_file" >/dev/null \
+        && log "stream seeded: $stream_name ($stream_type)" ;;
+    *) log "unknown stream_type for $f: $stream_type"; rm -f "$seed_file"; exit 1 ;;
+  esac
+  rm -f "$seed_file"
 done
 
 # ---------- alerts: stream must exist (StreamNotFound) → bounded retry ----------

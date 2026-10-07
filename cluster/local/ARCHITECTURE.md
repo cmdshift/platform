@@ -96,7 +96,7 @@ Pod DNS: kube-dns → talos hostDNS (`forwardKubeDNSToHost`) → coredns. Compan
 | `127.0.10.1:80` / `127.0.10.1:443` | cloud-test | `*.cloud.test` host-routing proxy (:443 TLS-terminates with the wildcard leaf, cmdshift/platform#130) — the **only** host route into the ipvlan network |
 | `127.0.0.1:80` / `127.0.0.1:443` | local-test | ingress LB → nodePorts 30080/30443 |
 | `127.0.0.1:6443` / `127.0.0.1:50000` | cmd container | control-plane LB → kube-apiserver / talos apid (leastconn over the ctrl backends) |
-| `:25` (cloud-test, private net) | — | SMTP passthrough → mailpit :1025 (alertmanager) |
+| `:25` (cloud-test, private net) | — | SMTP passthrough → mailpit :1025 (O2 alert delivery, cmdshift/platform#182) |
 
 ## Request paths
 
@@ -105,7 +105,7 @@ Pod DNS: kube-dns → talos hostDNS (`forwardKubeDNSToHost`) → coredns. Compan
 - **Image pull**: containerd wildcard mirror (`RegistryMirrorConfig name: "*"` in the node machine config) → angos `?ns=` upstream resolution → cached in the `platform-registry-data` volume; strict (`skipFallback: true`) — unmapped registries hard-fail
 - **Manifests → cluster**: repo bind-mount → sync container `rc mirror` (5s full re-mirror, `--remove`) → rustfs `flux` bucket → flux Bucket source → root Kustomization (path `./manifests/clusters/local` — the `manifests/bases/` + `manifests/clusters/local/` tree, layout in [manifests/README.md](../../manifests/README.md)) → dependency-ordered tree
 - **Image scan** (cmdshift/platform#102): a cache-miss manifest store in a `scan = true` repo enqueues a job → the registry POSTs to `scanner.cloud.test` (generic `cloud` frontend + maps, `defaults` timeouts raised to 630s — see the decision record below) → trivy pulls the image via `registry.cloud.test` and answers SARIF → the registry pushes the report as an OCI referrer (`application/sarif+json`, visible via the referrers API and the angos UI Vulnerabilities tab). One job per client-resolved image manifest; already-cached images are never re-scanned (no backfill). Trivy downloads its own DB from upstream — the scanner dual-attaches the bridge like the registry (ipvlan has no egress). Referrers attach to the **platform child manifest digest** (the index entry the pulling client resolved), not the tag's index digest — query the referrers API against the child manifest; details in [runbooks/local/cluster-rebuild.md](../../runbooks/local/cluster-rebuild.md)
-- **Alerts**: ruler → alertmanager (CR) → `smtp.cloud.test:25` (TCP passthrough) → mailpit — read at http://mail.cloud.test
+- **Alerts**: O2 native alerts → O2 built-in SMTP (`ZO_SMTP_*` env, plain :25) → `smtp.cloud.test:25` (TCP passthrough) → mailpit — read at http://mail.cloud.test. No alertmanager; flux alerts ride the o2-alerts-library pack on scraped `gotk_resource_info` (cmdshift/platform#182)
 - **OIDC auth** (cmdshift/platform#154, was #131): browser/kubelogin → `auth.cloud.test` (Rauthy, external haproxy) — public client `kubernetes`; the kube-apiserver validates issued tokens against the same issuer (`--oidc-issuer-url=https://auth.cloud.test/auth/v1/`, CA via a planted machine.files cert). RBAC mapping of the `groups` claim: cmdshift/platform#91
 
 ## Terraform roots

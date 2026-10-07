@@ -1,5 +1,5 @@
-# Exec deny-list, observability namespace, chart-release workloads (alertmanager,
-# openobserve) — phase-4 wave 1 (cmdshift/platform#60), sibling of
+# Exec deny-list, observability namespace, chart-release workloads (openobserve)
+# — phase-4 wave 1 (cmdshift/platform#60), sibling of
 # exec-deny-list-flux-system (cmdshift/platform#28; full rationale there).
 # Scoping label: the release instance label. Future release workloads must be
 # added to the values list or they're out of scope.
@@ -13,7 +13,6 @@ spec:
       - key: app.kubernetes.io/instance
         operator: In
         values:
-          - alertmanager
           - openobserve
           - openobserve-collector
   options:

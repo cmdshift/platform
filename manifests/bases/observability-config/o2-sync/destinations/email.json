@@ -1,0 +1,5 @@
+{
+  "name": "email",
+  "type": "email",
+  "emails": ["admin@cloud.test"]
+}

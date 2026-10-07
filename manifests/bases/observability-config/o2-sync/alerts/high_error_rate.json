@@ -27,7 +27,7 @@
     "align_time": true
   },
   "destinations": [
-    "alertmanager"
+    "email"
   ],
   "context_attributes": {},
   "row_template": "Namespace: {k8s_namespace_name} | Pod: {k8s_pod_name} | errors: {cnt}",

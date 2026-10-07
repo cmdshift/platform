@@ -508,7 +508,7 @@ components healthy, 1 = any unhealthy/unreachable.
 
 ### `mailpit [limit]` / `mailpit -s <subject>` / `mailpit -b <id>`
 
-Alert emails from http://mail.cloud.test (ruler → alertmanager delivery).
+Alert emails from http://mail.cloud.test (O2 → SMTP delivery, cmdshift/platform#182).
 Bare `mailpit [limit]` prints `<id>  <subject>`, newest first (default 10;
 non-numeric/zero limit is a usage error — it would go straight into the API
 query string). `-s <substring>` finds the newest message whose subject

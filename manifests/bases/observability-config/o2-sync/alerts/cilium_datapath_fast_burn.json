@@ -39,7 +39,7 @@
     "align_time": true
   },
   "destinations": [
-    "alertmanager"
+    "email"
   ],
   "context_attributes": {},
   "row_template": "Drop ratio: {value}",

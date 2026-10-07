@@ -39,7 +39,7 @@
     "align_time": true
   },
   "destinations": [
-    "alertmanager"
+    "email"
   ],
   "context_attributes": {},
   "row_template": "*ClusterName:* {k8s_cluster} | Namespace: {namespace} | Deployment: {deployment} | Unavailable Replicas: {value}",
