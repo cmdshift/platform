@@ -11,7 +11,7 @@ spec:
   sourceRef:
     kind: Bucket
     name: main
-  path: ./manifests/bases/datastores-config
+  path: ./manifests/clusters/local/datastores-config
   prune: true
   wait: true
   timeout: 5m

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: node-agent-config
+  namespace: backups
+data:
+  config: |
+    {
+      "podResources": {
+        "cpuRequest": "50m",
+        "cpuLimit": "1000m",
+        "memoryRequest": "256Mi",
+        "memoryLimit": "512Mi"
+      }
+    }

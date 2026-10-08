@@ -6,12 +6,8 @@ metadata:
 spec:
   endpointSelector: {}
   egress:
-    # trivy-operator manages CRDs/leases
     - toEntities:
         - kube-apiserver
-    # trivy: all image/DB pulls go through the angos caching registry (plain HTTP :80,
-    # manifests/README.md) — scan-job image refs via the chart's registry.mirror
-    # rewrite, DB via dbRegistry. world:443 stays as fallback for upstreams outside the map
     - toFQDNs:
         - matchName: registry.cloud.test
       toPorts:
@@ -24,11 +20,6 @@ spec:
         - ports:
             - port: "443"
               protocol: TCP
-    # trivy-operator → built-in trivy-server, and scan jobs → server for the
-    # cached trivy-db (:4954 — the chart's "4975" comment is stale, verified
-    # in the template). This rule was LOST in the security→scanning split
-    # (a0a41ce) — vuln scanning silently never ran without it
-    # (cmdshift/platform#171)
     - toEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: scanning
@@ -36,4 +27,3 @@ spec:
         - ports:
             - port: "4954"
               protocol: TCP
-  # no ingress section: egress-only default-deny; metrics ports stay scrapeable

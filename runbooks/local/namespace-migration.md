@@ -80,4 +80,4 @@ Kustomize-controller **auto-generates an implicit kustomization listing all YAML
 
 ### Merged ResourceQuotas need a rename, not a stack
 
-When two namespaces' quotas fold into one (namespace collapse), the two `ResourceQuota/compute` objects can't both keep the name `compute` in the merged namespace: two quotas named `compute` would **both charge every pod** (quota admission charges against every matching quota), and kustomize would refuse the duplicate resource id anyway. Rename one on merge — the former `logging` quota became `logging-compute` in `observability-config/logging-resource-quota.yaml` (cmdshift/platform#120).
+When two namespaces' quotas fold into one (namespace collapse), the two `ResourceQuota/compute` objects can't both keep the name `compute` in the merged namespace: two quotas named `compute` would **both charge every pod** (quota admission charges against every matching quota), and kustomize would refuse the duplicate resource id anyway. Rename one on merge — the former `logging` quota became `logging-compute` in `observability-config/logging.resource-quota.yaml` (cmdshift/platform#120).

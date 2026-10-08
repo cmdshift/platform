@@ -15,7 +15,7 @@ spec:
   sourceRef:
     kind: Bucket
     name: main
-  path: ./manifests/bases/observability
+  path: ./manifests/clusters/local/observability
   prune: true
   wait: true
   timeout: 3m

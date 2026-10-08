@@ -23,8 +23,5 @@ spec:
     - name: gracePeriod
       expression: "object.spec.?terminationGracePeriodSeconds.orValue(30)"
   validations:
-    # floor 5s, not 0: sub-5s is instant-kill in practice; the 1s system
-    # agents (cilium, cilium-envoy, hubble-relay, tetragon) are
-    # PolicyExcepted (cmdshift/platform#89)
     - expression: "variables.gracePeriod >= 5"
       message: "terminationGracePeriodSeconds must be >= 5 — instant-kill termination loses in-flight requests and skips connection draining (unset = the 30s default, which passes)."

@@ -1,13 +1,8 @@
-# Pod-side privilege escalation attempts (setuid/setgid, capset, userns creation) —
-# adapted from the tetragon policylibrary, scoped to non-host PID namespaces (runc
-# legitimately setuid for every pod start). monitor_only; needs enableProcessCred
 apiVersion: cilium.io/v1alpha1
 kind: TracingPolicy
 metadata:
   name: privileges-raise
 spec:
-  # policy-level podSelector required — the per-hook Pid NotIn host_ns filter
-  # let runc through live (security/README.md)
   podSelector:
     matchLabels: {}
   kprobes:

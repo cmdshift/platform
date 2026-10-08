@@ -29,6 +29,10 @@ Never work on `main`. Create a branch before the first edit: `feat/<topic>` or `
 - **Docs are part of the plan**: if the change will make a decision, hit a landmine, or alter a procedure, the docs surfaces (CHANGELOG, group README, runbook, skill trap lists) will need updating — plan for it, don't discover it at commit time (`docs-sweep` skill).
 - Follow-ups that don't belong in this change get filed, not forgotten (`file-issue` skill).
 
-## 4. State the plan before executing
+## 4. Write the root plan, then expand each section into a detail plan
 
-For multi-file or multi-group changes, lay out the surface list and sequence in a todo list (and confirm with the human when scope is ambiguous). Single-file fixes don't need a plan ritual — go.
+- **Root plan first** (`.agents/temp/plans/<issue-or-topic>.md`): the source issue, the decisions made in conversation with the human (attributed, so a subagent doesn't relitigate them), and the work split into numbered **sections** with rough `- [ ]` checklists. Scratch lives in `.agents/temp/` — plans are agent scratch, not repo docs.
+- **One detail plan per section**, written by the `planner` subagent (see `.opencode/agents/planner.md`) into a separate, well-named file next to the root plan — e.g. `.agents/temp/plans/183-section-2-move-helm-values.md`. A detail plan is a **long, detailed checkbox checklist** for a given section: granular `- [ ]` items (one edit/command/verification each, exact files and commands), expected states, verification steps, and traps — written for a **coding/change-edit agent** that has no access to this conversation. Include the context it needs (issue ref, decisions, conventions) because the subagent starts with fresh context.
+- **Execution goes through the `change-executor` subagent** (see `.opencode/agents/change-executor.md`): hand it one detail plan file at a time; it ticks each checkbox as the step completes and verifies, leaving an accurate resume point if interrupted. The primary agent reviews outcomes and owns the reconcile/verify loop between sections.
+- Confirm the root plan's section split with the human before dispatching planners. Single-file fixes don't need the plan ritual — go.
+- **All git operations stay with the primary agent** — subagents (planner, change-executor) never branch, add, commit, push, or stash (denied at the agent level). The primary agent creates the feature branch before dispatching an executor and owns any commit/push after the human approves.

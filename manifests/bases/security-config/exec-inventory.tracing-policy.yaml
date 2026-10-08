@@ -1,12 +1,8 @@
-# Phase 3 (cmdshift/platform#60): cluster-wide exec inventory, no binary filter — the
-# evidence base for phase-4 deny-list widening (allowlist-by-absence). monitor_only;
-# enforcement is per-namespace in the exec-deny-list-* policies
 apiVersion: cilium.io/v1alpha1
 kind: TracingPolicy
 metadata:
   name: exec-inventory
 spec:
-  # all pods — the unfiltered stream is the point
   podSelector:
     matchLabels: {}
   kprobes:

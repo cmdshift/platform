@@ -13,8 +13,6 @@ spec:
     name: cloudnative-pg-crds
     namespace: flux-system
   path: ./config/crd
-  # never prune: upstream CRD churn between releases would delete every
-  # Cluster/Backup/etc CR — same rule as the crds kustomization
   prune: false
   wait: true
   timeout: 2m

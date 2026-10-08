@@ -1,0 +1,64 @@
+config:
+  clientID: oauth2-proxy
+  clientSecret: placeholder
+  cookieSecret: placeholder
+  existingSecret: oauth2-proxy-credentials
+  configFile: |-
+    upstreams = ["http://hubble-ui.kube-system.svc:80"]
+    provider = "oidc"
+    oidc_issuer_url = "https://auth.cloud.test/auth/v1/"
+    redirect_url = "https://hubble.local.test/oauth2/callback"
+    cookie_domains = ["hubble.local.test"]
+    whitelist_domains = [".local.test"]
+    cookie_samesite = "lax"
+    scope = "openid profile email"
+    email_domains = ["*"]
+    skip_provider_button = true
+    reverse_proxy = true
+    pass_authorization_header = false
+    pass_access_token = false
+    set_authorization_header = false
+    set_xauthrequest = true
+extraArgs:
+  provider-ca-file: /etc/platform-ca/ca.crt
+  use-system-trust-store: "true"
+  code-challenge-method: S256
+  https-address: ""
+  cookie-name: _oauth2_proxy
+extraVolumes:
+  - name: platform-ca
+    secret:
+      secretName: platform-root-ca
+extraVolumeMounts:
+  - name: platform-ca
+    mountPath: /etc/platform-ca
+    readOnly: true
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 200m
+    memory: 96Mi
+replicaCount: 1
+httpScheme: http
+sessionStorage:
+  type: cookie
+service:
+  type: ClusterIP
+  portNumber: 4180
+serviceAccount:
+  automountServiceAccountToken: false
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+terminationGracePeriodSeconds: 30
+networkPolicy:
+  enabled: false

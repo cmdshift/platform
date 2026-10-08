@@ -1,0 +1,73 @@
+initContainers:
+  - name: velero-plugin-for-aws
+    image: index.docker.io/velero/velero-plugin-for-aws:v1.14.2
+    volumeMounts:
+      - mountPath: /target
+        name: plugins
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 40m
+        memory: 48Mi
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1002
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
+credentials: {}
+resources:
+  requests:
+    cpu: 10m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+configuration:
+  logFormat: json
+  backupStorageLocation: null
+  volumeSnapshotLocation: null
+  repositoryMaintenanceJob:
+    repositoryConfigData:
+      global:
+        keepLatestMaintenanceJobs: 3
+        podResources:
+          cpuRequest: 50m
+          cpuLimit: 1000m
+          memoryRequest: 256Mi
+          memoryLimit: 512Mi
+deployNodeAgent: true
+upgradeJobResources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi
+nodeAgent:
+  containerSecurityContext:
+    privileged: true
+  extraArgs:
+    - --node-agent-configmap=node-agent-config
+  resources:
+    requests:
+      cpu: 10m
+      memory: 88Mi
+    limits:
+      cpu: 500m
+      memory: 120Mi
+metrics:
+  enabled: true

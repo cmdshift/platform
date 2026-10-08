@@ -8,17 +8,14 @@ spec:
   egress:
     - toEntities:
         - kube-apiserver
-    # S3 (RustFS via haproxy)
     - toFQDNs:
         - matchName: s3.cloud.test
       toPorts:
         - ports:
             - port: "80"
               protocol: TCP
-    # Node agent reads PVCs on the node (hostPath)
     - toEntities:
         - host
-    # talos-backup pulls the etcd snapshot from the ctrl nodes' Talos apid
     - toEntities:
         - host
         - remote-node

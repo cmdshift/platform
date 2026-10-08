@@ -7,18 +7,13 @@ spec:
   interval: 1h
   retryInterval: 5s
   dependsOn:
-    # early-wave group: tetragon must be running before workload namespaces boot —
-    # containers that start while the agent is down are invisible to pod-scoped
-    # enforcement until their next container restart (security/README.md).
-    # No storage/policies deps: tetragon has no PVCs and installs its own CRDs;
-    # the trivy-server PVC (the old reason for storage-config) moved to scanning/.
     - name: namespaces
     - name: sources
     - name: crds
   sourceRef:
     kind: Bucket
     name: main
-  path: ./manifests/bases/security
+  path: ./manifests/clusters/local/security
   prune: true
   wait: true
   timeout: 3m

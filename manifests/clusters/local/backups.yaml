@@ -10,12 +10,11 @@ spec:
     - name: namespaces
     - name: sources
     - name: networking
-    # restore drills depend on the local PV types (defaultVolumeType: local)
     - name: storage-config
   sourceRef:
     kind: Bucket
     name: main
-  path: ./manifests/bases/backups
+  path: ./manifests/clusters/local/backups
   prune: true
   wait: true
   timeout: 3m

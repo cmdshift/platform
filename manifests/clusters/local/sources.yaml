@@ -9,7 +9,7 @@ spec:
   sourceRef:
     kind: Bucket
     name: main
-  path: ./manifests/sources
+  path: ./manifests/clusters/local/sources
   prune: true
   wait: true
   timeout: 5m

@@ -8,8 +8,6 @@ spec:
   releaseName: openobserve
   chart:
     spec:
-      # pinned: SQLite metadata migration chains break across minor bumps —
-      # test on a fork of the PVC before bumping (cmdshift/platform#171)
       chart: openobserve-standalone
       version: 1.0.1
       sourceRef:

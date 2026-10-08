@@ -32,16 +32,58 @@ thin detectors (stream+threshold) ───────────────�
 - **The `POST /api/{org}/<stream>/_json` endpoint is LOGS-ONLY** (cmdshift/platform#182, cost multiple debugging rounds): seeding a *metrics* stream name through it materializes a phantom LOGS stream under the same name, which the v2 alerts API (binding on the alert's `stream_type`) still reports as `Stream not found` (404). Metrics streams must be seeded via `POST /api/{org}/ingest/metrics/_json` with body `[{"__name__":"<stream_name>","__type__":"gauge","value":0,"_timestamp":...}]` — `__name__` carries the stream name, `__type__` locks on the first record. Streams auto-create on first ingest of the correct type; the o2-sync Job seeds before alert creation (existence-gated via `GET streams?type=<type>`; metrics seed value 0 so no alert condition can fire on the seed).
 - **`ZO_COMPACT_DATA_RETENTION_DAYS` defaults to 3650** — a silent disk-full waiting to happen. Set `"3"` (data lives in rustfs; the PVC only buffers). **Retention lives inside the compactor module** (`src/service/compact/retention.rs`) — compaction OFF silently disables data retention entirely (cmdshift/platform#182: `ZO_COMPACT_ENABLED` must stay true or retention is dead).
 - **Image registry: point at the real home, never a façade** — `o2cr.ai` is a 302 redirect façade to `public.ecr.aws/zinclabs/openobserve`; docker CLI follows cross-registry redirects but **angos does not** (cache-miss returns `not found`; no redirect-following/host-override knob exists in angos v1.12.2 — checked docs+source). Values use `public.ecr.aws/zinclabs/openobserve` (the already-mapped `ecr` upstream); there is deliberately **no o2cr.ai stanza in `registry_map`** (`cluster/local/registry/locals.tf`). Applies to any future image whose host is a redirect façade.
-- Chart pin: SQLite metadata migration chains break across minor bumps — test on a fork of the PVC before bumping (comment at the pin).
+- Chart pin: `openobserve-standalone` 1.0.1 — SQLite metadata migration chains break across minor bumps; test on a fork of the PVC before bumping (cmdshift/platform#171).
+- **FSTree sizing** (cmdshift/platform#182): `ZO_MEMORY_CACHE_MAX_SIZE`/`ZO_MEMORY_CACHE_DATAFUSION_MAX_SIZE` are 1536/1536 and the disk cache (`ZO_DISK_CACHE_*`) is the relief valve — 1Gi of the 5Gi PVC, leaving the rest for SQLite + WAL. Memory caches compete with ingest for the same limit.
+- **Pod annotations**: `backup.velero.io/backup-volumes-excludes: data` — the data PVC holds disposable SQLite metadata + WAL/parquet staging (config is GitOps-recovered via o2-sync, data lives in rustfs); backing it up live fails ~90% through with an empty data-path error and burns ~7GB of kopia churn per backup (cmdshift/platform#171).
+- **Resources** (cmdshift/platform#182): request 500m CPU / 5Gi mem, limit 4 CPU / 7Gi mem. Lean request because the quota charges requests (the old 2-core request ate 2/3 of the 3-cpu budget) and O2 reads host cores anyway; the 4-core limit is the burst cap.
+
+### openobserve-collector-agent (values decision table)
+
+| value | why | ref |
+|---|---|---|
+| `mode: daemonset`, plain `otel/opentelemetry-collector` chart 0.175.0 | `mode` + `config` are release-global in the otel chart — one HelmRelease per mode; NOT the o2 `openobserve-collector` chart 0.5.0 (needs the opentelemetry-operator, rejected) | #171 |
+| `presets.clusterMetrics` | k8s_cluster receiver → node conditions (`k8s_node_condition_ready` et al — the node_not_ready alert reads it); daemonset mode leader-elects so the 3 replicas don't duplicate | #171 |
+| `clusterRole.rules` nodes/stats+proxy+metrics | kubeletstats with extra_metadata_labels needs nodes/proxy + nodes/pods beyond the preset's nodes/stats — utilization metrics only scrape on the /pods summary endpoint (403 without) | #171 |
+| `securityContext.runAsUser: 0` + host access | allow-node-exporter-style host access (PolicyException `allow-openobserve-collector-host-access` covers admission); the daemonset mounts /var/log + /var/lib/docker/containers via the logsCollection preset | #171 |
+| all ingest `ports` disabled | agent receives nothing — it pushes to openobserve; chart default jaeger/zipkin/otlp/prometheus receivers nulled for the same reason | #171 |
+| `rewriteDeprecatedComponentNames: false` | without it the config uses modern names (filelog/k8sattributes/otlphttp) verbatim — pinned to the explicit names | #171 |
+| computed utilization metrics opt-in (hostmetrics cpu/mem, kubeletstats `k8s.pod.*_utilization`) | stock presets ship them off; the o2 community dashboards/alerts read them | #171 |
+| `kubeletstats.extra_metadata_labels` + `metric_groups` | metric_groups required for the summary API path the utilization metrics derive from (o2 chart ships node/pod/container/volume) | #171 |
+| inlined Basic-auth header on `otlphttp/openobserve` | root user, same identity as the UI — chart exposes no env passthrough into presets; must be re-encoded whenever the secrets-server `openobserve-credentials` payload changes (401 trap below) | #171 |
+| exporter `debug: null` | dropped the chart's default debug exporter (noise) | #171 |
+
+### openobserve-collector-gateway (values decision table)
+
+| value | why | ref |
+|---|---|---|
+| `mode: deployment`, OTLP 4317/4318 with hostPorts | OTLP ingest (traces + app metrics — the old tempo intake shape) + hand-expressed prometheus scrape families ported 1:1 from the deleted `alloy-telemetry.config.alloy`; job names are load-bearing for the ported alert rules + dashboards | #171 |
+| `clusterRole.rules` services/endpoints/endpointslices/pods/nodes/namespaces | the prometheus receiver's kubernetes_sd needs discovery RBAC — the preset role only covers k8sattributes (pods); without it every scrape job resolves zero targets | #171 |
+| `clusterRole.rules` nodes/metrics+proxy+stats + `nonResourceURLs: [/metrics]` | kubelet/cadvisor scrapes authorize via SAR on nodes/{subresource}; the apiserver /metrics job is a nonResourceURL | #171 |
+| keep-rules select on `namespace;labels;port-name` | exactly as the old alloy keep-rules did (instance = release name is load-bearing); control-plane jobs keep the upstream chart wiring (scheme https, SA bearer token, port remap) | #171 |
+| cadvisor job on the gateway | the agent already scrapes kubeletstats — cadvisor stays here (gateway) for the container_fs_* families the old config kept | #171 |
+| gateway limits 1 CPU / 1536Mi | memory_limiter preset is 80% of the limit — keep headroom above WAL spikes | #171 |
+| flux-controllers job selects on `__meta_kubernetes_pod_label_app` | flux pod templates carry only `app: <name>` (app.kubernetes.io labels live on the Deployment, not the pod); metrics port named `http-prom`; job name feeds the o2-alerts-library fluxcd pack on gotk_resource_info | #182 |
+
+### metrics-server / kube-state-metrics / vpa (values decision tables)
+
+| value | why | ref |
+|---|---|---|
+| metrics-server `--logging-format=json` | JSON logging: platform convention (pre-OpenObserve ref removed) | #171 |
+| metrics-server `runAsGroup: 1000` | `# NSA hardening:` explicit container-level uid+gid (chart SC is container-level; runAsNonRoot alone isn't enough) | NSA baseline |
+| kube-state-metrics container uid/gid 65534 | `# NSA hardening:` explicit non-root uid/gid (image declares USER "nobody"); request 96Mi = 12h median 69Mi / max 79Mi × 1.2, limit 1.5× | NSA baseline |
+| vpa `updater`/`admissionController` disabled | recommendation mode only — VPA never mutates pods or injects webhooks, so manifests stay authoritative and recommendations are pure evidence | #62 |
+| vpa recommender floors 2m CPU / 10MB | chart defaults clamp recommendations UP to 15m CPU / 100Mi — lowered so this cluster's small pods get honest numbers; recommender 48Mi request (12h max 37Mi — old 128Mi was 3.4× peak), 200m limit (16% of CFS periods throttled — bursty recommend loops) | #62 |
+| vpa `install.crds: Create` / `upgrade.crds: CreateReplace` | the CRDs ship in the chart's `crds/` dir — install-only, never in the release secret (1MB cap) | #62 |
+| metrics-server/vpa HelmReleases live in the observability group, values CMs in kube-system | both install into kube-system (cluster plumbing); grouped by domain, not namespace | — |
 
 ## Sizing: the memtable/intervals evidence (cmdshift/platform#171)
 
-First config burned **~830m sustained CPU** — bursty zstd dump/merge across all cores + 60s compaction cycles. Final shape (evidence comments live at each value in `openobserve-values.yaml`):
+First config burned **~830m sustained CPU** — bursty zstd dump/merge across all cores + 60s compaction cycles. Full decision tables live in the values files' README rows above; the historical evidence:
 
 - **Memtable 768MB + 4Gi limit**: the default derives 25% of container mem_total (256MB at 1Gi) and ~1400 streams overflowed it on the first scrape cycle (`MemoryTableOverflowError` 503s); 256MB still overflowed at ~150/min. 768 + the 4Gi limit holds the working set with the thread caps.
 - **Thread caps 2** (dump/move/merge) + **halved intervals** (retention 30s, file-push 60s, compact-interval 150s): doubling the frequency means smaller units of zstd/merge work — bursts cool between them instead of one core pinned for long stretches.
 - **Query caches capped** (memory-cache 512, datafusion 256 — they compete with ingest for the same limit); **disk cache OFF** (duplicates rustfs reads, burns CPU on GC).
-- Result: **~200m avg, 0 overflows, 100% 200s**. The 2-core CPU limit is the deliberate heat ceiling (cgroup throttle), sized under the observability quota.
+- Result: **~200m avg, 0 overflows, 100% 200s**. (The current shape supersedes these numbers — see the cmdshift/platform#182 bullet below; the sizing evidence lives in the values decision tables.)
 - **Compaction is ON** (cmdshift/platform#182): an earlier "tuning" left `ZO_COMPACT_ENABLED` false, which silently disabled data retention entirely (retention lives inside the compactor module). Current shape: compact enabled, interval 60s, batch 50, fast-mode false, retention 3d, `ZO_MAX_FILE_SIZE_ON_DISK: "16"`. The 60s interval is deliberately kept against the #171 60s-cycle burn history — the work set is now bounded by 3d retention; post-change openobserve sits ~120m CPU, well under the 2-core limit.
 
 ## SQLite-on-local-path corruption: the MANDATORY pod-churn procedure
@@ -109,7 +151,7 @@ Flux alerting uses the `o2-alerts-library` fluxcd pack — **3 of 4 adopted**: `
 
 ## quotas / limit-range / VPA
 
-- `observability-config/limit-range.yaml` sets Container defaults in `observability` — it exists for the **quota-vs-exception gap** (ResourceQuota admission is not skipped by kyverno PolicyExceptions; LimitRange is the only defaults source for exception-exempt containers). Mechanics: [runbooks/local/adding-a-workload.md](../../../runbooks/local/adding-a-workload.md).
+- `observability-config/logging.limit-range.yaml` sets Container defaults in `observability` — it exists for the **quota-vs-exception gap** (ResourceQuota admission is not skipped by kyverno PolicyExceptions; LimitRange is the only defaults source for exception-exempt containers). Mechanics: [runbooks/local/adding-a-workload.md](../../../runbooks/local/adding-a-workload.md).
 - Two quotas: `compute` (32 pods) + the former `logging` quota renamed `logging-compute` (36 pods) — two `ResourceQuota/compute` objects in one namespace would both charge every pod (cmdshift/platform#120). A quota-exceeded ReplicaSet does NOT self-heal when the quota is raised — annotate the stuck RS (cmdshift/platform#155).
 - All VPAs are **Off mode** — recommendations only, never mutation (cmdshift/platform#62). The chart runs the recommender only; `install.crds: Create` / `upgrade.crds: CreateReplace` because the CRDs ship in the chart's `crds/` dir (1MB cap a non-issue). Never run `helm test` on the vpa release — the chart renders three resource-less hook pods with no values knob; kyverno would deny them. Off-mode VPAs are hand-maintained (goldilocks removed): a new workload gets one in its group manifest.
 

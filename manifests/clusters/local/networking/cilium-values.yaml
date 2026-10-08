@@ -1,0 +1,94 @@
+upgradeCompatibility: null
+cgroup:
+  autoMount:
+    enabled: false
+  hostRoot: /sys/fs/cgroup
+encryption:
+  enabled: true
+  type: wireguard
+envoy:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      cpu: 40m
+      memory: 128Mi
+gatewayAPI:
+  enabled: true
+  hostNetwork:
+    enabled: true
+    nodes:
+      matchLabels:
+        k8s-role/work: ""
+hubble:
+  relay:
+    enabled: true
+    prometheus:
+      enabled: true
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 96Mi
+  ui:
+    enabled: true
+    httpRoute:
+      enabled: false
+    backend:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 48Mi
+        limits:
+          cpu: 200m
+          memory: 72Mi
+    frontend:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 100m
+          memory: 24Mi
+ipam:
+  mode: kubernetes
+initResources:
+  requests:
+    cpu: 10m
+    memory: 48Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi
+k8sServiceHost: localhost
+k8sServicePort: 7445
+kubeProxyReplacement: true
+l2announcements:
+  enabled: true
+prometheus:
+  enabled: true
+  metricsService: true
+operator:
+  prometheus:
+    metricsService: true
+  resources:
+    requests:
+      cpu: 10m
+      memory: 144Mi
+    limits:
+      cpu: 200m
+      memory: 216Mi
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 768Mi
+rollOutCiliumPods: true
+securityContext:
+  capabilities:
+    ciliumAgent: [CHOWN, KILL, NET_ADMIN, NET_RAW, IPC_LOCK, SYS_ADMIN, SYS_RESOURCE, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    cleanCiliumState: [NET_ADMIN, SYS_ADMIN, SYS_RESOURCE]

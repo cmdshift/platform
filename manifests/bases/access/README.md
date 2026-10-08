@@ -115,6 +115,27 @@ oauth2-proxy chart 10.7.0 (app 7.15.3), ~70KB — 1MB release-secret cap a non-i
 release name suffixes `-oauth2-proxy` onto every object — HTTPRoute backendRefs must use
 `<release>-oauth2-proxy`.
 
+## auth-proxy values decision table (`clusters/local/access/*-auth-proxy-values.yaml`)
+
+| value | why | ref |
+|---|---|---|
+| `config` block placeholders (clientID/cookieName via args) | the chart's structured config only feeds the generated oauth2_proxy.cfg; everything env/flag-driven lives in extraArgs | — |
+| empty config Secret placeholders | real values arrive via the chart's existingSecret (env OAUTH2_PROXY_*) — placeholders satisfy requiredSecretKeys without minting a chart Secret | — |
+| `oidc-issuer-url` trailing slash | rauthy issuer — trailing slash is load-bearing | #154 |
+| cookie scope host-scoped | SSO via Rauthy session | #154 |
+| `provider-ca-file` (not caFiles) | legacy key for the alpha-config caFiles API — trust store for the IdP connection only (auth.cloud.test is the proxy's only TLS egress); use-system-trust-store adds the distro CAs on top | #154 |
+| PKCE S256 | Rauthy advertises it (challenges: S256); mirrors the kubernetes client's challenge | #154 |
+| no TLS listener | kill the chart's default (:4443) — TLS terminates at the Gateway | #130 |
+| openobserve proxy: `pass_authorization_header` off | cookie-gate only: no auth headers reach O2 (its own session guards the API; O2 trusting forwarded headers is an unvalidated path, unlike the grafana auth.proxy pattern) | #171 |
+
+## ExternalSecret shape
+
+`oauth2-proxy-secrets.external-secret.yaml` uses a **single extract** — the chart's existingSecret contract is one Secret with client-id/client-secret/cookie-secret keys, and the webhook provider serves whole JSON docs (extract, not per-key data).
+
+## HelmRelease timeouts
+
+The `access` Kustomization uses a widened timeout (5m+): 3 HelmReleases × 5m helm-install budget + remediation cycles — the 5m default timed out mid-install on first apply AND blocked each retry attempt for its full duration while releases converged (cmdshift/platform#41).
+
 ## Verification matrix (post-rauthy rebuild: 2026-09-25)
 
 OIDC chain verified end-to-end on the cmdshift/platform#154 rebuild: discovery issuer

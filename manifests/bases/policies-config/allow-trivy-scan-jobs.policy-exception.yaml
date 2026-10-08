@@ -1,9 +1,3 @@
-# trivy-operator scan Jobs exec /bin/sh -c wrappers around the trivy binary by design
-# (the operator generates the command; no values knob changes it). Phase-4 wave 1
-# (cmdshift/platform#60): the deny-shell-entrypoint backstop would deny every scan.
-# Label-scoped to the operator's managed-by label (not a name prefix — scan Job/pod
-# names are hash-suffixed and carry no stable prefix). Namespace: scanning (trivy
-# moved out of security/ so tetragon bootstraps early).
 apiVersion: policies.kyverno.io/v1
 kind: PolicyException
 metadata:

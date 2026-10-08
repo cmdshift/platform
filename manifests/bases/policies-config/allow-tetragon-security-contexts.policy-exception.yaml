@@ -19,12 +19,8 @@ spec:
       kind: ValidatingPolicy
     - name: restrict-seccomp-strict
       kind: ValidatingPolicy
-    # the agent DaemonSet terminates in 1s by design (fast node shutdown, no state to drain)
     - name: require-graceful-termination
       kind: ValidatingPolicy
   matchConditions:
-    # agent DaemonSet runs privileged with host namespaces/hostPaths — eBPF sensors need
-    # the BPF syscall, tracefs, host /proc and /sys/fs/bpf. Prefix match covers the
-    # generated pods (tetragon-xxxxx); the operator Deployment is compliant as-is.
     - name: match-tetragon
       expression: "object.metadata.namespace == 'security' && object.metadata.name.startsWith('tetragon')"

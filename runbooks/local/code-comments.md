@@ -12,7 +12,9 @@ The rules live in the **Comments section of the [`writing-code` skill](../../.ag
 
 ## Worked examples from the tree
 
-**Good — surprising choice with provenance** (`policies/kyverno-values.yaml`, paraphrased):
+Note: the cmdshift/platform#183 sweep moved nearly all manifest rationale into the group READMEs (`bases/<group>/README.md`) — the examples below show the *pattern*; the live `kyverno-values.yaml` etc. carry no comment now, their stories live in `policies-config/README.md` decision tables.
+
+**Good — surprising choice with provenance** (pattern; live story now in `policies-config/README.md`):
 
 ```yaml
 global:
@@ -22,13 +24,13 @@ global:
 
 Why it works: the value looks like a mundane mirror override, the comment says it's a workaround for a silent upstream failure, and the issue ref carries the full diagnosis.
 
-**Good — evidence at the value** (`backups/velero.helm-release.yaml`):
+**Good — evidence at the value** (pattern; live story in `backups/README.md`):
 
 ```yaml
 memory: 512Mi # limit = 2x request: kopia repo-maintenance spikes OOM-killed the server at 1.5x (cmdshift/platform#20)
 ```
 
-**Good — deviation marker** (`storage-config/local-path.storage-class.yaml`):
+**Good — deviation marker** (still live: `storage-config/local-path.storage-class.yaml`):
 
 ```yaml
 allowVolumeExpansion: false # true in the cloud

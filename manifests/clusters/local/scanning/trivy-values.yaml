@@ -1,0 +1,104 @@
+operator:
+  builtInTrivyServer: true
+  infraAssessmentScannerEnabled: false
+  scanJobsConcurrentLimit: 3
+  scanJobTTL: 10m
+  builtInServerRegistryInsecure: true
+trivy:
+  ignoreUnfixed: false
+  image:
+    registry: docker.io
+  dbRegistry: registry.cloud.test
+  dbRepository: docker/aquasec/trivy-db
+  javaDbRegistry: registry.cloud.test
+  javaDbRepository: docker/aquasec/trivy-java-db
+  dbRepositoryInsecure: "true"
+  registry:
+    mirror:
+      "docker.io": registry.cloud.test/docker
+      "index.docker.io": registry.cloud.test/docker
+      "ghcr.io": registry.cloud.test/ghcr
+      "registry.k8s.io": registry.cloud.test/k8s
+      "quay.io": registry.cloud.test/quay
+      "gcr.io": registry.cloud.test/gcr
+      "mcr.microsoft.com": registry.cloud.test/mcr
+      "public.ecr.aws": registry.cloud.test/ecr
+  insecureRegistries:
+    cache: registry.cloud.test
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 768Mi
+  server:
+    storageClassEnabled: true
+    storageSize: 5Gi
+    resources:
+      requests:
+        cpu: 15m
+        memory: 96Mi
+      limits:
+        cpu: 500m
+        memory: 144Mi
+    podSecurityContext:
+      runAsUser: 65534
+      runAsGroup: 65534
+      runAsNonRoot: true
+      fsGroup: 65534
+      seccompProfile:
+        type: RuntimeDefault
+    securityContext:
+      privileged: false
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      seccompProfile:
+        type: RuntimeDefault
+      capabilities:
+        drop:
+          - ALL
+trivyOperator:
+  scanJobsInSameNamespace: true
+  scanJobPodTemplatePodSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    seccompProfile:
+      type: RuntimeDefault
+  scanJobPodTemplateContainerSecurityContext:
+    allowPrivilegeEscalation: false
+    privileged: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+    capabilities:
+      drop:
+        - ALL
+compliance:
+  specs: []
+image:
+  registry: docker.io
+resources:
+  requests:
+    cpu: 50m
+    memory: 640Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  privileged: false
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+  capabilities:
+    drop:
+      - ALL

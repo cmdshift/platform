@@ -1,0 +1,31 @@
+hostNetwork: true
+extraHostPathMounts:
+  - name: sys-kernel-tracing
+    mountPath: /sys/kernel/tracing
+tetragon:
+  extraArgs:
+    disable-kprobe-multi: "true" # kernel 7.2 kprobe_multi attach failure (security/README.md)
+  enableProcessCred: true
+  clusterName: local-test
+  grpc:
+    address: "localhost:54321"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 880Mi
+    limits:
+      cpu: 1000m
+      memory: 1320Mi
+  prometheus:
+    enabled: true # agent metrics :2112 — the metrics collector scrapes the tetragon service
+export:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+tetragonOperator:
+  prometheus:
+    enabled: true # operator metrics :2113 — the metrics collector scrapes it

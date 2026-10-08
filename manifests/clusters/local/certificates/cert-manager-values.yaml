@@ -1,0 +1,45 @@
+crds:
+  enabled: true
+  keep: true
+config:
+  enableGatewayAPI: true
+containerSecurityContext:
+  runAsUser: 65532
+  runAsGroup: 65532
+resources:
+  requests:
+    cpu: 10m
+    memory: 40Mi
+  limits:
+    cpu: 200m
+    memory: 60Mi
+cainjector:
+  containerSecurityContext:
+    runAsUser: 65532
+    runAsGroup: 65532
+  resources:
+    requests:
+      cpu: 10m
+      memory: 144Mi
+    limits:
+      cpu: 200m
+      memory: 216Mi
+webhook:
+  containerSecurityContext:
+    runAsUser: 65532
+    runAsGroup: 65532
+  resources:
+    requests:
+      cpu: 10m
+      memory: 40Mi
+    limits:
+      cpu: 200m
+      memory: 60Mi
+startupapicheck:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi

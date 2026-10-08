@@ -15,7 +15,7 @@ spec:
   sourceRef:
     kind: Bucket
     name: main
-  path: ./manifests/bases/scanning
+  path: ./manifests/clusters/local/scanning
   prune: true
   wait: true
   timeout: 3m

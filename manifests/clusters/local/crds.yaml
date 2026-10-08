@@ -11,9 +11,7 @@ spec:
   sourceRef:
     kind: Bucket
     name: main
-  path: ./manifests/bases/crds
-  # never prune: deleting a CRD destroys every CR of that kind cluster-wide —
-  # CRD removal must be deliberate and coordinated, never git-driven
+  path: ./manifests/clusters/local/crds
   prune: false
   wait: true
   timeout: 2m

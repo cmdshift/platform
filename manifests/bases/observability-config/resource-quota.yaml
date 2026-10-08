@@ -5,8 +5,6 @@ metadata:
   namespace: observability
 spec:
   hard:
-    # sized for the namespace pod set (shrank with the LGTM teardown,
-    # cmdshift/platform#171 — openobserve + collector replace the LGTM pods)
     requests.cpu: "3"
     requests.memory: 10Gi
     limits.cpu: 20

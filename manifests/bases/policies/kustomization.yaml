@@ -2,10 +2,3 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - kyverno.helm-release.yaml
-configMapGenerator:
-  - name: kyverno-values
-    namespace: policies
-    files:
-      - values.yaml=kyverno-values.yaml
-    options:
-      disableNameSuffixHash: true

@@ -11,9 +11,6 @@ spec:
       kind: ValidatingPolicy
     - name: restrict-seccomp-strict
       kind: ValidatingPolicy
-    # phase-4 wave 1 (cmdshift/platform#60): the helper execs /bin/sh /script/setup
-    # (provisioner hardcodes the command, v0.0.37 provisioner.go) — deny-shell-entrypoint
-    # must be excepted or every PVC create/delete is admission-denied
     - name: deny-shell-entrypoint
       kind: ValidatingPolicy
   matchConditions:

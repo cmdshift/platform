@@ -9,10 +9,6 @@ spec:
   chart:
     spec:
       chart: cilium
-      # stable 1.20.2: kernel-7.2 startup crash fixed here (b73ca6e8
-      # bpf_core_enum_value_exists for HAVE_SET_RETVAL, cilium/cilium#48016) —
-      # the pre-release pin is no longer needed; must match the bootstrap pin
-      # or adoption downgrades back to a broken release
       version: 1.20.2
       sourceRef:
         kind: HelmRepository

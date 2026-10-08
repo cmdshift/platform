@@ -1,6 +1,3 @@
-# The pipeline's source. Duplicated in cluster/local/bootstrap extraObjects for fresh
-# installs (twin omits provider/timeout; CRD defaults fill them); flux-config
-# force-adopts this object and converges it on first reconcile.
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: Bucket
 metadata:

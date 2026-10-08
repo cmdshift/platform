@@ -4,8 +4,6 @@ metadata:
   name: allow-openobserve-collector-host-access
   namespace: policies
   annotations:
-    # bump to force admission re-pick-up after CEL updates — the engine can
-    # lag the stored object (policies/README.md)
     platform.cmdshift.io/force-reconcile: "1"
 spec:
   policyRefs:
@@ -13,8 +11,6 @@ spec:
       kind: ValidatingPolicy
     - name: require-run-as-nonroot
       kind: ValidatingPolicy
-    # hostmetrics receiver needs host fs access; check what caps the agent
-    # actually drops to — tighten the refs list after first on-cluster run
     - name: disallow-capabilities-strict
       kind: ValidatingPolicy
   matchConditions:

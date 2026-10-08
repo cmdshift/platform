@@ -1,0 +1,125 @@
+fullnameOverride: openobserve-collector-agent
+
+mode: daemonset
+
+image:
+  repository: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib
+  tag: 0.158.0
+
+presets:
+  logsCollection:
+    enabled: true
+    includeCollectorLogs: false
+  hostMetrics:
+    enabled: true
+  kubeletMetrics:
+    enabled: true
+  kubernetesAttributes:
+    enabled: true
+    extractAllPodLabels: false
+  clusterMetrics:
+    enabled: true
+
+clusterRole:
+  create: true
+  rules:
+    - apiGroups: [""]
+      resources: [nodes/stats, nodes/proxy, nodes/metrics]
+      verbs: [get, list, watch]
+
+podSecurityContext:
+  runAsNonRoot: false
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  runAsUser: 0
+  runAsNonRoot: false
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+tolerations:
+  - operator: Exists
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+ports:
+  otlp:
+    enabled: false
+  otlp-http:
+    enabled: false
+  jaeger-compact:
+    enabled: false
+  jaeger-thrift:
+    enabled: false
+  jaeger-grpc:
+    enabled: false
+  zipkin:
+    enabled: false
+  metrics:
+    enabled: true
+    containerPort: 8888
+    servicePort: 8888
+
+rewriteDeprecatedComponentNames: false
+
+config:
+  exporters:
+    debug: null
+    otlphttp/openobserve:
+      endpoint: http://openobserve.observability.svc:5080/api/default/
+      headers:
+        Authorization: "Basic YWRtaW5AY2xvdWQudGVzdDpDb21wbGV4cGFzcyMxMjM="
+  receivers:
+    jaeger: null
+    zipkin: null
+    otlp: null
+    prometheus: null
+    hostmetrics:
+      scrapers:
+        cpu:
+          metrics:
+            system.cpu.utilization:
+              enabled: true
+        memory:
+          metrics:
+            system.memory.utilization:
+              enabled: true
+    kubeletstats:
+      extra_metadata_labels:
+        - container.id
+        - k8s.volume.type
+      metric_groups:
+        - node
+        - pod
+        - container
+        - volume
+      metrics:
+        k8s.pod.cpu_limit_utilization:
+          enabled: true
+        k8s.pod.cpu_request_utilization:
+          enabled: true
+        k8s.pod.memory_limit_utilization:
+          enabled: true
+        k8s.pod.memory_request_utilization:
+          enabled: true
+  service:
+    pipelines:
+      logs:
+        receivers: [filelog]
+        processors: [memory_limiter, k8sattributes, batch]
+        exporters: [otlphttp/openobserve]
+      metrics:
+        receivers: [hostmetrics, kubeletstats]
+        processors: [memory_limiter, batch]
+        exporters: [otlphttp/openobserve]
+      traces: null
