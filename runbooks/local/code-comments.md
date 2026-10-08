@@ -1,6 +1,6 @@
 # Code comments — runbook
 
-The rules live in the **Comments section of the [`writing-code` skill](../../.agents/skills/writing-code/SKILL.md)** (cmdshift/platform#136) — this runbook holds the worked examples, the marker vocabulary, and the sweep checklist. Lineage: the original comment-style rules were codified in cmdshift/platform#43 and swept across `manifests/**` + `tools/bin/*` in PR cmdshift/platform#45.
+The rules live in the **Comments section of the [`writing-yaml` skill](../../.agents/skills/writing-yaml/SKILL.md)** (cmdshift/platform#136) — this runbook holds the worked examples, the marker vocabulary, and the sweep checklist. Lineage: the original comment-style rules were codified in cmdshift/platform#43 and swept across `manifests/**` + `tools/bin/*` in PR cmdshift/platform#45.
 
 ## The delete-test
 
@@ -84,7 +84,7 @@ Rules:
 - **Runbook** (`runbooks/local/`): the procedure, the mechanics, the worked recovery.
 - **CHANGELOG**: the dated story of the incident/decision.
 
-If a comment won't fit in 3 lines, it's docs — move the narrative out and leave the why + a pointer (writing-code skill, Comments rule 2).
+If a comment won't fit in 3 lines, it's docs — move the narrative out and leave the why + a pointer (writing-yaml skill, Comments rule 2).
 
 ## Sweep checklist (for a rotting file or a pre-PR pass)
 

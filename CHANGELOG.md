@@ -2,6 +2,18 @@
 
 Narrative log of the platform's evolution, newest first. Dated learnings, incident stories, and decision history live here; durable procedures live in `runbooks/local/`, timeless per-group decisions in `manifests/bases/*/README.md`, and landmines in `.agents/skills/`. Issue/PR references use the `cmdshift/platform#N` form.
 
+## 2026-10-08 (agent/skill refinement: writing-code split by language, executor rename, verifier agent — cmdshift/platform#176)
+
+- **`writing-code` skill retired, split by file type**: `writing-yaml` (manifest naming/valuesFrom/kustomization registration + yaml_lint → cr_validate → dry-run gates + comment rules), `writing-hcl` (fixed module file set + fmt/validate/plan gates + churn cross-ref), `writing-bash` (tools/bin promotion + structure rule: **small single-purpose functions with an entrypoint at the bottom named same as the file** + repo-scope rules + shellcheck). Why: one grab-bag skill loaded everything into context for any edit; file-type-keyed trigger descriptions keep each load small (context-preserving measures, cmdshift/platform#176). All live references swept; comment-rules pointers now target `writing-yaml`.
+- **`change-executor` subagent renamed to `executor`** (`.opencode/agents/executor.md`); planner + `planning-changes` updated in lockstep.
+- **New `verifier` subagent** (`.opencode/agents/verifier.md`): read-only, no git — checks each executed plan's ticked items against **artifacts, not diffs** (files on disk + cluster state via bounded read-only tools), returns PASS/FAIL per item; git-shaped checks marked "primary-agent check". Closes the verification-loop gap from the cmdshift/platform#176 research (errors caught between sections don't compound).
+- **Context-preserving refinements to the planner→executor loop** (`planning-changes`, `planner`, `executor`):
+  - Root plan stays **TOC + one-paragraph summaries**; detail lives only in section files.
+  - Sections chunked by **logical boundary** (one resource/chart/migration), dispatched in **topological order** — no parallel expansion of dependent sections.
+  - Detail plans carry an explicit **file scope**; oversized sections get split, not expanded in one window.
+  - Executor **time-boxes troubleshooting: print `date`, stop diagnosing after 5 minutes**, record under `## Blockers`, report back — dispatcher re-invokes the planner with current state instead of the executor improvising (plan doc stays the single source of truth).
+  - Plans go in `.agents/temp/plans/`; never write outside the repo — now explicit in all three new skills and the agent definitions.
+
 ## 2026-10-07 (manifests layering: bases cluster-agnostic, all helm values moved to clusters/local overlays — cmdshift/platform#183)
 
 - **Layering rule**: every `bases/<group>` is now cluster-agnostic (HelmReleases + generic manifests only); ALL helm values + `configMapGenerator` entries moved into `clusters/local/<group>/` overlay kustomizations; **every** group — including valueless `sources`/`crds`/`namespaces` — has an overlay dir, so every Kustomization CR `spec.path` is `./manifests/clusters/local/<group>` uniformly. Why: the old some-paths-point-at-bases split was drifting toward per-cluster values with nowhere consistent to put them.

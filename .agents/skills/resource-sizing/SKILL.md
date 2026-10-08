@@ -9,7 +9,7 @@ description: Setting or auditing container resources. The sizing convention (lea
 
 - **Requests lean** (10-50m CPU) — they're the scheduling side, not a performance knob.
 - **CPU limits generous for bursts** (200m-2000m) — throttling is the silent killer. For a single suspect: `prometheus_query 'container_cpu_cfs_throttled_periods_total{namespace="…",container="…"}'`.
-- **Memory: request ≈ P99 × 1.2, limit = 1.5 × request.** Deliberate deviations get a rationale comment (`writing-code` skill Comments rules — no dates, keep the evidence numbers, ≤3 lines) — velero runs 2× because kopia repo-maintenance spikes OOM-killed it at 1.5×.
+- **Memory: request ≈ P99 × 1.2, limit = 1.5 × request.** Deliberate deviations get a rationale comment (`writing-yaml` skill Comments rules — no dates, keep the evidence numbers, ≤3 lines) — velero runs 2× because kopia repo-maintenance spikes OOM-killed it at 1.5×.
 - **Flux delivery controllers** (source/helm) have their own floor — 1000m CPU / 512Mi-1Gi — or they wedge the whole pipeline.
 - Evidence-based, not defaults: size from audits, not vibes. Worked example (cmdshift/platform#171, openobserve): ~830m sustained CPU wasn't a limit problem — it was bursty zstd dump/merge across all cores plus 60s compaction. The fix shrank the unit of work (thread caps 2, halved intervals: retention 30s / push 60s / compact 150s) + capped competing caches (memtable 768MB, memory-cache 512, datafusion 256, disk cache off) → ~200m avg. **Tune the workload's internal concurrency/cadence knobs before sizing the container around a burn.** Conversely, a memory limit sized below the workload's own internal cache budget (a chart default deriving % of mem_total) turns the OOM killer into the eviction policy — see the loki chunks-cache memcached precedent.
 - **Hook jobs are pods too** (cmdshift/platform#149): helm hook jobs go through kyverno admission — a chart hook without resources wedges install AND uninstall (the k8s-monitoring `waitForAlloyRemoval` hooks hung an HR in `uninstalling` until their resources were set). Size install AND uninstall hooks when adopting a chart; sizing-a-chart-hook is `adopt-chart`'s §2, not a values-audit case (hooks are short-lived, so convention minimums suffice — no P99 evidence possible).
@@ -40,7 +40,7 @@ A VPA recommendation is a **candidate request, not a drop-in** — cross-check i
 
 ## Decide and record
 
-- Rationale comment at the value in the manifest (`writing-code` skill Comments rules, cmdshift/platform#43); trend-driven cases get a tracking issue with the data (cmdshift/platform#20 is the template).
+- Rationale comment at the value in the manifest (`writing-yaml` skill Comments rules, cmdshift/platform#43); trend-driven cases get a tracking issue with the data (cmdshift/platform#20 is the template).
 - The `ContainerOOMKilled` alert guards the ceiling meanwhile — alerts at http://mail.cloud.test.
 
 ## Full detail
