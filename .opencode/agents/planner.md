@@ -31,7 +31,8 @@ The dispatch prompt gives you:
    explains the surface map and dependency-order rules).
 3. **Write the detail plan** to `.agents/temp/plans/<issue>-section-<n>-<short-name>.md` (the
    dispatch names the exact path; if not, derive it from the root plan name). This file is your ONLY
-   write target. The checklist must be **executable checkboxes**: every step a `- [ ]` item the
+   write target — plans live in `.agents/temp/plans/`; never write anywhere else in or out of the
+   repo. The checklist must be **executable checkboxes**: every step a `- [ ]` item the
    executor can tick as it completes — granular steps (one edit, one command, one verification per
    item), not paragraph-level phases. During any recon you run, note repo facts the executor would
    otherwise have to rediscover (exact file paths, line-level realities) into the items themselves.
@@ -43,6 +44,13 @@ conversation. The plan must be self-sufficient:
 
 - **Header**: issue ref (`cmdshift/platform#N`), branch, one-paragraph goal of the section. Add the
   standing line: "All git operations are the primary agent's job; this plan contains no git steps."
+- **File scope**: an explicit list of the files the section touches — exact paths, and for edits the
+  specific location within each (anchor text, block, line range). The executor works only from these
+  files; anything outside the scope that turns out to be needed is a stop-and-escalate, not an
+  extension. Keep the section small enough that the scope list is short — if the section's source
+  material is too large to reason about reliably, **split it into two sections in the root plan**
+  (by logical boundary — one resource, one chart, one migration) rather than expanding one
+  oversized window.
 - **Context**: the settled decisions and conventions the executor must honor (copy the relevant
   bits out of the root plan — the executor can't read your mind or this chat).
 - **The checklist**: long and detailed, ordered by dependency, written as **granular `- [ ]`
@@ -51,7 +59,7 @@ conversation. The plan must be self-sufficient:
   exact edits or commands, and the expected outcome. Include verification steps (e.g. `yaml_lint`,
   `helm_verify`, `sync_wait`, `flux_wait`, `policy_report`) where they apply, and call out surfaces
   that are deliberately excluded from live verification.
-- **Executor restrictions** (design the plan around these — the change-executor cannot):
+- **Executor restrictions** (design the plan around these — the executor cannot):
   - **Run git** — no branch, add, commit, push, stash, `git mv`, `git diff`, `git log` (denied at
     the permission level). Never put a git command in a checklist item. Plan file moves as plain
     `mv` (git detects identical-content renames at commit). For before/after comparisons, use
@@ -63,7 +71,10 @@ conversation. The plan must be self-sufficient:
     (messages + file groupings); the primary agent + human own all actual git work.
 - **Traps**: landmines from READMEs/skills/CHANGELOG that this section can hit, with the ref.
 - **Docs surfaces**: which READMEs/CHANGELOG entries this section makes stale.
-- **Done criteria**: what "this section is complete" looks like, concretely.
+- **Done criteria**: what "this section is complete" looks like, concretely — each item stated so
+  the **verifier** subagent can independently confirm it against the files on disk and cluster
+  state (it has no git, so expectations must be artifact-shaped: file content, command outcomes,
+  on-cluster state — never diff-shaped).
 
 Use rich markdown (tables, lists) where it clarifies. Do not include steps belonging to other
 sections; note hand-off points where another section must run first.
