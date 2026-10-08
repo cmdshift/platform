@@ -105,7 +105,7 @@ Expect `0 errors` + ~19 benign `No annotations found ... using restore spec sett
 
 1. `storage-config/*.storage-class.yaml` — `defaultVolumeType: local` annotation on both StorageClasses
 2. `backups/velero.helm-release.yaml` — `nodeAgent.extraArgs: [--node-agent-configmap=node-agent-config]`
-3. `backups-config/node-agent-config.configmap.yaml` — `podResources` for the temporary data mover pods (velero 1.15+ runs the kopia data path in hosting pods that are BestEffort by default → denied by `require-resource-limits`)
+3. `backups-config/node-agent-config.config-map.yaml` — `podResources` for the temporary data mover pods (velero 1.15+ runs the kopia data path in hosting pods that are BestEffort by default → denied by `require-resource-limits`)
 4. `policies-config/allow-velero-security-contexts.policy-exception.yaml` — extended to match data mover pods via the `velero.io/pod-volume-backup`/`velero.io/pod-volume-restore` labels (their names derive from the PVB/PVR, no usable prefix)
 
 Two gotchas the drill surfaced:

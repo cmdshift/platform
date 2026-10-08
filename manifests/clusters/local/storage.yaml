@@ -13,7 +13,7 @@ spec:
   sourceRef:
     kind: Bucket
     name: main
-  path: ./manifests/bases/storage
+  path: ./manifests/clusters/local/storage
   prune: true
   wait: true
   timeout: 5m

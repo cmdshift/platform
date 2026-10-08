@@ -5,5 +5,4 @@ resources:
   - default.backup-storage-location.yaml
   - talos-backup-s3-credentials.external-secret.yaml
   - talos-backup-age-public-key.external-secret.yaml
-  # - talos-backup.vpa.yaml
   - velero-s3-credentials.external-secret.yaml

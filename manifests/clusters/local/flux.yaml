@@ -12,7 +12,7 @@ spec:
   sourceRef:
     kind: Bucket
     name: main
-  path: ./manifests/bases/flux
+  path: ./manifests/clusters/local/flux
   prune: true
   wait: true
   timeout: 3m

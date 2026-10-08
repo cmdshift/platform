@@ -1,6 +1,3 @@
-# Admission-time backstop for the tetragon exec deny-list: container-init execs escape
-# pod-scoped enforcement. Binary list is verbatim the tetragon deny-list's — keep the two
-# in lockstep (security/README.md; scoped namespaces cmdshift/platform#56, cmdshift/platform#58)
 apiVersion: policies.kyverno.io/v1
 kind: ValidatingPolicy
 metadata:
@@ -23,10 +20,6 @@ spec:
         - jobs
         - cronjobs
   matchConditions:
-    # phase-4 wave 1 (cmdshift/platform#60): every flux-managed namespace.
-    # Lockstep with the exec-deny-list-* TracingPolicies.
-    # NOTE: the sync Job for OpenObserve dashboards/alerts curls the O2 API from
-    # an image whose ENTRYPOINT is the sync script — no shell command needed.
     - name: operator-namespaces
       expression: "object.metadata.namespace in ['flux-system', 'policies', 'secrets', 'access', 'backups', 'certificates', 'datastores', 'observability', 'scanning', 'security', 'storage']"
   variables:

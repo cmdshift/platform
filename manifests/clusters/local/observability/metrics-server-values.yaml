@@ -1,0 +1,15 @@
+apiService:
+  create: true
+args:
+  - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+  - --metric-resolution=15s
+  - --logging-format=json
+securityContext:
+  runAsGroup: 1000
+resources:
+  requests:
+    cpu: 10m
+    memory: 72Mi
+  limits:
+    cpu: 200m
+    memory: 108Mi

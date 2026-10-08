@@ -1,7 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - resource-quota.yaml
+  - security.resource-quota.yaml
   - exec-deny-list-access.tracing-policy.yaml
   - exec-deny-list-backups.tracing-policy.yaml
   - exec-deny-list-backups-jobs.tracing-policy.yaml

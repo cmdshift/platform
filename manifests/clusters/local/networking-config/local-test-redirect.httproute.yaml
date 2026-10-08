@@ -1,6 +1,3 @@
-# HTTP→HTTPS redirect for local.test / *.local.test. Attached to the two HTTP listeners
-# only — the HTTPS listeners would 301 in a loop. No port: cilium renders the
-# scheme-implied 443, which is the host-facing port.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:

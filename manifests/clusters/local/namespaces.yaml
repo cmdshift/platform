@@ -9,9 +9,7 @@ spec:
   sourceRef:
     kind: Bucket
     name: main
-  path: ./manifests/bases/namespaces
-  # never prune: pruning a namespace manifest deletes the namespace and
-  # everything in it, including objects owned by other kustomizations
+  path: ./manifests/clusters/local/namespaces
   prune: false
   wait: true
   timeout: 2m

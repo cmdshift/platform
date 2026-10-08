@@ -1,6 +1,5 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-# flux-system (flux2 HelmRelease) and kube-system (cluster-owned) are not managed here
 resources:
   - policies.namespace.yaml
   - certificates.namespace.yaml

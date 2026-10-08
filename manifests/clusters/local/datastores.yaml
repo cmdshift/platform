@@ -9,15 +9,12 @@ spec:
   dependsOn:
     - name: namespaces
     - name: sources
-    # CNPG CRDs land via the crds group; no hard ordering vs the operator —
-    # the chart doesn't render-lookup CRDs and its fail-closed webhooks only
-    # fire on CNPG CRs
     - name: crds
     - name: networking
   sourceRef:
     kind: Bucket
     name: main
-  path: ./manifests/bases/datastores
+  path: ./manifests/clusters/local/datastores
   prune: true
   wait: true
   timeout: 3m

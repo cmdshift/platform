@@ -23,5 +23,5 @@ resources:
   - require-graceful-termination.validating-policy.yaml
   - require-resource-limits.validating-policy.yaml
   - require-run-as-nonroot.validating-policy.yaml
-  - resource-quota.yaml
+  - policies.resource-quota.yaml
   - restrict-seccomp-string.validating-policy.yaml

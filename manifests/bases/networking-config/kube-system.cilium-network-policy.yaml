@@ -10,7 +10,6 @@ spec:
         - kube-apiserver
     - toEntities:
         - host
-    # DNS
     - toEntities:
         - world
       toPorts:
@@ -22,11 +21,9 @@ spec:
     - toEntities:
         - remote-node
       toPorts:
-         # Cilium Hubble
         - ports:
             - port: "4244"
               protocol: TCP
-        # Metrics Server
         - ports:
             - port: "10250"
               protocol: TCP

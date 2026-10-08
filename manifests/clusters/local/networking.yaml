@@ -13,7 +13,7 @@ spec:
   sourceRef:
     kind: Bucket
     name: main
-  path: ./manifests/bases/networking
+  path: ./manifests/clusters/local/networking
   prune: true
   wait: true
   timeout: 3m

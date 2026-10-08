@@ -17,6 +17,7 @@ In-cluster CronJob (04:00 daily, after velero's 03:00 — the pipelines stay ind
 - **The image has no prefix knob besides `S3_PREFIX`** (default: `CLUSTER_NAME`): the object key is `<S3_PREFIX>/<CLUSTER_NAME>-<ts>.snap.zst.age` — the cluster name folds into the filename under the prefix, not a nested dir.
 - **Endpoint stays `http://s3.cloud.test`** with the other cluster consumers (`:80` baseline, cmdshift/platform#131 migrates) — no CA mount needed while minio-go is on plain HTTP; a TLS migration must add the platform root CA to the job container's trust store.
 - **Restore is drilled** (2026-09-27, cmdshift/platform#94 phase 2): full quorum loss → `talosctl bootstrap --recover-from` with a 24h-old rustfs artifact → 3 members rejoined, cluster re-converged. Procedure, container-mode landmines, and the post-restore checklist: the etcd-backups runbook.
+- **Container resources** (VPA recs, Off mode, post-snapshot): cpu 11m, mem 36Mi — an 88MiB etcd stream compresses+encrypts to 16MiB in ~40s.
 
 ## Deliberately local-only settings
 
@@ -27,9 +28,17 @@ In-cluster CronJob (04:00 daily, after velero's 03:00 — the pipelines stay ind
 
 - **Memory sizing is 2× the convention on purpose** (evidence at the value in `velero.helm-release.yaml`): kopia repo-maintenance spikes OOM-killed the server at 1.5× (cmdshift/platform#20 trend data; verified across a full failure cycle).
 - **The `node-agent-config` configmap ships with the release in `backups/`, not `backups-config/`** — velero exits at startup if the flag's configmap is missing, and `backups-config` `dependsOn` backups, so keeping it in the config group was a circular wedge on fresh rebuilds (rebuilds are one-shot again since the move).
-- The data-mover PolicyException is extended to match the temporary hosting pods via the `velero.io/pod-volume-*` labels (their names derive from the PVB/PVR, no usable prefix).
+- The data-mover PolicyException is extended to match the temporary hosting pods via the `velero.io/pod-volume-*` labels (their names derive from the PVB/PVR, no usable prefix). `require-graceful-termination` covers the movers: velero hardcodes `TerminationGracePeriodSeconds: 0`, no upstream knob (cmdshift/platform#111).
 - The `pvcs` schedule (03:00 daily, all namespaces, fs-backup, 72h TTL) rides the `defaultVolumeType: local` StorageClass annotation — **FSB silently skips hostPath PVs**, so a hostPath regression shows up as PodVolumeBackups going empty, not as an error.
 - **Retention keeps at most 3 backup generations live**: the 72h TTL on the daily 03:00 schedule bounds each backup's lifetime to 3 days, so no more than 3 generations coexist (cmdshift/platform#109).
+
+## velero-values evidence (`clusters/local/backups/velero-values.yaml`)
+
+- velero server: OOMKilled at 132Mi during kopia repo prep — the 2× limit absorbs maintenance spikes (see the sizing decision above).
+- node-agent: busiest node-agent 51Mi steady — 88Mi = observed × 1.2.
+- velero server metrics `enabled` — :8085, the metrics collector scrapes the metrics service.
+- JSON logging: platform convention.
+- The plugin init container's `containerSecurityContext` carries the roFS/caps deviations (chart exposes container-level SC only there — see the maintenance-Job section).
 
 ## Kopia repo-maintenance Jobs (fix-first, no PolicyException)
 

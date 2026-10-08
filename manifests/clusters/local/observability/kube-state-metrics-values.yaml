@@ -1,0 +1,11 @@
+containerSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  runAsGroup: 65534
+resources:
+  requests:
+    cpu: 10m
+    memory: 96Mi # 12h median 69Mi / max 79Mi — max x 1.2, limit 1.5x; re-check after series growth
+  limits:
+    cpu: 200m
+    memory: 144Mi

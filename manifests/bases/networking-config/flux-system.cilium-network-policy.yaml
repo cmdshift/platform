@@ -10,10 +10,8 @@ spec:
         - matchLabels:
             io.kubernetes.pod.namespace: flux-system
   egress:
-    # K8s API server
     - toEntities:
         - kube-apiserver
-    # Intra-namespace (inter-controller traffic)
     - toEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: flux-system
@@ -24,7 +22,6 @@ spec:
         - ports:
             - port: "9093"
               protocol: TCP
-    # All HTTPS egress (registries, S3, GitHub, Helm repos, etc.)
     - toEntities:
         - world
       toPorts:

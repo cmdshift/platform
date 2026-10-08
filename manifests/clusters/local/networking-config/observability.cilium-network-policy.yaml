@@ -13,19 +13,17 @@ spec:
         - kube-apiserver
     - toEntities:
         - cluster
-    # openobserve-collector agent scrapes kubelet + control-plane (metrics)
     - toEntities:
         - host
         - remote-node
       toPorts:
         - ports:
-            - port: "10250"   # kubelet
+            - port: "10250"
               protocol: TCP
-            - port: "10257"   # kube-controller-manager
+            - port: "10257"
               protocol: TCP
-            - port: "10259"   # kube-scheduler
+            - port: "10259"
               protocol: TCP
-    # openobserve writes parquet data to rustfs (companion haproxy :80, velero pattern)
     - toFQDNs:
         - matchName: s3.cloud.test
       toPorts:

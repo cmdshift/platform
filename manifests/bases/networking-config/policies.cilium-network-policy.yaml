@@ -11,21 +11,18 @@ spec:
         - host
         - remote-node
   ingress:
-    # Allow API Server / Node / KubePrism traffic to Kyverno Webhook
     - fromEntities:
         - kube-apiserver
         - host
         - remote-node
       toPorts:
         - ports:
-            - port: "9443" # Kyverno admission controller container port
+            - port: "9443"
               protocol: TCP
-            - port: "443"  # Service port
-    # Allow intra-namespace pod communication
+            - port: "443"
     - fromEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: policies
-    # the observability metrics collector scrapes kyverno's metrics-port (:8000)
     - fromEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: observability

@@ -4,7 +4,6 @@ metadata:
   name: talos-backup
   namespace: backups
 spec:
-  # after velero's 03:00 — the two pipelines stay independent
   schedule: "0 4 * * *"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
@@ -19,9 +18,6 @@ spec:
           restartPolicy: Never
           containers:
             - name: talos-backup
-              # pinned; the tag carries USE_PATH_STYLE wiring (upstream b9fd478 —
-              # beta.3 lacks it and PUTs virtual-host style, which recursed the
-              # external haproxy into OOM)
               image: ghcr.io/siderolabs/talos-backup:v0.1.0-beta.3-10-gb9fd478
               imagePullPolicy: IfNotPresent
               workingDir: /tmp
@@ -34,8 +30,6 @@ spec:
                 - name: BUCKET
                   value: backups
                 - name: S3_PREFIX
-                  # root-level CLUSTER_NAME keys made velero's BSL validation
-                  # reject the whole bucket (cmdshift/platform#94) — nest under talos/
                   value: talos
                 - name: AWS_REGION
                   value: local
@@ -70,8 +64,6 @@ spec:
                 seccompProfile:
                   type: RuntimeDefault
               resources:
-                # VPA recs (Off, post-snapshot): cpu 11m, mem 36Mi — 88MiB etcd streamed,
-                # compressed+encrypted to 16MiB in ~40s
                 requests:
                   cpu: 50m
                   memory: 64Mi

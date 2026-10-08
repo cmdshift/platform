@@ -6,14 +6,12 @@ metadata:
 spec:
   interval: 1h
   retryInterval: 5s
-  # PVC-creating groups (objects, observability, backups) depend on this, not storage
-  # (invariant: manifests/README.md dependency rules)
   dependsOn:
     - name: storage
   sourceRef:
     kind: Bucket
     name: main
-  path: ./manifests/bases/storage-config
+  path: ./manifests/clusters/local/storage-config
   prune: true
   wait: true
   timeout: 5m

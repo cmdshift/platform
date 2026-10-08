@@ -6,14 +6,10 @@ metadata:
 spec:
   endpointSelector: {}
   egress:
-    # agent watches the k8s API (tetragon.enableK8sAPI)
     - toEntities:
         - kube-apiserver
-    # agent is hostNetwork — node-local paths resolve via the host entity
     - toEntities:
         - host
-    # default-deny CCNP allows kube-dns :53 for non-kube-system namespaces, but the agent
-    # uses dnsPolicy Default (node resolv.conf) — keep explicit DNS egress here too
     - toEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: kube-system
@@ -27,5 +23,3 @@ spec:
           rules:
             dns:
               - matchPattern: "*"
-  # no ingress section: this cluster's default-deny is egress-only, and the metrics ports
-  # must stay scrapeable by Prometheus (tetra gRPC is loopback-only, doesn't traverse Cilium)

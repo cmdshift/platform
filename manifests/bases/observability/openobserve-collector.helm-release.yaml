@@ -24,9 +24,6 @@ spec:
     remediation:
       retries: 3
       remediateLastFailure: true
-  # one release per chart mode: the agent (daemonset) and gateway (deployment)
-  # can't share a release because `mode` + `config` are release-global in the
-  # otel chart. The gateway is a second HelmRelease below.
   valuesFrom:
     - kind: ConfigMap
       name: openobserve-collector-agent-values

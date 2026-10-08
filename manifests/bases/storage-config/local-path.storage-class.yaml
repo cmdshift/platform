@@ -4,14 +4,8 @@ metadata:
   name: local-path
   annotations:
     storageclass.kubernetes.io/is-default-class: "true"
-    # defaultVolumeType: local — REQUIRED for velero FSB (skips hostPath PVs) and the only
-    # reason kubelet_volume_stats_* exists for these PVCs; details: runbooks/local/velero-backups.md.
-    # Affects NEW PVs only — existing hostPath PVs are grandfathered until recreated
     defaultVolumeType: local
 provisioner: rancher.io/local-path
 reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer
-# false on purpose: local-path-provisioner has NO expansion code and non-CSI provisioners
-# can't expand anyway — `true` just lets a PVC resize hang forever (recreate-with-larger-size
-# is the local resize path; CSI in the cloud expands fine)
 allowVolumeExpansion: false # true in the cloud

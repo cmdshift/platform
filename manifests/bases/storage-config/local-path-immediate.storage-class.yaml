@@ -3,11 +3,8 @@ kind: StorageClass
 metadata:
   name: local-path-immediate
   annotations:
-    # defaultVolumeType: local — same rationale as the local-path class (velero FSB compat)
     defaultVolumeType: local
 provisioner: rancher.io/local-path
 reclaimPolicy: Delete
 volumeBindingMode: Immediate
-# false on purpose — same rationale as the local-path class (no expansion code
-# in local-path-provisioner; a true value would wedge any PVC resize forever)
 allowVolumeExpansion: false # true in the cloud

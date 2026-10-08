@@ -1,6 +1,3 @@
-# Exec deny-list, flux-system — stage-2 flip 2, enforce (cmdshift/platform#28). Pod-label
-# scoping only (1.7.1 matchNamespaces has no "Kube" type) — add future flux controllers
-# below or they're out of scope; debug shells are killed by design (security/README.md)
 apiVersion: cilium.io/v1alpha1
 kind: TracingPolicy
 metadata:
@@ -15,22 +12,18 @@ spec:
           - kustomize-controller
           - notification-controller
           - source-controller
-  # list-of-{name,value}; "enforce"/"monitor" only — the display strings fail agent-side
   options:
     - name: policy-mode
       value: enforce
   kprobes:
     - call: security_bprm_check
       syscall: false
-      # type: file silently never enforces (arg0 is linux_binprm*; the agent
-      # only logs a validation warning) — landmine in security/README.md
       args:
         - index: 0
           type: linux_binprm
       message: "exec of denied binary in operator namespace"
       selectors:
         - # Prefix matches by path prefix; no legit binary in these pods
-          # shares a prefix with the deny list
           matchArgs:
             - index: 0
               operator: Prefix

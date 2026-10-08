@@ -11,8 +11,6 @@ spec:
   sourceRef:
     kind: Bucket
     name: main
-  path: ./manifests/bases/scanning-config
-  # ClusterComplianceReports are trivy-operator CRDs — this group depends on
-  # scanning (the operator installs the CRDs via its helm chart)
+  path: ./manifests/clusters/local/scanning-config
   prune: true
   timeout: 2m

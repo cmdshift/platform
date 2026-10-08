@@ -15,8 +15,6 @@ spec:
         name: fairwinds
         namespace: flux-system
   install:
-    # the chart ships its CRDs in the crds/ dir — install-only, never in the
-    # release secret (1MB cap)
     crds: Create
     remediation:
       retries: 3

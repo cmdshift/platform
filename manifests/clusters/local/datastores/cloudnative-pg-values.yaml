@@ -1,0 +1,13 @@
+crds:
+  create: false
+
+image:
+  tag: "1.30.0"
+
+resources:
+  requests:
+    cpu: 15m
+    memory: 96Mi
+  limits:
+    cpu: 1000m
+    memory: 144Mi

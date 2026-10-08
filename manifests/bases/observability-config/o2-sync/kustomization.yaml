@@ -2,22 +2,15 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: observability
 resources:
-  - service-account.yaml
-  - job.yaml
+  - o2-sync.service-account.yaml
+  - o2-sync.job.yaml
 configMapGenerator:
-  # the sync script itself — mounted, not baked into the image, so a script
-  # edit re-runs the Job via the hash suffix (cmdshift/platform#171)
   - name: o2-sync-script
     files:
       - sync.sh=scripts/sync.sh
-  # email destination (cmdshift/platform#182) — replaces the alertmanager pair
   - name: o2-destinations
     files:
       - email.json=destinations/email.json
-  # dashboards grouped by domain — each CM has its own ~256KB cap in the
-  # kustomize-controller dry-run (last-applied annotation, not the 1MiB data
-  # limit), so keep every generated object well under it (cmdshift/platform#171);
-  # kubernetes-overview.json dropped — 420KB alone, over the cap
   - name: o2-dashboards-kubernetes
     files:
       - dashboards/kubernetes-namespace-pod.json
@@ -38,24 +31,14 @@ configMapGenerator:
       - alerts/job_failed.json
       - alerts/velero_backup_stale.json
       - alerts/velero_backup_failed.json
-      # velero_repo_maintenance alert parked: its stream materializes only on
-      # a FAILED maintenance run — none since the repo re-init. Re-add after
-      # the nightly maintenance fires (cmdshift/platform#171).
       # - alerts/velero_repo_maintenance_failed.json
       - alerts/tetragon_tracingpolicy_load_failed.json
       - alerts/tetragon_enforcement_kill.json
-      # trivy alert parked: trivy_image_vulnerabilities stream materializes
-      # only after the first VulnerabilityReport — none exist yet (vuln scan
-      # investigation parked, cmdshift/platform#171). Re-add with the file.
       # - alerts/trivy_critical_image_vulnerabilities.json
       - alerts/cilium_datapath_fast_burn.json
       - alerts/cilium_datapath_slow_burn.json
       - alerts/watchdog.json
       - alerts/high_error_rate.json
-      # flux_image_issue from the o2-alerts-library pack is not synced: image
-      # automation controllers are create:false in this cluster, so no
-      # ImagePolicy/ImageRepository/ImageUpdateAutomation objects exist and the
-      # gotk_resource_info{ready="False"} series can never materialize.
       - alerts/flux_helmrelease_failure.json
       - alerts/flux_kustomization_failure.json
       - alerts/flux_source_issue.json

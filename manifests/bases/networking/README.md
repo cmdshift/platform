@@ -1,6 +1,6 @@
 # networking
 
-Cilium as the CNI + the cluster's network policy objects (`networking-config/`).
+Cilium as the CNI + the cluster's network policy objects (`networking-config/` — its per-CNP scope/why tables: [networking-config/README.md](../networking-config/README.md)).
 
 ## Cilium is flux-adopted — values are manifest edits
 
@@ -22,6 +22,24 @@ The cloud deltas are spelled out in [manifests/cloud/notes.md](../../clusters/cl
 - **`l2announcements`** — relies on the docker bridge being one L2 segment.
 
 Keep as-is (validate under real traffic in the cloud): `ipam.mode: kubernetes`. `kubeProxyReplacement` is no longer a delta — true everywhere since cmdshift/platform#70.
+
+## cilium-values decision table (`clusters/local/networking/cilium-values.yaml`)
+
+| value | why | ref |
+|---|---|---|
+| `upgradeCompatibility: null` | explicit null (chart convention — set to previous version when upgrading) | — |
+| `encryption.type: wireguard` | wireguard, not ztunnel: ztunnel ships only in the 1.21-pre line and the local pin is back on stable — cloud decision (notes.md) applies locally too | #87 |
+| envoy memory 64Mi request | steady ~25Mi; connectivity-test L7 traffic pushed a busy node to ~69Mi | audit |
+| hubble.relay.prometheus | relay metrics (9966) — the metrics collector scrapes the metrics service | #171 |
+| hubble.ui.httpRoute.enabled: false (explicit) | the chart nil-pointers when the key is absent (verified on the 1.21-pre installs; keep the key on 1.20.x too, harmless) | — |
+| hubble-ui backend/frontend CPU limits 200m/100m | audits: 13.6% / 33% of CFS periods throttled (at 100m / 20m) | audit |
+| `kubeProxyReplacement: true` | gateway-api controller prerequisite — the operator refuses the GatewayClass without it | #70 |
+| prometheus.enabled | cilium-agent metrics :9962 — disabled by chart default, the metrics collector scrapes it | #171 |
+| prometheus.metricsService + operator.prometheus.metricsService | the metrics services exist ONLY while serviceMonitor.enabled is true (chart renders svc+SM as one block) — keep metricsService on now that the SMs are gone, or discovery finds no cilium-agent/cilium-operator targets | #146 |
+| operator CPU limit 200m | audit: 7.3% of CFS periods throttled (at 40m) — convention floor | audit |
+| agent requests 100m/512Mi, limits 1000m/768Mi | 12h CPU P99 85m with 7.5% of CFS periods throttled at 50m — eBPF/encrypt bursts; agents 296-351Mi (worst node) — 448Mi = worst-node×1.2, OOM live on the busiest node (cilium-fzn9p, 368Mi steady after the auth-proxy Gateway routes landed) — request re-audited 1.3×→512Mi, limit 768Mi restores the 1.5× burst ratio (was 672Mi); CPU limit audit: 21.8% of CFS periods throttled (at 200m) | #41 |
+
+Chart pin rationale (HelmRelease `version: 1.20.2`): kernel-7.2 startup crash fixed there (`b73ca6e8` — `bpf_core_enum_value_exists` for HAVE_SET_RETVAL, cilium/cilium#48016); the pre-release pin is no longer needed; the pin must match the bootstrap pin or adoption downgrades back to a broken release.
 
 ## Encryption: wireguard (ztunnel removed, cmdshift/platform#41)
 

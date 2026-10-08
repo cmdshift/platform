@@ -52,7 +52,7 @@ helm_verify [path] [release]      # renders the release with the EXACT values fl
                                   # (resolves valuesFrom refs + chart from source CRs locally)
 ```
 
-Use the single-release form (`helm_verify manifests/bases/<group> <release>`) for ad-hoc values debugging. When you need to eyeball the full rendered manifest (hook jobs, securityContext placement), render by hand — but render with the real values, not reconstructed ones:
+Use the single-release form (`helm_verify <release-dir> <release>` — the release's values now live in the `clusters/local/<group>/` overlay, and `helm_verify` does not follow kustomize `resources:` across the base↔overlay split, so point it at the dir holding the HelmRelease or template per release with `kubectl kustomize`-built values, cmdshift/platform#183) for ad-hoc values debugging. When you need to eyeball the full rendered manifest (hook jobs, securityContext placement), render by hand — but render with the real values, not reconstructed ones:
 
 ```
 helm template <release> <chart> --namespace <ns> -f .agents/temp/release-values.yaml

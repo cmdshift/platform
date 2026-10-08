@@ -1,6 +1,3 @@
-# Audit of BPF subsystem interactions: program loads, perf_event allocation, bpffs access,
-# map creation — monitor_only, expected actors cilium + tetragon only. security_bpf_map_alloc
-# needs ignore.callNotFound (renamed in Linux 6.9 — verified in kallsyms)
 apiVersion: cilium.io/v1alpha1
 kind: TracingPolicy
 metadata:

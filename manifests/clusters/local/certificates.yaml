@@ -12,7 +12,7 @@ spec:
   sourceRef:
     kind: Bucket
     name: main
-  path: ./manifests/bases/certificates
+  path: ./manifests/clusters/local/certificates
   prune: true
   wait: true
   timeout: 5m

@@ -14,7 +14,7 @@ spec:
   sourceRef:
     kind: Bucket
     name: main
-  path: ./manifests/bases/policies
+  path: ./manifests/clusters/local/policies
   prune: true
   wait: true
   timeout: 3m

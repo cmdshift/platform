@@ -21,10 +21,8 @@ spec:
       kind: ValidatingPolicy
     - name: restrict-seccomp-strict
       kind: ValidatingPolicy
-    # the agents terminate in 1s by design (fast node shutdown, no state to drain)
     - name: require-graceful-termination
       kind: ValidatingPolicy
   matchConditions:
-    # startsWith is required for hubble-relay: autogen pods carry RS-hash suffixes (cmdshift/platform#100)
     - name: match-cilium
       expression: "object.metadata.namespace == 'kube-system' && (object.metadata.name.startsWith('cilium') || object.metadata.name.startsWith('hubble-relay'))"

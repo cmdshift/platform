@@ -3,16 +3,3 @@ kind: Kustomization
 resources:
   - cert-manager.helm-release.yaml
   - kubelet-csr-approver.helm-release.yaml
-configMapGenerator:
-  - name: cert-manager-values
-    namespace: certificates
-    files:
-      - values.yaml=cert-manager-values.yaml
-    options:
-      disableNameSuffixHash: true
-  - name: kubelet-csr-approver-values
-    namespace: kube-system
-    files:
-      - values.yaml=kubelet-csr-approver-values.yaml
-    options:
-      disableNameSuffixHash: true
