@@ -98,21 +98,42 @@ The pre-reconcile lint step.
 Renders every HelmRelease's values through `helm template` (the pre-reconcile
 values check of the `platform-workflow` loop, automated). Charts resolve from the source CRs on
 the live cluster: HelmRepository → repo index, GitRepository (tag/commit) →
-shallow clone. All helm state lives in a temp dir. An optional release-name
+shallow clone. All helm state lives in a scratch dir under the repo's
+`.agents/temp/` (gitignored, removed by an EXIT trap). An optional release-name
 argument renders just that one (ad-hoc values debugging without the
 full-suite noise).
+
+When `path` contains a `kustomization.yaml`, releases and values sources are
+resolved from the `kubectl kustomize` build — the tool renders what flux
+ships: layer precedence, name refs, and hash suffixes are inherited from the
+build, with no tie-break heuristics (cmdshift/platform#187). The intended
+granularity is the per-group overlay (e.g. `helm_verify
+manifests/clusters/local/backups`); a bare repo-root run (no args, defaulting
+to `manifests/clusters/local`) builds only the root's flux Kustomization CRs
+and reports `OK: 0 releases — no 'kind: HelmRelease' found under …` by
+design — that message is the loud empty-set notice, not a failure.
 
 Values sources, merged in flux order (inline first, refs after, last wins):
 
 - `spec.values` inline in the HelmRelease
-- `spec.valuesFrom` ConfigMap refs, resolved **locally** (issue
-  cmdshift/platform#31 pattern): a `configMapGenerator` entry in the
-  release's `kustomization.yaml` — the referenced file (e.g.
+- `spec.valuesFrom` ConfigMap refs, resolved from the **kustomize build
+  output** when the path has a `kustomization.yaml`: each ref matches the
+  built ConfigMap's `metadata.name`, and the `valuesKey` data key (default
+  `values.yaml`) is extracted for `helm template --values`. A ref with no
+  matching ConfigMap in the build is a FAIL, not a skip — and a built CM
+  carrying a hash suffix when the release refs the plain name is also a
+  legitimate FAIL (identical to what flux would ship), not a tool bug.
+  Single-file / ad-hoc paths without a `kustomization.yaml` keep the same-dir
+  resolution (the cmdshift/platform#31 pattern): a `configMapGenerator`
+  entry in the path's `kustomization.yaml` — the referenced file (e.g.
   `values.yaml=trivy-values.yaml`) is a plain values doc that
-  `helm template --values` consumes directly; falls back to a literal
-  `kind: ConfigMap` manifest with a matching name (data key extracted). A
-  ref with no local source is a FAIL, not a skip — the render would be
+  `helm template --values` consumes directly — falls back to a literal
+  `kind: ConfigMap` manifest with a matching name (data key extracted).
+  A ref with no source is a FAIL, not a skip — the render would be
   lying about what flux will ship.
+- A failed `kubectl kustomize` build is a hard FAIL with kustomize's stderr
+  (exit 1) — a build that breaks would wedge flux too, so it must never read
+  as green.
 
 - `PASS/FAIL` per release + `OK: N releases render clean`; exit 1 on any
   failure or missing source CR; exit 2 on usage errors (nonexistent path,
