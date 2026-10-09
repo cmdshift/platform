@@ -7,12 +7,16 @@
 # Values sources, merged in flux order (inline first, valuesFrom refs after —
 # later files override earlier ones):
 #   - spec.values (inline in the HelmRelease)
-#   - spec.valuesFrom ConfigMap refs, resolved locally:
-#       a configMapGenerator entry in the release's kustomization.yaml
-#       (cmdshift/platform#31 pattern — the referenced file is a plain values
-#       doc, e.g. `values.yaml=trivy-values.yaml`), falling back to a literal
-#       kind: ConfigMap manifest with a matching name (data key extracted).
-#       A ref with no local source is a FAIL, not a skip.
+#   - spec.valuesFrom ConfigMap refs, resolved from the rendered resources:
+#       a path with a kustomization.yaml is built with `kubectl kustomize` and
+#       each ref matches the built ConfigMap's metadata.name (data key
+#       extracted) (cmdshift/platform#187 — flux ships the build output, so
+#       name refs/hash suffixes are inherited); single-file / ad-hoc paths
+#       without a kustomization fall back to same-dir configMapGenerator
+#       entries (cmdshift/platform#31 pattern — the referenced file is a plain
+#       values doc, e.g. `values.yaml=trivy-values.yaml`) or a literal
+#       kind: ConfigMap manifest with a matching name.
+#       A ref with no matching ConfigMap is a FAIL, not a skip.
 # Chart sources resolve from the live cluster's source CRs
 # (`kubectl get helmrepo,gitrepo -n flux-system`): HelmRepository →
 # `helm repo add` + template from the repo index; GitRepository (tag or
@@ -32,7 +36,7 @@
 set -uo pipefail
 
 path="" filter="" fail=0 count=0
-tmp="" SOURCES="" kube_args=() VFILES=()
+tmp="" SOURCES="" kube_args=() VFILES=() releases=""
 
 usage() {
   echo "usage: helm_verify [path] [release]" >&2
@@ -59,6 +63,19 @@ git_checkout() { # url reftype refvalue dest
   else
     git -c advice.detachedHead=false clone -q --depth 1 --branch "$ref" "$url" "$dest"
   fi
+}
+
+# resolve a valuesFrom ConfigMap ref from the kustomize build output; empty
+# output = unresolved (a `null` data value — CM exists but lacks the key —
+# counts as unresolved too: helm would get an empty values file silently)
+resolve_cm_from_build() { # refname refkey -> echo values file; empty = unresolved
+  local rname="$1" rkey="$2"
+  # -o=json emits the data value as a JSON string (data keys are scalar
+  # strings, even when the value is a YAML doc) — jq -r decodes it back to
+  # the raw text helm expects
+  yq eval-all -o=json 'select(.kind == "ConfigMap" and .metadata.name == "'"$rname"'") | .data["'"$rkey"'"] | select(. != null)' "$tmp/build.yaml" \
+    | jq -r '.' > "$tmp/cm-$rname.yaml"
+  [[ -s "$tmp/cm-$rname.yaml" ]] && echo "$tmp/cm-$rname.yaml"
 }
 
 # resolve a valuesFrom ConfigMap ref to a local values file; empty output = unresolved
@@ -167,9 +184,13 @@ collect_values() { # file name -> VFILES (inline first, then valuesFrom refs in
   VFILES+=("$inline")
   while IFS=$'\t' read -r rname rkey; do
     [[ -z "$rname" ]] && continue
-    src=$(resolve_cm_values "$(dirname "$f")" "$rname" "$rkey")
+    if [[ -s "${tmp:-}/build.yaml" ]]; then
+      src=$(resolve_cm_from_build "$rname" "$rkey")
+    else
+      src=$(resolve_cm_values "$(dirname "$f")" "$rname" "$rkey")
+    fi
     if [[ -z "$src" ]]; then
-      echo "FAIL: $name — valuesFrom ConfigMap/$rname (key '$rkey') has no local source (expected configMapGenerator in $(dirname "$f")/kustomization.yaml or a literal ConfigMap manifest)"
+      echo "FAIL: $name — valuesFrom ConfigMap/$rname (key '$rkey') has no matching ConfigMap in the kustomize build output (or local source for single-file mode)"
       unresolved=1
     else
       VFILES+=("$src")
@@ -202,7 +223,8 @@ helm_verify() {
   [ -e "$path" ] || { echo "helm_verify: no such path: $path" >&2; usage; }
 
   command -v helm >/dev/null || { echo "FAIL: helm not installed"; exit 1; }
-  tmp=$(mktemp -d)
+  GIT_ROOT=$(git rev-parse --show-toplevel)
+  tmp=$(mktemp -d "$GIT_ROOT/.agents/temp/helm_verify.XXXXXX")
   SOURCES="$tmp/sources.tsv"
   trap 'rm -rf "$tmp"' EXIT
   export HELM_CACHE_HOME="$tmp/cache" HELM_CONFIG_HOME="$tmp/config" HELM_DATA_HOME="$tmp/data"
@@ -213,7 +235,20 @@ helm_verify() {
   kubever=$(kubectl version -o json 2>/dev/null | jq -r '.serverVersion.gitVersion // empty')
   kube_args=(); [[ -n "$kubever" ]] && kube_args=(--kube-version "$kubever")
 
-  for f in $(grep -rl --include='*.yaml' 'kind: HelmRelease' "$path" 2>/dev/null | sort); do
+  # kustomize dir → verify against the built output (what flux ships);
+  # otherwise enumerate HelmRelease files directly (single-file / ad-hoc paths)
+  if [[ -d "$path" && -f "$path/kustomization.yaml" ]]; then
+    kubectl kustomize "$path" > "$tmp/build.yaml" 2>"$tmp/build.err" \
+      || { echo "FAIL: kustomize build of $path failed:"; sed 's/^/  /' "$tmp/build.err"; exit 1; }
+    if yq eval-all -e 'select(.kind == "HelmRelease")' "$tmp/build.yaml" >/dev/null 2>&1; then
+      releases="$tmp/build.yaml"
+    fi
+  else
+    releases=$(grep -rl --include='*.yaml' 'kind: HelmRelease' "$path" 2>/dev/null | sort)
+  fi
+  [[ -n "$releases" ]] || { echo "OK: 0 releases — no 'kind: HelmRelease' found under $path"; exit 0; }
+
+  for f in $releases; do
     while IFS=$'\t' read -r name ns chart version srcKind srcName; do
       if [[ -n "$filter" && "$name" != "$filter" ]]; then continue; fi
       count=$((count + 1))
