@@ -28,6 +28,7 @@ provider "registry.terraform.io/endevops/password" {
   version = "0.0.1"
   hashes = [
     "h1:1tbILppi+N4R9M1/39PP0iyy7+UjdH0PygKTK1XGSI8=",
+    "h1:DPwUoXw5OJN96jYPDJI8vuZCwg0XiPhW40iAWfiYhOo=",
     "zh:05e479039c1cfc77d77b6f25f71cd94842a60bc918fcc97ea81ad5a95dc20f06",
     "zh:242a46bb658644ffa3704ba8a8916c4ea4d0c1d2fb80128a1f20a294aa2f4218",
     "zh:2ac07870f64ad318f0e744762f32eb75a586f2a3a88ee9e37c23779ada98404d",
@@ -112,6 +113,7 @@ provider "registry.terraform.io/hashicorp/random" {
 provider "registry.terraform.io/hashicorp/tls" {
   version = "4.4.1"
   hashes = [
+    "h1:1Zk4TqZwWmUZHfGTtM/vw8EKoWecYboMRqwhNaoTopc=",
     "h1:x0sq38+DvTpCH55KdhERVDgNjHL036y4i+DITul45TA=",
     "zh:0855f9a980426a0af2c4415fb23cccbbb88c2d1dd40d83da6f45622c075b398b",
     "zh:189227fdae28e547b1d988f5d83c4280fce02e3152d8b62aa810047e2f9f7e59",
