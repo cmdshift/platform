@@ -42,6 +42,8 @@ Incidents documented in their owning runbooks (kept there for context):
 - A flaky-looking `certificate signed by unknown authority` against a *known-good* CA during provisioning is a wrong-backend symptom, not a CA problem — check which backend the LB picked.
 - Consequence of the removal: **machine-config template changes require a full cluster rebuild again** (the cmdshift/platform#73 iterate-via-apply path is gone) — see the machine-config section in [cluster-rebuild.md](cluster-rebuild.md).
 
+*Postscript (cmdshift/platform#192): the dedicated `cmd` haproxy container is gone — its 6443/50000 leastconn frontends now live on the unified `load` LB (`cloud-test`); the LB-shape rule above is unchanged.*
+
 ## Audit policy field wedged the apiserver (cmdshift/platform#90)
 
 **Symptom**: after templating a kube-apiserver audit Policy into the ctrl machine config, the ctrl node dropped out of the cluster — pods on it unschedulable, API blipping.
@@ -160,6 +162,8 @@ Three incident shapes from the Alloy-CR migration, each with a distinct tell:
 - An HR deletion that hangs with helm's "Could not determine release state" = failed uninstall-remediation hooks (admission) — check kyverno events, then the suspend/storage-delete/resume ladder.
 - "upgrade failed; rollback required" on a freshly created operator-managed release = stale release storage under the same name — purge before fighting the diff.
 - `sync_wait` hanging + bucket "no route to host" = companion down, not a manifest problem; `docker ps` before digging into flux. And after any companion outage, spot-check CM content: the cluster happily runs stale config while every kustomization reports Ready.
+
+*Postscript (cmdshift/platform#192): the external haproxy (`cluster/local/external/main.tf`, `cloud-test`, s3.cloud.test frontend) was folded into the unified `load` LB — the sizing rule stands: a traffic-profile change means re-auditing the `load` container's docker memory limit (now 512Mi).*
 
 ## Beyla host kernel panic → removal (2026-09-18)
 

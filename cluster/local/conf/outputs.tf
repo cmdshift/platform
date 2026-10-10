@@ -6,16 +6,24 @@ output "talos_version" {
   value = var.talos_version
 }
 
-output "external_name" {
-  value = local.external_name
+output "local_name" {
+  value = local.local_name
 }
 
-output "internal_name" {
-  value = local.internal_name
+output "cloud_name" {
+  value = local.cloud_name
 }
 
 output "cluster_name" {
   value = local.cluster_name
+}
+
+output "local_hostname" {
+  value = replace(local.local_name, "-", ".")
+}
+
+output "cloud_hostname" {
+  value = replace(local.cloud_name, "-", ".")
 }
 
 output "net" {
@@ -28,30 +36,37 @@ output "net" {
   }
 }
 
-output "external" {
+output "load" {
   value = {
-    private_ip = cidrhost(local.cloud_cidr, 1)
-    name       = local.external_name
-    hostname   = var.external_hostname
+    name       = local.cloud_name
+    hostname   = var.local_hostname
+    private_ip = cidrhost(local.local_cidr, 1)
+  }
+}
+
+output "cmd" {
+  value = {
+    hostname   = join(".", ["cmd", replace(local.local_name, "-", ".")])
+    private_ip = cidrhost(local.local_cidr, 1)
   }
 }
 
 output "dns" {
   value = {
-    private_ip = cidrhost(local.cloud_cidr, 2)
-    name       = join("-", ["dns", local.external_name])
-    hostname   = join(".", ["dns", var.external_hostname])
+    private_ip = cidrhost(local.cloud_cidr, 1)
+    name       = join("-", ["dns", local.cloud_name])
+    hostname   = join(".", ["dns", var.cloud_hostname])
   }
 }
 
 output "secrets" {
   value = {
-    private_ip = cidrhost(local.cloud_cidr, 3)
-    name       = join("-", ["secrets", local.external_name])
+    private_ip = cidrhost(local.cloud_cidr, 2)
+    name       = join("-", ["secrets", local.cloud_name])
     services = {
       main = {
-        hostname   = join(".", ["secrets", var.external_hostname])
-        private_ip = cidrhost(local.cloud_cidr, 3)
+        hostname   = join(".", ["secrets", var.cloud_hostname])
+        private_ip = cidrhost(local.cloud_cidr, 2)
         port       = 80
       }
     }
@@ -60,23 +75,22 @@ output "secrets" {
 
 output "storage" {
   value = {
-    private_ip = cidrhost(local.cloud_cidr, 4)
-    name       = join("-", ["storage", local.external_name])
+    private_ip = cidrhost(local.cloud_cidr, 3)
+    name       = join("-", ["storage", local.cloud_name])
     buckets = [
       "flux",
       "backups",
-      # openobserve parquet data + indexes (cmdshift/platform#171)
       "openobserve"
     ]
     services = {
       s3 = {
-        hostname   = join(".", ["s3", var.external_hostname])
-        private_ip = cidrhost(local.cloud_cidr, 4)
+        hostname   = join(".", ["s3", var.cloud_hostname])
+        private_ip = cidrhost(local.cloud_cidr, 3)
         port       = 9000
       }
       ui = {
-        hostname   = join(".", ["storage", var.external_hostname])
-        private_ip = cidrhost(local.cloud_cidr, 4)
+        hostname   = join(".", ["storage", var.cloud_hostname])
+        private_ip = cidrhost(local.cloud_cidr, 3)
         port       = 9001
       }
     }
@@ -85,12 +99,12 @@ output "storage" {
 
 output "registry" {
   value = {
-    private_ip = cidrhost(local.cloud_cidr, 5)
-    name       = join("-", ["registry", local.external_name])
+    private_ip = cidrhost(local.cloud_cidr, 4)
+    name       = join("-", ["registry", local.cloud_name])
     services = {
       main = {
-        hostname   = join(".", ["registry", var.external_hostname])
-        private_ip = cidrhost(local.cloud_cidr, 5)
+        hostname   = join(".", ["registry", var.cloud_hostname])
+        private_ip = cidrhost(local.cloud_cidr, 4)
         port       = 8000
       }
     }
@@ -99,39 +113,31 @@ output "registry" {
 
 output "mail" {
   value = {
-    private_ip = cidrhost(local.cloud_cidr, 6)
-    name       = join("-", ["mail", local.external_name])
+    private_ip = cidrhost(local.cloud_cidr, 5)
+    name       = join("-", ["mail", local.cloud_name])
     services = {
       smtp = {
-        hostname   = join(".", ["smtp", var.external_hostname])
-        private_ip = cidrhost(local.cloud_cidr, 6)
+        hostname   = join(".", ["smtp", var.cloud_hostname])
+        private_ip = cidrhost(local.cloud_cidr, 5)
         port       = 1025
       }
       web = {
-        hostname   = join(".", ["mail", var.external_hostname])
-        private_ip = cidrhost(local.cloud_cidr, 6)
+        hostname   = join(".", ["mail", var.cloud_hostname])
+        private_ip = cidrhost(local.cloud_cidr, 5)
         port       = 8025
       }
     }
   }
 }
 
-output "sync" {
-  value = {
-    private_ip = cidrhost(local.cloud_cidr, 7)
-    name       = join("-", ["sync", local.external_name])
-    bucket     = "flux"
-  }
-}
-
 output "auth" {
   value = {
-    private_ip = cidrhost(local.cloud_cidr, 9)
-    name       = join("-", ["auth", local.external_name])
+    private_ip = cidrhost(local.cloud_cidr, 6)
+    name       = join("-", ["auth", local.cloud_name])
     services = {
       main = {
-        hostname   = join(".", ["auth", var.external_hostname])
-        private_ip = cidrhost(local.cloud_cidr, 9)
+        hostname   = join(".", ["auth", var.cloud_hostname])
+        private_ip = cidrhost(local.cloud_cidr, 6)
         port       = 8080
       }
     }
@@ -140,33 +146,29 @@ output "auth" {
 
 output "scanner" {
   value = {
-    private_ip = cidrhost(local.cloud_cidr, 8)
-    name       = join("-", ["scanner", local.external_name])
+    private_ip = cidrhost(local.cloud_cidr, 7)
+    name       = join("-", ["scanner", local.cloud_name])
     services = {
       main = {
-        hostname   = join(".", ["scanner", var.external_hostname])
-        private_ip = cidrhost(local.cloud_cidr, 8)
+        hostname   = join(".", ["scanner", var.cloud_hostname])
+        private_ip = cidrhost(local.cloud_cidr, 7)
         port       = 8766
       }
     }
   }
 }
 
-output "nodes" {
+output "sync" {
   value = {
-    cmd = {
-      private_ip = cidrhost(local.cmd_cidr, 1)
-      hostname   = join(".", ["cmd", var.internal_hostname])
-    }
-    ctrl = local.ctrl_nodes
-    work = local.work_nodes
+    private_ip = cidrhost(local.cloud_cidr, 8)
+    name       = join("-", ["sync", local.cloud_name])
+    bucket     = "flux"
   }
 }
 
-output "internal" {
+output "nodes" {
   value = {
-    private_ip = cidrhost(local.local_cidr, 1)
-    name       = local.internal_name
-    hostname   = var.internal_hostname
+    ctrl = local.ctrl_nodes
+    work = local.work_nodes
   }
 }

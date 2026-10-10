@@ -8,12 +8,12 @@ variable "talos_version" {
   default = "1.13.9"
 }
 
-variable "external_hostname" {
+variable "cloud_hostname" {
   type    = string
   default = "cloud.test"
 }
 
-variable "internal_hostname" {
+variable "local_hostname" {
   type    = string
   default = "local.test"
 }

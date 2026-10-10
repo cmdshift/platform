@@ -2,6 +2,15 @@
 
 Narrative log of the platform's evolution, newest first. Dated learnings, incident stories, and decision history live here; durable procedures live in `runbooks/local/`, timeless per-group decisions in `manifests/bases/*/README.md`, and landmines in `.agents/skills/`. Issue/PR references use the `cmdshift/platform#N` form.
 
+## 2026-10-10 (terraform rework: one haproxy LB, terraform-managed certs, `.temp/`, renumbered companions — cmdshift/platform#192)
+
+- **Three haproxy LBs collapsed into one**: `external/` (front-door `cloud-test`), `internal/` (ingress LB), and the `cmd` haproxy inside `nodes/` replaced by the single `cluster/local/load/` companion — it fronts every `*.cloud.test` companion AND the local cluster hostname on `:80`/`:443` (TLS-terminating :443 with the wildcard leaf), fronts the ctrl nodes on `:6443`/`:50000` (the former cmd job), and rejects unmatched Hosts fail-closed via an explicit `http_reject_backend` (the old 403-guard/self-recursion OOM rationale, cmdshift/platform#94, now lives in the template itself).
+- **Certs are now terraform-managed by `cluster/local/certs/`** (hashicorp/tls provider): intermediate CA (RSA 4096) + `*.cloud.test` wildcard leaf (ECDSA P384); only the root CA is host-provisioned into `cluster/local/.temp/tls/` via `step` commands (README) — `just certs` is deleted.
+- **`.tmp/` → `.temp/`** repo-wide (`STEPPATH`/`KUBECONFIG`/`TALOSCONFIG` all export from `cluster/local/.temp/` now).
+- **DNS zone files deleted**: the coredns Corefile is one `.:53` server block with a `hosts` entry mapping the LB IP to all local/cloud names, `fallthrough`, then forward + cache.
+- **Companion IPs renumbered** on the cloud cidr (dns=.1 … sync=.8); the LB sits at `.1` on the local cidr; `conf/outputs.tf` reshaped (`local_name`/`cloud_name`, `load`, `cmd` — cmd now points at the LB, no cmd container).
+- **OrbStack is the recommended macOS host** (lower resource consumption and better stability than Docker Desktop, which remains supported); the stale-binding failure class stays documented as DD-specific/historical.
+
 ## 2026-10-08 (helm_verify resolves releases + valuesFrom refs from the kustomize build — cmdshift/platform#187)
 
 - **Resolution follows the kustomize build**: when the path has a `kustomization.yaml`, HelmReleases AND valuesFrom ConfigMap refs are resolved from `kubectl kustomize <path>` output — closing the cmdshift/platform#183 gap (post-#183 layering moved values CMs into `clusters/local/<group>/` overlays while HelmReleases stayed in `bases/`, so the old same-dir grep + generator resolution read "0 releases" as green against overlays). The contract "renders what flux ships" is now literal: build precedence/name-refs/hash-suffixes inherited, no heuristics.

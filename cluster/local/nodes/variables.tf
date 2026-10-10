@@ -1,3 +1,7 @@
+variable "oidc_issuer_url" {
+  type = string
+}
+
 variable "cluster" {
   type = object({
     name          = string

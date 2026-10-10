@@ -13,7 +13,7 @@ The agent's job ends at a green reconcile + docs swept. Then **propose** the com
 
 - Reconcile is green (`kubectl get helmreleases -A` all True, `policy_report` failures 0).
 - Docs swept: the surfaces this change made stale (CHANGELOG, group README, runbook, skill trap lists, `tools/bin/README.md`) are updated **in the same change** — docs are part of the change, not a follow-up.
-- `git status` is clean of unintended files (`.tmp/` scratch, kubeconfigs must never land — they live under `cluster/local/.tmp/`, gitignored).
+- `git status` is clean of unintended files (`.temp/` scratch, kubeconfigs must never land — they live under `cluster/local/.temp/`, gitignored).
 - `git diff` reviewed: stage only intended files.
 
 ## 2. Message format

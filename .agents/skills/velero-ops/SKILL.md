@@ -55,7 +55,7 @@ Three velero alerts in `observability/mimir-rules.yaml` (`backup-alerts` — mov
 
 ## CLI quirks
 
-- **Flags must be explicit — `KUBECONFIG` alone is not picked up**: `velero --kubeconfig cluster/local/.tmp/kubeconfig --namespace backups backup ...` (install namespace is `backups`, not `velero`).
+- **Flags must be explicit — `KUBECONFIG` alone is not picked up**: `velero --kubeconfig cluster/local/.temp/kubeconfig --namespace backups backup ...` (install namespace is `backups`, not `velero`).
 - **A plain ad-hoc test backup creates NO PodVolumeBackups** — `--default-volumes-to-fs-backup` must be passed explicitly (`defaultVolumesToFsBackup` defaults false on ad-hoc backups even though the Schedule sets it); a "clean" test backup proves nothing about the data-mover path.
 - No jsonpath output (`-o` is table|json|yaml only) — poll with `velero_wait backup|restore <name>` (stops early on Failed/PartiallyFailed).
 - Backups complete in well under a minute at this scale; cap polls at ~2-3m.

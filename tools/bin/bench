@@ -61,10 +61,10 @@ parse_args() {
 resolve_kubeconfig() {
   KC=${KUBECONFIG:-}; KC=${KC%%:*}   # first entry if it's a list
   if [ -z "$KC" ] || [ ! -f "$KC" ]; then
-    KC="$(cd "$(dirname "$0")/../.." && pwd)/cluster/local/.tmp/kubeconfig"
+    KC="$(cd "$(dirname "$0")/../.." && pwd)/cluster/local/.temp/kubeconfig"
   fi
   if [ ! -f "$KC" ]; then
-    echo "bench: no kubeconfig found (\$KUBECONFIG or cluster/local/.tmp/kubeconfig)" >&2
+    echo "bench: no kubeconfig found (\$KUBECONFIG or cluster/local/.temp/kubeconfig)" >&2
     exit 2
   fi
 }

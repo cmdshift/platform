@@ -8,15 +8,7 @@ locals {
 
   audit_policy_body = file("${path.module}/files/audit-policy.yaml")
 
-  platform_root_ca = trimspace(file("${path.module}/../.tmp/tls/root_ca.crt"))
-
-  cluster_machine_patch = templatefile("${path.module}/templates/cluster.tftpl.yaml", {
-    public_endpoint = local.public_endpoint
-    cmd_hostname    = var.cmd.hostname
-    cmd_private_ip  = var.cmd.private_ip
-    ctrl_cidr       = var.net.ctrl_cidr
-    audit_policy    = local.audit_policy_body
-  })
+  platform_root_ca = trimspace(file("${path.module}/../.temp/tls/root_ca.crt"))
 
   base_machine_patch = templatefile("${path.module}/templates/base.tftpl.yaml", {
     cmd_hostname   = var.cmd.hostname
@@ -24,6 +16,14 @@ locals {
     ctrl_cidr      = var.net.ctrl_cidr
     work_cidr      = var.net.work_cidr
     dns_private_ip = var.dns.private_ip
+  })
+
+  cluster_machine_patch = templatefile("${path.module}/templates/cluster.tftpl.yaml", {
+    public_endpoint = local.public_endpoint
+    cmd_hostname    = var.cmd.hostname
+    cmd_private_ip  = var.cmd.private_ip
+    ctrl_cidr       = var.net.ctrl_cidr
+    audit_policy    = local.audit_policy_body
   })
 
   ctrl_machine_patch = templatefile("${path.module}/templates/ctrl.tftpl.yaml", {
