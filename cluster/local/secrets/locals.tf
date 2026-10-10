@@ -8,8 +8,8 @@ locals {
 
   certificates = {
     intermediate_ca = {
-      "tls.crt" = trimspace(file("${path.module}/../.tmp/tls/intermediate_ca.crt"))
-      "tls.key" = trimspace(file("${path.module}/../.tmp/tls/intermediate_ca.key"))
+      "tls.crt" = data.local_sensitive_file.intermediate_ca_crt.content
+      "tls.key" = data.local_sensitive_file.intermediate_ca_key.content
     }
   }
 
@@ -52,7 +52,7 @@ locals {
     }
 
     platform_root_ca = {
-      "ca.crt" = trimspace(file("${path.module}/../.tmp/tls/root_ca.crt"))
+      "ca.crt" = trimspace(file("${path.module}/../.temp/tls/root_ca.crt"))
     }
   }
 }

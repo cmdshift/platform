@@ -21,3 +21,29 @@ variable "hosts" {
     port       = number
   })))
 }
+
+variable "ctrl" {
+  type = list(object({
+    name = string
+    ipv4 = string
+  }))
+}
+
+variable "work" {
+  type = list(object({
+    name = string
+    ipv4 = string
+  }))
+}
+
+variable "cloud_pem_path" {
+  type = string
+}
+
+variable "local_hostname" {
+  type = string
+}
+
+variable "cloud_hostname" {
+  type = string
+}

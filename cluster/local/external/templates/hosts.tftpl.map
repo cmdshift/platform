@@ -1,3 +1,0 @@
-%{~for host in hosts}
-  ${host.name} ${host.private_ip}
-%{~endfor}

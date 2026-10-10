@@ -1,13 +1,17 @@
-${external_hostname} {
-  root /etc/coredns/zones
-  file cloud.zone
-}
-
-${internal_hostname} {
-  root /etc/coredns/zones
-  file local.zone
-}
-
 .:53 {
-  forward . /etc/resolv.conf
+  errors
+  health
+  ready
+
+  hosts {
+    ${load_ip_address} ${cmd_hostname}
+    ${load_ip_address} ${local_hostname}
+    ${load_ip_address} *.${local_hostname}
+    ${load_ip_address} ${cloud_hostname}
+    ${load_ip_address} *.${cloud_hostname}
+    fallthrough
+  }
+
+  forward . 1.1.1.1 1.0.0.1
+  cache 30
 }

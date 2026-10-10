@@ -21,5 +21,5 @@ The secrets-server companion (`secrets-cloud.test`, static IP .3): a busybox `ht
 - **All credentials are lab-tier plaintext locals** — same trust level as everything else on this testbed; the payload files are world-readable by design (no auth on the httpd).
 - The `age_secret_key.etcd_backup` private half lives only in tfstate; the served payload is the public recipient. Decryption procedure: `runbooks/local/etcd-backups.md`.
 - The oauth2-proxy `client-secret` must mirror rauthy's `clients.json` oauth2-proxy client byte-for-byte (rauthy requires >= 64 chars, `[a-zA-Z0-9]` only) — change them together.
-- Cert/key files are read from `${path.module}/../.tmp/tls/` (produced by `just certs`) — certs must exist before this module applies.
+- Cert/key files are read from `${path.module}/../.temp/tls/` (intermediate CA terraform-managed by the `certs` module, root CA host-provisioned) — certs must exist before this module applies.
 - Single payload = single server path: the webhook provider serves whole JSON docs (no property projection), so ExternalSecret `dataFrom` extracts map the keys directly. Keep payloads flat.

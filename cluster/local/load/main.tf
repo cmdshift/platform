@@ -4,7 +4,7 @@ resource "docker_image" "haproxy" {
   pull_triggers = [data.docker_registry_image.haproxy.sha256_digest]
 }
 
-resource "docker_container" "cloud" {
+resource "docker_container" "load" {
   name     = var.name
   image    = docker_image.haproxy.name
   hostname = var.hostname
@@ -21,24 +21,37 @@ resource "docker_container" "cloud" {
     ])
   }
   ports {
-    internal = 80
-    external = 80
-    ip       = "127.0.10.1"
+    internal = local.ports.http
+    external = local.ports.http
+    ip       = "127.0.0.1"
   }
   ports {
-    internal = 443
-    external = 443
-    ip       = "127.0.10.1"
+    internal = local.ports.https
+    external = local.ports.https
+    ip       = "127.0.0.1"
+  }
+  ports {
+    internal = local.ports.k8s
+    external = local.ports.k8s
+    ip       = "127.0.0.1"
+  }
+  ports {
+    internal = local.ports.apid
+    external = local.ports.apid
+    ip       = "127.0.0.1"
   }
   memory      = 512
   memory_swap = 512
   upload {
-    file    = "/usr/local/etc/haproxy/cloud.test.pem"
-    content = file("${path.module}/../.tmp/tls/cloud.test.pem")
+    file    = "/usr/local/etc/haproxy/cloud.pem"
+    content = data.local_sensitive_file.cloud_pem.content
   }
   upload {
     file = "/usr/local/etc/haproxy/haproxy.cfg"
     content = templatefile("${path.module}/templates/haproxy.tftpl.cfg", {
+      local_hostname = var.local_hostname
+      cloud_hostname = var.cloud_hostname
+      internal_ip    = var.net.private_ip
       smtp = flatten([
         for container_name, services in var.hosts : [
           for name, service in services : {
@@ -48,6 +61,8 @@ resource "docker_container" "cloud" {
           if can(regex("^smtp", name))
         ]
       ])
+      ctrl = var.ctrl
+      work = var.work
     })
   }
   upload {

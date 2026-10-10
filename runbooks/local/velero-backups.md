@@ -122,7 +122,7 @@ Validated end-to-end (drill re-run): PVB `Completed` (data mover pod passed admi
 
 ### velero CLI quirks
 
-- **Flags must be explicit — `KUBECONFIG` alone is not picked up**: `velero --kubeconfig cluster/local/.tmp/kubeconfig --namespace backups backup ...` (direnv exports `KUBECONFIG`, but the CLI ignores it; the install namespace is `backups`, not `velero`).
+- **Flags must be explicit — `KUBECONFIG` alone is not picked up**: `velero --kubeconfig cluster/local/.temp/kubeconfig --namespace backups backup ...` (direnv exports `KUBECONFIG`, but the CLI ignores it; the install namespace is `backups`, not `velero`).
 - **A plain ad-hoc test backup creates NO PodVolumeBackups** — `spec.defaultVolumesToFsBackup` defaults false on ad-hoc backups even though the `pvcs` Schedule sets it. Add `--default-volumes-to-fs-backup` or the "clean" test proves nothing about the data-mover path (a data-path test that reports success with zero PVBs tested nothing).
 - **No jsonpath output** — `-o` is `table|json|yaml` only. Poll completion with `tools/bin/velero_wait` (also stops early on Failed/PartiallyFailed instead of waiting out the timeout)
 - Backups complete in well under a minute at this scale; cap polls at ~2-3m

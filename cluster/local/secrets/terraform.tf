@@ -1,10 +1,13 @@
 terraform {
   required_providers {
+    age = {
+      source = "clementblaise/age"
+    }
     docker = {
       source = "kreuzwerker/docker"
     }
-    age = {
-      source = "clementblaise/age"
+    local = {
+      source = "hashicorp/local"
     }
   }
 }

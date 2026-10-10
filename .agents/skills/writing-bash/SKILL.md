@@ -5,7 +5,7 @@ description: Writing or editing bash scripts in this repo — the tools/bin prom
 
 # Writing bash (scripts)
 
-Scope: `tools/bin/*` and any shell scripting this repo needs. Never write outside the repo — no `/tmp`, no `$HOME` scratch. Agent scratch goes in `.agents/temp/`; plans go in `.agents/temp/plans/`; transient script output only under `.agents/temp/` or `cluster/local/.tmp/` (the terraform/`.envrc`-owned dir). Helper args/defaults/exit codes live in [tools/bin/README.md](../../../tools/bin/README.md) — keep it current in the same change.
+Scope: `tools/bin/*` and any shell scripting this repo needs. Never write outside the repo — no `/tmp`, no `$HOME` scratch. Agent scratch goes in `.agents/temp/`; plans go in `.agents/temp/plans/`; transient script output only under `.agents/temp/` or `cluster/local/.temp/` (the terraform/`.envrc`-owned dir). Helper args/defaults/exit codes live in [tools/bin/README.md](../../../tools/bin/README.md) — keep it current in the same change.
 
 ## 1. Structure — small functions, named entrypoint
 
@@ -16,7 +16,7 @@ Scope: `tools/bin/*` and any shell scripting this repo needs. Never write outsid
 ## 2. Script hygiene
 
 - **Bounded waits, never blind polls** — no sleep loops; cap polls and print the pending state + diagnose hint on timeout (the existing helpers are the pattern).
-- **No writes outside the repo** — scripts that cache or snapshot write under `.agents/temp/` or `cluster/local/.tmp/`, never `/tmp`.
+- **No writes outside the repo** — scripts that cache or snapshot write under `.agents/temp/` or `cluster/local/.temp/`, never `/tmp`.
 - Don't re-export `KUBECONFIG` — direnv exports it; tools that ignore it get an explicit `--kubeconfig` flag.
 - Prefer the repo's own helpers inside scripts (`kubectl`, `flux`, the `tools/bin` family) over re-deriving plumbing.
 

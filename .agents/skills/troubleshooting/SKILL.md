@@ -21,7 +21,7 @@ Most live landmines are already written down with their fingerprints — the REA
 | Symptom | Skill |
 |---|---|
 | Manifest edits not reaching the cluster (workloads run, nothing applies) | `pipeline-wedged` |
-| Manifest edits converge (sync_wait green) but the cluster keeps running OLD config — check the companions first (`docker ps`; the cloud-test haproxy OOM'd silently under S3 traffic, cmdshift/platform#149) | `pipeline-wedged` |
+| Manifest edits converge (sync_wait green) but the cluster keeps running OLD config — check the companions first (`docker ps`; the haproxy LB serving s3.cloud.test — now the unified `load` LB, cmdshift/platform#192 — OOM'd silently under S3 traffic, cmdshift/platform#149) | `pipeline-wedged` |
 | A flux Kustomization won't go Ready / `flux_wait` timed out | `reconcile-stuck` |
 | A Kustomization is stuck behind an in-flight health-check wait (annotate does nothing) | `reconcile-stuck` → `flux_unstick` |
 | A HelmRelease failing or stuck reconciling — or values "didn't land" (`lastAttemptedConfigDigest` frozen) | `helmrelease-stuck` |

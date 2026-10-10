@@ -27,26 +27,10 @@ resource "docker_container" "dns" {
   upload {
     file = "/etc/coredns/Corefile"
     content = templatefile("${path.module}/templates/Corefile.tftpl", {
-      external_hostname = var.net.external_hostname
-      internal_hostname = var.net.internal_hostname
-    })
-  }
-  upload {
-    file = "/etc/coredns/zones/local.zone"
-    content = templatefile("${path.module}/templates/local.tftpl.zone", {
-      hostname            = var.hostname
-      internal_hostname   = var.net.internal_hostname
-      internal_ip_address = var.net.internal_ip_address
-      cmd_subdomain       = split(".", var.cmd.hostname)[0]
-      cmd_private_ip      = var.cmd.private_ip
-    })
-  }
-  upload {
-    file = "/etc/coredns/zones/cloud.zone"
-    content = templatefile("${path.module}/templates/cloud.tftpl.zone", {
-      hostname            = var.hostname
-      external_hostname   = var.net.external_hostname
-      external_ip_address = var.net.external_ip_address
+      load_ip_address = var.net.load_ip_address
+      cmd_hostname    = var.cmd_hostname
+      local_hostname  = var.local_hostname
+      cloud_hostname  = var.cloud_hostname
     })
   }
 }

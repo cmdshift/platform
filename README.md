@@ -1,6 +1,6 @@
 # platform
 
-A local Kubernetes platform testbed: Talos nodes running in Docker, provisioned with terraform (`cluster/local`), and deployed entirely by Flux v2 from the manifests in `manifests/local/`. Out-of-cluster companions (S3, secrets server, alert delivery) emulate the cloud services a production deployment would use. Supported hosts: **Linux with Docker Engine** (tested on Arch — the cluster runs natively on the host kernel) and **macOS with Docker Desktop** (the VMM beta's memory/CPU profile carries the cluster — cmdshift/platform#173). Docker Desktop's VM caps the memory budget and its port publisher adds a stale-binding failure class (see [Known Issues](#known-issues)); the node container limits are sized to fit inside it.
+A local Kubernetes platform testbed: Talos nodes running in Docker, provisioned with terraform (`cluster/local`), and deployed entirely by Flux v2 from the manifests in `manifests/local/`. Out-of-cluster companions (S3, secrets server, alert delivery) emulate the cloud services a production deployment would use. Supported hosts: **Linux with Docker Engine** (tested on Arch — the cluster runs natively on the host kernel) and **macOS** — [OrbStack](https://orbstack.dev) recommended (lower resource consumption and better stability than Docker Desktop, cmdshift/platform#192); Docker Desktop remains supported. Docker Desktop's port publisher adds a stale-binding failure class (see [Known Issues](#known-issues)).
 
 ## Prerequisites
 
@@ -38,7 +38,7 @@ Install the `direnv` editor extension and allow the `platform` repository root. 
 
 ### Trusted local certificate
 
-Use the `step` CLI to create and install a custom CA:
+Provision the root CA on the host with the `step` CLI (`.envrc` sets `STEPPATH=cluster/local/.temp/tls`; the intermediate CA and `*.cloud.test` wildcard leaf are terraform-managed by `cluster/local/certs/` — cmdshift/platform#192):
 
 ```shell
 step certificate create "platform" $STEPPATH/root_ca.crt $STEPPATH/root_ca.key \
@@ -54,22 +54,14 @@ step certificate install --all $STEPPATH/root_ca.crt
 
 ## Cloud service emulation: the `.test` domains
 
-The companion services resolve under `*.cloud.test` (S3, secrets server, mailpit). Two things make that work: a second loopback address (`127.0.10.1`), and a local resolver that maps `*.test` → `127.0.0.1` and `*.cloud.test` → `127.0.10.1`. On Linux and Windows the whole `127/8` block is loopback-reachable by default; macOS needs a one-time `lo0` alias.
+The companion services resolve under `*.cloud.test` (S3, secrets server, mailpit). The unified haproxy load balancer publishes `:80`/`:443`/`:6443`/`:50000` on host loopback `127.0.0.1`, and a local resolver maps `*.test` → `127.0.0.1` (host dnsmasq; inside the cluster, coredns maps the same names to the LB's private IP). On all supported platforms the whole `127/8` block is loopback-reachable; `ping -c1 127.0.10.1` is a harmless sanity check.
 
 ### macOS
-
-Add the loopback alias (not persistent across reboots — re-run after reboot, or bake it into a launchd script/`/etc/network-setup` equivalent):
-
-```shell
-sudo ifconfig lo0 alias 127.0.10.1 up
-ping -c1 127.0.10.1
-```
 
 Install `dnsmasq` via Homebrew (`brew install dnsmasq`) with this config at `$(brew --prefix)/etc/dnsmasq.conf`:
 
 ```conf
 address=/.test/127.0.0.1
-address=/.cloud.test/127.0.10.1
 
 # include fallback servers so your normal DNS works
 server=1.1.1.1 # cloudflare
@@ -89,13 +81,12 @@ Verify: `dig +short s3.cloud.test` and `scutil --dns | grep 127.0.0.1` (dig quer
 
 ### Linux
 
-Tested on Arch (Docker Engine 29.7.2) — the cluster runs natively on the host kernel, no Docker Desktop VM. No loopback alias needed — the entire `127.0.0.0/8` block routes to `lo` by default. Verify with `ping -c1 127.0.10.1`.
+Tested on Arch (Docker Engine 29.7.2) — the cluster runs natively on the host kernel. Verify the loopback block with `ping -c1 127.0.10.1`.
 
 Install `dnsmasq` with your package manager (`apt install dnsmasq`, `dnf install dnsmasq`, ...) with this config at `/etc/dnsmasq.d/test.conf`:
 
 ```conf
 address=/.test/127.0.0.1
-address=/.cloud.test/127.0.10.1
 
 # include fallback servers so your normal DNS works
 server=1.1.1.1 # cloudflare
@@ -117,18 +108,16 @@ printf 'nameserver 127.0.0.1\n' | sudo tee /etc/resolv.conf
 sudo systemctl enable --now dnsmasq
 ```
 
-Verify: `dig +short s3.cloud.test` should return `127.0.10.1`.
+Verify: `dig +short s3.cloud.test` should return `127.0.0.1`.
 
 ### Windows
-
-No loopback alias needed — the whole `127/8` block is loopback-reachable natively.
 
 Windows has no local DNS proxy built in; pick one:
 
 **Quick path — hosts entries** for the known companion endpoints (`C:\Windows\System32\drivers\etc\hosts`, edited as administrator):
 
 ```
-127.0.10.1 s3.cloud.test secrets.cloud.test mail.cloud.test
+127.0.0.1 s3.cloud.test secrets.cloud.test mail.cloud.test
 ```
 
 Caveat: the hosts file supports no wildcards — new `*.cloud.test` companions need new entries.
@@ -137,7 +126,6 @@ Caveat: the hosts file supports no wildcards — new `*.cloud.test` companions n
 
 ```
 *.test        127.0.0.1
-*.cloud.test  127.0.10.1
 ```
 
 Restart the Acrylic service, then point your network adapter's DNS at `127.0.0.1`:
@@ -146,7 +134,7 @@ Restart the Acrylic service, then point your network adapter's DNS at `127.0.0.1
 Set-DnsClientServerAddress -InterfaceAlias "Wi-Fi" -ServerAddresses 127.0.0.1
 ```
 
-Verify: `Resolve-DnsName s3.cloud.test` should return `127.0.10.1` (if it returns `127.0.0.1`, check the more-specific `*.cloud.test` entry is present). Acrylic forwards everything else to your normal DNS.
+Verify: `Resolve-DnsName s3.cloud.test` should return `127.0.0.1` (if it fails, check the `*.test` entry is present). Acrylic forwards everything else to your normal DNS.
 
 ## Getting started
 
@@ -189,4 +177,4 @@ Same body of knowledge, two entry points: humans read the runbooks, agents load 
 
 ### Local Talos Machine Bootstrap hang
 
-`talos_machine_bootstrap` can hang when the host port binding for the cluster endpoint (the `cmd` haproxy container, ports 50000/6443, host loopback only) goes stale after rapid container churn (destroy → recreate within ~a minute): the host listener still accepts connections but black-holes them. The provider fails fast (10s timeouts) rather than silently retrying for 10 minutes; the fix is `docker restart $(docker ps -q --filter name=cmd-local-test)` (an LB restart — the ctrl nodes keep running) followed by a re-apply. First root-caused on the historical macOS/Docker Desktop host (its VM port publisher was the black-hole); full root cause and diagnostics: [runbooks/local/cluster-rebuild.md](runbooks/local/cluster-rebuild.md).
+`talos_machine_bootstrap` can hang when the host port binding for the cluster endpoint (the unified `load` haproxy companion, ports 6443/50000 among others, host loopback only) goes stale after rapid container churn (destroy → recreate within ~a minute): the host listener still accepts connections but black-holes them. The provider fails fast (10s timeouts) rather than silently retrying for 10 minutes; the fix is `docker restart $(docker ps -q --filter name=cloud-test)` (an LB restart — the ctrl nodes keep running) followed by a re-apply. First root-caused on the historical macOS/Docker Desktop host (its VM port publisher was the black-hole; OrbStack is the recommended macOS host now); full root cause and diagnostics: [runbooks/local/cluster-rebuild.md](runbooks/local/cluster-rebuild.md).

@@ -2,6 +2,11 @@ module "conf" {
   source = "./conf"
 }
 
+module "certs" {
+  source         = "./certs"
+  cloud_hostname = module.conf.cloud_hostname
+}
+
 module "net" {
   source       = "./net"
   network_cidr = module.conf.net.network_cidr
@@ -10,51 +15,34 @@ module "net" {
   }
 }
 
-module "external" {
-  source   = "./external"
-  name     = module.conf.external.name
-  hostname = module.conf.external.hostname
-  net = {
-    bridge_network_id  = module.net.bridge_network_id
-    private_network_id = module.net.private_network_id
-    private_ip         = module.conf.external.private_ip
-  }
-  hosts = {
-    "${module.conf.storage.name}"  = module.conf.storage.services
-    "${module.conf.secrets.name}"  = module.conf.secrets.services
-    "${module.conf.registry.name}" = module.conf.registry.services
-    "${module.conf.mail.name}"     = module.conf.mail.services
-    "${module.conf.scanner.name}"  = module.conf.scanner.services
-    "${module.conf.auth.name}"     = module.conf.auth.services
-  }
-}
-
 module "dns" {
   source   = "./dns"
   name     = module.conf.dns.name
   hostname = module.conf.dns.hostname
   net = {
-    private_ip          = module.conf.dns.private_ip
-    external_hostname   = module.conf.external.hostname
-    external_ip_address = module.conf.external.private_ip
-    internal_hostname   = module.conf.internal.hostname
-    internal_ip_address = module.conf.internal.private_ip
-    bridge_network_id   = module.net.bridge_network_id
-    private_network_id  = module.net.private_network_id
+    private_ip         = module.conf.dns.private_ip
+    load_ip_address    = module.conf.load.private_ip
+    bridge_network_id  = module.net.bridge_network_id
+    private_network_id = module.net.private_network_id
   }
-  cmd = {
-    hostname   = module.conf.nodes.cmd.hostname
-    private_ip = module.conf.nodes.cmd.private_ip
-  }
+  cmd_hostname   = module.conf.load.hostname
+  load_hostname  = module.conf.load.hostname
+  local_hostname = module.conf.local_hostname
+  cloud_hostname = module.conf.cloud_hostname
 }
 
 module "secrets" {
   source = "./secrets"
-  name   = module.conf.secrets.name
+  depends_on = [
+    module.certs
+  ]
+  name = module.conf.secrets.name
   net = {
     private_network_id = module.net.private_network_id
     private_ip         = module.conf.secrets.private_ip
   }
+  intermediate_ca_crt_path = module.certs.intermediate_ca_crt_path
+  intermediate_ca_key_path = module.certs.intermediate_ca_key_path
 }
 
 module "storage" {
@@ -116,32 +104,14 @@ module "auth" {
 module "images" {
   source            = "./images"
   providers         = { docker-push.push = docker.push }
-  depends_on        = [module.registry, module.external]
+  depends_on        = [module.registry, module.load]
   registry_hostname = module.conf.registry.services.main.hostname
-}
-
-module "sync" {
-  depends_on = [
-    module.storage,
-    module.external
-  ]
-  source = "./sync"
-  name   = module.conf.sync.name
-  net = {
-    private_network_id = module.net.private_network_id
-    private_ip         = module.conf.sync.private_ip
-  }
-  flux_s3 = {
-    bucket     = module.conf.sync.bucket
-    endpoint   = module.conf.storage.services.s3.hostname
-    access_key = module.secrets.flux_system_bucket_credentials.accesskey
-    secret_key = module.secrets.flux_system_bucket_credentials.secretkey
-  }
 }
 
 module "nodes" {
   source = "./nodes"
   depends_on = [
+    module.certs,
     module.registry
   ]
   cluster = {
@@ -159,41 +129,76 @@ module "nodes" {
     private_ip = module.dns.private_ip
   }
   cmd = {
-    hostname   = module.conf.nodes.cmd.hostname
-    private_ip = module.conf.nodes.cmd.private_ip
+    hostname   = module.conf.cmd.hostname
+    private_ip = module.conf.cmd.private_ip
   }
-  ctrl = module.conf.nodes.ctrl
-  work = module.conf.nodes.work
+  ctrl            = module.conf.nodes.ctrl
+  work            = module.conf.nodes.work
+  oidc_issuer_url = module.auth.oidc_issuer_url
   registry = {
     hostname = module.conf.registry.services.main.hostname
   }
 }
 
-module "internal" {
-  source   = "./internal"
-  name     = module.conf.internal.name
-  hostname = module.conf.internal.hostname
+module "load" {
+  source = "./load"
+  depends_on = [
+    module.certs
+  ]
+  name     = module.conf.load.name
+  hostname = module.conf.load.hostname
   net = {
     bridge_network_id  = module.net.bridge_network_id
     private_network_id = module.net.private_network_id
-    private_ip         = module.conf.internal.private_ip
+    private_ip         = module.conf.load.private_ip
   }
-  servers = module.nodes.servers
+  hosts = {
+    "${module.conf.storage.name}"  = module.conf.storage.services
+    "${module.conf.secrets.name}"  = module.conf.secrets.services
+    "${module.conf.registry.name}" = module.conf.registry.services
+    "${module.conf.mail.name}"     = module.conf.mail.services
+    "${module.conf.scanner.name}"  = module.conf.scanner.services
+    "${module.conf.auth.name}"     = module.conf.auth.services
+  }
+  ctrl           = module.nodes.ctrl
+  work           = module.nodes.work
+  cloud_pem_path = module.certs.cloud_pem_path
+  local_hostname = module.conf.local_hostname
+  cloud_hostname = module.conf.cloud_hostname
+}
+
+module "sync" {
+  depends_on = [
+    module.storage,
+    module.load
+  ]
+  source = "./sync"
+  name   = module.conf.sync.name
+  net = {
+    private_network_id = module.net.private_network_id
+    private_ip         = module.conf.sync.private_ip
+  }
+  flux_s3 = {
+    bucket     = module.conf.sync.bucket
+    endpoint   = module.conf.storage.services.s3.hostname
+    access_key = module.secrets.flux_system_bucket_credentials.accesskey
+    secret_key = module.secrets.flux_system_bucket_credentials.secretkey
+  }
 }
 
 resource "local_sensitive_file" "kubeconfig" {
   content  = module.nodes.kubeconfig
-  filename = "${path.module}/.tmp/kubeconfig"
+  filename = "${path.module}/.temp/kubeconfig"
 }
 
 resource "local_sensitive_file" "kubeconfig_oidc" {
   content  = module.nodes.kubeconfig_oidc
-  filename = "${path.module}/.tmp/kubeconfig-oidc"
+  filename = "${path.module}/.temp/kubeconfig-oidc"
 }
 
 resource "local_sensitive_file" "talosconfig" {
   content  = module.nodes.talosconfig
-  filename = "${path.module}/.tmp/talosconfig"
+  filename = "${path.module}/.temp/talosconfig"
 }
 
 output "bootstrap" {

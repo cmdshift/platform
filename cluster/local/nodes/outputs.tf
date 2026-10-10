@@ -2,7 +2,16 @@ output "public_endpoint" {
   value = local.public_endpoint
 }
 
-output "servers" {
+output "ctrl" {
+  value = [
+    for ip, node in docker_container.ctrl : {
+      name = node.name
+      ipv4 = ip
+    }
+  ]
+}
+
+output "work" {
   value = [
     for ip, node in docker_container.work : {
       name = node.name
@@ -23,7 +32,7 @@ output "kubeconfig_oidc" {
   value = templatefile("${path.module}/templates/kubeconfig-oidc.tftpl.yaml", {
     local_api_endpoint = local.public_endpoint
     ca_data            = talos_cluster_kubeconfig.main.kubernetes_client_configuration.ca_certificate
-    issuer_url         = "https://auth.cloud.test/auth/v1/"
+    issuer_url         = var.oidc_issuer_url
     client_id          = "kubernetes"
   })
 }
