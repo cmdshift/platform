@@ -98,7 +98,7 @@ module "auth" {
     private_network_id = module.net.private_network_id
     private_ip         = module.conf.auth.private_ip
   }
-  trusted_proxies = module.conf.net.cloud_cidr
+  trusted_proxies = module.conf.net.local_cidr
 }
 
 module "images" {
