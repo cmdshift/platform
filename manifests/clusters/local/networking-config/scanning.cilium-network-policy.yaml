@@ -14,8 +14,10 @@ spec:
         - ports:
             - port: "80"
               protocol: TCP
-    - toEntities:
-        - world
+            - port: "443"
+              protocol: TCP
+    - toFQDNs:
+        - matchName: check.trivy.dev
       toPorts:
         - ports:
             - port: "443"
