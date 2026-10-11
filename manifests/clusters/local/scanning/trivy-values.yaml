@@ -60,7 +60,6 @@ trivy:
         drop:
           - ALL
 trivyOperator:
-  scanJobsInSameNamespace: true
   scanJobPodTemplatePodSecurityContext:
     runAsNonRoot: true
     runAsUser: 65534
