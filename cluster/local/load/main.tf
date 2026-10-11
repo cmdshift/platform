@@ -23,22 +23,18 @@ resource "docker_container" "load" {
   ports {
     internal = local.ports.http
     external = local.ports.http
-    ip       = "127.0.0.1"
   }
   ports {
     internal = local.ports.https
     external = local.ports.https
-    ip       = "127.0.0.1"
   }
   ports {
     internal = local.ports.k8s
     external = local.ports.k8s
-    ip       = "127.0.0.1"
   }
   ports {
     internal = local.ports.apid
     external = local.ports.apid
-    ip       = "127.0.0.1"
   }
   memory      = 512
   memory_swap = 512
