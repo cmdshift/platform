@@ -73,8 +73,20 @@ ports:
 rewriteDeprecatedComponentNames: false
 
 config:
+  processors:
+    transform/parse_json:
+      error_mode: ignore
+      log_statements:
+        - context: log
+          statements:
+            - merge_maps(attributes, ParseJSON(body), "upsert") where IsString(body) and IsMatch(body, "^\\s*\\{")
   exporters:
     debug: null
+    otlphttp/openobserve_logs:
+      endpoint: http://openobserve.observability.svc:5080/api/default/
+      headers:
+        Authorization: "Basic YWRtaW5AY2xvdWQudGVzdDpDb21wbGV4cGFzcyMxMjM="
+        stream-name: k8s_logs
     otlphttp/openobserve:
       endpoint: http://openobserve.observability.svc:5080/api/default/
       headers:
@@ -85,6 +97,7 @@ config:
     otlp: null
     prometheus: null
     hostmetrics:
+      collection_interval: 60s
       scrapers:
         cpu:
           metrics:
@@ -95,6 +108,7 @@ config:
             system.memory.utilization:
               enabled: true
     kubeletstats:
+      collection_interval: 60s
       extra_metadata_labels:
         - container.id
         - k8s.volume.type
@@ -116,8 +130,8 @@ config:
     pipelines:
       logs:
         receivers: [filelog]
-        processors: [memory_limiter, k8sattributes, batch]
-        exporters: [otlphttp/openobserve]
+        processors: [memory_limiter, k8sattributes, transform/parse_json, batch]
+        exporters: [otlphttp/openobserve_logs]
       metrics:
         receivers: [hostmetrics, kubeletstats]
         processors: [memory_limiter, batch]

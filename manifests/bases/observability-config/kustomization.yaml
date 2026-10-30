@@ -5,4 +5,3 @@ resources:
   - logging.resource-quota.yaml
   - logging.limit-range.yaml
   - openobserve.vertical-pod-autoscaler.yaml
-  - o2-sync
