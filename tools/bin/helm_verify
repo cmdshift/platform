@@ -19,9 +19,11 @@
 #       A ref with no matching ConfigMap is a FAIL, not a skip.
 # Chart sources resolve from the live cluster's source CRs
 # (`kubectl get helmrepo,gitrepo -n flux-system`): HelmRepository →
-# `helm repo add` + template from the repo index; GitRepository (tag or
-# commit ref) → shallow clone + template from the chart subpath. All helm
-# state lives in a temp dir — the user's helm home/cache is untouched.
+# `helm repo add` + template from the repo index; OCI HelmRepository
+# (`oci://` url) → `helm pull` of the exact chart/version tag (the tag IS the
+# version — a typo'd pin fails loudly instead of falling back); GitRepository
+# (tag or commit ref) → shallow clone + template from the chart subpath. All
+# helm state lives in a temp dir — the user's helm home/cache is untouched.
 #
 # Prints PASS/FAIL per release; exit 1 if any release fails, a source CR
 # is missing, or a pinned version isn't in the repo index (helm's fallback
@@ -129,6 +131,23 @@ chart_in_index() { # repo chart [version] -> rc 0 when the local index knows the
   fi
 }
 
+oci_pull_ref() { # oci-url chart version -> echo pulled tgz path; on failure
+                 # echo the reason, rc 1. Cached per (chart, version) run-wide.
+  local base="${1%/}" ref dest="$tmp/oci-$2-$3.tgz"
+  ref="$base/$2"
+  if [[ ! -s "$dest" ]]; then
+    helm pull "$ref" --version "$3" --destination "$tmp" >/dev/null 2>&1 \
+      || { echo "helm pull $ref --version $3 failed (OCI tag missing? registry unreachable?)"; return 1; }
+    if [[ -f "$tmp/$2-$3.tgz" ]]; then
+      mv "$tmp/$2-$3.tgz" "$dest"
+    else
+      echo "helm pull $ref wrote no expected $2-$3.tgz"
+      return 1
+    fi
+  fi
+  echo "$dest"
+}
+
 chart_ref() { # srcKind srcName chart version -> echo usable helm ref; on
               # failure echo the reason (main prefixes "FAIL: <release> — ")
               # and exit 1
@@ -137,6 +156,12 @@ chart_ref() { # srcKind srcName chart version -> echo usable helm ref; on
   if [[ -z "$url" ]]; then
     echo "source $1/$2 not found on cluster (check sources.yaml apply state)"
     return 1
+  fi
+  if [[ "$1" == "HelmRepository" && "$url" == oci://* ]]; then
+    local tgz
+    tgz=$(oci_pull_ref "$url" "$3" "$4") || { echo "$tgz"; return 1; }
+    echo "$tgz"
+    return 0
   fi
   if [[ "$1" == "HelmRepository" ]]; then
     # fetch only on a miss: the probe (chart_in_index) answers from the local
@@ -206,7 +231,7 @@ render_release() { # file name ns chart version srcKind srcName
   collect_values "$f" "$name" || { fail=1; return 0; }
   local args=("$ref" --namespace "$ns" "${kube_args[@]}")
   for v in "${VFILES[@]}"; do args+=(-f "$v"); done
-  [[ -n "$version" && "$srcKind" == "HelmRepository" ]] && args+=(--version "$version")
+  [[ -n "$version" && "$srcKind" == "HelmRepository" && ! -f "$ref" ]] && args+=(--version "$version")
   if err=$(helm template "$name" "${args[@]}" 2>&1 >/dev/null); then
     echo "PASS: $name ($chart${version:+ $version})"
   else

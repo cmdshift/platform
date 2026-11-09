@@ -15,9 +15,9 @@ configMapGenerator:
       - values.yaml=valkey-operator-values.yaml
     options:
       disableNameSuffixHash: true
-  - name: emqx-operator-values
+  - name: strimzi-kafka-operator-values
     namespace: datastores
     files:
-      - values.yaml=emqx-operator-values.yaml
+      - values.yaml=strimzi-kafka-operator-values.yaml
     options:
       disableNameSuffixHash: true

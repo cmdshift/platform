@@ -52,7 +52,7 @@ Charts whose CRDs render from `templates/` (no `crds/` dir) are a variant of the
 
 - strategic-merge patches on Deployments merge `containers` **by name** — a wrong name silently *adds* a container; verify the container name first
 - `ClusterRole.rules` is atomic: strategic merge **replaces** it — append with JSON6902 (`op: add, path: /rules/-`)
-- house example: a kustomization SMP on an operator's manager container (the thanos-operator pattern, cmdshift/platform#128 — the operator is since removed, see its runbook; the emqx-operator pre-upgrade Job SMP below is the live example)
+- house example: a kustomization SMP on an operator's manager container (the thanos-operator pattern, cmdshift/platform#128; the emqx-operator pre-upgrade Job SMP below is the worked example — emqx has since been swapped for strimzi, cmdshift/platform#166, which needs no SMP: no hook Jobs in that chart)
 
 ## 4. Verify before pushing
 
