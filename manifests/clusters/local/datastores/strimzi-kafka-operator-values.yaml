@@ -1,0 +1,8 @@
+# Provisional resources — audit after burn-in (JVM operator; limit drives heap sizing)
+resources:
+  requests:
+    cpu: 15m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 384Mi

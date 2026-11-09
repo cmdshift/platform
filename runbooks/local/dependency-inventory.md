@@ -13,7 +13,7 @@ Cadence: re-run before each maintenance session, or monthly. The output is an is
 | Terraform bootstrap pins | `cluster/local/bootstrap/` — `main.tf` `helm_release` blocks and `variables.tf` defaults (flux's version is a variable default) | bootstrap cilium, flux2 |
 | In-values image tags | values files and kustomize image patches (`grep -rn 'tag:\|image:' manifests/bases/**`) | operator images pinned for the no-floating-tags rule |
 | Companion image pins | `cluster/local/{registry,scanner}/data.tf` (`docker_registry_image` names) | registry + scanner must move in lockstep (cmdshift/platform#102) |
-| HelmRepository URLs | `manifests/sources/*.helm-repository.yaml` — the `url:` is what a local `helm repo add` must use | input for the chart checks below |
+| HelmRepository URLs | `manifests/sources/*.helm-repository.yaml` — the `url:` is what a local `helm repo add` must use (OCI rows: `helm pull oci://<url>/<chart> --version <v>` — `helm repo add` can't take OCI) | input for the chart checks below |
 
 Grep is the enumeration path — every surface above is greppable, so the sweep cannot miss a pin by forgetting it; it can only mis-judge one.
 
@@ -49,7 +49,7 @@ curl -s 'https://quay.io/api/v1/repository/<org>/<repo>/tag/?filter_tag_name=lik
 | cilium | `cluster/local/bootstrap/main.tf` + `manifests/bases/networking/cilium.helm-release.yaml` | **HELD** at the 1.21.0-pre line — the local pin exists because the Linux host's kernel 7.2 crashes cilium 1.20.x (cilium/cilium#48016, rationale in the CHANGELOG 2026-09-10 entry). Re-check the constraint, don't blind-bump |
 | flux2 | `cluster/local/bootstrap/variables.tf` (`flux_chart_version` default) + `manifests/bases/flux/flux.helm-release.yaml` | bootstrap twin converges to the flux pin on adoption |
 | cloudnative-pg | chart (`datastores/cloudnative-pg.helm-release.yaml`) + CRDs tag (`sources/cloudnative-pg-crds.git-repository.yaml`) + values image tag (`datastores/cloudnative-pg-values.yaml`) | a **triple**: chart + CRDs + image |
-| emqx-operator | chart (`datastores/emqx-operator.helm-release.yaml`) + CRDs tag (`sources/emqx-operator-crds.git-repository.yaml`) + values image tag (`datastores/emqx-operator-values.yaml`) | same triple; emqx tags carry no `v` prefix |
+| strimzi-kafka-operator | chart (`datastores/strimzi-kafka-operator.helm-release.yaml`) | single surface — the chart version IS the image tag line (`defaultImageTag` in chart values follows the chart version); OCI source, so check tags via `helm pull --version` or the quay tags API (`helm search repo` can't see OCI) |
 | registry / scanner | `cluster/local/registry/data.tf` + `cluster/local/scanner/data.tf` | both angos pins bump in lockstep (cmdshift/platform#102) |
 
 Pairs where one side lags converge to the laggard (flux adoption pulls the live release to the HelmRelease's pin), so a partial bump is worse than none.

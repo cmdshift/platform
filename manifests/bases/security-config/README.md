@@ -20,7 +20,7 @@ TracingPolicies + the namespace ResourceQuota for the [security](../security/REA
 | `exec-deny-list-secrets` | secrets | chart's release instance label | stage-2 flip 2 sibling (#28) |
 | `exec-deny-list-access` | access (oauth2-proxy) | chart's release instance label | phase-4 wave 1 (#60) |
 | `exec-deny-list-certificates` | certificates (cert-manager) | chart's release instance label | phase-4 wave 1 (#60) |
-| `exec-deny-list-datastores` | datastores (cnpg, emqx, valkey operators) | charts' release instance labels | phase-4 wave 1 (#60) |
+| `exec-deny-list-datastores` | datastores (cnpg, valkey operators) | charts' release instance labels | phase-4 wave 1 (#60). Strimzi deliberately excluded (cmdshift/platform#166): its entrypoint execs `env→bash→script` with no values knob for the chain — enforcement kills every startup, and tetragon selectors can't exempt one binary; admission layer + exec-inventory carry the coverage. Future strimzi-managed pods (entity operator, brokers) are out of scope by the same route |
 | `exec-deny-list-security` | security (tetragon agent + operator) | chart's release instance labels | phase-4 wave 1 (#60); trivy moved to scanning/ |
 | `exec-deny-list-observability` | observability (openobserve) | release instance label — future release workloads must be added to the values list | phase-4 wave 1 (#60) |
 | `exec-deny-list-backups` | backups (velero controller + node-agent DS) | release instance label | phase-4 wave 1 (#60); split from its siblings because k8s LabelSelectors AND their terms — a pod can't match "velero OR kopia-job OR talos-backup" in one selector |

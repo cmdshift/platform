@@ -16,8 +16,7 @@ resources:
   - cloudnative-pg.helm-repository.yaml
   - cloudnative-pg-crds.git-repository.yaml
   - valkey.helm-repository.yaml
-  - emqx.helm-repository.yaml
-  - emqx-operator-crds.git-repository.yaml
+  - strimzi.helm-repository.yaml
   - openobserve.helm-repository.yaml
   - open-telemetry.helm-repository.yaml
   - prometheus-community.helm-repository.yaml

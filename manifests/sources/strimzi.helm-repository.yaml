@@ -1,8 +1,9 @@
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
 metadata:
-  name: emqx
+  name: strimzi
   namespace: flux-system
 spec:
+  type: oci
   interval: 12h
-  url: https://repos.emqx.io/charts
+  url: oci://quay.io/strimzi-helm

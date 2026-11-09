@@ -9,8 +9,10 @@ spec:
         operator: In
         values:
           - cloudnative-pg
-          - emqx-operator
           - valkey-operator
+          # no strimzi-kafka-operator: its entrypoint execs env→bash→script
+          # (no values knob for the chain) — deny-list enforcement would kill
+          # every operator startup; cmdshift/platform#166
   options:
     - name: policy-mode
       value: enforce

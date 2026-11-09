@@ -97,11 +97,13 @@ The pre-reconcile lint step.
 
 Renders every HelmRelease's values through `helm template` (the pre-reconcile
 values check of the `platform-workflow` loop, automated). Charts resolve from the source CRs on
-the live cluster: HelmRepository → repo index, GitRepository (tag/commit) →
-shallow clone. All helm state lives in a scratch dir under the repo's
-`.agents/temp/` (gitignored, removed by an EXIT trap). An optional release-name
-argument renders just that one (ad-hoc values debugging without the
-full-suite noise).
+the live cluster: HelmRepository → repo index, OCI HelmRepository (`oci://` url) →
+`helm pull` of the exact `url/chart --version` tag (the OCI tag IS the version —
+a typo'd pin fails loudly instead of helm's silent closest-version fallback),
+GitRepository (tag/commit) → shallow clone. All helm state lives in a scratch
+dir under the repo's `.agents/temp/` (gitignored, removed by an EXIT trap). An
+optional release-name argument renders just that one (ad-hoc values debugging
+without the full-suite noise).
 
 When `path` contains a `kustomization.yaml`, releases and values sources are
 resolved from the `kubectl kustomize` build — the tool renders what flux

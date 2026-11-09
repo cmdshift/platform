@@ -10,6 +10,7 @@ description: A pod is crashlooping, OOMKilled, or exiting silently. Identify the
 Start with `pod_status [-n ns]` — phase, restarts, and last exit code/reason per container.
 
 - **OOMKilled / exit 137** — memory limit. Go to §3
+- **Error / exit 137 that isn't OOM** — a tetragon deny-list kill is also SIGKILL/137. Distinguishers: death in the same second as start + empty previous logs (JVM/heap death takes seconds and usually logs first) + pod labels match an `exec-deny-list-*` podSelector. Confirm via the tetragon events stream (`kubectl -n security logs -l app.kubernetes.io/name=tetragon --all-containers` — the exec'd binary shows in the `process_exec` stream; the fix is scoping the workload out of the policy, not sizing). Landed live on the strimzi operator: its `env→bash→script` entrypoint hit the interpreter kill list (cmdshift/platform#166)
 - **Error / exit 1** — read the previous container's logs: `kubectl -n <ns> logs <pod> --previous --tail=50`
 - **container never starts** — check events for `admission webhook ... denied the request: Policy <name> failed` (§2)
 
