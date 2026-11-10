@@ -11,7 +11,11 @@
 # file (${TMPDIR:-/tmp}/loki_query.loki.forward, "<pid> <port>") — a wedged or
 # dead forward is evicted and replaced on the next call; a not-ready loki
 # (startup/WAL replay) is waited out (bounded 2m). The lifecycle is
-# duplicated in prometheus_query — keep the two in lockstep.
+# duplicated in prometheus_query — the two have DIVERGED on the backend
+# (cmdshift/platform#186): prometheus_query now speaks PromQL to O2's
+# Prometheus-compat API, this tool still speaks LogQL to loki (O2 log search
+# is SQL, not LogQL — its own follow-up; the lifecycle mechanics stay in
+# lockstep).
 #
 # LANDMINE: tetragon event streams carry the EXPORTER's labels
 # ({namespace="security", pod="tetragon-*"}), not the workload's — the event's

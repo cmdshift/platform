@@ -28,18 +28,26 @@ Folded into `memory_audit`'s footer. Expected on this cluster: **3** — three c
 prometheus_query -c -r 6h 'container_memory_working_set_bytes{namespace="<ns>",container="<name>"}'
 ```
 
+The store behind this is O2 (cmdshift/platform#186 — the #171 orphaning is
+resolved). Two O2 query caveats: metric-defined labels (`namespace`,
+`container`, `pod`) survive, but standard target labels are OTel-translated
+(`job` → `service_name`, `instance` → `service_instance_id`) — group by the
+surviving names; and range queries over long windows return **sparse,
+blocky** coverage (data present near ingest start + recent, gaps between) —
+read trend output as "what the store has", not a full grid; instant queries
+(what the audits use) are clean.
+
 A fresh cluster's first ~3h is always a ramp (head chunks, WAL, warmup) — judge trends after that. Anything >60% of limit and climbing is a candidate. Distinguish shapes before acting: a steady climb is a leak or cardinality growth (platform#20), a **sawtooth that returns to baseline is a periodic burst** (kyverno reports-controller's hourly scan, platform#21) — that needs limit headroom over the peak, not a leak hunt.
 
 **A "usage below limit" snapshot is NOT evidence the limit is safe.** Transient bursts kill between snapshots: the seaweed volume server was OOMKilled at its 240Mi limit while `kubectl top` read 183Mi at death — only the prometheus range query showed the spike (post-mortem story in [CHANGELOG.md](../../CHANGELOG.md), 2026-09-25; durable traps in [manifests/bases/objects/README.md](../../manifests/bases/objects/README.md)). For any container with a burst-shaped workload (flush paths, vacuum/compaction, periodic scans), judge headroom as limit ÷ range-query peak, not limit ÷ current usage.
 
-## 5. For prometheus itself: cardinality, not just memory
+## 5. Cardinality, not just memory
 
 ```
-prometheus_query -c 'prometheus_tsdb_head_series'                          # absolute + trend
-prometheus_query -c 'topk(10, count by (job)({__name__=~".+"}))'           # which job owns the series
+prometheus_query -c 'topk(10, count by (service_name)({__name__=~".+"}))'   # which source owns the series (O2: job → service_name)
 ```
 
-Reference finding (platform#20): the apiserver job alone was 52k of 111k head series on this CRD-heavy cluster. If memory tracks series growth, the fix is `MetricRelabelings` (e.g. pruning `apiserver_request_duration_seconds` buckets), not another memory bump.
+Reference finding (platform#20): the apiserver job alone was 52k of 111k head series on this CRD-heavy cluster. If memory tracks series growth, the fix is scrape-config metric pruning (e.g. dropping high-cardinality buckets), not another memory bump. (The historical `prometheus_tsdb_head_series` metric died with the kps removal, cmdshift/platform#141 — the count-over-`{__name__=~".+"}` shape still works against O2.)
 
 ## 6. Decide and record
 
