@@ -1,4 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  - external-secrets-cert-controller.vertical-pod-autoscaler.yaml
+  - external-secrets-webhook.vertical-pod-autoscaler.yaml
+  - external-secrets.vertical-pod-autoscaler.yaml
   - secrets.resource-quota.yaml

@@ -1,8 +1,10 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - group-bindings.role-binding.yaml
-  - hubble-auth-proxy.helm-release.yaml
-  - openobserve-auth-proxy.helm-release.yaml
-  - oauth2-proxy-secrets.external-secret.yaml
   - auth-routes.httproute.yaml
+  - group-bindings.role-binding.yaml
+  - hubble-auth-proxy-oauth2-proxy.vertical-pod-autoscaler.yaml
+  - hubble-auth-proxy.helm-release.yaml
+  - oauth2-proxy-secrets.external-secret.yaml
+  - openobserve-auth-proxy-oauth2-proxy.vertical-pod-autoscaler.yaml
+  - openobserve-auth-proxy.helm-release.yaml
