@@ -16,11 +16,14 @@ The standard loop for every change to `manifests/` (bases + clusters). Flux v2 d
 ## 1. Pre-reconcile checks
 
 ```
-yaml_lint          # parse-check all YAML; prints every bad file, exit 1 if any
-helm_verify        # renders every HelmRelease's values via helm template
-cr_validate        # server-side dry-run of CRs against on-cluster CRD schemas
-dryrun_check       # kustomize build + per-object server-side dry-run of a changed group
+yaml_lint            # parse-check all YAML; prints every bad file, exit 1 if any
+kustomization_audit  # registration guard: every yaml in a kustomize dir must be referenced in that dir's kustomization.yaml
+helm_verify          # renders every HelmRelease's values via helm template
+cr_validate          # server-side dry-run of CRs against on-cluster CRD schemas
+dryrun_check         # kustomize build + per-object server-side dry-run of a changed group
 ```
+
+`kustomization_audit` is the registration check next to `yaml_lint`'s parse check: an unregistered yaml in a kustomize dir silently never deploys (the landmine hit three times — cmdshift/platform#183 twice, #186's talos-backup VPA orphan). Values files (generator inputs) and the terraform-applied root `local.kustomization.yaml` are excepted automatically.
 
 `dryrun_check <path>` is the whole-group gate: `kubectl apply` on a multi-doc build stops at the first failure, but the controller's dry-run failure message reads group-wide — dryrun_check reports EVERY failing object individually (catches CM last-applied-annotation oversize (~256KB, cmdshift/platform#171), kyverno denials, strict-decode errors pre-reconcile).
 
