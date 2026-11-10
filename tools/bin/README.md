@@ -6,7 +6,11 @@ directory to PATH — invoke as `<name>` inside the repo; otherwise
 function; the observability ones (`prometheus_query`, `loki_query`) share a
 port-forward lifecycle: a per-service forward is started once and reused via
 a lock file in `.agents/temp/` (`<tool>.<service>.forward`, `<pid> <port>`)
-instead of churning a listener per call; `--stop` evicts them.
+instead of churning a listener per call; `--stop` evicts them. Since the
+#186 store rewiring the two have DIVERGED on the backend: `prometheus_query`
+speaks PromQL to O2's Prometheus-compat API, `loki_query` still speaks LogQL
+to loki (O2 log search is SQL — its own follow-up; the lifecycle mechanics
+stay in lockstep).
 
 **Shared conventions:**
 
@@ -55,6 +59,7 @@ whole dependency tree.
 | tool | one-liner |
 |---|---|
 | `yaml_lint` | parse-check all YAML manifests (pre-reconcile lint) |
+| `kustomization_audit` | registration guard: every yaml in a kustomize dir must be referenced (pre-reconcile) |
 | `helm_verify` | render every HelmRelease's values via `helm template` (values-path check) |
 | `sync_wait` | wait until changed manifests have actually landed in the flux bucket |
 | `flux_wait` | reconcile from the root + bounded poll to all-green |
@@ -92,6 +97,29 @@ The pre-reconcile lint step.
 - A nonexistent path is a usage error (exit 2) — it used to report
   `OK: 0 files parse clean`, reading as green
 - Syntax only — value-path verification is `helm_verify`'s job
+
+### `kustomization_audit [path]`
+
+Registration guard (born from the landmine hit three times — cmdshift/platform#183
+twice, #186's talos-backup VPA orphan): every `.yaml` in a kustomize dir must be
+referenced somewhere in that dir's `kustomization.yaml`, or it silently never
+deploys. The second pre-reconcile check next to `yaml_lint` (parse) — this is
+the registration check, default path `manifests/`.
+
+- **Matching is mechanical, not by path heuristic**: any basename appearing as a
+  scalar anywhere in the kustomization doc counts as registered (resources,
+  generator `key=file` inputs, patches, helmCharts) — so values files are
+  excepted automatically, including the `values.yaml=<name>.yaml` generator form
+- **Two failure shapes**: `FAIL: <file> — not in kustomization.yaml`
+  (unregistered file) and `FAIL: <kustomization.yaml> — <entry> points at
+  missing file` (broken registration). Per-dir `OK:` lines; final
+  `OK: N kustomization.yaml files registered clean` when all green
+- **One known exception, skipped by name**: `local.kustomization.yaml` in
+  `flux-config` dirs — the root Kustomization CR is terraform-applied via the
+  HCL twin in `cluster/local/bootstrap/main.tf` (`ignore_changes = all`) and
+  flux cannot own its own root pointer
+  ([manifests/bases/flux/README.md](../../manifests/bases/flux/README.md))
+- Exits 0 clean, 1 failures, 2 usage error (bad path, extra args)
 
 ### `helm_verify [path] [release]`
 
@@ -331,8 +359,10 @@ comparisons.
 ### `cpu_audit [threshold_pct]`
 
 CPU sibling. First the silent-killer check: top 10 containers by % of CFS
-periods throttled (1h rate, >5% worth a look — queries mimir via the
-sibling `prometheus_query`, same dir required). Then usage-vs-CPU-limit
+periods throttled (1h rate, >5% worth a look — queries the O2 store via the
+sibling `prometheus_query`, same dir required; unblocked by the #186 store
+rewiring, with the 1h rate needing ~1h of post-change history to populate
+rows). Then usage-vs-CPU-limit
 table (default 50%, millicores normalized). Same threshold validation.
 
 ### `request_audit [threshold_pct]`
@@ -400,32 +430,38 @@ runbooks/local/namespace-migration.md.
 
 ## Observability queries
 
-**OpenObserve-era note (cmdshift/platform#171)**: mimir/loki are gone —
-`prometheus_query` and `loki_query` are **ORPHANED** (their target services no
-longer exist; queries fail at the port-forward). Both tools survive for a
-future Prometheus-API-compatible store; flag, don't delete. `metrics_summary`
-inherits the same fate. The audit tools (`memory_audit`/`cpu_audit`/
-`request_audit`) ride `prometheus_query` for the throttle check — that path
-needs a store decision before the next audit run. O2 has its own query API
-(not Prometheus-wire-compatible enough to reuse these tools as-is).
+**Store decision (cmdshift/platform#186, resolving #171's store gap)**:
+OpenObserve is the metrics store — `prometheus_query` is **REWIRED to O2** and
+works again (Prometheus-compat API at `/api/default/prometheus/api/v1/...`,
+port 5080; instant + range verified live). `loki_query` remains **ORPHANED**
+on purpose: O2 log search is SQL, not LogQL, so it keeps a follow-up of its
+own rather than a fake LogQL shim. `metrics_summary` runs against O2 but its
+per-job breakdown reads empty `job` labels (O2 label translation, see the
+prometheus_query caveats below). `memory_audit`/`request_audit` never rode
+prometheus_query (they're kubectl-based); `cpu_audit`'s throttle check rides
+the rewired `prometheus_query` and works.
 
 ### `prometheus_query [-v|-c] [-r 6h] '<promql>' | prometheus_query --stop`
 
-(ORPHANED with the OpenObserve migration, cmdshift/platform#171 — see the
-note above; the usage below is kept for a future store re-pointing.)
-
-Port-forwards svc/mimir:8080 (the only metrics store since the kps removal,
-cmdshift/platform#141; the pre-LGTM svc/kube-prometheus-stack-prometheus
-default died with it — the former `--query` mimir switch is now the only
-behavior, its flag removed). The mimir path sends
-`X-Scope-OrgID: self-monitoring` and uses `/ready` for the ready check,
-since mimir serves the query API under `/prometheus` with no prometheus-style
-`/-/ready` — one forward, SHARED across invocations via the lock file
-`.agents/temp/prometheus_query.mimir.forward` (`<pid> <port>`).
-(Git history note: `--query` targeted svc/thanos-query-main before the LGTM
-migration, cmdshift/platform#128 — a reused-forward lock recorded under the
-old service name silently 302'd the ready check; the per-service lock file
-keying makes that a non-issue going forward.)
+Queries svc/openobserve (ns observability, port 5080) — the metrics store
+since the LGTM teardown (cmdshift/platform#171), rewired from svc/mimir by
+cmdshift/platform#186 (history: svc/kube-prometheus-stack-prometheus died
+with the kps removal #141, svc/thanos-query-main before that #128). The
+query API path is `/api/default/prometheus/api/v1/{query,query_range}` — the
+org is hardcoded `default` (the collectors push to `/api/default/`), **no
+`X-Scope-OrgID`** (that was mimir multi-tenancy). The ready check is
+`/healthz` (200 unauthenticated; O2's `/ready` requires auth). Auth is the
+collectors' inlined Basic token, read live from
+cm/openobserve-collector-agent-values and cached at
+`.agents/temp/prometheus_query.o2.auth` — never embedded in the script (it
+must be re-encoded whenever the secrets-server `openobserve-credentials`
+payload changes; the tool drops the cache and refetches on a 401, and exits
+1 if the fresh token is also rejected). One forward, SHARED across
+invocations via the lock file `.agents/temp/prometheus_query.openobserve.forward`
+(`<pid> <port>`). (Git history note: `--query` targeted svc/thanos-query-main
+before the LGTM migration, cmdshift/platform#128 — a reused-forward lock
+recorded under the old service name silently 302'd the ready check; the
+per-service lock file keying makes that a non-issue going forward.)
 
 - default: raw JSON; `-v`: values only; `-c`: compact, one line per series
   with a short label subset (token-cheap vs raw JSON's label noise)
@@ -435,8 +471,19 @@ keying makes that a non-issue going forward.)
   are usage errors — `prometheus_query -r` alone used to **loop forever**
   (failed `shift 2` left `-r` as the first arg) and `-x` used to be silently
   swallowed
-- instant queries evaluate series present in the last 5m — a range query is
-  the way to see pods that have since been recreated
+- **O2 label translation** (cmdshift/platform#186, verified live): the OTel
+  prometheus receiver maps standard target labels — `job` → `service_name`
+  (+ `service_namespace`), `instance` → `service_instance_id` /
+  `server_address`; metric-defined labels (`pod`, `namespace`, `container`,
+  `device`, `policy`, …) survive as-is. `count by (job) (up)` returns one
+  empty-label row — group by `service_name` instead.
+- **O2 range-query history is sparse** (cmdshift/platform#186, verified
+  live): `query_range` over long windows returns partial coverage (e.g.
+  `sum(up)` 24h/step600 → a handful of points in blocky clusters, data
+  present at ingest start + recent, gaps between; fixed windows inside the
+  gaps return empty). Instant queries (what the audit tools use) are clean.
+  Treat `-r` output as "what the store has", not a full grid — the
+  resource-sizing 7d trend procedure reads it with that caveat.
 - **shared-forward lifecycle** (cmdshift/platform#77; duplicated in
   `loki_query` — keep the two in lockstep): each call validates the recorded
   forward (PID alive AND still a port-forward — the cmdline check defeats
@@ -444,11 +491,9 @@ keying makes that a non-issue going forward.)
   wedged forward is evicted and replaced in the same call (~30s worst case
   for a wedged-but-alive listener: the liveness probe waits out curl's
   2s max-time per poll). No EXIT trap kills anything — the forward outlives
-  the call; `--stop` is the hygiene valve. A not-ready server (WAL replay:
-  HTTP 503 from the ready endpoint while the forward answers) is waited out
-  up to 2m with a `prometheus not ready after 2m — likely WAL replay`
-  exit-1, the forward left recorded so the retry rides the same one — the
-  old per-call version hard-failed 20×0.5s into replay instead. Known
+  the call; `--stop` is the hygiene valve. A not-ready server is waited out
+  up to 2m with an `openobserve not ready after 2m` exit-1, the forward left
+  recorded so the retry rides the same one. Known
   race: two simultaneous cold starts can both write the lock (last writer
   wins, one forward orphans until its lock is overwritten or `--stop`
   catches it) — sequential loops, the norm for these tools, never race.
@@ -470,17 +515,24 @@ keying makes that a non-issue going forward.)
 
 ### `metrics_summary [-t] [-w] | metrics_summary --raw '<promql>'`
 
-The post-scrape-change verification gate (run after any alloy/collector
+The post-scrape-change verification gate (run after any collector
 scrape edit, SM removal, or chart metrics toggle): one `<n> <job>` line per
-job family from `count by (job) (up{job!~""})` against mimir, sorted by job
+job family from `count by (job) (up{job!~""})`, sorted by job
 name — eyeball for expected families and per-replica target counts
 (node-exporter/cilium-agent = node count, etc.). `-t` adds a TOTAL line;
 `-w` adds `WATCHDOG firing=N` (ruler + alertmanager path alive). Rides
-`prometheus_query`'s shared mimir forward — no own port-forward, same
+`prometheus_query`'s shared forward — no own port-forward, same
 lifecycle contract. `--raw '<promql>'` is the escape hatch for any other
 instant query in the same compact form. Exit 0 on a run (empty output =
 no series — investigate, don't read as green); the shared-forward and
 not-ready semantics are `prometheus_query`'s.
+
+**O2 caveat (cmdshift/platform#186)**: against the O2 store the per-job
+count reads an empty `job` label (OTel label translation — group by
+`service_name` instead, e.g. `--raw 'count by (service_name) (up)'`), so the
+default per-job breakdown is now a TOTAL-only signal; `-w` is moot (no
+ruler/Watchdog since the alertmanager removal, cmdshift/platform#182). The
+escape hatch still works verbatim.
 
 ### `loki_query [-c] '<logql>' [duration] | loki_query --stop`
 
@@ -494,9 +546,11 @@ by value desc) — the only way to see aggregation group labels, which the
 default output drops. Exit codes: 0 = query ran (check the output for
 emptiness), 1 = forward failed or loki stayed not-ready, 2 = usage.
 **ORPHANED with the OpenObserve migration** (cmdshift/platform#171 — the
-`loki_query.loki.forward` lock file will fail at the port-forward); kept for
-a future Prometheus-API-compatible store re-pointing. The label-landmine
-notes below stay valid for any log store.
+`loki_query.loki.forward` lock file will fail at the port-forward). The
+store decision (cmdshift/platform#186) wired the METRICS side of these tools
+to O2's Prometheus-compat API; O2 log search is SQL, not LogQL, so this tool
+stays orphaned until its own follow-up (no LogQL shim is planned). The
+label-landmine notes below stay valid for any log store.
 
 - **LANDMINE — tetragon events carry the EXPORTER's labels**: all event
   streams live under `{namespace="security", pod="tetragon-*"}`; the event's

@@ -1,11 +1,11 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - security.resource-quota.yaml
+  - bpf-activity.tracing-policy.yaml
   - exec-deny-list-access.tracing-policy.yaml
-  - exec-deny-list-backups.tracing-policy.yaml
   - exec-deny-list-backups-jobs.tracing-policy.yaml
   - exec-deny-list-backups-talos.tracing-policy.yaml
+  - exec-deny-list-backups.tracing-policy.yaml
   - exec-deny-list-certificates.tracing-policy.yaml
   - exec-deny-list-datastores.tracing-policy.yaml
   - exec-deny-list-flux-system.tracing-policy.yaml
@@ -18,4 +18,7 @@ resources:
   - exec-inventory.tracing-policy.yaml
   - kernel-modules.tracing-policy.yaml
   - privileges-raise.tracing-policy.yaml
+  - security.resource-quota.yaml
   - sensitive-host-paths.tracing-policy.yaml
+  - tetragon-operator.vertical-pod-autoscaler.yaml
+  - tetragon.vertical-pod-autoscaler.yaml

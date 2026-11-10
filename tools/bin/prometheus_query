@@ -1,23 +1,32 @@
 #!/usr/bin/env bash
-# Prometheus query with the port-forward lifecycle handled: a per-service
-# forward is started once and SHARED across invocations via a lock file
+# PromQL query against OpenObserve's Prometheus-compat API, with the
+# port-forward lifecycle handled: a per-service forward is started once and
+# SHARED across invocations via a lock file
 # (${TMPDIR:-/tmp}/prometheus_query.<service>.forward, "<pid> <port>") —
 # rapid loops stop churning listeners, and a wedged/dead forward is evicted
-# and replaced on the next call. A not-ready prometheus (WAL replay) is
-# waited out (bounded 2m): the ready check distinguishes "forward up, server
-# not ready" (HTTP non-200) from "forward dead" (refused/timeout). `--stop`
-# evicts the shared forwards. The lifecycle is duplicated in loki_query —
-# keep the two in lockstep.
-# Queries svc/mimir (the only metrics store since the kps removal,
-# cmdshift/platform#141 — the old svc/kube-prometheus-stack-prometheus
-# default died with it).
+# and replaced on the next call. A not-ready server is waited out (bounded
+# 2m): the ready check distinguishes "forward up, server not ready" (HTTP
+# non-200) from "forward dead" (refused/timeout). `--stop` evicts the shared
+# forwards. The lifecycle is duplicated in loki_query — the two have since
+# DIVERGED on the backend (cmdshift/platform#186): this tool speaks PromQL
+# to O2's Prometheus-compat API, loki_query still speaks LogQL to loki (O2
+# log search is SQL, not LogQL — its own follow-up; cmdshift/platform#171
+# removed mimir/loki with the LGTM stack).
+# Queries svc/openobserve ns observability, port 5080; the org is hardcoded
+# `default` (the collectors push to /api/default/, no X-Scope-OrgID — that
+# was mimir multi-tenancy). Auth is the collectors' inlined Basic token,
+# read live from cm/openobserve-collector-agent-values and cached at
+# .agents/temp/prometheus_query.o2.auth — never embedded here (it must be
+# re-encoded whenever the secrets-server `openobserve-credentials` payload
+# changes; a 401 invalidates the cache and refetches once).
 #   prometheus_query '<promql>'              instant, raw JSON
 #   prometheus_query -v '<promql>'            values only (value + labels, or ts value)
 #   prometheus_query -c '<promql>'            compact: "<pod=... container=...> vals" per line
 #   prometheus_query -r 6h '<promql>'         range over the last 6h (m|h|d), auto step
 #   prometheus_query --stop                   evict the shared forwards
 # Exit 0 = query ran (check the JSON/values for emptiness), 1 = forward
-# failed to establish or the server stayed not-ready for 2m, 2 = usage error.
+# failed to establish, the server stayed not-ready for 2m, or auth failed
+# after a token refetch, 2 = usage error.
 
 usage() {
   echo "usage: prometheus_query [-v|-c] [-r 6h] '<promql>' | prometheus_query --stop" >&2
@@ -44,6 +53,7 @@ range_start() { # e.g. 6h -> epoch seconds; bash math off `date +%s` (portable �
 REPO_ROOT="$(git -C "$(dirname "$0")/.." rev-parse --show-toplevel 2>/dev/null || { cd "$(dirname "$0")/../.." && pwd; })"
 LOCK_DIR="$REPO_ROOT/.agents/temp"
 mkdir -p "$LOCK_DIR"
+AUTH_CACHE="$LOCK_DIR/prometheus_query.o2.auth"
 
 http_answer() { # url — exit 0 once any HTTP response arrives; curl exit 0 covers
   # 200 AND 503, while refused/timeout exit non-zero — that distinction is
@@ -72,6 +82,23 @@ stop_forwards() { # evict every forward this tool has recorded
   done
 }
 
+o2_token() { # the O2 Basic token, read from the cluster at runtime — never
+  # hardcoded (it changes with the secrets-server openobserve-credentials
+  # payload; observability README 401 landmine). Cached at AUTH_CACHE so
+  # rapid loops don't re-run kubectl per query; a 401 below rm's the cache.
+  if [ -s "$AUTH_CACHE" ]; then
+    cat "$AUTH_CACHE"
+    return
+  fi
+  local token
+  token=$(kubectl -n observability get cm openobserve-collector-agent-values \
+    -o jsonpath='{.data.values\.yaml}' 2>/dev/null \
+    | grep -m1 'Authorization: "Basic ' | sed 's/.*"Basic /Basic /;s/".*//')
+  [ -n "$token" ] || { echo "cannot read the O2 auth token from cm/openobserve-collector-agent-values (ns observability)" >&2; return 1; }
+  printf '%s\n' "$token" > "$AUTH_CACHE"
+  echo "$token"
+}
+
 port_forward() { # service_name — sets PORT_FORWARD_PORT / PORT_FORWARD_PID
   local service=$1 lock i pid port attempt
   lock="$LOCK_DIR/prometheus_query.$service.forward"
@@ -90,14 +117,15 @@ port_forward() { # service_name — sets PORT_FORWARD_PORT / PORT_FORWARD_PID
   if [ -z "${PORT_FORWARD_PORT:-}" ]; then
     # fresh forward; one restart when kubectl dies (transient bind collision —
     # random-port collisions are rare but cheaper to retry than to fail)
-    # mimir's query API lives on 8080 under /prometheus, not 9090 (cmdshift/platform#128)
+    # O2's API lives on 5080; /healthz is the unauthenticated ready check
+    # (/ready and the query API require auth — cmdshift/platform#186)
     for attempt in 1 2; do
       PORT_FORWARD_PORT=$((20000 + RANDOM % 1000))
-      kubectl -n observability port-forward "svc/$service" "$PORT_FORWARD_PORT:8080" >/dev/null 2>&1 &
+      kubectl -n observability port-forward "svc/$service" "$PORT_FORWARD_PORT:5080" >/dev/null 2>&1 &
       PORT_FORWARD_PID=$!
       # the ready check runs before port_forward returns; READY_PATH must be
       # set here, not just at the query-URL build site below
-      READY_PATH=/ready
+      READY_PATH=/healthz
       i=0
       until http_answer "http://localhost:$PORT_FORWARD_PORT$READY_PATH"; do
         i=$((i + 1))
@@ -111,7 +139,7 @@ port_forward() { # service_name — sets PORT_FORWARD_PORT / PORT_FORWARD_PID
   else
     # reused forward: bounded liveness probe before trusting it — a wedged
     # kubectl keeps its PID while the port stops answering
-    READY_PATH=/ready
+    READY_PATH=/healthz
     i=0
     until http_answer "http://localhost:$PORT_FORWARD_PORT$READY_PATH"; do
       i=$((i + 1))
@@ -124,16 +152,16 @@ port_forward() { # service_name — sets PORT_FORWARD_PORT / PORT_FORWARD_PID
       sleep 0.5
     done
   fi
-  # ready budget: HTTP 503 here is the server not ready (WAL replay) — wait it
-  # out; only a dead forward fails immediately. On expiry the forward is
-  # recorded anyway, so the next call rides the same one. Mimir's /ready
-  # returns 200 with a body ("ready") rather than a bare 200 — http_200 works.
+  # ready budget: HTTP non-200 here is the server not ready — wait it out;
+  # only a dead forward fails immediately. On expiry the forward is recorded
+  # anyway, so the next call rides the same one. O2 /healthz returns 200
+  # once the HTTP server is up (no WAL-replay-style wait observed live).
   i=0
   while ! http_200 "http://localhost:$PORT_FORWARD_PORT$READY_PATH"; do
     kill -0 "$PORT_FORWARD_PID" 2>/dev/null || { echo "port-forward failed to establish" >&2; return 1; }
     i=$((i + 1))
     [ "$i" -gt 240 ] && {
-      echo "prometheus not ready after 2m — likely WAL replay; retry shortly" >&2
+      echo "openobserve not ready after 2m; retry shortly" >&2
       printf '%s %s\n' "$PORT_FORWARD_PID" "$PORT_FORWARD_PORT" > "$lock"
       return 1
     }
@@ -168,7 +196,7 @@ format_compact() { # one line per series: short label subset + values (token-che
 }
 
 prometheus_query() {
-  local service=mimir mode=instant values=0 compact=0 range='' query=''
+  local service=openobserve mode=instant values=0 compact=0 range='' query=''
   local start='' end='' step=''
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -188,22 +216,37 @@ prometheus_query() {
   fi
 
   port_forward "$service" || return 1
-  # mimir serves the prometheus query API under the /prometheus prefix
-  # (cmdshift/platform#128)
-  local url="http://localhost:$PORT_FORWARD_PORT/prometheus/api/v1/query"
+  # O2 serves the prometheus-compat query API under /api/{org}/prometheus —
+  # the org is hardcoded default (cmdshift/platform#186)
+  local base="http://localhost:$PORT_FORWARD_PORT/api/default/prometheus/api/v1"
+  local url="$base/query"
 
   if [ "$mode" = range ]; then
     end=$(date +%s)
     step=$(( (end - start) / 30 )); [ "$step" -lt 60 ] && step=60
-    url="http://localhost:$PORT_FORWARD_PORT/prometheus/api/v1/query_range?start=$start&end=$end&step=$step"
+    url="$base/query_range?start=$start&end=$end&step=$step"
   fi
 
+  local token out code
+  token=$(o2_token) || return 1
+  out=$(curl -sG -w '\n%{http_code}' --max-time 15 "$url" --data-urlencode "query=$query" -H "Authorization: $token")
+  code=${out##*$'\n'}
+  if [ "$code" = 401 ]; then
+    # cached token went stale (secrets-server payload changed) — refetch once
+    rm -f "$AUTH_CACHE"
+    token=$(o2_token) || return 1
+    out=$(curl -sG -w '\n%{http_code}' --max-time 15 "$url" --data-urlencode "query=$query" -H "Authorization: $token")
+    code=${out##*$'\n'}
+    [ "$code" = 401 ] && { echo "O2 rejected the token even after a refetch — re-encode the collector values (observability README 401 landmine)" >&2; return 1; }
+  fi
+  out=${out%$'\n'*}
+
   if [ "$compact" = 1 ]; then
-    curl -sG "$url" --data-urlencode "query=$query" -H 'X-Scope-OrgID: self-monitoring' | format_compact
+    printf '%s\n' "$out" | format_compact
   elif [ "$values" = 1 ]; then
-    curl -sG "$url" --data-urlencode "query=$query" -H 'X-Scope-OrgID: self-monitoring' | format_values
+    printf '%s\n' "$out" | format_values
   else
-    curl -sG "$url" --data-urlencode "query=$query" -H 'X-Scope-OrgID: self-monitoring'
+    printf '%s\n' "$out"
     echo
   fi
 }

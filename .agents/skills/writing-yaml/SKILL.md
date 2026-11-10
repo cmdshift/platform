@@ -22,7 +22,7 @@ Never fix drift with `kubectl edit` / `talosctl patch` / `docker exec` mutations
   | HelmRelease / helm values | `helm-release` / `<release>-values.yaml` (no kind segment) | `velero.helm-release.yaml`, `velero-values.yaml` |
   | HelmRepository / GitRepository | `helm-repository` / `git-repository` | `cilium.helm-repository.yaml` |
   | ConfigMap | `config-map` | `node-agent-config.config-map.yaml` |
-  | VerticalPodAutoscaler | `vertical-pod-autoscaler` (never `vpa`) | `talos-backup.vertical-pod-autoscaler.yaml` |
+  | VerticalPodAutoscaler | `vertical-pod-autoscaler` (never `vpa`) | `openobserve.vertical-pod-autoscaler.yaml` |
   | CiliumNetworkPolicy / CiliumClusterwideNetworkPolicy | `cilium-network-policy` / `cilium-clusterwide-network-policy` | `default-deny.cilium-clusterwide-network-policy.yaml` |
   | ExternalSecret / ClusterSecretStore | `external-secret` / `cluster-secret-store` | `bucket-credentials.external-secret.yaml` |
   | ValidatingPolicy / GeneratingPolicy / PolicyException / TracingPolicy | `validating-policy` / `generating-policy` / `policy-exception` / `tracing-policy` | `disallow-privileged.validating-policy.yaml` |
@@ -30,7 +30,7 @@ Never fix drift with `kubectl edit` / `talosctl patch` / `docker exec` mutations
   | everything else | exact kebab-cased kind (`namespace`, `cronjob`, `job`, `service-account`, `role-binding`, `schedule`, `storage-class`, `gateway`, `httproute`, `referencegrant`, `cluster-issuer`, `backup-storage-location`, `pod-disruption-budget`, `cluster-compliance-report`, `bucket`, `kustomization`) | `talos-backup.cronjob.yaml` |
 
   Rules: (a) suffix = the exact kind, kebab-cased — abbreviations (`vpa`, `cm`, `sa`, `rb`, `ds`) are banned; (b) shape is `<name>.<kind>.yaml`, and every manifest file carries a kind segment except `<release>-values.yaml` and `kustomization.yaml` (which is load-bearing for kustomize and never renamed); (c) singleton config objects (ResourceQuota/LimitRange) take their scope as the name.
-- **Every new file joins the group's inner `kustomization.yaml` resources list** (auto-discovered dirs excepted — but see the `kubectl kustomize` landmine: explicit-list dirs silently drop unlisted files from dry-runs while flux still applies them).
+- **Every new file joins the group's inner `kustomization.yaml` resources list** (auto-discovered dirs excepted — but see the `kubectl kustomize` landmine: explicit-list dirs silently drop unlisted files from dry-runs while flux still applies them). This is enforced mechanically: `kustomization_audit` fails any yaml in a kustomize dir that no scalar in the dir's kustomization references (cmdshift/platform#186 — the landmine hit #183 twice plus the talos-backup VPA orphan). Values files are excepted automatically (generator inputs are referenced elsewhere in the doc); the one by-name exception is `flux-config/local.kustomization.yaml` — the terraform-applied root Kustomization CR (`manifests/bases/flux/README.md`).
 - **valuesFrom pattern** (cmdshift/platform#31): helm values live in a plain `<release>-values.yaml`, joined to the HelmRelease via `configMapGenerator` + `valuesFrom` (fixed name, `disableNameSuffixHash: true`). `helm_verify` resolves these refs — keep the generator name in sync.
 - **YAML style**: match the surrounding files (2-space indent, quoted strings where the value is ambiguous).
 
@@ -49,6 +49,6 @@ Comments are a maintenance cost: stale ones actively lie. **Default is no commen
 
 Run, in order, before pushing anything through the reconciliation pipeline (the `platform-workflow` skill owns the full loop):
 
-1. `yaml_lint` — every touched file, always.
+1. `yaml_lint` + `kustomization_audit` — parse + registration check on every touched dir.
 2. `cr_validate` — CRD-backed objects against the on-cluster schema (undeclared fields fail the root dry-run and wedge the whole dependency chain).
 3. `--dry-run` (`kubectl apply --dry-run=server` / `helm_verify` / `dryrun_check`) on new or updated YAML before the sync container picks it up.

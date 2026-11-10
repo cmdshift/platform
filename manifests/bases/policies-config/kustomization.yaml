@@ -17,11 +17,15 @@ resources:
   - disallow-host-path.validating-policy.yaml
   - disallow-host-ports.validating-policy.yaml
   - disallow-latest.validating-policy.yaml
-  - disallow-privileged.validating-policy.yaml
   - disallow-privilege-escalation.validating-policy.yaml
+  - disallow-privileged.validating-policy.yaml
   - disallow-proc-mount.validating-policy.yaml
+  - kyverno-admission-controller.vertical-pod-autoscaler.yaml
+  - kyverno-background-controller.vertical-pod-autoscaler.yaml
+  - kyverno-cleanup-controller.vertical-pod-autoscaler.yaml
+  - kyverno-reports-controller.vertical-pod-autoscaler.yaml
+  - policies.resource-quota.yaml
   - require-graceful-termination.validating-policy.yaml
   - require-resource-limits.validating-policy.yaml
   - require-run-as-nonroot.validating-policy.yaml
-  - policies.resource-quota.yaml
   - restrict-seccomp-string.validating-policy.yaml

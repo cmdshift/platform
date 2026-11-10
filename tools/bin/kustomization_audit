@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# Audit kustomization.yaml registration: every *.yaml in a kustomize dir must
+# be referenced somewhere in that dir's kustomization.yaml — the guard for the
+# "silently never deployed" orphan (cmdshift/platform#183/#186). Values files
+# are excepted mechanically: any basename appearing as a scalar anywhere in the
+# kustomization (resources, generator `key=file` inputs, patches, helmCharts)
+# counts as registered. Also flags registrations pointing at missing files.
+# Excepted by name: local.kustomization.yaml in flux-config dirs (the root
+# Kustomization CR is terraform-applied via the HCL twin in
+# cluster/local/bootstrap/main.tf — see manifests/bases/flux/README.md).
+#   kustomization_audit [path]   # default manifests/
+# Prints per-dir OK / FAIL lines and exits 1 if any dir fails; exit 0 = all
+# clean, exit 2 = usage error. (yaml_lint is the parse-check step; this is the
+# registration-check step before reconcile.)
+
+usage() {
+  echo "usage: kustomization_audit [path]" >&2
+  exit 2
+}
+
+# scalar_basenames kustomization.yaml — basename of every string scalar in the
+# doc, with generator `key=file` entries reduced to the file's basename.
+scalar_basenames() {
+  yq -r '.. | select(tag == "!!str")' "$1" 2>/dev/null \
+    | sed -e 's|.*/||' -e 's|.*=||' | sort -u
+}
+
+# file_entries kustomization.yaml — relative .yaml paths from resources: and
+# generator files: entries (`key=file` stripped), for the missing-file check.
+file_entries() {
+  yq -r '.resources[]?, (.configMapGenerator[]?.files[]?), (.secretGenerator[]?.files[]?)' "$1" 2>/dev/null \
+    | sed 's|.*=||' | grep '\.yaml$' || true
+}
+
+audit_kustomization() { # kustomization.yaml — FAIL lines to stdout, rc 0/1
+  local kfile="$1" dir base entry bad=0 refs
+  dir=$(dirname "$kfile")
+  refs=$(scalar_basenames "$kfile")
+  while IFS= read -r -d '' f; do
+    # local.kustomization.yaml (root Kustomization CR) is terraform-applied via
+    # the HCL twin in cluster/local/bootstrap/main.tf (`ignore_changes = all`)
+    # — flux cannot own its own root pointer, so it is deliberately outside its
+    # dir's kustomization.yaml (manifests/bases/flux/README.md).
+    [ "$(basename "$f")" = "local.kustomization.yaml" ] \
+      && [ "$(basename "$dir")" = "flux-config" ] && continue
+    base=$(basename "$f")
+    if ! grep -qxF -- "$base" <<<"$refs"; then
+      echo "FAIL: $f — not in kustomization.yaml"
+      bad=1
+    fi
+  done < <(find "$dir" -maxdepth 1 -name '*.yaml' ! -name 'kustomization.yaml' -print0)
+  while IFS= read -r entry; do
+    [ -n "$entry" ] || continue
+    if [ ! -f "$dir/$entry" ]; then
+      echo "FAIL: $kfile — $entry points at missing file"
+      bad=1
+    fi
+  done < <(file_entries "$kfile")
+  return "$bad"
+}
+
+kustomization_audit() {
+  [ $# -le 1 ] || usage
+  local path="${1:-manifests}" fail=0 count=0 k
+  [ -e "$path" ] || { echo "kustomization_audit: no such path: $path" >&2; usage; }
+  while IFS= read -r -d '' k; do
+    count=$((count+1))
+    if audit_kustomization "$k"; then
+      echo "OK: $k"
+    else
+      fail=1
+    fi
+  done < <(find "$path" -name kustomization.yaml -print0)
+  if [ "$fail" -eq 0 ]; then
+    echo "OK: $count kustomization.yaml files registered clean"
+  fi
+  return "$fail"
+}
+
+kustomization_audit "$@"

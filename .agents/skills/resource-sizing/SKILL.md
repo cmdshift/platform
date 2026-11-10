@@ -26,7 +26,15 @@ description: Setting or auditing container resources. The sizing convention (lea
 
 A VPA recommendation is a **candidate request, not a drop-in** — cross-check it against the usage audits and the convention above (request ≈ P99 × 1.2, limit = 1.5 × request) before editing manifests. The VPAs are Off mode and hand-maintained per workload (goldilocks the auto-creator was removed; new workloads get a VPA in their group manifest — see `manifests/bases/observability/README.md`).
 
-**Store caveat (cmdshift/platform#171)**: the mimir backing `prometheus_query` (and `cpu_audit`'s throttle check, which rides it) is gone with the OpenObserve migration — the range-query trend procedure below is the durable method, but the tooling needs a store decision before the next audit run.
+**Store decision (cmdshift/platform#186, resolving #171)**: O2 **is** the
+metrics store — `prometheus_query` speaks PromQL to O2's Prometheus-compat
+API and `cpu_audit`'s throttle check works again. Two O2 query caveats:
+metric-defined labels (`pod`, `namespace`, `container`) survive, but the
+standard target labels are OTel-translated (`job` → `service_name`,
+`instance` → `service_instance_id`) — group by the surviving names; and
+range-query history over long windows is sparse (blocky coverage) — read
+trend output as "what the store has", instant queries (what the audits use)
+are clean.
 
 - **Seasoning gate**: a fresh rebuild resets recommender history, so `vpa_recs` pulled <48h after one are polluted by the early-cluster ramp (alloy came back +530% CPU that never materialized — the 7d peak stayed single-digit; most deltas collapsed to ±10% noise, cmdshift/platform#66). Pull recommendations only after the cluster has seasoned, and cross-check every delta against 7d max/P99 trend queries before editing.
 - **Reject over-conservative recs at tiny sizes**: below ~20Mi the recommender's output can exceed the observed P99 (loki-gateway's 22Mi rec vs a 7d P99 of 13Mi under a 16Mi request) — the trend query wins (cmdshift/platform#66).

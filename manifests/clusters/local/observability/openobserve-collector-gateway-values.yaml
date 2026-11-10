@@ -177,7 +177,11 @@ config:
               - role: node
             metric_relabel_configs:
               - action: keep
-                regex: container_fs_(reads_total|writes_total|reads_bytes_total|writes_bytes_total)
+                # cmdshift/platform#186: the cpu_cfs families ride the same
+                # keep regex (sequential keeps are AND — a second keep rule
+                # could never see a series the first dropped); cpu_audit's
+                # throttle check reads throttled_periods_total
+                regex: container_fs_(reads_total|writes_total|reads_bytes_total|writes_bytes_total)|container_cpu_cfs_(periods_total|throttled_periods_total|throttled_seconds_total)
                 source_labels: [__name__]
               - action: drop
                 regex: ".+;"

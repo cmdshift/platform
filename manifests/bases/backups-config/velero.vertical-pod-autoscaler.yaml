@@ -1,12 +1,12 @@
 apiVersion: autoscaling.k8s.io/v1
 kind: VerticalPodAutoscaler
 metadata:
-  name: talos-backup
+  name: velero
   namespace: backups
 spec:
   targetRef:
-    apiVersion: batch/v1
-    kind: CronJob
-    name: talos-backup
+    apiVersion: apps/v1
+    kind: Deployment
+    name: velero
   updatePolicy:
-    updateMode: Off
+    updateMode: "Off"
