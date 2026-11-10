@@ -54,15 +54,16 @@ collect_requests() {
     | @tsv' | sort -t "$(printf '\t')" -k1,1
 }
 
-tmp_vpa=$(mktemp); tmp_req=$(mktemp)
-trap 'rm -f "$tmp_vpa" "$tmp_req"' EXIT
+tmp_vpa=$(mktemp); tmp_req=$(mktemp); tmp_sys=$(mktemp)
+trap 'rm -f "$tmp_vpa" "$tmp_req" "$tmp_sys"' EXIT
 collect_vpa > "$tmp_vpa" || exit 2
 collect_requests > "$tmp_req" || exit 2
 
 # workloads in kube-system/flux-system are system plumbing — no VPAs by
 # design, so they don't count as gaps
-GAP=$(join -v2 -t "$(printf '\t')" -1 1 -2 1 "$tmp_vpa" \
-      < <(grep -vE $'^(kube-system|flux-system)/' "$tmp_req") \
+grep -vE '^(kube-system|flux-system)/' "$tmp_req" > "$tmp_sys"
+# BSD join rejects fd/process-substitution inputs — macOS
+GAP=$(join -v2 -t "$(printf '\t')" -1 1 -2 1 "$tmp_vpa" "$tmp_sys" \
       | wc -l | tr -d ' ')
 
 join -t "$(printf '\t')" -j 1 "$tmp_vpa" "$tmp_req" | awk -F'\t' '
