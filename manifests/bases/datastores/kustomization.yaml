@@ -5,3 +5,4 @@ resources:
   - cloudnative-pg.helm-release.yaml
   - valkey-operator.helm-release.yaml
   - strimzi-kafka-operator.helm-release.yaml
+  - opensearch-operator.helm-release.yaml

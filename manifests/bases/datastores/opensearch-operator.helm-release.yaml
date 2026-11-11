@@ -1,0 +1,26 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: opensearch-operator
+  namespace: datastores
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: opensearch-operator
+      version: 3.0.14
+      sourceRef:
+        kind: HelmRepository
+        name: opensearch
+        namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  valuesFrom:
+    - kind: ConfigMap
+      name: opensearch-operator-values
+      valuesKey: values.yaml

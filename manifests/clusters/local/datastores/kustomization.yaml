@@ -21,3 +21,9 @@ configMapGenerator:
       - values.yaml=strimzi-kafka-operator-values.yaml
     options:
       disableNameSuffixHash: true
+  - name: opensearch-operator-values
+    namespace: datastores
+    files:
+      - values.yaml=opensearch-operator-values.yaml
+    options:
+      disableNameSuffixHash: true

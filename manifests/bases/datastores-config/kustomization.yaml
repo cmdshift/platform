@@ -4,4 +4,5 @@ resources:
   - cloudnative-pg.vertical-pod-autoscaler.yaml
   - datastores.resource-quota.yaml
   - strimzi-cluster-operator.vertical-pod-autoscaler.yaml
+  - opensearch-operator.vertical-pod-autoscaler.yaml
   - valkey-operator.vertical-pod-autoscaler.yaml

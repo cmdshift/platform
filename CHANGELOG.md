@@ -2,6 +2,14 @@
 
 Narrative log of the platform's evolution, newest first. Dated learnings, incident stories, and decision history live here; durable procedures live in `runbooks/local/`, timeless per-group decisions in `manifests/bases/*/README.md`, and landmines in `.agents/skills/`. Issue/PR references use the `cmdshift/platform#N` form.
 
+## 2026-11-11 (opensearch-operator adopted into datastores — cmdshift/platform#199)
+
+- **The 4th datastore operator landed** (`opensearch-operator` 3.0.14, app 3.0.0): operator only, nothing instantiated (cluster CR is the follow-up). CRDs render into the release (CNPG shape) but fit the 1MB cap **only with `legacyAPI.enabled: false`** — defaults carry the 10 deprecated `opster.io` CRDs and render 1.21MB; legacy off = 660KB. Measured, not estimated (`helm template | wc -c`), and now a standing bump gate — the `opensearch.org_opensearchclusters` CRD is 588KB and grows with every release.
+- **The child-kustomization escape hatch was checked and rejected**: upstream's buildable `opensearch-operator/config/crd` also ships a full stale `servicemonitors.monitoring.coreos.com` CRD copy that would downgrade the live SM CRD schema (kube-prometheus-stack owns it) — the `crds` group stays untouched (no new entry, no GitRepository).
+- **`datastores.yaml` grew a `certificates` dependsOn**: the opensearch webhook is cert-manager-issued (self-signed namespaced Issuer, not self-rotating like CNPG), and the chart does a render-time `lookup` that fails hard when the cert-manager API is absent — without the dependency the release install-fails on any cluster where cert-manager isn't up first.
+- **Admission needed values the chart doesn't default**: seccompProfile (pod + container) and caps `drop: [ALL]`; the image itself is distroless (`USER 65532`) with a direct `/manager` entrypoint — inside the `exec-deny-list-datastores` scope, verified live via exec_inventory (strimzi's shell-chain problem does not repeat). Provisional resources 15m/128Mi → 1000m/192Mi (CNPG manager precedent); quota now 55m/520Mi of 100m/800Mi, 4/8 pods. VPA `Off` registered; audit after burn-in.
+- Local helm got the `opensearch` repo import (named to match the HelmRepository CR, per the adopting-a-chart runbook step 0).
+
 ## 2026-11-10 (o2 cleanup: /tmp emptyDir crash fix, o2-sync image + angos push account deleted, secret-driven O2 auth — cmdshift/platform#209)
 
 - **Openobserve crash on restart/recreate fixed**: the pod ships `readOnlyRootFilesystem: true` with no writable `/tmp` — O2 writes temp files there, so pod churn crashed it. Fixed with an `extraVolumes` `emptyDir` at `/tmp` (#209). Roll used the MANDATORY pod-churn procedure; with the o2-sync Job gone, a PVC delete now also wipes dashboards/alerts **with no recovery** (export from the UI first if anything is worth keeping — cmdshift/platform#206).
