@@ -86,7 +86,7 @@ stop_forwards() { # evict every forward this tool has recorded
 }
 
 o2_token() { # the O2 Basic token, read from the cluster at runtime — never
-  # hardcoded (it changes with the secrets-server openobserve-credentials
+  # hardcoded (secret derived from the secrets-server openobserve-credentials
   # payload; observability README 401 landmine). Cached at AUTH_CACHE so
   # rapid loops don't re-run kubectl per query; a 401 below rm's the cache.
   if [ -s "$AUTH_CACHE" ]; then
@@ -94,10 +94,9 @@ o2_token() { # the O2 Basic token, read from the cluster at runtime — never
     return
   fi
   local token
-  token=$(kubectl -n observability get cm openobserve-collector-agent-values \
-    -o jsonpath='{.data.values\.yaml}' 2>/dev/null \
-    | grep -m1 'Authorization: "Basic ' | sed 's/.*"Basic /Basic /;s/".*//')
-  [ -n "$token" ] || { echo "cannot read the O2 auth token from cm/openobserve-collector-agent-values (ns observability)" >&2; return 1; }
+  token=$(kubectl -n observability get secret openobserve-credentials \
+    -o jsonpath='{.data.O2_AUTH_BASIC}' 2>/dev/null | base64 -d)
+  [ -n "$token" ] || { echo "cannot read the O2 auth token from secret/openobserve-credentials key O2_AUTH_BASIC (ns observability)" >&2; return 1; }
   printf '%s\n' "$token" > "$AUTH_CACHE"
   echo "$token"
 }

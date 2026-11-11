@@ -39,6 +39,4 @@ locals {
   }
 
   registry_volume_name = "platform-registry-data"
-
-  push_username = "push-user"
 }

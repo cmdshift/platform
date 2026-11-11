@@ -96,7 +96,7 @@ mailpit -s <substring>             # newest message whose subject matches (case-
 mailpit -b <id>                    # body of message <id> (text if present, else HTML)
 ```
 
-Alert delivery path: O2 native alerts (thin detectors in `observability-config/o2-sync/alerts/`, synced by the o2-sync Job) → O2 built-in SMTP → mailpit — no alertmanager (cmdshift/platform#182). Alerts land at **http://mail.cloud.test** — use it to confirm a detector fired or to read `ContainerOOMKilled` events. Verifying templated alert annotations (dashboard links etc.) rendered requires the body — `mailpit -s` to find the alert email, `-b` to read it (exit 0/1/2 = found/not-found/usage). Bare listing prints the ID prefix needed for `-b` (cmdshift/platform#155).
+Alert delivery path: O2 native alerts → O2 built-in SMTP → mailpit — no alertmanager (cmdshift/platform#182). **The O2 alert set is EMPTY since the o2-sync removal (2026-10-29) — cmdshift/platform#206 owns the alerting story; nothing sends until a successor lands.** Alerts (when restored) land at **http://mail.cloud.test** — use it to confirm a detector fired or to read `ContainerOOMKilled` events. Verifying templated alert annotations (dashboard links etc.) rendered requires the body — `mailpit -s` to find the alert email, `-b` to read it (exit 0/1/2 = found/not-found/usage). Bare listing prints the ID prefix needed for `-b` (cmdshift/platform#155).
 
 ## tetra (Tetragon process events)
 

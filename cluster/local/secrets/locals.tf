@@ -17,6 +17,7 @@ locals {
     openobserve_credentials = {
       ZO_ROOT_USER_EMAIL    = "admin@cloud.test"
       ZO_ROOT_USER_PASSWORD = "Complexpass#123"
+      O2_AUTH_BASIC         = "Basic ${base64encode("admin@cloud.test:Complexpass#123")}"
     }
 
     openobserve_s3_credentials = {

@@ -39,7 +39,7 @@ Maintenance Jobs are built by velero's server internally with no securityContext
 
 ## Alerts
 
-Encoded as OpenObserve detectors (JSONs in `observability-config/o2-sync/alerts/`, synced by the o2-sync Job — the alert semantics + naming conventions: [manifests/bases/observability/README.md](../../manifests/bases/observability/README.md), cmdshift/platform#111; the old mimir-rules encoding died with the LGTM stack, cmdshift/platform#171):
+Encoded as OpenObserve detectors (the alert semantics + naming conventions: [manifests/bases/observability/README.md](../../manifests/bases/observability/README.md), cmdshift/platform#111; the old mimir-rules encoding died with the LGTM stack, cmdshift/platform#171; the detector JSONs died with the o2-sync removal, cmdshift/platform#206 — re-encode with #206's successor. The rules below are the semantics to restore). The detectors are currently **not deployed** (empty O2 alert set):
 
 - **VeleroBackupFailed** (critical, no `for:`) — `increase(velero_backup_failure_total[24h]) > 0 or increase(velero_backup_partial_failure_total[24h]) > 0`. The partial-failure arm is required: a schedule backup with failed PodVolumeBackups lands `PartiallyFailed`, which velero counts only in `velero_backup_partial_failure_total`. Fires within one evaluation (~1m) and lands in mailpit — verified live.
 - **VeleroBackupStale** (warning, `for: 1h`) — no successful `pvcs` backup in 26h **or none ever** (the `absent()` arm covers the never-succeeded state: the last-success gauge only materializes after a first Completed backup). The `for: 1h` means a fresh wedge pends ~1h before firing.

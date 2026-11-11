@@ -125,9 +125,8 @@ Each companion is a terraform module under this directory with its own README (m
 | `load/` | Unified haproxy LB — companion front door + TLS termination + k8s/apiserver/apid TCP frontends | [README](load/README.md) |
 | `nodes/` | Talos node containers | [README](nodes/README.md) |
 | `bootstrap/` (root #2) | cilium + flux install, adoption twins | [README](bootstrap/README.md) |
-| `registry/` | angos pull-through cache + scan trigger + push identity | [README](registry/README.md) |
+| `registry/` | angos pull-through cache + scan trigger (push identity removed, cmdshift/platform#209) | [README](registry/README.md) |
 | `scanner/` | angos-trivy scan endpoint (owns the scan token) | [README](scanner/README.md) |
-| `images/` | Builds + pushes locally-built images (o2-sync) | [README](images/README.md) |
 | `secrets/` | busybox secrets-server (External Secrets webhook backend) | [README](secrets/README.md) |
 | `storage/` | rustfs S3 (flux bucket, O2, velero) | [README](storage/README.md) |
 | `sync/` | Manifests mirror loop → rustfs flux bucket | [README](sync/README.md) |

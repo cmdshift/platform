@@ -10,10 +10,6 @@ root_dir = "/data"
 [global.access_policy]
 default = "allow"
 
-[auth.identity.${push.username}]
-username = "${push.username}"
-password = "${push.password_hash}"
-
 [global.scan]
 url = "${scan.url}"
 token = "${scan.token}"

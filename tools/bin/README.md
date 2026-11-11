@@ -452,11 +452,11 @@ query API path is `/api/default/prometheus/api/v1/{query,query_range}` — the
 org is hardcoded `default` (the collectors push to `/api/default/`), **no
 `X-Scope-OrgID`** (that was mimir multi-tenancy). The ready check is
 `/healthz` (200 unauthenticated; O2's `/ready` requires auth). Auth is the
-collectors' inlined Basic token, read live from
-cm/openobserve-collector-agent-values and cached at
-`.agents/temp/prometheus_query.o2.auth` — never embedded in the script (it
-must be re-encoded whenever the secrets-server `openobserve-credentials`
-payload changes; the tool drops the cache and refetches on a 401, and exits
+O2 Basic token read live from `secret/openobserve-credentials` key
+`O2_AUTH_BASIC` and cached at
+`.agents/temp/prometheus_query.o2.auth` — never embedded in the script (the
+key is derived in the secrets-server payload alongside the root credential;
+the tool drops the cache and refetches on a 401, and exits
 1 if the fresh token is also rejected). One forward, SHARED across
 invocations via the lock file `.agents/temp/prometheus_query.openobserve.forward`
 (`<pid> <port>`). (Git history note: `--query` targeted svc/thanos-query-main
@@ -542,8 +542,8 @@ O2 SQL log search (cmdshift/platform#203 — replaced the retired
 (`http://localhost:<port>/api/default/_search`, org hardcoded `default`)
 with the time window from `duration` (m|h|d, default 1h) as
 `start_time`/`end_time` in microseconds. Queries svc/openobserve:5080 (ns
-observability), ready check `/healthz` (unauthenticated), auth via the
-collectors' Basic token read live from cm/openobserve-collector-agent-values
+observability), ready check `/healthz` (unauthenticated), auth via the O2
+Basic token read live from secret/openobserve-credentials key `O2_AUTH_BASIC`
 and cached at `.agents/temp/log_query.o2.auth` (401 drops the cache and
 refetches once — same discipline as `prometheus_query`, separate cache
 file). Shared forward, lock file `.agents/temp/log_query.openobserve.forward`,

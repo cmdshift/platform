@@ -9,8 +9,5 @@ terraform {
     random = {
       source = "hashicorp/random"
     }
-    password = {
-      source = "endevops/password"
-    }
   }
 }
