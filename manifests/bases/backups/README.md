@@ -15,7 +15,8 @@ In-cluster CronJob (04:00 daily, after velero's 03:00 — the pipelines stay ind
 - **Machine-config prereqs live in `ctrl.tftpl.yaml`**: `kubernetesTalosAPIAccess.allowedRoles` carries `os:etcd:backup` and `allowedKubernetesNamespaces` lists `backups` (both for SA-secret consumption and the kubelet image-verify trap, cmdshift/platform#90). Editing that template = full rebuild (cmdshift/platform#140).
 - **The SA controller names the issued secret after the CR** (`talos-backup`), not `talos-backup-secrets` as the upstream sample shows — the CronJob mounts that name.
 - **The image has no prefix knob besides `S3_PREFIX`** (default: `CLUSTER_NAME`): the object key is `<S3_PREFIX>/<CLUSTER_NAME>-<ts>.snap.zst.age` — the cluster name folds into the filename under the prefix, not a nested dir.
-- **Endpoint stays `http://s3.cloud.test`** with the other cluster consumers (`:80` baseline, cmdshift/platform#131 migrates) — no CA mount needed while minio-go is on plain HTTP; a TLS migration must add the platform root CA to the job container's trust store.
+- **Endpoint, region, and cluster name are `${VAR}` tokens** (cmdshift/platform#191): `CUSTOM_S3_ENDPOINT` / `AWS_REGION` / `CLUSTER_NAME` in the CronJob are `${S3_ENDPOINT}` / `${AWS_REGION}` / `${CLUSTER_NAME}`, substituted by the `backups` Kustomization CR's `postBuild.substitute` (mechanism: [manifests/README.md Conventions](../../README.md)). Locally: `http://s3.cloud.test` / `local` / `local-test`.
+- **Endpoint stays `http://s3.cloud.test` locally** with the other cluster consumers (`:80` baseline, cmdshift/platform#131 migrates) — no CA mount needed while minio-go is on plain HTTP; a TLS migration must add the platform root CA to the job container's trust store.
 - **Restore is drilled** (2026-09-27, cmdshift/platform#94 phase 2): full quorum loss → `talosctl bootstrap --recover-from` with a 24h-old rustfs artifact → 3 members rejoined, cluster re-converged. Procedure, container-mode landmines, and the post-restore checklist: the etcd-backups runbook.
 - **Container resources** (VPA recs, Off mode, post-snapshot): cpu 11m, mem 36Mi — an 88MiB etcd stream compresses+encrypts to 16MiB in ~40s.
 
@@ -23,6 +24,7 @@ In-cluster CronJob (04:00 daily, after velero's 03:00 — the pipelines stay ind
 
 - **nodeAgent `privileged: true`** (`# remove in the cloud`) — node snapshots against docker volumes.
 - BSL points at rustfs (`s3.cloud.test`, bucket `backups`) — cloud resolves differently.
+- The CronJob's S3/region/cluster-name scalars are `${VAR}` tokens substituted per-cluster (see the talos-backup section above).
 
 ## Structural decisions
 

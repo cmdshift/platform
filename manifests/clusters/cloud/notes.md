@@ -2,6 +2,8 @@
 
 Things to do differently from the local Talos-in-Docker cluster when standing up a cloud cluster. The inventory of deliberately local-only settings lives in the `manifests/bases/<group>/README.md` files (grouped by workload; cross-cutting conventions + the hardening-deviations baseline in `manifests/README.md`).
 
+Cluster-specific scalars in bases are `${VAR}` tokens substituted by each cluster's own group Kustomization CR (`spec.postBuild.substitute` — cmdshift/platform#191/#197): a cloud cluster declares its own values in `manifests/clusters/cloud/<group>.yaml` CRs, no base edits. The local companion values to replace: the networking-config FQDN set (s3/smtp/registry/secrets/auth `.cloud.test`) and the backups CronJob endpoint/region/cluster-name.
+
 ## Storage: local-path reclaim policy + volume binding (from cmdshift/platform#12)
 
 Both `reclaimPolicy` and `volumeBindingMode` are **StorageClass-level** settings — there is no per-PVC override in general use:

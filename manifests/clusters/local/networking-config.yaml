@@ -12,6 +12,13 @@ spec:
     kind: Bucket
     name: main
   path: ./manifests/clusters/local/networking-config
+  postBuild:
+    substitute:
+      AUTH_FQDN: auth.cloud.test
+      SECRETS_FQDN: secrets.cloud.test
+      S3_FQDN: s3.cloud.test
+      SMTP_FQDN: smtp.cloud.test
+      REGISTRY_FQDN: registry.cloud.test
   prune: true
   wait: true
   timeout: 2m

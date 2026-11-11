@@ -9,7 +9,7 @@ spec:
     - toEntities:
         - kube-apiserver
     - toFQDNs:
-        - matchName: s3.cloud.test
+        - matchName: ${S3_FQDN}
       toPorts:
         - ports:
             - port: "80"

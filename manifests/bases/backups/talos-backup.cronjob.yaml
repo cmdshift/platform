@@ -24,7 +24,7 @@ spec:
               command: ["/talos-backup"]
               env:
                 - name: CUSTOM_S3_ENDPOINT
-                  value: http://s3.cloud.test
+                  value: ${S3_ENDPOINT}
                 - name: USE_PATH_STYLE
                   value: "true"
                 - name: BUCKET
@@ -32,11 +32,11 @@ spec:
                 - name: S3_PREFIX
                   value: talos
                 - name: AWS_REGION
-                  value: local
+                  value: ${AWS_REGION}
                 - name: ENABLE_COMPRESSION
                   value: "true"
                 - name: CLUSTER_NAME
-                  value: local-test
+                  value: ${CLUSTER_NAME}
                 - name: AWS_ACCESS_KEY_ID
                   valueFrom:
                     secretKeyRef:

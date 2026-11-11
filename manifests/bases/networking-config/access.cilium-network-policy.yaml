@@ -27,13 +27,13 @@ spec:
             - port: "5080"
               protocol: TCP
     - toFQDNs:
-        - matchName: auth.cloud.test
+        - matchName: ${AUTH_FQDN}
       toPorts:
         - ports:
             - port: "443"
               protocol: TCP
     - toFQDNs:
-        - matchName: secrets.cloud.test
+        - matchName: ${SECRETS_FQDN}
       toPorts:
         - ports:
             - port: "80"

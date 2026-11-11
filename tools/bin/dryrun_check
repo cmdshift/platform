@@ -10,6 +10,13 @@
 #   dryrun_check <path>            # kustomize build <path>, per-doc dry-run
 #   dryrun_check <built.yaml>      # validate an already-built multi-doc file
 #
+# ${VAR} tokens (flux postBuild.substitute interpolation — the controller
+# substitutes after build, so the raw kustomize output still carries them)
+# are resolved from the group's Kustomization CR (manifests/clusters/local/
+# <basename>.yaml, spec.postBuild.substitute) before validation; any token
+# left after substitution is a hard FAIL — a surviving token reconciles
+# silently and breaks later at runtime.
+#
 # Exit 0 = every object passes (or nothing to validate). Exit 1 = at least
 # one object failed (each failure listed as `FAIL <kind>/<name>: <reason>`).
 # Exit 2 = usage or build error.
@@ -60,12 +67,41 @@ build_target() {
   fi
 }
 
+substitute_vars() {
+  # ${VAR} tokens come from the group's Kustomization CR (flux postBuild.substitute):
+  # basename of the target dir -> manifests/clusters/local/<group>.yaml. The raw
+  # kustomize build does not apply postBuild; the controller does it after pull,
+  # so this replicates it for the gate.
+  local cr
+  cr="manifests/clusters/local/$(basename "$target").yaml"
+  [ -f "$cr" ] || return 0
+  yq -r '.spec.postBuild.substitute // {} | to_entries[] | .key + "\t" + .value' "$cr" \
+    | while IFS=$'\t' read -r key value; do
+        [ -n "$key" ] || continue
+        VAR_KEY="$key" VAR_VAL="$value" perl -pi -e \
+          'BEGIN { $k = quotemeta "\${$ENV{VAR_KEY}}"; $v = $ENV{VAR_VAL}; }
+           s/$k/$v/g' "$work/build.yaml"
+      done
+}
+
+check_tokens() {
+  local leftovers
+  leftovers=$(grep -oE '\$\{[A-Z0-9_]+\}' "$work/build.yaml" | sort -u || true)
+  if [ -n "$leftovers" ]; then
+    echo "FAIL: unresolved \${VAR} token(s): $(echo "$leftovers" | tr '\n' ' ')" >&2
+    echo "      declare them in spec.postBuild.substitute of the group's Kustomization CR (flux postBuild.substitute)" >&2
+    exit 1
+  fi
+}
+
 dryrun_check() {
   [ $# -eq 1 ] || usage
   target=$1
   work=$(mktemp -d)
   trap 'rm -rf "$work"' EXIT
   build_target
+  substitute_vars
+  check_tokens
   split_docs
   check_docs
   echo "dryrun_check: $total object(s) checked, $failed failed"

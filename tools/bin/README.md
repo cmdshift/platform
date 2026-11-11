@@ -303,8 +303,16 @@ individually**, printing `FAIL <kind>/<name>: <reason>` per failing object.
   this tool splits the build output and reports each one
 - Unlike `cr_validate` it accepts generated CMs/values (no "apiVersion not
   set" filter) — that's the point: CM-size and content traps live here
+- **`${VAR}` tokens are resolved before validation** (cmdshift/platform#191/#197):
+  a dir build carries raw `${VAR}` tokens — flux substitutes them
+  controller-side via `postBuild.substitute`, so this replicates it locally from
+  the group's Kustomization CR (`manifests/clusters/local/<basename>.yaml`,
+  `spec.postBuild.substitute`) and **FAILs (exit 1) any token left after
+  substitution** — a surviving token reconciles silently and breaks later at
+  runtime. Built-file mode does no substitution (no group CR to read), so
+  tokens in an already-built file also FAIL — substitute before validating
 - Exit 0 = every object passes (or nothing to validate); 1 = at least one
-  failed; 2 = usage or kustomize build error
+  failed (including unresolved tokens); 2 = usage or kustomize build error
 
 ### `flux_triage [names...]`
 
