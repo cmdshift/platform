@@ -1,0 +1,271 @@
+#!/usr/bin/env bash
+# SQL log search against OpenObserve's _search API, with the port-forward
+# lifecycle handled: a per-service forward is started once and SHARED across
+# invocations via a lock file (${TMPDIR:-/tmp}/log_query.<service>.forward,
+# "<pid> <port>") — a wedged or dead forward is evicted and replaced on the
+# next call; a not-ready server is waited out (bounded 2m). `--stop` evicts
+# the shared forward. The lifecycle is duplicated in prometheus_query (same
+# svc/openobserve:5080, same auth cache discipline — keep the two in
+# lockstep): prometheus_query speaks PromQL to O2's Prometheus-compat API,
+# this tool speaks O2 SQL to the _search API. Queries the `k8s_logs` stream
+# (all container logs, OTel filelog → gateway); the SQL runs server-side, so
+# aggregations never hit a client-side cap.
+#   log_query '<sql>' [duration]     # duration e.g. 30m 4h 2d; default 1h
+#   log_query -j '<sql>' [duration]  # full hit JSON, one per line
+#   log_query -m '<sql>' [duration]  # "ns/pod/container: body" per line
+#   log_query -s 500 '<sql>' [dur]   # size cap (default 100)
+#   log_query --stop                 # evict the shared port-forward
+# Default prints each hit's `body` (the raw log line); hits without a `body`
+# (custom SELECT columns) print as key=value pairs. -m prefixes the k8s
+# columns — they must be in the SELECT (SELECT * or the explicit names);
+# O2 returns only what the query selects.
+# JSON paths: CAST(body->'a'->'b' AS VARCHAR) — nested event fields live
+# inside `body`, the k8s_* columns are separate (tetragon exporter-labels
+# landmine: the workload identity is INSIDE body, never the stream labels).
+# TRUNCATION: O2's `total` field is NOT the match count for raw queries (it
+# equals `size` when the cap binds) — the tool probes one row past the cap
+# instead and warns on stderr; never conclude "no events" from truncated
+# output.
+# Exit 0 = query ran (check the output for emptiness, the stderr footer for
+# truncation), 1 = forward failed, server not-ready 2m, or auth failed after
+# a token refetch, 2 = usage error.
+set -euo pipefail
+
+usage() {
+  echo "usage: log_query [-j|-m] [-s 500] '<sql>' [duration] | log_query --stop" >&2
+  exit 2
+}
+
+range_start() { # e.g. 4h -> epoch seconds; bash math off `date +%s` (portable —
+  # BSD `date -v` is darwin-only, GNU `date -d` is linux-only, +%s is both)
+  case "$1" in
+    [0-9]*m) n=${1%m}; u=60 ;;
+    [0-9]*h) n=${1%h}; u=3600 ;;
+    [0-9]*d) n=${1%d}; u=86400 ;;
+    *)  return 1 ;;
+  esac
+  case "$n" in *[!0-9]*|'') return 1 ;; esac # a float here aborts the script in $(( )) before `|| usage` can fire
+  echo $(( $(date +%s) - n * u ))
+}
+
+# --- shared port-forward lifecycle (duplicated in prometheus_query — keep in lockstep) ---
+
+# { } around the fallback — bash parses `a || b && c` as `(a || b) && c`, so
+# with the plain form `cd && pwd` ran even on the git success path and its
+# output got appended to REPO_ROOT (two lines), producing a garbage LOCK_DIR
+REPO_ROOT="$(git -C "$(dirname "$0")/.." rev-parse --show-toplevel 2>/dev/null || { cd "$(dirname "$0")/../.." && pwd; })"
+LOCK_DIR="$REPO_ROOT/.agents/temp"
+mkdir -p "$LOCK_DIR"
+AUTH_CACHE="$LOCK_DIR/log_query.o2.auth"
+
+http_answer() { # url — exit 0 once any HTTP response arrives; curl exit 0 covers
+  # 200 AND 503, while refused/timeout exit non-zero — that distinction is
+  # what separates "still binding" from "server not ready"
+  curl -s --max-time 2 -o /dev/null "$1"
+}
+
+http_200() { # url
+  [ "$(curl -s --max-time 2 -o /dev/null -w '%{http_code}' "$1")" = 200 ]
+}
+
+is_port_forward() { # pid — the recorded PID must still name a port-forward before
+  # we reuse or kill it (PID recycling would otherwise reuse/kill a stranger)
+  ps -p "$1" -o command= 2>/dev/null | grep -q port-forward
+}
+
+stop_forwards() { # evict every forward this tool has recorded
+  local lock pid port
+  for lock in "$LOCK_DIR"/log_query.*.forward; do
+    [ -f "$lock" ] || continue
+    read -r pid port < "$lock" 2>/dev/null || true
+    if [ "${pid:-}" ] && is_port_forward "$pid"; then
+      kill "$pid" 2>/dev/null && echo "stopped forward pid=$pid port=$port"
+    fi
+    rm -f "$lock"
+  done
+}
+
+o2_token() { # the O2 Basic token, read from the cluster at runtime — never
+  # hardcoded (it changes with the secrets-server openobserve-credentials
+  # payload; observability README 401 landmine). Cached at AUTH_CACHE so
+  # rapid loops don't re-run kubectl per query; a 401 below rm's the cache.
+  if [ -s "$AUTH_CACHE" ]; then
+    cat "$AUTH_CACHE"
+    return
+  fi
+  local token
+  token=$(kubectl -n observability get cm openobserve-collector-agent-values \
+    -o jsonpath='{.data.values\.yaml}' 2>/dev/null \
+    | grep -m1 'Authorization: "Basic ' | sed 's/.*"Basic /Basic /;s/".*//')
+  [ -n "$token" ] || { echo "cannot read the O2 auth token from cm/openobserve-collector-agent-values (ns observability)" >&2; return 1; }
+  printf '%s\n' "$token" > "$AUTH_CACHE"
+  echo "$token"
+}
+
+port_forward() { # sets PORT_FORWARD_PORT / PORT_FORWARD_PID
+  local service=openobserve lock i pid port
+  lock="$LOCK_DIR/log_query.$service.forward"
+  unset PORT_FORWARD_PID PORT_FORWARD_PORT
+  if [ -f "$lock" ]; then
+    read -r pid port < "$lock" 2>/dev/null
+    if [ "${pid:-}" ] && [ "${port:-}" ] && kill -0 "$pid" 2>/dev/null \
+       && is_port_forward "$pid"; then
+      PORT_FORWARD_PID=$pid
+      PORT_FORWARD_PORT=$port
+    else # stale lock: evict a genuine forward, forget a recycled PID
+      if [ "${pid:-}" ] && is_port_forward "$pid"; then kill "$pid" 2>/dev/null; fi
+      rm -f "$lock"
+    fi
+  fi
+  if [ -z "${PORT_FORWARD_PORT:-}" ]; then
+    # fresh forward; one restart when kubectl dies (transient bind collision —
+    # random-port collisions are rare but cheaper to retry than to fail)
+    # O2's API lives on 5080; /healthz is the unauthenticated ready check
+    # (/ready and the query API require auth — cmdshift/platform#186)
+    for _ in 1 2; do
+      PORT_FORWARD_PORT=$((21000 + RANDOM % 1000))
+      kubectl -n observability port-forward "svc/$service" "$PORT_FORWARD_PORT:5080" >/dev/null 2>&1 &
+      PORT_FORWARD_PID=$!
+      # the ready check runs before port_forward returns; READY_PATH must be
+      # set here, not just at the query-URL build site below
+      READY_PATH=/healthz
+      i=0
+      until http_answer "http://localhost:$PORT_FORWARD_PORT$READY_PATH"; do
+        i=$((i + 1))
+        kill -0 "$PORT_FORWARD_PID" 2>/dev/null || break
+        [ "$i" -gt 20 ] && { echo "port-forward failed to establish" >&2; return 1; }
+        sleep 0.5
+      done
+      kill -0 "$PORT_FORWARD_PID" 2>/dev/null && break
+    done
+    kill -0 "$PORT_FORWARD_PID" 2>/dev/null || { echo "port-forward failed to establish" >&2; return 1; }
+  else
+    # reused forward: bounded liveness probe before trusting it — a wedged
+    # kubectl keeps its PID while the port stops answering
+    READY_PATH=/healthz
+    i=0
+    until http_answer "http://localhost:$PORT_FORWARD_PORT$READY_PATH"; do
+      i=$((i + 1))
+      [ "$i" -gt 12 ] && {
+        kill "$PORT_FORWARD_PID" 2>/dev/null
+        rm -f "$lock"
+        port_forward # evict → fresh start (recursion depth 1: the lock is gone)
+        return
+      }
+      sleep 0.5
+    done
+  fi
+  # ready budget: HTTP non-200 here is the server not ready — wait it out;
+  # only a dead forward fails immediately. On expiry the forward is
+  # recorded anyway, so the next call rides the same one.
+  i=0
+  while ! http_200 "http://localhost:$PORT_FORWARD_PORT$READY_PATH"; do
+    kill -0 "$PORT_FORWARD_PID" 2>/dev/null || { echo "port-forward failed to establish" >&2; return 1; }
+    i=$((i + 1))
+    [ "$i" -gt 240 ] && {
+      echo "openobserve not ready after 2m; retry shortly" >&2
+      printf '%s %s\n' "$PORT_FORWARD_PID" "$PORT_FORWARD_PORT" > "$lock"
+      return 1
+    }
+    sleep 0.5
+  done
+  printf '%s %s\n' "$PORT_FORWARD_PID" "$PORT_FORWARD_PORT" > "$lock"
+}
+
+# --- _search plumbing ---
+
+search_o2() { # sql size from — prints the response body; a 401 drops the
+  # token cache and refetches once (the secrets-server payload changed)
+  local sql=$1 size=$2 from=$3 payload token out code
+  local url="http://localhost:$PORT_FORWARD_PORT/api/default/_search"
+  payload=$(jq -nc --arg sql "$sql" --argjson start "$START_US" --argjson end "$END_US" \
+    --argjson size "$size" --argjson from "$from" \
+    '{query:{type:"sql",sql:$sql,start_time:$start,end_time:$end,size:$size,from:$from}}')
+  token=$(o2_token) || return 1
+  out=$(curl -s --max-time 30 -w '\n%{http_code}' -H "Authorization: $token" \
+    -H 'Content-Type: application/json' -d "$payload" "$url") \
+    || { echo "search request failed (forward alive?)" >&2; return 1; }
+  code=${out##*$'\n'}
+  if [ "$code" = 401 ]; then
+    rm -f "$AUTH_CACHE"
+    token=$(o2_token) || return 1
+    out=$(curl -s --max-time 30 -w '\n%{http_code}' -H "Authorization: $token" \
+      -H 'Content-Type: application/json' -d "$payload" "$url") \
+      || { echo "search request failed (forward alive?)" >&2; return 1; }
+    code=${out##*$'\n'}
+    [ "$code" = 401 ] && { echo "O2 rejected the token even after a refetch — re-encode the collector values (observability README 401 landmine)" >&2; return 1; }
+  fi
+  [ "$code" = 200 ] || { echo "O2 _search returned HTTP $code: ${out%$'\n'*}" >&2; return 1; }
+  printf '%s' "${out%$'\n'*}"
+}
+
+format_default() { # body per hit; custom-column hits fall back to key=value
+  jq -r '.hits[]? | if has("body") and (.body | type) == "string" then .body
+    else (to_entries | map("\(.key)=\(.value)") | join(" ")) end'
+}
+
+format_meta() { # ns/pod/container: body — the workload attribution lives in
+  # the k8s_* columns (the exporter's pod), event fields stay inside body
+  jq -r '.hits[]? | "\(.k8s_namespace_name // "-")/\(.k8s_pod_name // "-")/\(.k8s_container_name // "-"): \(if has("body") and (.body | type) == "string" then .body else (to_entries | map("\(.key)=\(.value)") | join(" ")) end)"'
+}
+
+log_query() {
+  local json=0 meta=0 size=100 query='' duration='1h' start end
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -j) json=1; shift ;;
+      -m) meta=1; shift ;;
+      -s) [ -n "${2:-}" ] || usage # '-s' alone: the failed shift leaves $1='-s' forever
+          size="$2"; shift 2 ;;
+      -*) usage ;;
+      *)  break ;;
+    esac
+  done
+  [ -n "${1:-}" ] || usage
+  query="$1"; shift
+  [ $# -le 1 ] || usage
+  if [ $# -eq 1 ]; then
+    case "$1" in [0-9]*[mhd]) duration="$1" ;; *) usage ;; esac
+  fi
+  { [ "$json" -eq 0 ] || [ "$meta" -eq 0 ]; } || usage # -j and -m are mutually exclusive
+  start=$(range_start "$duration") || usage # validate before port-forward, not after
+  end=$(date +%s)
+  START_US=$((start * 1000000))
+  END_US=$((end * 1000000))
+
+  port_forward || return 1
+  local out
+  out=$(search_o2 "$query" "$size" 0) || return 1
+
+  if [ "$json" = 1 ]; then
+    jq -c '.hits[]?' <<<"$out"
+  elif [ "$meta" = 1 ]; then
+    format_meta <<<"$out"
+  else
+    format_default <<<"$out"
+  fi
+
+  # truncation honesty: O2's `total` lies for raw queries (equals size when
+  # the cap binds), so probe one row past the cap instead — a hit there
+  # means rows exist that this output does not show
+  local shown probe
+  shown=$(jq '.hits | length' <<<"$out")
+  if [ "$shown" -eq "$size" ]; then
+    probe=$(search_o2 "$query" 1 "$size" || echo '')
+    if jq -e '(.hits | length) > 0' <<<"$probe" >/dev/null 2>&1; then
+      echo "[log_query] TRUNCATED shown=$shown (cap $size) — more rows exist past the cap: raise -s (server accepts >=5000) or narrow the window" >&2
+    else
+      echo "[log_query] shown=$shown (window $duration, cap $size)" >&2
+    fi
+  else
+    echo "[log_query] shown=$shown (window $duration)" >&2
+  fi
+}
+
+if [ "${1:-}" = "--stop" ]; then
+  [ $# -eq 1 ] || usage
+  stop_forwards
+  exit 0
+fi
+
+log_query "$@"

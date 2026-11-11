@@ -1,17 +1,17 @@
 ---
 name: observability
-description: Querying cluster metrics, logs, and alert delivery — prometheus_query (PromQL, port-forward lifecycle handled), loki_query (LogQL), and mailpit (alert emails). Use when you need metrics, log lines, or to confirm alerts fired. NOTE: mimir/loki are gone since the OpenObserve migration (cmdshift/platform#171) — prometheus_query and loki_query are orphaned until a store decision lands; mailpit and tetra still work.
+description: Querying cluster metrics, logs, and alert delivery — prometheus_query (PromQL against OpenObserve), log_query (O2 SQL log search), exec_inventory (exec-inventory review), and mailpit (alert emails). Use when you need metrics, log lines, or to confirm alerts fired. NOTE: mimir/loki are gone since the OpenObserve migration (cmdshift/platform#171); prometheus_query and log_query both ride O2 (#186 metrics rewiring, #203 log rewiring) — mailpit and tetra also work.
 ---
 
 # Observability queries
 
-**Store status (cmdshift/platform#171)**: the mimir and loki targets no longer exist —
-`prometheus_query` and `loki_query` (and `metrics_summary`, which rides the mimir forward)
-fail at the port-forward. They are **flagged, not deleted**: a future
-Prometheus-API-compatible store can re-point them. Until then, queries against the
-current stack (OpenObserve) go through O2's own API/UI — not Prometheus-wire-compatible
-enough to reuse these tools as-is. The skill sections below are kept for that future
-re-pointing; `mailpit` and `tetra` are unaffected.
+**Store status (cmdshift/platform#171, #186, #203)**: OpenObserve is the single
+metrics + log store. `prometheus_query` speaks PromQL to O2's
+Prometheus-compat API, `log_query` speaks O2 SQL to the `_search` API — both
+query svc/openobserve:5080 with their own shared port-forward (lock files in
+`.agents/temp/`, `--stop` evicts; same lifecycle, two independent forwards).
+`metrics_summary` rides `prometheus_query`'s forward; `exec_inventory` rides
+`log_query`'s.
 
 ## prometheus_query
 
@@ -23,44 +23,70 @@ prometheus_query 'count(kube_pod_container_status_restarts_total)'
 
 - Default: raw JSON. `-v`: values only. `-c`: compact, one line per series (token-cheap).
 - `-r 6h`: range query over m|h|d, auto-stepped to ~30 points.
-- Port-forward lifecycle handled: the forward is SHARED across calls (lock file in `.agents/temp/`, reused/evicted automatically; `--stop` evicts manually) — rapid query loops no longer churn listeners; a not-ready server is waited out up to 2m, and the retry rides the same forward. Queries `svc/mimir:8080` (OrgID header + `/prometheus` API prefix handled); the pre-kps-removal `--query` switch and the dead `svc/kube-prometheus-stack-prometheus` default it survived are gone.
-- Instant queries only see series present in the last 5m — use `-r` to see pods that have since been recreated.
+- Queries svc/openobserve (ns observability, port 5080); the org is hardcoded
+  `default` (no OrgID header — that was mimir multi-tenancy).
+- **O2 label translation**: `job` → `service_name`, `instance` →
+  `service_instance_id`/`server_address`; metric-defined labels (`pod`,
+  `namespace`, `container`, …) survive as-is. Group by `service_name`, not `job`.
+- **O2 range-query history is sparse**: long `-r` windows return partial
+  coverage (data at ingest start + recent, gaps between). Instant queries are
+  clean — treat `-r` output as "what the store has".
 
 Useful one-liners: `container_cpu_cfs_throttled_periods_total` (throttling), `container_memory_working_set_bytes` (memory trends), `prometheus_tsdb_head_series` (cardinality), `up` (scrape health), `prometheus_scrape_targets_gauge{component_id=...}` (per-collector discovery — the ksm double-target phantom's first check, cmdshift/platform#149), `alloy_components` (what config a collector is actually running).
 
-## loki_query
+## log_query
 
-(ORPHANED — the loki target is gone, cmdshift/platform#171; kept for a future re-pointing.)
+O2 SQL against the `k8s_logs` stream (all container logs, OTel filelog →
+gateway). The SQL runs server-side — aggregations never hit a client cap.
 
 ```
-loki_query '{instance=~"observability/loki-0.*"}'   # LogQL, tenant preset, default window 1h
-loki_query '<logql>' 24h
-loki_query -c 'sum by (x) (count_over_time(...))'  # labels per series + latest value
+log_query "SELECT * FROM \"k8s_logs\" WHERE k8s_pod_name = 'flux-source-controller-0' ORDER BY _timestamp DESC" 15m
+log_query -m "SELECT * FROM \"k8s_logs\" WHERE k8s_container_name = 'kyverno' AND body LIKE '%error%'" 1h
+log_query -j "SELECT CAST(body->'process_exec'->'process'->'binary' AS VARCHAR) AS b, COUNT(*) AS n FROM \"k8s_logs\" WHERE k8s_container_name = 'export-stdout' GROUP BY b ORDER BY n DESC" 24h
 ```
 
-- `-c` (compact) is the way to read aggregations: the default output drops
-  group labels, so `sum by (message)` results are indistinguishable numbers
-  without it
-- Same shared-forward lifecycle as `prometheus_query` (lock file, `--stop`); `loki not ready after 2m` = ingester replay, retry rides the same forward.
+- Default prints each hit's `body` (the raw log line). `-j` = full hit JSON;
+  `-m` = `ns/pod/container: body` — needs the k8s columns in the SELECT
+  (`SELECT *` or explicit; O2 returns only what the query selects).
+- **JSON paths**: event fields live INSIDE `body` —
+  `CAST(body->'a'->'b' AS VARCHAR)`; `body['x']` fails; there is no
+  `json_extract`/`json_value`. Full-text: `str_match(body, 'x')`.
+- **Truncation honesty**: O2's `total` field is NOT the match count for raw
+  queries (it equals the size cap when the cap binds). `log_query` probes one
+  row past the cap and prints `TRUNCATED` on stderr — never conclude "no
+  events" from truncated output.
+- **LANDMINE — O2 logs its own query plans into `k8s_logs`**: a text search
+  can match O2's internal trace of YOUR query (the LIKE pattern text appears
+  in the logged plan). Filter by `k8s_container_name`, never bare text.
+- **LANDMINE — tetragon event columns are the EXPORTER's**: event streams
+  carry `k8s_namespace_name='security'`, `k8s_pod_name='tetragon-*'`,
+  container `export-stdout`; the event's workload namespace/pod/binary is
+  INSIDE the JSON. Extract from `body`, never filter on the workload's
+  namespace.
+- **API audit logs do NOT reach O2** (coverage regression vs the loki era,
+  cmdshift/platform#90's query surface is gone): the OTel agent's filelog
+  receiver scrapes `/var/log/pods` only — kube-apiserver audit events on the
+  ctrl node are not shipped. The "who deleted that PVC at 3am" review
+  (cmdshift/platform#90) currently has NO log-store surface; verified absent
+  live 2026-11-10. Follow-up if audit review is needed again.
+- Aggregations are plain SQL (`GROUP BY … ORDER BY n DESC`) — no LogQL.
+  24h windows aggregate in one query (verified live).
 
-- Stream labels: `namespace`, `pod`, `container`, `node` (promoted by the
-  alloy relabel pipeline — same cardinality as `instance`),
-  plus `instance` (`ns/pod:container`), `job`, `service_name`,
-  `detected_level`. Select natively: `{namespace="observability",
-  pod=~"grafana-.*"}`; `instance` prefix selectors still work
-- Metrics come from **one collector** (cmdshift/platform#155, merged from
-  two): `alloy-telemetry` (cluster plumbing: kubelet/cadvisor/apiserver/kcm/
-  scheduler, kube-state-metrics, node-exporter, per-service families,
-  self-scrape) pushes to mimir, so `metrics_summary`/`up` cover everything;
-  a missing job family is a keep-rule or release-name problem on
-  alloy-telemetry (instance label = helm release name in the keep regexes).
-- Platform components log **JSON** — kyverno, grafana-operator, seaweedfs-operator,
-  metrics-server and alloy flipped at the source; the alloy
-  pipeline **normalizes the rest** (logfmt lines → JSON fields; plain-text
-  lines → `{"msg": raw}`), so every line in Loki is JSON. Field queries:
-  `{...} | json | level="error"`. tetragon is JSON-native
-- Tenant `self-monitoring` preset (alloy's `loki.write` tenant)
-- **API audit logs**: `loki_query '{job="audit"}'` — kube-apiserver audit events scraped on the ctrl node (the "who deleted that PVC at 3am" query; cmdshift/platform#90). 30d retention like everything else, no separate tenant
+## exec_inventory
+
+```
+exec_inventory 24h    # per-namespace/binary counts + first/last seen UTC + TOTAL
+```
+
+The phase-4 evidence base (cmdshift/platform#163, #60): tetragon
+exec-inventory events (`export-stdout` container, `process_exec` records
+only — kprobe enforcement excluded), one server-side GROUP BY over the whole
+window. **Exits 1 if the result hit the size cap** — a review must never
+conclude from truncated data. Known undercount: container-init/entrypoint
+execs escape pod-scoped hooks (the init-exec gap) — an empty result never
+proves a binary never runs at container start (kyverno owns that half;
+security README). Steady state ~0.4 events/min cluster-wide (re-measured
+live 2026-11-10, well below the loki-era "~30/min" note).
 
 ## mailpit
 
@@ -82,10 +108,17 @@ tetra --server-address localhost:54321 tracingpolicy list
 ```
 
 - Subcommand is `getevents` (there is no `events`). Global flag `--server-address` goes before the subcommand. There is no `--policy` filter flag in 1.7 — pipe the compact output through grep.
-- **bprm_check enforcement events (exec deny-lists) are pod-less**: they render in compact as `❓ syscall <node> /usr/bin/runc security_bprm_check` (attributed to the pre-exec runc fork — looks like runc noise) and never reach Loki (exporter drops namespace=""). Use `tetra getevents -o json` and grep `process_kprobe.policy_name` to see them fully; the alert surface is `tetragon_policy_events_total` (see `security/README.md`).
+- **bprm_check enforcement events (exec deny-lists) are pod-less**: they render in compact as `❓ syscall <node> /usr/bin/runc security_bprm_check` (attributed to the pre-exec runc fork — looks like runc noise) and are dropped by the exporter's namespace-denylist (namespace=""). Use `tetra getevents -o json` and grep `process_kprobe.policy_name` to see them fully; the alert surface is `tetragon_policy_events_total` (see `security/README.md`).
 - Events also stream to container stdout (`kubectl -n security logs ds/tetragon -c export-stdout`) with full k8s metadata; kube-system/host events are filtered from that sink by chart default, gRPC output is not.
-- Events were searchable in Loki too: `loki_query '{namespace="security", pod=~"tetragon-.*"}'` (the `export-stdout` container's JSON lines) — orphaned with loki (cmdshift/platform#171); O2 is the searchable sink now.
-- **Stream labels are the EXPORTER's** (`pod="tetragon-*"`) — the event's workload namespace/pod/binary/policy are INSIDE the JSON (`process_kprobe.policy_name`, `process_kprobe.process.pod.namespace`, ...); extract with dot-path `json` stages, don't select the workload's namespace. Policies need a `podSelector` for their events to reach this sink at all (see `security/README.md`).
+- The `export-stdout` lines are also searchable in O2: `log_query` with
+  `k8s_container_name = 'export-stdout'` — that IS the exec-inventory
+  evidence base (see `exec_inventory` above).
+- **Stream columns are the EXPORTER's** (`k8s_pod_name='tetragon-*'`) — the
+  event's workload namespace/pod/binary/policy are INSIDE the JSON
+  (`process_kprobe.policy_name`, `process_kprobe.process.pod.namespace`,
+  ...); extract from `body`, don't filter on the workload's namespace.
+  Policies need a `podSelector` for their events to reach this sink at all
+  (see `security/README.md`).
 
 ## Full detail
 

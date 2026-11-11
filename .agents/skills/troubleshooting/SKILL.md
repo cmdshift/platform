@@ -40,7 +40,7 @@ helm_wait -c <ns> <name>   # instant verdict on one HelmRelease
 kubectl get events -A --sort-by=.lastTimestamp | tail -30
 ```
 
-Observability evidence (`prometheus_query`, `loki_query`, `mailpit`, `tetra`): the `observability` skill. Note the mimir/loki targets are gone since the OpenObserve migration (cmdshift/platform#171) — those two tools are orphaned until a store decision; O2 queries go through its own API.
+Observability evidence (`prometheus_query`, `log_query`, `exec_inventory`, `mailpit`, `tetra`): the `observability` skill. Both query tools speak to OpenObserve (metrics: PromQL-compat API #186; logs: `_search` SQL API #203) — mimir/loki are gone (cmdshift/platform#171).
 
 **No invocation longer than 60 seconds** (AGENTS.md rule): local ops either make progress or fail fast. No sleep loops, no blind polling to a long timeout — estimate the wait, cap the poll at ~2× that, and diagnose early failures (StartError, admission denial, failed mounts at t=10s) instead of waiting out the timeout. Bounded wait helpers (`flux_wait`, `helm_wait`, `velero_wait`) exist in `tools/bin/` precisely so this rule doesn't get improvised around.
 

@@ -3,14 +3,15 @@
 Helper scripts for the repeated plumbing of this repo. `direnv` adds this
 directory to PATH — invoke as `<name>` inside the repo; otherwise
 `tools/bin/<name>`. Each script is self-contained bash, named for its entry
-function; the observability ones (`prometheus_query`, `loki_query`) share a
+function; the observability ones (`prometheus_query`, `log_query`, and
+`metrics_summary`/`exec_inventory`, which ride their forwards) share a
 port-forward lifecycle: a per-service forward is started once and reused via
 a lock file in `.agents/temp/` (`<tool>.<service>.forward`, `<pid> <port>`)
-instead of churning a listener per call; `--stop` evicts them. Since the
-#186 store rewiring the two have DIVERGED on the backend: `prometheus_query`
-speaks PromQL to O2's Prometheus-compat API, `loki_query` still speaks LogQL
-to loki (O2 log search is SQL — its own follow-up; the lifecycle mechanics
-stay in lockstep).
+instead of churning a listener per call; `--stop` evicts them. Both query
+tools speak to O2 (svc/openobserve:5080) since the #186 store rewiring:
+`prometheus_query` speaks PromQL to O2's Prometheus-compat API, `log_query`
+speaks O2 SQL to the `_search` API (loki_query was retired with the log
+rewiring, cmdshift/platform#203 — no LogQL shim).
 
 **Shared conventions:**
 
@@ -43,13 +44,13 @@ Dependencies: `kubectl`, `jq`, `yq`, plus `helm`/`git` for `helm_verify`,
 `velero` / `cilium` CLIs for their respective tools, `docker`
 for `rustfs`. The full toolchain installs via
 `brew bundle --file=tools/Brewfile` (Homebrew; also available through most
-Linux package managers). Host-portable: the time math in `loki_query`/`prometheus_query`
+Linux package managers). Host-portable: the time math in `log_query`/`prometheus_query`
 is bash arithmetic off `date +%s` — never `date -v`
 (darwin-only) or `date -d` (GNU-only), and non-integer durations are
 rejected before the arithmetic (a float inside `$(( ))` is fatal in
 non-interactive bash — the script would abort before `|| usage` fires).
 The random-port picks are bash `$RANDOM` arithmetic over disjoint windows
-(prometheus 20000-20999, loki 21000-21999) — `jot` was BSD-only and its
+(prometheus_query 20000-20999, log_query 21000-21999) — `jot` was BSD-only and its
 fallback silently pinned one fixed port per script on Linux.
 Nothing here shells out to an interpreter — bash + these CLIs is the
 whole dependency tree.
@@ -78,7 +79,7 @@ whole dependency tree.
 | `tetragon_probe` | verify a deny-list TracingPolicy kills: labeled probe pod + counter deltas |
 | `prometheus_query` | PromQL with port-forward lifecycle handled |
 | `metrics_summary` | post-scrape-change gate: per-job up-target counts + Watchdog |
-| `loki_query` | LogQL with tenant + time math preset |
+| `log_query` | O2 SQL log search with port-forward lifecycle handled |
 | `alloy_components` | dump the alloy components a pod is actually running (config-mismatch triage) |
 | `mailpit` | alert-email subjects, or `-s <subj>` / `-b <id>` for body fetch |
 | `velero_wait` | poll a velero backup/restore to Completed |
@@ -431,11 +432,11 @@ runbooks/local/namespace-migration.md.
 ## Observability queries
 
 **Store decision (cmdshift/platform#186, resolving #171's store gap)**:
-OpenObserve is the metrics store — `prometheus_query` is **REWIRED to O2** and
-works again (Prometheus-compat API at `/api/default/prometheus/api/v1/...`,
-port 5080; instant + range verified live). `loki_query` remains **ORPHANED**
-on purpose: O2 log search is SQL, not LogQL, so it keeps a follow-up of its
-own rather than a fake LogQL shim. `metrics_summary` runs against O2 but its
+OpenObserve is the metrics AND log store — `prometheus_query` is REWIRED to
+O2 (Prometheus-compat API, cmdshift/platform#186) and `log_query` is the
+rewired log tool (O2 `_search` SQL, cmdshift/platform#203 — it replaced the
+retired `loki_query`, which was ORPHANED with the LGTM teardown #171; no
+LogQL shim was ever built). `metrics_summary` runs against O2 but its
 per-job breakdown reads empty `job` labels (O2 label translation, see the
 prometheus_query caveats below). `memory_audit`/`request_audit` never rode
 prometheus_query (they're kubectl-based); `cpu_audit`'s throttle check rides
@@ -485,7 +486,7 @@ per-service lock file keying makes that a non-issue going forward.)
   Treat `-r` output as "what the store has", not a full grid — the
   resource-sizing 7d trend procedure reads it with that caveat.
 - **shared-forward lifecycle** (cmdshift/platform#77; duplicated in
-  `loki_query` — keep the two in lockstep): each call validates the recorded
+  `log_query` — keep the two in lockstep): each call validates the recorded
   forward (PID alive AND still a port-forward — the cmdline check defeats
   PID recycling — AND the port answering HTTP) and reuses it; a stale or
   wedged forward is evicted and replaced in the same call (~30s worst case
@@ -534,38 +535,77 @@ default per-job breakdown is now a TOTAL-only signal; `-w` is moot (no
 ruler/Watchdog since the alertmanager removal, cmdshift/platform#182). The
 escape hatch still works verbatim.
 
-### `loki_query [-c] '<logql>' [duration] | loki_query --stop`
+### `log_query [-j|-m] [-s 500] '<sql>' [duration] | log_query --stop`
 
-LogQL against svc/loki:3100 (shared forward, lock file
-`.agents/temp/loki_query.loki.forward` — same lifecycle contract as
-`prometheus_query`, with loki's `/ready` endpoint and a 2m
-`loki not ready after 2m` wait for ingester replay), tenant
-`self-monitoring` preset, nanosecond time math handled. Default prints raw
-log lines; `-c` prints one line per series (`labels: latest-value`, sorted
-by value desc) — the only way to see aggregation group labels, which the
-default output drops. Exit codes: 0 = query ran (check the output for
-emptiness), 1 = forward failed or loki stayed not-ready, 2 = usage.
-**ORPHANED with the OpenObserve migration** (cmdshift/platform#171 — the
-`loki_query.loki.forward` lock file will fail at the port-forward). The
-store decision (cmdshift/platform#186) wired the METRICS side of these tools
-to O2's Prometheus-compat API; O2 log search is SQL, not LogQL, so this tool
-stays orphaned until its own follow-up (no LogQL shim is planned). The
-label-landmine notes below stay valid for any log store.
+O2 SQL log search (cmdshift/platform#203 — replaced the retired
+`loki_query`): POSTs to O2's `_search` API
+(`http://localhost:<port>/api/default/_search`, org hardcoded `default`)
+with the time window from `duration` (m|h|d, default 1h) as
+`start_time`/`end_time` in microseconds. Queries svc/openobserve:5080 (ns
+observability), ready check `/healthz` (unauthenticated), auth via the
+collectors' Basic token read live from cm/openobserve-collector-agent-values
+and cached at `.agents/temp/log_query.o2.auth` (401 drops the cache and
+refetches once — same discipline as `prometheus_query`, separate cache
+file). Shared forward, lock file `.agents/temp/log_query.openobserve.forward`,
+port window 21000-21999 — same service as `prometheus_query` (20000-20999),
+two independent forwards keyed by the lock file. The SQL runs server-side,
+so aggregations never hit a client-side cap. Default prints each hit's
+`body` (the raw log line); `-j` prints full hit JSON (one per line); `-m`
+prefixes `ns/pod/container` — **the k8s columns must be in the SELECT**
+(`SELECT *` or the explicit names; O2 returns only what the query selects).
+`-s` sets the size cap (default 100; the server accepts ≥5000, no ceiling
+observed). Exit codes: 0 = query ran (check output for emptiness, the
+stderr footer for truncation), 1 = forward failed, server not-ready 2m, bad
+SQL (O2's 400 body is echoed), or auth failed after a refetch, 2 = usage.
 
-- **LANDMINE — tetragon events carry the EXPORTER's labels**: all event
-  streams live under `{namespace="security", pod="tetragon-*"}`; the event's
-  own workload namespace/pod is INSIDE the JSON
-  (`process_exec.process.pod.namespace`, `process_kprobe.process.binary`,
-  `process_kprobe.policy_name`, `process_kprobe.message`). Per-workload
-  breakdowns need `| json x="process_kprobe.process.binary" | x != ``
-  extraction, never a stream selector on the workload's namespace. (Selecting
-  `{namespace="security"}` bare also matches trivy scan-job streams in that
-  namespace — thousands of lines of noise.)
-- The Loki `json` parser flattens nested leaves (`process_kprobe_message`);
-  dot-path EXPRESSIONS (`json message="process_kprobe.message"`) are the way
-  to extract a nested field into a named label.
-- A malformed query surfaces as jq "parse error" on the 400 body — re-check
-  the LogQL before debugging the data.
+- **stream and hit shape (verified live)**: everything lands in the single
+  `k8s_logs` stream. Hits carry `_timestamp` (micros), `body` (the raw log
+  line), and flat `k8s_*` columns (`k8s_namespace_name`, `k8s_pod_name`,
+  `k8s_container_name`, `service_name`, …).
+- **JSON paths**: event fields live INSIDE `body` — extract with
+  `CAST(body->'process_exec'->'process'->'binary' AS VARCHAR)`. The
+  `body['x']` index syntax fails (`Utf8 is not Struct`);
+  `json_extract`/`json_value` don't exist. Full-text: `str_match(body, 'x')`.
+- **LANDMINE — O2's `total` is NOT the match count for raw queries** (it
+  equals `size` when the cap binds — 586 events in the window with
+  `-s 10` reported `total=10`). Only the tool's probe can detect the cap:
+  when hits == size it re-queries with `from=size, size=1` and warns
+  `TRUNCATED` on stderr. Never conclude "no events" from truncated output.
+- **LANDMINE — tetragon events carry the EXPORTER's k8s columns**: event
+  streams live under `k8s_namespace_name='security'`,
+  `k8s_pod_name='tetragon-*'`, container `export-stdout`; the event's own
+  workload namespace/pod is INSIDE the JSON (`process_exec.process.pod.namespace`,
+  `process_kprobe.process.binary`, …). Per-workload breakdowns extract from
+  `body`, never filter on the workload's namespace. (Selecting the security
+  namespace bare also matches O2's own access-log lines in that
+  namespace's noise — filter by container.)
+- **LANDMINE — O2 logs its own query plans into `k8s_logs`**: a text search
+  (LIKE/str_match) can match O2's internal trace of YOUR query (the LIKE
+  pattern text appears in the logged plan) — self-referential matches that
+  look like hits. Filter by `k8s_container_name`, never bare text.
+- **exec-inventory stream facts (re-measured live, cmdshift/platform#163)**:
+  tetragon exec events ARE in O2 (`export-stdout` container), 24h steady
+  state ~0.4 events/min cluster-wide (586 events — far below the loki-era
+  "~30/min" claim; re-measure before relying on volume). Events are
+  `process_exec` records with **no `policy_name` field** (the security
+  README's old claim was stale — attribution is by event shape:
+  `body->'process_exec' IS NOT NULL` selects inventory, `process_kprobe`
+  would be enforcement).
+
+### `exec_inventory [duration]`
+
+Per-namespace/binary exec-inventory review over an arbitrary window — the
+phase-4 evidence base (cmdshift/platform#163, cmdshift/platform#60): one
+SQL GROUP BY server-side over the whole window (count + first/last seen
+UTC), sorted count desc, plus a TOTAL line. Default window 24h. Rides
+`log_query`'s shared forward — no own plumbing. Events: the tetragon
+exec-inventory stream (`export-stdout` container), `process_exec` records
+only (kprobe enforcement excluded). Known undercount: container-init/
+entrypoint execs escape pod-scoped hooks (the init-exec gap) — an empty
+result never proves a binary never runs at container start (kyverno owns
+that half; security README). **Exits 1 with a warning if the result hit
+the size cap** (1000 groups — never observed live, 11 groups at 24h) — a
+review must not conclude from truncated data.
 
 ### `alloy_components [--all] [pod]`
 
