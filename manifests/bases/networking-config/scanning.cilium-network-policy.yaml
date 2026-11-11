@@ -9,7 +9,7 @@ spec:
     - toEntities:
         - kube-apiserver
     - toFQDNs:
-        - matchName: registry.cloud.test
+        - matchName: ${REGISTRY_FQDN}
       toPorts:
         - ports:
             - port: "80"

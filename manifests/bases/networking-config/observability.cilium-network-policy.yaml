@@ -25,13 +25,13 @@ spec:
             - port: "10259"
               protocol: TCP
     - toFQDNs:
-        - matchName: s3.cloud.test
+        - matchName: ${S3_FQDN}
       toPorts:
         - ports:
             - port: "80"
               protocol: TCP
     - toFQDNs:
-        - matchName: smtp.cloud.test
+        - matchName: ${SMTP_FQDN}
       toPorts:
         - ports:
             - port: "25"

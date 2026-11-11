@@ -15,6 +15,11 @@ spec:
     kind: Bucket
     name: main
   path: ./manifests/clusters/local/backups
+  postBuild:
+    substitute:
+      S3_ENDPOINT: http://s3.cloud.test
+      AWS_REGION: local
+      CLUSTER_NAME: local-test
   prune: true
   wait: true
   timeout: 3m

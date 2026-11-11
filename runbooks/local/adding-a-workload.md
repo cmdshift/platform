@@ -35,12 +35,12 @@ Known-proofed: cert-manager `startupapicheck.resources` (all-lowercase key!), ve
 
 ## 4. Network policy
 
-The cluster runs default-deny egress (except kube-system); every workload needs a CiliumNetworkPolicy in `networking-config/`. House patterns (copy the closest match):
+The cluster runs default-deny egress (except kube-system); every workload needs a CiliumNetworkPolicy in `bases/networking-config/`. House patterns (copy the closest match):
 
 - `kube-apiserver` egress (almost everything)
 - intra-namespace for peer traffic
 - specific service: `toEndpoints` + `matchLabels: io.kubernetes.pod.namespace: <ns>` + port
-- external companions: `toFQDNs: matchName: <host>.cloud.test` + port (e.g. the backups CNP's `s3.cloud.test:80` rule, secrets' `secrets.cloud.test:80`)
+- external companions: `toFQDNs: matchName: ${VAR_FQDN}` + port — the hostname is a `${VAR}` token in the base, with the value in the networking-config Kustomization CR's `postBuild.substitute` (e.g. the backups CNP's `${S3_FQDN}:80` rule; convention: [manifests/README.md Conventions](../../manifests/README.md), cmdshift/platform#191)
 
 ## 5. Secrets (if needed)
 
