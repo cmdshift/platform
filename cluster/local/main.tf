@@ -101,13 +101,6 @@ module "auth" {
   trusted_proxies = module.conf.net.local_cidr
 }
 
-# module "images" {
-#   source            = "./images"
-#   providers         = { docker-push.push = docker.push }
-#   depends_on        = [module.registry, module.load]
-#   registry_hostname = module.conf.registry.services.main.hostname
-# }
-
 module "nodes" {
   source = "./nodes"
   depends_on = [

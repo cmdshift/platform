@@ -52,7 +52,7 @@ Watch with `flux_wait` (interactive cap ~15), or `flux_wait -c` for an instant n
 | flux-config adoption | `kubectl -n flux-system get kustomization local -o json --show-managed-fields` | `kustomize-controller` owns the spec |
 | Velero BSL | `kubectl -n backups get bsl default` | `Available` |
 | Rustfs buckets | `rustfs ls main/` | `flux`, `backups`, `openobserve` |
-| OpenObserve | `kubectl -n observability get pods -l app.kubernetes.io/name=openobserve` | 1/1 Running; o2-sync Job completes (dashboards/alerts present in the O2 UI) |
+| OpenObserve | `kubectl -n observability get pods -l app.kubernetes.io/name=openobserve` | 1/1 Running, ingesting (the O2 alert set is empty — o2-sync removed, cmdshift/platform#206) |
 | Host API path | `curl -skf --max-time 3 https://127.0.0.1:6443/version` | 401 = LB publisher alive (the binding is on the `load` container) |
 | Rauthy discovery | `curl -s https://auth.cloud.test/auth/v1/.well-known/openid-configuration` | 200; `issuer` == `https://auth.cloud.test/auth/v1/` exactly (trailing slash — apiserver exact-match, cmdshift/platform#154) |
 | Kubelet-serving CSRs | `kubectl get csr` | Pending until manually approved (`kubectl get csr -o name \| xargs -I{} kubectl certificate approve {}`) — nodes don't go Ready until then |

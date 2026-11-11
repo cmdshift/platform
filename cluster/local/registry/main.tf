@@ -1,15 +1,3 @@
-resource "random_password" "push_password" {
-  length  = 32
-  special = false
-}
-
-resource "password_argon2" "push_password" {
-  password   = random_password.push_password.result
-  memory     = 19456
-  iterations = 2
-  thread     = 1
-}
-
 resource "docker_image" "angos" {
   name          = data.docker_registry_image.angos.name
   keep_locally  = true
@@ -49,10 +37,6 @@ resource "docker_container" "registry" {
     content = templatefile("${path.module}/templates/config.tftpl.toml", {
       registries = local.registry_map
       scan       = var.scan
-      push = {
-        username      = local.push_username
-        password_hash = password_argon2.push_password.hash
-      }
     })
   }
   command = ["-c", "/etc/angos/config.toml", "server"]

@@ -74,7 +74,7 @@ yaml_lint
 flux_wait
 ```
 
-Then: helmreleases green (`helm_wait -c <ns> <name>` per release), `policy_report` failures 0 (skips = exceptions; `--clean` for stale reports). If the workload exposes metrics: ServiceMonitor (+ trust-CRDs flag where the chart needs it), then verify scraping landed — **the mimir-backed `prometheus_query` is ORPHANED since the OpenObserve migration (cmdshift/platform#171)**; verify through O2's UI/API until a store decision re-points the tooling. If it should alert: a detector JSON in `observability-config/o2-sync/alerts/` (o2-sync pattern — see the observability README) → alerts land at http://mail.cloud.test (`mailpit`).
+Then: helmreleases green (`helm_wait -c <ns> <name>` per release), `policy_report` failures 0 (skips = exceptions; `--clean` for stale reports). If the workload exposes metrics: ServiceMonitor (+ trust-CRDs flag where the chart needs it), then verify scraping landed via `prometheus_query` (O2-backed since the store decision, cmdshift/platform#186). If it should alert: **the O2 alert set is empty since the o2-sync removal — cmdshift/platform#206 owns the alerting story**; until it lands, new alerts can't be GitOps-synced (O2 UI only, and they don't survive pod-churn PVC deletes). Delivery is O2 SMTP → mailpit (http://mail.cloud.test, `mailpit`).
 
 ## Full detail
 

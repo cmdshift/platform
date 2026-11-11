@@ -26,7 +26,7 @@ Bucket `main` 5m, root + child kustomizations 1h drift-heal (`retryInterval: 5s`
 
 ## Flux alerting (cmdshift/platform#182)
 
-The notification Provider + Alert objects (`flux-system.provider.yaml` / `flux-system.alert.yaml`) are **deleted** — transient error events lost to persistent not-ready metrics. Flux health now alerts off **scraped `gotk_resource_info` metrics** via the `o2-alerts-library` fluxcd pack (3 of 4 adopted: `flux_helmrelease_failure`, `flux_kustomization_failure`, `flux_source_issue`; `flux_image_issue` parked — image automation runs `create: false` here, so its stream can never exist). Detectors + delivery are O2-owned: the alert JSONs live in `observability-config/o2-sync/alerts/`, the scrape job (`flux-controllers`, pod-role SD on the `app` label, named port `http-prom`) in the gateway collector — mechanics and landmines: [bases/observability/README.md](../observability/README.md).
+The notification Provider + Alert objects (`flux-system.provider.yaml` / `flux-system.alert.yaml`) are **deleted** — transient error events lost to persistent not-ready metrics. Flux health alerting rode scraped `gotk_resource_info` metrics via the `o2-alerts-library` fluxcd pack, synced into O2 by the o2-sync Job — **the Job was removed 2026-10-29 and took the flux detectors with it; no flux alert exists today** (cmdshift/platform#206 decides the successor). The scrape job (`flux-controllers`, pod-role SD on the `app` label, named port `http-prom`) is still live in the gateway collector, so the metrics exist — mechanics and landmines: [bases/observability/README.md](../observability/README.md).
 
 ## Sizing
 

@@ -12,7 +12,7 @@ Each repository block carries `scan = true`: a push or cache-miss store enqueues
 
 ## Push identity
 
-`main.tf` generates the push credential end-to-end: `random_password` → `password_argon2` (angos stores the hash; the config template embeds it via `password_hash`), with `outputs.tf` exporting the plaintext (`push_password`). The `images` module receives the plaintext through its `push_password` input and injects it into its provider-level `registry_auth` — the hash and the plaintext derive from the same resource, so they can't drift. The `http://` scheme on the auth address is load-bearing: bare-host form 401s on the digest probe even with credentials set.
+The push credential (removed with the images module, cmdshift/platform#209) used to be generated here end-to-end: `random_password` → `password_argon2` (angos stored the hash; the config template embedded it), with `outputs.tf` exporting the plaintext to the `images` module's `registry_auth`. The `http://` scheme on the auth address was load-bearing: bare-host form 401s on the digest probe even with credentials set — restore both details from git history if a push identity is ever needed again.
 
 ## Volume permission trap
 

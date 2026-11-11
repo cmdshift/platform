@@ -49,6 +49,13 @@ resources:
     cpu: "1"
     memory: 1536Mi
 
+extraEnvs:
+  - name: O2_AUTH_BASIC
+    valueFrom:
+      secretKeyRef:
+        name: openobserve-credentials
+        key: O2_AUTH_BASIC
+
 ports:
   otlp:
     enabled: true
@@ -78,7 +85,7 @@ config:
     otlphttp/openobserve:
       endpoint: http://openobserve.observability.svc:5080/api/default/
       headers:
-        Authorization: "Basic YWRtaW5AY2xvdWQudGVzdDpDb21wbGV4cGFzcyMxMjM="
+        Authorization: ${env:O2_AUTH_BASIC}
     debug: null
   receivers:
     otlp:

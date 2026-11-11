@@ -28,6 +28,13 @@ cache:
   mountPath: /var/lib/openobserve-cache
   sizeLimit: 2Gi
 
+extraVolumes:
+  - name: tmp
+    emptyDir: {}
+extraVolumeMounts:
+  - name: tmp
+    mountPath: /tmp
+
 persistence:
   enabled: true
   size: 5Gi

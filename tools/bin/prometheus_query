@@ -14,11 +14,10 @@
 # mimir/loki with the LGTM stack; the log rewiring is cmdshift/platform#203).
 # Queries svc/openobserve ns observability, port 5080; the org is hardcoded
 # `default` (the collectors push to /api/default/, no X-Scope-OrgID — that
-# was mimir multi-tenancy). Auth is the collectors' inlined Basic token,
-# read live from cm/openobserve-collector-agent-values and cached at
-# .agents/temp/prometheus_query.o2.auth — never embedded here (it must be
-# re-encoded whenever the secrets-server `openobserve-credentials` payload
-# changes; a 401 invalidates the cache and refetches once).
+# was mimir multi-tenancy). Auth is the O2 Basic token from
+# secret/openobserve-credentials key O2_AUTH_BASIC (rendered by the
+# secrets-server payload), cached at .agents/temp/prometheus_query.o2.auth —
+# never embedded here; a 401 invalidates the cache and refetches once.
 #   prometheus_query '<promql>'              instant, raw JSON
 #   prometheus_query -v '<promql>'            values only (value + labels, or ts value)
 #   prometheus_query -c '<promql>'            compact: "<pod=... container=...> vals" per line
@@ -83,7 +82,7 @@ stop_forwards() { # evict every forward this tool has recorded
 }
 
 o2_token() { # the O2 Basic token, read from the cluster at runtime — never
-  # hardcoded (it changes with the secrets-server openobserve-credentials
+  # hardcoded (secret derived from the secrets-server openobserve-credentials
   # payload; observability README 401 landmine). Cached at AUTH_CACHE so
   # rapid loops don't re-run kubectl per query; a 401 below rm's the cache.
   if [ -s "$AUTH_CACHE" ]; then
@@ -91,10 +90,9 @@ o2_token() { # the O2 Basic token, read from the cluster at runtime — never
     return
   fi
   local token
-  token=$(kubectl -n observability get cm openobserve-collector-agent-values \
-    -o jsonpath='{.data.values\.yaml}' 2>/dev/null \
-    | grep -m1 'Authorization: "Basic ' | sed 's/.*"Basic /Basic /;s/".*//')
-  [ -n "$token" ] || { echo "cannot read the O2 auth token from cm/openobserve-collector-agent-values (ns observability)" >&2; return 1; }
+  token=$(kubectl -n observability get secret openobserve-credentials \
+    -o jsonpath='{.data.O2_AUTH_BASIC}' 2>/dev/null | base64 -d)
+  [ -n "$token" ] || { echo "cannot read the O2 auth token from secret/openobserve-credentials key O2_AUTH_BASIC (ns observability)" >&2; return 1; }
   printf '%s\n' "$token" > "$AUTH_CACHE"
   echo "$token"
 }

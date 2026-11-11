@@ -11,12 +11,3 @@ terraform {
     }
   }
 }
-
-# provider "docker" {
-#   alias = "push"
-#   registry_auth {
-#     address  = module.conf.registry.services.main.hostname
-#     username = module.registry.push_identity.username
-#     password = module.registry.push_identity.password
-#   }
-# }
