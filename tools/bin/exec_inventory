@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Exec-inventory review over an arbitrary window — the phase-4 evidence base
+# (cmdshift/platform#60): per-namespace/binary counts with first/last seen,
+# the allowlist-by-absence check before each deny-list widening wave.
+# Sits on log_query's shared O2 forward — no own plumbing. Aggregation runs
+# SERVER-SIDE (one SQL GROUP BY over the whole window), so there is no
+# client-side chunking and no per-request cap binding the review.
+#   exec_inventory [duration]    # e.g. 30m 4h 2d; default 24h
+# Prints "count ns binary first_seen last_seen" (UTC), sorted count desc,
+# plus a TOTAL line. Events: the tetragon exec-inventory stream (ns security,
+# container export-stdout) — process_exec records only (kprobe enforcement
+# events excluded); the workload identity is INSIDE the event JSON, the k8s
+# labels are the exporter's (tetragon exporter-labels landmine). The stream
+# undercounts container-init/entrypoint execs (the init-exec gap) — an empty
+# result never proves a binary never runs at container start (kyverno owns
+# that half; security README).
+# Truncation: exits 1 with a warning when any window's result set hit the
+# cap (O2's `total` cannot be trusted for this) — a review must never
+# conclude from truncated data.
+# Exit 0 = complete review, 1 = truncated result or plumbing failure, 2 =
+# usage error.
+set -euo pipefail
+
+usage() {
+  echo "usage: exec_inventory [duration]" >&2
+  exit 2
+}
+
+duration='24h'
+[ $# -le 1 ] || usage
+if [ $# -eq 1 ]; then
+  case "$1" in [0-9]*[mhd]) duration="$1" ;; *) usage ;; esac
+fi
+
+tool_dir="$(cd "$(dirname "$0")" && pwd)"
+
+# inventory-only WHERE (kprobe enforcement events carry process_kprobe, not
+# process_exec); container filter is load-bearing — bare text searches also
+# match O2's own logged query-plan lines
+sql="SELECT CAST(body->'process_exec'->'process'->'pod'->'namespace' AS VARCHAR) AS ns, CAST(body->'process_exec'->'process'->'binary' AS VARCHAR) AS binary, COUNT(*) AS n, MIN(_timestamp) AS first_seen, MAX(_timestamp) AS last_seen FROM \"k8s_logs\" WHERE k8s_container_name = 'export-stdout' AND body->'process_exec' IS NOT NULL GROUP BY ns, binary ORDER BY n DESC LIMIT 1000"
+
+err_file="$tool_dir/../../.agents/temp/exec_inventory.stderr"
+out=$("$tool_dir/log_query" -j -s 1000 "$sql" "$duration" 2>"$err_file") || {
+  cat "$err_file" >&2
+  rm -f "$err_file"
+  exit 1
+}
+
+if [ -n "$out" ]; then
+  printf '%s\n' "$out" | jq -r '
+    "\(.n) \(.ns // "<unattributed>") \(.binary // "<unknown>") first=\(.first_seen / 1000000 | strftime("%Y-%m-%d %H:%M:%S")) last=\(.last_seen / 1000000 | strftime("%Y-%m-%d %H:%M:%S")) UTC"'
+  printf '%s\n' "$out" | jq -s -r '"TOTAL events=\(map(.n) | add // 0) groups=\(length) window (UTC first/last)"'
+else
+  echo "TOTAL events=0 groups=0 (window $duration) — empty stream: investigate before reading as green"
+fi
+
+truncated=0
+grep -q TRUNCATED "$err_file" 2>/dev/null && truncated=1
+rm -f "$err_file"
+if [ "$truncated" -eq 1 ]; then
+  echo "exec_inventory: window hit the size cap — the counts above are INCOMPLETE; narrow the duration or split it (a review must not conclude from truncated data)" >&2
+  exit 1
+fi
