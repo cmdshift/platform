@@ -7,11 +7,11 @@
 # and replaced on the next call. A not-ready server is waited out (bounded
 # 2m): the ready check distinguishes "forward up, server not ready" (HTTP
 # non-200) from "forward dead" (refused/timeout). `--stop` evicts the shared
-# forwards. The lifecycle is duplicated in loki_query — the two have since
-# DIVERGED on the backend (cmdshift/platform#186): this tool speaks PromQL
-# to O2's Prometheus-compat API, loki_query still speaks LogQL to loki (O2
-# log search is SQL, not LogQL — its own follow-up; cmdshift/platform#171
-# removed mimir/loki with the LGTM stack).
+# forwards. The lifecycle is duplicated in log_query (same
+# svc/openobserve:5080, same auth cache discipline — keep the two in
+# lockstep): this tool speaks PromQL to O2's Prometheus-compat API,
+# log_query speaks O2 SQL to the _search API (cmdshift/platform#171 removed
+# mimir/loki with the LGTM stack; the log rewiring is cmdshift/platform#203).
 # Queries svc/openobserve ns observability, port 5080; the org is hardcoded
 # `default` (the collectors push to /api/default/, no X-Scope-OrgID — that
 # was mimir multi-tenancy). Auth is the collectors' inlined Basic token,
@@ -45,7 +45,7 @@ range_start() { # e.g. 6h -> epoch seconds; bash math off `date +%s` (portable �
   echo $(( $(date +%s) - n * u ))
 }
 
-# --- shared port-forward lifecycle (duplicated in loki_query — keep in lockstep) ---
+# --- shared port-forward lifecycle (duplicated in log_query — keep in lockstep) ---
 
 # { } around the fallback — bash parses `a || b && c` as `(a || b) && c`, so
 # with the plain form `cd && pwd` ran even on the git success path and its
@@ -100,7 +100,7 @@ o2_token() { # the O2 Basic token, read from the cluster at runtime — never
 }
 
 port_forward() { # service_name — sets PORT_FORWARD_PORT / PORT_FORWARD_PID
-  local service=$1 lock i pid port attempt
+  local service=$1 lock i pid port
   lock="$LOCK_DIR/prometheus_query.$service.forward"
   unset PORT_FORWARD_PID PORT_FORWARD_PORT
   if [ -f "$lock" ]; then
@@ -119,7 +119,7 @@ port_forward() { # service_name — sets PORT_FORWARD_PORT / PORT_FORWARD_PID
     # random-port collisions are rare but cheaper to retry than to fail)
     # O2's API lives on 5080; /healthz is the unauthenticated ready check
     # (/ready and the query API require auth — cmdshift/platform#186)
-    for attempt in 1 2; do
+    for _ in 1 2; do
       PORT_FORWARD_PORT=$((20000 + RANDOM % 1000))
       kubectl -n observability port-forward "svc/$service" "$PORT_FORWARD_PORT:5080" >/dev/null 2>&1 &
       PORT_FORWARD_PID=$!
