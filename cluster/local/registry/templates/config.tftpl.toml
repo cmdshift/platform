@@ -17,8 +17,21 @@ token = "${scan.token}"
 %{ for path, registry in registries ~}
 [repository."${path}"]
 namespace = "${registry.name}"
-scan = true
 
 [[repository."${path}".upstream]]
 url = "${registry.remote}"
+
+[repository."${path}".scan]
+default = "skip"
+rules = ["image.scanned_at < now() - days(7)"]
 %{ endfor ~}
+
+[auth.identity.platform]
+username = "${registry_username}"
+password = "${registry_password}"
+
+[repository."platform"]
+
+[repository."platform".scan]
+default = "skip"
+rules = ["image.scanned_at < now() - days(7)"]

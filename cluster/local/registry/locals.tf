@@ -38,5 +38,8 @@ locals {
     }
   }
 
+  registry_username = "platform"
+  registry_password = "password"
+
   registry_volume_name = "platform-registry-data"
 }
