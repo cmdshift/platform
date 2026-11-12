@@ -47,8 +47,8 @@ resource "docker_container" "storage" {
     container_path = "/data"
     volume_name    = null_resource.storage_volume.triggers.volume_name
   }
-  memory      = 1024
-  memory_swap = 1024
+  memory      = 2048
+  memory_swap = 2048
   entrypoint = [
     "/tmp/entrypoint.sh"
   ]
