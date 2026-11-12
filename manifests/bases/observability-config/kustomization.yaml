@@ -1,7 +1,13 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  - main.grafana.yaml
+  - openobserve-logs.grafana-datasource.yaml
+  - openobserve-metrics.grafana-datasource.yaml
+  - main-grafana-credentials.external-secret.yaml
   - kube-state-metrics.vertical-pod-autoscaler.yaml
+  - grafana-operator.vertical-pod-autoscaler.yaml
+  - grafana.vertical-pod-autoscaler.yaml
   - logging.limit-range.yaml
   - logging.resource-quota.yaml
   - openobserve-collector-agent-agent.vertical-pod-autoscaler.yaml

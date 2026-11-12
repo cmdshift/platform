@@ -9,17 +9,17 @@ carries the RBAC group bindings (OIDC `groups` claim → RBAC, cmdshift/platform
 ```
 browser → internal haproxy (TLS :443) → Gateway local-test (cilium, TLS terminate)
         → HTTPRoute <app>-auth (namespace access) → oauth2-proxy :4180
-        → app upstream (hubble-ui:80 / openobserve.observability.svc:5080)
+        → app upstream (hubble-service:3000 / hubble-ui:80 / openobserve.observability.svc:5080)
 ```
 
-One oauth2-proxy **per app** (`hubble-auth-proxy`, `openobserve-auth-proxy` — grafana's and seaweed's proxies were deleted with their apps, cmdshift/platform#171)
+One oauth2-proxy **per app** (`grafana-auth-proxy`, `hubble-auth-proxy`, `openobserve-auth-proxy` — seaweed's proxy went with the seaweed teardown, cmdshift/platform#171; grafana's was deleted with the #171 teardown and restored with cmdshift/platform#196)
 — legacy-config oauth2-proxy selects its upstream by path, not Host, so a single instance
 cannot fan out across subdomains. Subdomains (not path prefixes) were chosen because
 hubble-ui has no base-path support at all. Each proxy sets a **host-scoped
 cookie** (`cookie_domains = ["<app>.local.test"]` — the cookie is only ever sent back to
-the app that issued it. openobserve's cookie name is `_oauth2_proxy_o2` — distinct from
-hubble's so the two proxies' cookies can't collide on their respective hosts.
-All three releases share one cookie secret
+the app that issued it. Cookie names are distinct per proxy (`_oauth2_proxy_gf`,
+`_oauth2_proxy_o2`, `_oauth2_proxy`) so the proxies' cookies can't collide on their
+respective hosts. All three releases share one cookie secret
 (so a cookie from any proxy validates at any proxy)
 
 **Why host-scoped, not a shared `.local.test` cookie:** the proxy cookie is a *bearer
@@ -38,8 +38,8 @@ tuning for the cloud: default expiry is 168h with refresh disabled — consider 
 
 The `oauth2-proxy` client in `cluster/local/auth/files/bootstrap/clients.json` is confidential
 (PKCE S256 via `challenges: ["S256"]`, mirrored by the `kubernetes` client). One redirect
-URI per protected app (hubble, openobserve — grafana's redirect went with the grafana
-teardown and seaweed's with the seaweed teardown, cmdshift/platform#171), no wildcards. **Bootstrap JSON is first-boot only** — editing
+URI per protected app (grafana, hubble, openobserve — seaweed's went with the seaweed
+teardown, cmdshift/platform#171; grafana's returned with cmdshift/platform#196), no wildcards. **Bootstrap JSON is first-boot only** — editing
 clients/users/groups requires a container recreate (data lives in the container layer; every
 `terraform apply -target=module.auth` wipes hiqlite and re-seeds) — `terraform apply
 -target=module.auth` after editing the bootstrap files. Users need `email_verified: true` in
@@ -84,27 +84,28 @@ Trust for the IdP connection: `--provider-ca-file /etc/platform-ca/ca.crt` +
 
 ## Grafana auth.proxy
 
-(Removed with grafana in the OpenObserve migration, cmdshift/platform#171 — kept as the
-contrast case for the cookie-gate rule below.)
+(Retired. Grafana read `X-Forwarded-Email` (oauth2-proxy's `pass_user_headers` default, sent
+on every upstream request) behind the old grafana-auth-proxy. Grafana returned with
+cmdshift/platform#196 as a **cookie-gate + own-login** setup — auth.proxy was NOT restored,
+and its phantom-user trap (below) is the reason. Kept as the contrast case for the
+cookie-gate rule.)
 
-Grafana read `X-Forwarded-Email` (oauth2-proxy's `pass_user_headers` default, sent on
-every upstream request). `X-Auth-Request-*` headers only ride the auth flow — pointing
-grafana at them yielded a 401 on every API call with `gap-auth` visible at the edge.
+`X-Auth-Request-*` headers only ride the auth flow — pointing grafana at them yielded a 401 on every API call with `gap-auth` visible at the edge.
 The Grafana CR carried the config but **the operator did not roll the deployment on
 ConfigMap-only ini changes** — delete the grafana pod (or force a rollout) after changing
 `auth.proxy`.
 
-## Cookie-gate vs header-passthrough: the openobserve rule (cmdshift/platform#171)
+## Cookie-gate vs header-passthrough: the rule (cmdshift/platform#171, #196)
 
-`openobserve-auth-proxy` is **cookie-gate ONLY**: `pass_authorization_header`,
+All three proxies are **cookie-gate ONLY**: `pass_authorization_header`,
 `pass_access_token`, `set_authorization_header`, `set_xauthrequest` all false — no auth
-headers reach O2. O2's own session guards its API, and O2 trusting forwarded identity
-headers is an unvalidated path. The contrast is the grafana `auth.proxy` pattern above,
-which trusted `X-Forwarded-Email` on ANY direct pod API call — in-pod probing with a
-fabricated header minted real user rows (`auto_sign_up`; three phantom users
-accumulated, deleted). Rule: **only pass identity headers to an upstream that has a
-documented, hardened trusted-proxy mode**; otherwise the proxy is a gate, not an
-identity bridge. The grafana auth.proxy section above is retained as precedent.
+headers reach the upstream. The O2 or grafana upstream guards its own surface (O2 session;
+grafana login), and trusting forwarded identity headers is an unvalidated path. The
+historical grafana `auth.proxy` pattern (section above) trusted `X-Forwarded-Email` on ANY
+direct pod API call — in-pod probing with a fabricated header minted real user rows
+(`auto_sign_up`; three phantom users accumulated, deleted). Rule: **only pass identity
+headers to an upstream that has a documented, hardened trusted-proxy mode**; otherwise the
+proxy is a gate, not an identity bridge.
 
 ## Chart adoption notes
 
@@ -126,7 +127,9 @@ release name suffixes `-oauth2-proxy` onto every object — HTTPRoute backendRef
 | `provider-ca-file` (not caFiles) | legacy key for the alpha-config caFiles API — trust store for the IdP connection only (auth.cloud.test is the proxy's only TLS egress); use-system-trust-store adds the distro CAs on top | #154 |
 | PKCE S256 | Rauthy advertises it (challenges: S256); mirrors the kubernetes client's challenge | #154 |
 | no TLS listener | kill the chart's default (:4443) — TLS terminates at the Gateway | #130 |
-| openobserve proxy: `pass_authorization_header` off | cookie-gate only: no auth headers reach O2 (its own session guards the API; O2 trusting forwarded headers is an unvalidated path, unlike the grafana auth.proxy pattern) | #171 |
+| all proxies: `pass_authorization_header`/`set_xauthrequest` off | cookie-gate only: no auth headers reach the upstream (its own auth guards the API — the grafana auth.proxy precedent is the cautionary tale) | #171, #196 |
+| grafana proxy: `cookie-name: _oauth2_proxy_gf` | distinct cookie names per proxy (`_oauth2_proxy`, `_oauth2_proxy_o2`) — host-scoped cookies can't collide | #196 |
+| grafana proxy upstream `grafana-service.observability.svc:3000` | the grafana-operator's generated service (`<cr-name>-service`); svc port == targetPort 3000 — no post-DNAT port trap | #196 |
 
 ## ExternalSecret shape
 
@@ -148,9 +151,10 @@ flow completes as; kubelogin's cache is per-issuer+client, delete
 
 oauth2-proxy app flows: unauthed GET → 302 to Rauthy (PKCE S256); login → callback chain →
 200; hubble 200 on the same cookie jar (cross-app SSO via the Rauthy session — each proxy's
-cookie is host-scoped). Grafana was removed with the OpenObserve migration
-(cmdshift/platform#171); openobserve.local.test now verifies the same flow
-(cookie-gate only — see the cookie-gate rule above).
+cookie is host-scoped). Grafana returned with the OpenObserve teardown's inverse
+(cmdshift/platform#196): grafana.local.test verifies the same flow — cookie-gate only, and
+grafana's own login (admin creds from `secret/main-grafana-credentials`) carries identity;
+auth.proxy was NOT restored (phantom-user trap above).
 
 **Landmine — stale proxy sessions survive an IdP swap** (cmdshift/platform#154): the
 cookie-secret is stable across migrations, oauth2-proxy stores the whole session in the

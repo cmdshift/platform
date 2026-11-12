@@ -1,0 +1,116 @@
+apiVersion: grafana.integreatly.org/v1beta1
+kind: Grafana
+metadata:
+  name: grafana
+  namespace: observability
+  labels:
+    dashboards: grafana
+spec:
+  config:
+    log:
+      mode: console
+    server:
+      root_url: https://grafana.local.test # remove in the cloud
+    plugins:
+      # the openobserve datasource plugin ships unsigned (cmdshift/platform#196)
+      enable_alpha: "true"
+      allow_loading_unsigned_plugins: openobserve
+  disableDefaultAdminSecret: true
+  deployment:
+    spec:
+      template:
+        spec:
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+          volumes:
+            - name: plugins-src
+              configMap:
+                name: grafana-plugin-zo-gp
+          initContainers:
+            - name: openobserve-plugin-dir
+              # tar -C requires the target dir to pre-exist (no shell in operator
+              # namespaces to mkdir inline — cmdshift/platform#196)
+              image: docker.io/busybox:1.37.0
+              command:
+                - mkdir
+                - -p
+                - /var/lib/grafana/plugins
+              resources:
+                requests:
+                  cpu: 5m
+                  memory: 8Mi
+                limits:
+                  cpu: 100m
+                  memory: 16Mi
+              securityContext:
+                runAsUser: 65534
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              volumeMounts:
+                - name: grafana-data
+                  mountPath: /var/lib/grafana
+            - name: openobserve-plugin-loader
+              # cmdshift/platform#196: the openobserve plugin ships unsigned and
+              # the runtime fetch is deny-listed (shell/curl) — the pinned
+              # tarball rides the grafana-plugin-zo-gp ConfigMap instead
+              image: docker.io/busybox:1.37.0
+              command:
+                - tar
+                - -xzf
+                - /plugins-src/zo_gp.tar.gz
+                - -C
+                - /var/lib/grafana/plugins
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+                limits:
+                  cpu: 200m
+                  memory: 32Mi
+              securityContext:
+                runAsUser: 65534
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              volumeMounts:
+                - name: grafana-data
+                  mountPath: /var/lib/grafana
+                - name: plugins-src
+                  mountPath: /plugins-src
+                  readOnly: true
+          containers:
+            - name: grafana
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 320Mi
+                limits:
+                  cpu: 200m
+                  memory: 480Mi
+              env:
+                - name: GF_LOG_CONSOLE_FORMAT
+                  value: json
+                - name: GF_SECURITY_ADMIN_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: main-grafana-credentials
+                      key: GF_SECURITY_ADMIN_USER
+                - name: GF_SECURITY_ADMIN_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: main-grafana-credentials
+                      key: GF_SECURITY_ADMIN_PASSWORD
+  persistentVolumeClaim:
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 2Gi
+      storageClassName: local-path

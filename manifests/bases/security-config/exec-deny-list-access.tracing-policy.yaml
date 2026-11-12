@@ -8,7 +8,9 @@ spec:
       - key: app.kubernetes.io/instance
         operator: In
         values:
+          - grafana-auth-proxy
           - hubble-auth-proxy
+          - openobserve-auth-proxy
   options:
     - name: policy-mode
       value: enforce

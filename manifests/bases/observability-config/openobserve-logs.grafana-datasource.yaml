@@ -1,0 +1,31 @@
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDatasource
+metadata:
+  name: openobserve-logs
+  namespace: observability
+spec:
+  instanceSelector:
+    matchLabels:
+      dashboards: grafana
+  datasource:
+    name: OpenObserve Logs
+    type: openobserve
+    access: proxy
+    url: http://openobserve.observability.svc:5080
+    basicAuth: true
+    basicAuthUser: $ZO_ROOT_USER_EMAIL
+    jsonData:
+      timestamp_column: _timestamp
+    secureJsonData:
+      basicAuthPassword: $ZO_ROOT_USER_PASSWORD
+  valuesFrom:
+    - targetPath: basicAuthUser
+      valueFrom:
+        secretKeyRef:
+          name: openobserve-credentials
+          key: ZO_ROOT_USER_EMAIL
+    - targetPath: secureJsonData.basicAuthPassword
+      valueFrom:
+        secretKeyRef:
+          name: openobserve-credentials
+          key: ZO_ROOT_USER_PASSWORD

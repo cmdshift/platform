@@ -24,6 +24,11 @@ locals {
       ZO_S3_ACCESS_KEY = "openobserve-user"
       ZO_S3_SECRET_KEY = "password"
     }
+
+    main_grafana_credentials = {
+      GF_SECURITY_ADMIN_USER     = "admin@cloud.test"
+      GF_SECURITY_ADMIN_PASSWORD = "Complexpass#123"
+    }
   }
 
   backups = {

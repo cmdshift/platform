@@ -3,6 +3,12 @@ kind: Kustomization
 resources:
   - ../../../bases/access
 configMapGenerator:
+  - name: grafana-auth-proxy-values
+    namespace: access
+    files:
+      - values.yaml=grafana-auth-proxy-values.yaml
+    options:
+      disableNameSuffixHash: true
   - name: hubble-auth-proxy-values
     namespace: access
     files:

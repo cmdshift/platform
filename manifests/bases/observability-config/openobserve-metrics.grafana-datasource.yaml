@@ -1,0 +1,30 @@
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDatasource
+metadata:
+  name: openobserve-metrics
+  namespace: observability
+spec:
+  instanceSelector:
+    matchLabels:
+      dashboards: grafana
+  datasource:
+    name: OpenObserve
+    type: prometheus
+    access: proxy
+    url: http://openobserve.observability.svc:5080/api/default/prometheus
+    isDefault: true
+    basicAuth: true
+    basicAuthUser: $ZO_ROOT_USER_EMAIL
+    secureJsonData:
+      basicAuthPassword: $ZO_ROOT_USER_PASSWORD
+  valuesFrom:
+    - targetPath: basicAuthUser
+      valueFrom:
+        secretKeyRef:
+          name: openobserve-credentials
+          key: ZO_ROOT_USER_EMAIL
+    - targetPath: secureJsonData.basicAuthPassword
+      valueFrom:
+        secretKeyRef:
+          name: openobserve-credentials
+          key: ZO_ROOT_USER_PASSWORD

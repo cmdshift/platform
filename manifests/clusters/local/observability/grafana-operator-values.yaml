@@ -1,0 +1,16 @@
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  runAsUser: 65532
+  runAsGroup: 65532
+logging:
+  encoder: json
+resources:
+  requests:
+    cpu: 10m
+    memory: 48Mi
+  limits:
+    cpu: 200m
+    memory: 72Mi

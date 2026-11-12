@@ -34,6 +34,10 @@ resource "docker_container" "secrets" {
     content = jsonencode(local.observability.openobserve_s3_credentials)
   }
   upload {
+    file    = "/www/observability/main-grafana-credentials"
+    content = jsonencode(local.observability.main_grafana_credentials)
+  }
+  upload {
     file    = "/www/backups/velero-s3-credentials"
     content = jsonencode(local.backups.velero_s3_credentials)
   }

@@ -21,6 +21,12 @@ configMapGenerator:
       - values.yaml=openobserve-collector-gateway-values.yaml
     options:
       disableNameSuffixHash: true
+  - name: grafana-operator-values
+    namespace: observability
+    files:
+      - values.yaml=grafana-operator-values.yaml
+    options:
+      disableNameSuffixHash: true
   - name: kube-state-metrics-values
     namespace: observability
     files:

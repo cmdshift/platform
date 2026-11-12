@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - gateway-api.git-repository.yaml
   - aqua.helm-repository.yaml
+  - grafana.helm-repository.yaml
   - kyverno.helm-repository.yaml
   - cilium.helm-repository.yaml
   - jetstack.helm-repository.yaml

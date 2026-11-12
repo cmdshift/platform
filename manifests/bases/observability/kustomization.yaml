@@ -6,5 +6,6 @@ resources:
   - kube-state-metrics.helm-release.yaml
   - metrics-server.helm-release.yaml
   - vpa.helm-release.yaml
+  - grafana-operator.helm-release.yaml
   - openobserve-credentials.external-secret.yaml
   - openobserve-s3-credentials.external-secret.yaml

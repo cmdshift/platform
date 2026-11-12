@@ -12,6 +12,14 @@ spec:
   egress:
     - toEndpoints:
         - matchLabels:
+            io.kubernetes.pod.namespace: observability
+            app: grafana
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
             io.kubernetes.pod.namespace: kube-system
             k8s-app: hubble-ui
       toPorts:
