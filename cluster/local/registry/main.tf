@@ -16,6 +16,16 @@ resource "null_resource" "registry_volume" {
   }
 }
 
+# the hash is generated only at resource creation — a memory/iterations/thread change
+# needs `terraform taint` on this resource or the config keeps the old params
+# (defaults are m=2097120: 2GiB per verify OOMs the 1GiB container on every authed request)
+resource "password_argon2" "registry_password" {
+  password   = local.registry_password
+  memory     = 19456
+  iterations = 2
+  thread     = 1
+}
+
 resource "docker_container" "registry" {
   name  = var.name
   image = docker_image.angos.name
@@ -30,13 +40,15 @@ resource "docker_container" "registry" {
     container_path = "/data"
     volume_name    = null_resource.registry_volume.triggers.volume_name
   }
-  memory      = 256
-  memory_swap = 256
+  memory      = 1024
+  memory_swap = 1024
   upload {
     file = "/etc/angos/config.toml"
     content = templatefile("${path.module}/templates/config.tftpl.toml", {
-      registries = local.registry_map
-      scan       = var.scan
+      registries        = local.registry_map
+      scan              = var.scan
+      registry_username = local.registry_username
+      registry_password = password_argon2.registry_password.hash
     })
   }
   command = ["-c", "/etc/angos/config.toml", "server"]

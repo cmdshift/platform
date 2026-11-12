@@ -82,6 +82,16 @@ module "registry" {
   }
 }
 
+module "images" {
+  source = "./images"
+  depends_on = [
+    module.registry
+  ]
+  registry_hostname = module.conf.registry.services.main.hostname
+  registry_username = module.registry.registry_username
+  registry_password = module.registry.registry_password
+}
+
 module "mail" {
   source = "./mail"
   name   = module.conf.mail.name
