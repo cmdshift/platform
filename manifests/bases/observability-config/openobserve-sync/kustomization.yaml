@@ -1,0 +1,46 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: observability
+resources:
+  - openobserve-sync.job.yaml
+configMapGenerator:
+  - name: openobserve-sync-script
+    files:
+      - sync.sh=scripts/sync.sh
+  - name: openobserve-sync-streams
+    files:
+      - kubernetes-nodes-pressure.json=streams/kubernetes-nodes-pressure.json
+      - velero-backup-stale.json=streams/velero-backup-stale.json
+  - name: openobserve-sync-alerts
+    files:
+      - cilium_datapath_fast_burn.json=alerts/cilium_datapath_fast_burn.json
+      - cilium_datapath_slow_burn.json=alerts/cilium_datapath_slow_burn.json
+      - deployment_replica_mismatch.json=alerts/deployment_replica_mismatch.json
+      - flux_helmrelease_failure.json=alerts/flux_helmrelease_failure.json
+      - flux_kustomization_failure.json=alerts/flux_kustomization_failure.json
+      - flux_source_issue.json=alerts/flux_source_issue.json
+      - high_error_rate.json=alerts/high_error_rate.json
+      - job_failed.json=alerts/job_failed.json
+      - node_high_disk_usage.json=alerts/node_high_disk_usage.json
+      - node_not_ready.json=alerts/node_not_ready.json
+      - pod_crashloop_backoff.json=alerts/pod_crashloop_backoff.json
+      - pod_oom_killed.json=alerts/pod_oom_killed.json
+      - tetragon_enforcement_kill.json=alerts/tetragon_enforcement_kill.json
+      - tetragon_tracingpolicy_load_failed.json=alerts/tetragon_tracingpolicy_load_failed.json
+      - velero_backup_failed.json=alerts/velero_backup_failed.json
+      - velero_backup_stale.json=alerts/velero_backup_stale.json
+      - velero_repo_maintenance_failed.json=alerts/velero_repo_maintenance_failed.json
+      - watchdog.json=alerts/watchdog.json
+  - name: openobserve-sync-dashboards
+    files:
+      - flux-pipeline-health.json=dashboards/flux-pipeline-health.json
+      - kubernetes-namespace-objects.json=dashboards/kubernetes-namespace-objects.json
+      - kubernetes-namespace-pod.json=dashboards/kubernetes-namespace-pod.json
+      - kubernetes-namespace-pods.json=dashboards/kubernetes-namespace-pods.json
+      - kubernetes-namespaces.json=dashboards/kubernetes-namespaces.json
+      - kubernetes-nodes-pressure.json=dashboards/kubernetes-nodes-pressure.json
+      - kubernetes-nodes.json=dashboards/kubernetes-nodes.json
+      - velero-backup-health.json=dashboards/velero-backup-health.json
+  - name: openobserve-sync-destinations
+    files:
+      - email.json=destinations/email.json
