@@ -133,6 +133,8 @@ config:
           enabled: true
         k8s.pod.memory_request_utilization:
           enabled: true
+    k8s_cluster:
+      node_conditions_to_report: [Ready, MemoryPressure, DiskPressure, PIDPressure]
   service:
     pipelines:
       logs:
