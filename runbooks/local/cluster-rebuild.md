@@ -96,8 +96,8 @@ kubectl -n flux-system get kustomizations
 | flux-config adoption | `kubectl -n flux-system get kustomization local -o json --show-managed-fields` | `kustomize-controller` owns the spec |
 | Velero BSL | `kubectl -n backups get bsl default` | `Available` |
 | Rustfs buckets | `rustfs ls main/` | `flux`, `backups`, `openobserve` (auto-provisioned) |
-| OpenObserve | `kubectl -n observability get pods -l app.kubernetes.io/name=openobserve` | 1/1 Running, ingesting (the O2 alert set is empty — o2-sync removed, cmdshift/platform#206) |
-| Alert delivery | mailpit at http://mail.cloud.test (check via `mailpit -s`) | RE-ADD THIS ROW with the cmdshift/platform#206 successor: the O2 alert set is empty since the o2-sync removal — the watchdog heartbeat must come back before this check is meaningful |
+| OpenObserve | `kubectl -n observability get pods -l app.kubernetes.io/name=openobserve` | 1/1 Running, ingesting; dashboards + 18 alerts synced by the `openobserve-sync` Job (check: `kubectl -n observability logs job/openobserve-sync` ends "sync complete", cmdshift/platform#206) |
+| Alert delivery | mailpit at http://mail.cloud.test | watchdog heartbeat email present: `mailpit -s watchdog` lists it, `-b <id>` reads the body (always-firing detector — its silence is the broken-stack signal; delivery O2 → SMTP → mailpit, cmdshift/platform#206) |
 | PolicyReports | `policy_report` | 0 failures |
 | Host API path | `curl -skf --max-time 3 https://127.0.0.1:6443/version` | 401 (LB publisher alive; the kubeconfig server = `https://cmd.local.test:6443`, dnsmasq-resolved) |
 | Browser paths | `curl -s -o /dev/null -w '%{http_code}' http://mail.cloud.test` | 200 (s3 → 403 = auth challenge, also fine) |
@@ -184,7 +184,7 @@ A full destroy/apply wipes everything not in the local manifests **except** the 
 
 Wiped and re-created:
 - rustfs (`storage-cloud-test`) container — the volume's contents persist, and the entrypoint provisions idempotently against the existing buckets; the `flux` bucket re-populates via the sync container. (Note the registry landmine in [rustfs-operations.md](rustfs-operations.md): the `null_resource` chown only fires at volume CREATE — if the volume itself was wiped rather than the container, re-chown to 10001 by hand before first write)
-- local-path PVCs and anything on them (openobserve's SQLite/WAL — metadata is wiped with the PVC and has NO GitOps recovery until cmdshift/platform#206 restores a sync mechanism; velero restores re-create the rest)
+- local-path PVCs and anything on them (openobserve's SQLite/WAL — metadata is wiped with the PVC and re-syncs via the openobserve-sync Job on the next reconcile — cmdshift/platform#206; velero restores re-create the rest)
 
 If a rebuild stalls partway: [reconciliation-stuck.md](reconciliation-stuck.md) for kustomization failures, [pipeline-wedged.md](pipeline-wedged.md) if manifests stop applying.
 

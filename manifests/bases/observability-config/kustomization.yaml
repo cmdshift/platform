@@ -7,4 +7,5 @@ resources:
   - openobserve-collector-agent-agent.vertical-pod-autoscaler.yaml
   - openobserve-collector-gateway.vertical-pod-autoscaler.yaml
   - openobserve.vertical-pod-autoscaler.yaml
+  - openobserve-sync
   - resource-quota.yaml

@@ -1,0 +1,5 @@
+[
+  {"stream": "k8s_node_condition_disk_pressure", "type": "metrics"},
+  {"stream": "k8s_node_condition_memory_pressure", "type": "metrics"},
+  {"stream": "k8s_node_condition_pid_pressure", "type": "metrics"}
+]

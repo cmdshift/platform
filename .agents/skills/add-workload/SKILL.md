@@ -74,7 +74,7 @@ yaml_lint
 flux_wait
 ```
 
-Then: helmreleases green (`helm_wait -c <ns> <name>` per release), `policy_report` failures 0 (skips = exceptions; `--clean` for stale reports). If the workload exposes metrics: ServiceMonitor (+ trust-CRDs flag where the chart needs it), then verify scraping landed via `prometheus_query` (O2-backed since the store decision, cmdshift/platform#186). If it should alert: **the O2 alert set is empty since the o2-sync removal — cmdshift/platform#206 owns the alerting story**; until it lands, new alerts can't be GitOps-synced (O2 UI only, and they don't survive pod-churn PVC deletes). Delivery is O2 SMTP → mailpit (http://mail.cloud.test, `mailpit`).
+Then: helmreleases green (`helm_wait -c <ns> <name>` per release), `policy_report` failures 0 (skips = exceptions; `--clean` for stale reports). If the workload exposes metrics: ServiceMonitor (+ trust-CRDs flag where the chart needs it), then verify scraping landed via `prometheus_query` (O2-backed since the store decision, cmdshift/platform#186). If it should alert: add a detector JSON to `observability-config/openobserve-sync/alerts/` (the `writing-yaml` kind-suffix rules apply to the JSON data file) — the alerts CM's hash suffix re-triggers the sync Job, which creates it in O2 on the next sync (create-only, existence-gated by name; cmdshift/platform#206). Delivery is O2 SMTP → mailpit (http://mail.cloud.test, `mailpit`; the detector's stream must exist first — see the stream-manifest pattern in the observability-config README).
 
 ## Full detail
 

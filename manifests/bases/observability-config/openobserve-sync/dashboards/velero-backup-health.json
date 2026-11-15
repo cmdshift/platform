@@ -1,0 +1,308 @@
+{
+  "dashboardId": "7526768000000000001",
+  "title": "Backups  / Velero Health",
+  "description": "Nightly backup outcomes, duration, kopia repo maintenance, and tarball footprint.",
+  "version": 5,
+  "variables": {
+    "list": []
+  },
+  "tabs": [
+    {
+      "name": "Default",
+      "tabId": "default",
+      "panels": [
+        {
+          "id": "Panel_ID75267680000",
+          "type": "line",
+          "title": "Backup outcomes (24h)",
+          "description": "Backup success, failure, and partial-failure counts per schedule over the last 24h.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "right",
+            "base_map": {
+              "type": "osm"
+            },
+            "map_view": {
+              "zoom": 1,
+              "lat": 0,
+              "lng": 0
+            },
+            "min": 0
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum by (schedule) (increase(velero_backup_success_total{schedule!=\"\"}[24h]))",
+              "vrlFunctionQuery": null,
+              "customQuery": true,
+              "fields": {
+                "stream": "velero_backup_success_total",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "success",
+                "layer_type": "line",
+                "weight_fixed": 1
+              }
+            },
+            {
+              "query": "sum by (schedule) (increase(velero_backup_failure_total{schedule!=\"\"}[24h]))",
+              "vrlFunctionQuery": null,
+              "customQuery": true,
+              "fields": {
+                "stream": "velero_backup_failure_total",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "failure",
+                "layer_type": "line",
+                "weight_fixed": 1
+              }
+            },
+            {
+              "query": "sum by (schedule) (increase(velero_backup_partial_failure_total{schedule!=\"\"}[24h]))",
+              "vrlFunctionQuery": null,
+              "customQuery": true,
+              "fields": {
+                "stream": "velero_backup_partial_failure_total",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "partial",
+                "layer_type": "line",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "w": 24,
+            "h": 8,
+            "i": 0
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": ""
+        },
+        {
+          "id": "Panel_ID75267680010",
+          "type": "line",
+          "title": "Backup duration p95 (48h)",
+          "description": "95th-percentile backup duration over 48h.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "right",
+            "base_map": {
+              "type": "osm"
+            },
+            "map_view": {
+              "zoom": 1,
+              "lat": 0,
+              "lng": 0
+            },
+            "unit": "seconds",
+            "min": 0
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "histogram_quantile(0.95, sum by (le) (increase(velero_backup_duration_seconds_bucket[48h])))",
+              "vrlFunctionQuery": null,
+              "customQuery": true,
+              "fields": {
+                "stream": "velero_backup_duration_seconds_bucket",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "p95",
+                "layer_type": "line",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 24,
+            "y": 0,
+            "w": 24,
+            "h": 8,
+            "i": 1
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": ""
+        },
+        {
+          "id": "Panel_ID75267680020",
+          "type": "line",
+          "title": "Repo maintenance (24h)",
+          "description": "Kopia repo maintenance success and failure per repository over 24h.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "right",
+            "base_map": {
+              "type": "osm"
+            },
+            "map_view": {
+              "zoom": 1,
+              "lat": 0,
+              "lng": 0
+            },
+            "min": 0
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum by (repository_name) (increase(velero_repo_maintenance_failure_total[24h]))",
+              "vrlFunctionQuery": null,
+              "customQuery": true,
+              "fields": {
+                "stream": "velero_repo_maintenance_failure_total",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "fail {repository_name}",
+                "layer_type": "line",
+                "weight_fixed": 1
+              }
+            },
+            {
+              "query": "sum by (repository_name) (increase(velero_repo_maintenance_success_total[24h]))",
+              "vrlFunctionQuery": null,
+              "customQuery": true,
+              "fields": {
+                "stream": "velero_repo_maintenance_success_total",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "ok {repository_name}",
+                "layer_type": "line",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 8,
+            "w": 24,
+            "h": 8,
+            "i": 2
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": ""
+        },
+        {
+          "id": "Panel_ID75267680030",
+          "type": "line",
+          "title": "Tarball size",
+          "description": "Latest backup's tarball size per schedule.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "right",
+            "base_map": {
+              "type": "osm"
+            },
+            "map_view": {
+              "zoom": 1,
+              "lat": 0,
+              "lng": 0
+            },
+            "unit": "bytes",
+            "min": 0
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "max by (schedule) (velero_backup_tarball_size_bytes{schedule!=\"\"})",
+              "vrlFunctionQuery": null,
+              "customQuery": true,
+              "fields": {
+                "stream": "velero_backup_tarball_size_bytes",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{schedule}",
+                "layer_type": "line",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 24,
+            "y": 8,
+            "w": 24,
+            "h": 8,
+            "i": 3
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": ""
+        }
+      ]
+    }
+  ]
+}

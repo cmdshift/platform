@@ -1,0 +1,238 @@
+{
+  "dashboardId": "7526767000000000001",
+  "title": "Flux  / Pipeline Health",
+  "description": "Reconcile errors, throughput, p95 durations, and workqueue depth for the flux controllers.",
+  "version": 5,
+  "variables": {
+    "list": []
+  },
+  "tabs": [
+    {
+      "name": "Default",
+      "tabId": "default",
+      "panels": [
+        {
+          "id": "Panel_ID75267670000",
+          "type": "line",
+          "title": "Reconcile errors (15m)",
+          "description": "Error-result reconciles per controller over the last 15m.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "right",
+            "base_map": {
+              "type": "osm"
+            },
+            "map_view": {
+              "zoom": 1,
+              "lat": 0,
+              "lng": 0
+            },
+            "min": 0
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum by (controller) (increase(controller_runtime_reconcile_total{result=\"error\",controller!~\"valkey.*\"}[15m]))",
+              "vrlFunctionQuery": null,
+              "customQuery": true,
+              "fields": {
+                "stream": "controller_runtime_reconcile_total",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{controller}",
+                "layer_type": "line",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "w": 24,
+            "h": 8,
+            "i": 0
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": ""
+        },
+        {
+          "id": "Panel_ID75267670010",
+          "type": "area-stacked",
+          "title": "Reconcile rate",
+          "description": "Reconcile throughput per controller.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "right",
+            "base_map": {
+              "type": "osm"
+            },
+            "map_view": {
+              "zoom": 1,
+              "lat": 0,
+              "lng": 0
+            },
+            "min": 0
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum by (controller) (rate(controller_runtime_reconcile_total{controller!~\"valkey.*\"}[5m]))",
+              "vrlFunctionQuery": null,
+              "customQuery": true,
+              "fields": {
+                "stream": "controller_runtime_reconcile_total",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{controller}",
+                "layer_type": "line",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 24,
+            "y": 0,
+            "w": 24,
+            "h": 8,
+            "i": 1
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": ""
+        },
+        {
+          "id": "Panel_ID75267670020",
+          "type": "line",
+          "title": "Reconcile duration p95 (1h)",
+          "description": "95th-percentile reconcile duration per controller.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "right",
+            "base_map": {
+              "type": "osm"
+            },
+            "map_view": {
+              "zoom": 1,
+              "lat": 0,
+              "lng": 0
+            },
+            "unit": "seconds",
+            "min": 0
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "histogram_quantile(0.95, sum by (le, controller) (rate(controller_runtime_reconcile_time_seconds_bucket{controller!~\"valkey.*\"}[1h])))",
+              "vrlFunctionQuery": null,
+              "customQuery": true,
+              "fields": {
+                "stream": "controller_runtime_reconcile_time_seconds_bucket",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{controller}",
+                "layer_type": "line",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 8,
+            "w": 24,
+            "h": 8,
+            "i": 2
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": ""
+        },
+        {
+          "id": "Panel_ID75267670030",
+          "type": "line",
+          "title": "Workqueue depth (flux controllers)",
+          "description": "Pending queue depth for the flux controller pods.",
+          "config": {
+            "show_legends": true,
+            "legends_position": "right",
+            "base_map": {
+              "type": "osm"
+            },
+            "map_view": {
+              "zoom": 1,
+              "lat": 0,
+              "lng": 0
+            },
+            "min": 0
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum by (name) (workqueue_depth{k8s_pod_name=~\"(source|kustomize|helm|notification|image-reflector|image-automation)-controller.*\"})",
+              "vrlFunctionQuery": null,
+              "customQuery": true,
+              "fields": {
+                "stream": "workqueue_depth",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{name}",
+                "layer_type": "line",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 24,
+            "y": 8,
+            "w": 24,
+            "h": 8,
+            "i": 3
+          },
+          "htmlContent": "",
+          "markdownContent": "",
+          "customChartContent": ""
+        }
+      ]
+    }
+  ]
+}
