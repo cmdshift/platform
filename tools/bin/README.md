@@ -486,6 +486,23 @@ per-service lock file keying makes that a non-issue going forward.)
   `server_address`; metric-defined labels (`pod`, `namespace`, `container`,
   `device`, `policy`, …) survive as-is. `count by (job) (up)` returns one
   empty-label row — group by `service_name` instead.
+- **Metric shape depends on the scrape path — know yours before querying**
+  (cmdshift/platform#186, verified live): cadvisor metrics scraped from the
+  kubelet's `/metrics/cadvisor` keep native names + labels
+  (`container_cpu_cfs_throttled_periods_total{namespace=,container=,…}` —
+  what `cpu_audit`'s throttle query uses), but the kubeletstatsreceiver
+  family is OTel-translated: unit suffixes leave the name
+  (`container_memory_working_set_bytes` → `container_memory_working_set`,
+  bytes are still the value) and labels become resource attributes
+  (`k8s_namespace_name` / `k8s_container_name` / `k8s_pod_name`). The
+  legacy names don't exist (`container_memory_working_set_bytes` → empty
+  result) and — worse — a legacy-label selector on the translated metric
+  **silently matches wrong series** (O2 matcher leniency:
+  `container_memory_working_set{namespace="observability"}` returns
+  kube-system pods) instead of erroring. Audit queries must select
+  `k8s_namespace_name`/`k8s_container_name` on translated metrics and
+  sanity-check one returned series against `kubectl top` before trusting
+  any table built from it.
 - **O2 range-query history is sparse** (cmdshift/platform#186, verified
   live): `query_range` over long windows returns partial coverage (e.g.
   `sum(up)` 24h/step600 → a handful of points in blocky clusters, data

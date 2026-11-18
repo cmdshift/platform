@@ -8,8 +8,8 @@ Local-config overlay for the [observability](../observability/README.md) group: 
 
 | object | why | ref |
 |---|---|---|
-| `ResourceQuota/compute` (32 pods) | sized for the namespace pod set — shrank with the LGTM teardown (openobserve + collector replace loki/mimir/tempo/grafana/alloy/KSM/node-exporter) | cmdshift/platform#171 |
-| `ResourceQuota/logging-compute` (36 pods) | was `ResourceQuota/compute` in the logging namespace — renamed on the #120 merge: two same-named quotas would double-charge every pod; both admit every pod here, so each must clear the FULL namespace pod set; kept in lockstep with `compute` (lockstep history: cmdshift/platform#83, cmdshift/platform#128, #146) | cmdshift/platform#120 |
+| `ResourceQuota/compute` (32 pods) | sized for the namespace pod set — shrank with the LGTM teardown (openobserve + collector replace loki/mimir/tempo/grafana/alloy/KSM/node-exporter). 2026-11 re-audit (cmdshift/platform#186): request sum 5600Mi is dominated by openobserve's 5120Mi request (7d P99 1562Mi — a workload-request alignment follow-up, not a quota problem); VPA-shaped sum ~2.6Gi, 10Gi quota holds with wide headroom either way | cmdshift/platform#171, cmdshift/platform#186 |
+| `ResourceQuota/logging-compute` (32 pods) | was `ResourceQuota/compute` in the logging namespace — renamed on the #120 merge: two same-named quotas would double-charge every pod; both admit every pod here, so each must clear the FULL namespace pod set; kept in lockstep with `compute` (lockstep history: cmdshift/platform#83, cmdshift/platform#128, #146) — its 36 pod cap survived the #171 shrink and let the pair drift; converged to 32 on the 2026-11 re-audit (cmdshift/platform#186, effective cap was already 32) | cmdshift/platform#120 |
 | `LimitRange/compute-defaults` | quota admission fails any container lacking requests/limits — including PolicyException-exempt ones (wedged the thanos-ruler STS once, cmdshift/platform#111); these defaults fill that gap (sized from the config-reloader audit) | cmdshift/platform#111 |
 | Two quotas, never folded | two `ResourceQuota/compute` objects in one namespace would both charge every pod | cmdshift/platform#120 |
 

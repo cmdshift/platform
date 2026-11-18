@@ -49,4 +49,4 @@ Kyverno builds a fine-grained webhook per CEL policy (e.g. `gpol.validate.kyvern
 | `backgroundScanInterval: 1h` | investigate: was 5m, reports-controller CPU ramped to 5+ cores | #17 |
 | admission-controller memory 208Mi / reports-controller 160→240Mi, 20m CPU req | audits: steady 120Mi (peak×1.2); 7d peak 101m CPU during scan churn, limit keeps burst room (#66); memory sawtooth peaks ~178Mi during the hourly background scan, request 160Mi covers the scan-driven baseline | #66 |
 
-`policies.resource-quota.yaml` sizing (audit 2026-09): kyverno's four controllers — 75m CPU / 744Mi req, 3700m/1424Mi limits, 4 pods (cmdshift/platform#93). CPU limits quota is generous (hostNetwork controllers burst during webhook storms).
+`policies.resource-quota.yaml` sizing (re-audit 2026-11, cmdshift/platform#186; original #93): kyverno's four controllers — 55m CPU / 616Mi req, 3500m/912Mi limits, 4 pods. Surge fit clean (reports-controller 2000m limit overlap: 5500m of 8; 208Mi admission-controller request overlap: 824Mi of 1500). CPU limits quota is generous (hostNetwork controllers burst during webhook storms); VPA-shaped request sum 532Mi keeps 1500Mi comfortable.

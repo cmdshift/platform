@@ -2,7 +2,6 @@
     "recommendations": [
         "hashicorp.hcl",
         "hashicorp.terraform",
-        "grafana.grafana-alloy",
         "mkhl.direnv",
         "ms-azuretools.vscode-containers",
         "nefrob.vscode-just-syntax",
