@@ -181,7 +181,7 @@ format_values() {
 format_compact() { # one line per series: short label subset + values (token-cheap; -v strips
   # labels entirely, raw JSON drowns them in id/image/instance noise)
   jq -r '
-    def kept: ["pod","container","job","namespace","instance","service","endpoint","device","persistentvolumeclaim","policy","policy_group","rule"];
+    def kept: ["pod","container","job","namespace","instance","service","service_name","service_namespace","endpoint","device","persistentvolumeclaim","policy","policy_group","rule"];
     def labels_c:
       .metric as $m
       | ([kept[] | select($m[.] != null) | "\(.)=\($m[.])"]) as $picked
