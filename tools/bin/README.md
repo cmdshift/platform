@@ -78,7 +78,7 @@ whole dependency tree.
 | `kyverno_unblock` | unstick kyverno rollouts deadlocked on hostNetwork ports |
 | `tetragon_probe` | verify a deny-list TracingPolicy kills: labeled probe pod + counter deltas |
 | `prometheus_query` | PromQL with port-forward lifecycle handled |
-| `metrics_summary` | post-scrape-change gate: per-job up-target counts + Watchdog |
+| `metrics_summary` | post-scrape-change gate: per-family up-target counts |
 | `log_query` | O2 SQL log search with port-forward lifecycle handled |
 | `alloy_components` | dump the alloy components a pod is actually running (config-mismatch triage) |
 | `mailpit` | alert-email subjects, or `-s <subj>` / `-b <id>` for body fetch |
@@ -444,9 +444,10 @@ OpenObserve is the metrics AND log store — `prometheus_query` is REWIRED to
 O2 (Prometheus-compat API, cmdshift/platform#186) and `log_query` is the
 rewired log tool (O2 `_search` SQL, cmdshift/platform#203 — it replaced the
 retired `loki_query`, which was ORPHANED with the LGTM teardown #171; no
-LogQL shim was ever built). `metrics_summary` runs against O2 but its
-per-job breakdown reads empty `job` labels (O2 label translation, see the
-prometheus_query caveats below). `memory_audit`/`request_audit` never rode
+LogQL shim was ever built). `metrics_summary` groups by `service_name` —
+the OTel receiver translates `job` → `service_name` (see the
+prometheus_query caveats below), so `job`-based grouping is dead on O2
+(cmdshift/platform#201). `memory_audit`/`request_audit` never rode
 prometheus_query (they're kubectl-based); `cpu_audit`'s throttle check rides
 the rewired `prometheus_query` and works.
 
@@ -484,8 +485,11 @@ per-service lock file keying makes that a non-issue going forward.)
   prometheus receiver maps standard target labels — `job` → `service_name`
   (+ `service_namespace`), `instance` → `service_instance_id` /
   `server_address`; metric-defined labels (`pod`, `namespace`, `container`,
-  `device`, `policy`, …) survive as-is. `count by (job) (up)` returns one
-  empty-label row — group by `service_name` instead.
+  `device`, `policy`, …) survive as-is. No `job` label exists on O2 series
+  at all (verified #201): `count by (job) (up)` returns one empty-label row,
+  and — O2 quirk — missing labels MATCH negative regex selectors, so
+  `up{job!~""}` selects everything (vacuous, not a filter). Group by
+  `service_name` instead.
 - **Metric shape depends on the scrape path — know yours before querying**
   (cmdshift/platform#186, verified live): cadvisor metrics scraped from the
   kubelet's `/metrics/cadvisor` keep native names + labels
@@ -539,26 +543,26 @@ per-service lock file keying makes that a non-issue going forward.)
   single-valued — future multi-service splits re-learn this the hard way
   otherwise).
 
-### `metrics_summary [-t] [-w] | metrics_summary --raw '<promql>'`
+### `metrics_summary [-t] | metrics_summary --raw '<promql>'`
 
 The post-scrape-change verification gate (run after any collector
-scrape edit, SM removal, or chart metrics toggle): one `<n> <job>` line per
-job family from `count by (job) (up{job!~""})`, sorted by job
+scrape edit, SM removal, or chart metrics toggle): one `<n> <family>` line
+per family from `count by (service_name) (up)`, sorted by family
 name — eyeball for expected families and per-replica target counts
-(node-exporter/cilium-agent = node count, etc.). `-t` adds a TOTAL line;
-`-w` adds `WATCHDOG firing=N` (ruler + alertmanager path alive). Rides
+(node-exporter/cilium-agent = node count, etc.). `-t` adds a TOTAL line.
+Rides
 `prometheus_query`'s shared forward — no own port-forward, same
 lifecycle contract. `--raw '<promql>'` is the escape hatch for any other
-instant query in the same compact form. Exit 0 on a run (empty output =
+instant query in the same compact form (e.g. `--raw 'count by (service_name)
+(up{service_name="kubelet"})'`). Exit 0 on a run (empty output =
 no series — investigate, don't read as green); the shared-forward and
 not-ready semantics are `prometheus_query`'s.
 
-**O2 caveat (cmdshift/platform#186)**: against the O2 store the per-job
-count reads an empty `job` label (OTel label translation — group by
-`service_name` instead, e.g. `--raw 'count by (service_name) (up)'`), so the
-default per-job breakdown is now a TOTAL-only signal; `-w` is moot (no
-ruler/Watchdog since the alertmanager removal, cmdshift/platform#182). The
-escape hatch still works verbatim.
+The default groups by **`service_name`** (cmdshift/platform#201): the OTel
+receiver translates `job` → `service_name`, so no `job` label survives on O2
+(verified live — `up{job!~""}` is vacuous there, O2 matches missing labels
+against `!~""`). The old `-w` Watchdog line is gone (no ruler/alertmanager
+since the removal, cmdshift/platform#182).
 
 ### `log_query [-j|-m] [-s 500] '<sql>' [duration] | log_query --stop`
 
