@@ -29,9 +29,26 @@ The `terminationGracePeriodSeconds >= 5` ValidatingPolicy carries to the cloud u
 
 ## Compute quotas + LimitRange (local: `<group>-config/<group>.resource-quota.yaml`, cmdshift/platform#93)
 
-Every local workload namespace carries a `ResourceQuota/compute` sized from local-cluster audit numbers (2026-09 audit; evidence in each group's README, `bases/<group>-config/README.md` since the #183 comment sweep). Cloud deltas:
+Every local workload namespace carries a `ResourceQuota/compute` sized from local-cluster audit numbers (2026-09 audit per cmdshift/platform#93, re-audited 2026-11-17 with 8-day VPA + 7d O2 trend evidence — cmdshift/platform#186; evidence in each group's README, `bases/<group>-config/README.md` since the #183 comment sweep). Cloud deltas:
 
 - **Re-size and re-scope for the cloud's namespace set** — the cloud namespace layout will differ (and may add CI/ephemeral namespaces); the local quota objects' hard values are local-cluster numbers and must be re-audited there, not carried over. Group/namespace layout reference: locally the observability stack collapsed into one `observability`/`observability-config` pair (cmdshift/platform#120 — metrics+monitoring+logging merged; operators install into a namespace named after their kustomization group) — mirror that collapsed layout in the cloud or document the deviation; if quotas from separate namespaces ever fold into one, rename them (two `ResourceQuota/compute` objects in one namespace would both charge every pod).
+- **The surge-pod clause is checked on all four quota faces** (requests/limits × cpu/memory), not just memory: a rollout surge pod of the namespace's largest Deployment must fit inside every face's remaining headroom. The 2026-11 re-audit caught the strimzi wedge still latent on `datastores`' `limits.cpu` after the #186 memory repair (evidence in `bases/datastores-config/README.md`); the strimzi repair precedent lives in the datastores README. A quota-exceeded ReplicaSet does not self-heal when the quota is raised — annotate the stuck RS (cmdshift/platform#155).
+- **Local calibration table** (2026-11-17, cmdshift/platform#186) — the cloud re-audit's starting evidence; usage is the live quota `used` at audit time, "VPA sum" replaces every container request with its VPA target, P99 is the 7d `quantile_over_time` from O2:
+
+  | ns | hard quota (req.cpu/req.mem · lim.cpu/lim.mem · pods) | usage | VPA-shaped req sum | 7d P99 (dominant) | verdict |
+  |---|---|---|---|---|---|
+  | backups | 300m/2000Mi · 8/3500Mi · 12 | 30m/432Mi · 1500m/752Mi · 3 | ~582Mi | velero 309Mi; kopia jobs ≤91Mi | unchanged |
+  | certificates | 100m/500Mi · 1500m/750Mi · 8 | 30m/224Mi · 600m/336Mi · 3 | ~171Mi | cainjector 73Mi | unchanged |
+  | datastores | 100m/800Mi · 5/1200Mi · 8 | 55m/520Mi · 3500m/780Mi · 4 | ~480Mi | strimzi 252Mi | **limits.cpu 4→5** (strimzi surge) |
+  | observability | 3/10Gi · 20/16Gi · 32 (×2 quotas) | 760m/5856Mi · 6700m/10384Mi · 6 | ~2.6Gi | openobserve 1562Mi, gateway 329Mi | unchanged; pod caps converged 36→32 |
+  | policies | 200m/1500Mi · 8/3000Mi · 10 | 55m/616Mi · 3500m/912Mi · 4 | ~532Mi | kyverno 157Mi | unchanged |
+  | scanning | 2/4Gi · 4/6Gi · 12 | 65m/736Mi · 1500m/1168Mi · 2 | ~483Mi | trivy-operator 336Mi | unchanged |
+  | secrets | 100m/500Mi · 1500m/750Mi · 8 | 30m/192Mi · 600m/288Mi · 3 | ~183Mi | cert-controller 64Mi | unchanged |
+  | security | 1/11Gi · 12/14Gi · 20 | 190m/2752Mi · 3800m/4280Mi · 4 | ~1.7Gi | tetragon 427–483Mi/pod | unchanged |
+  | storage | 100m/200Mi · 500m/400Mi · 4 | 10m/48Mi · 100m/72Mi · 1 | ~35Mi | local-path 21Mi | unchanged |
+
+  Trend-query mechanics for that table (the O2 store quirk): memory P99 reads `container_memory_working_set` with `k8s_namespace_name`/`k8s_container_name` selectors — the kubeletstatsreceiver family drops unit suffixes from metric names and rewrites labels, and legacy selectors silently match wrong series (caveat in `tools/bin/README.md` → `prometheus_query`). CPU trends: VPA targets + the `cpu_audit` throttle check (clean, ≤4% everywhere) were the evidence — long-window CPU subqueries weren't needed.
+- **Layering confirmed (cmdshift/platform#186)**: quotas are base-layer plain manifests (`bases/<group>-config/`) with no `${VAR}` tokens, no valuesFrom coupling, and no cluster-overlay references — bases-vs-overlays layering needs no quota adjustment cloud-side; the cloud deltas stay exactly the two bullets above.
 - **LimitRange is the defaults source in the cloud, and not dead code locally either** — locally kyverno Deny-mode admission denies containers missing requests/limits, **but kyverno PolicyExceptions don't skip ResourceQuota admission** (cmdshift/platform#111): a container exempted via PolicyException (no resources, no config knob) is still denied by the `compute` quota, and the only defaults source for it is a LimitRange. `observability` carries `LimitRange/compute-defaults` locally for exactly that case (introduced for the thanos-operator's config-reloader sidecar — the operator is gone since the LGTM migration, cmdshift/platform#128, but the LimitRange stays as the defaults source for any future exception-exempt container). In the cloud add a LimitRange per namespace so bare containers get defaults under whatever admission policy runs there. Quota-vs-exception mechanics: [runbooks/local/adding-a-workload.md](../../../runbooks/local/adding-a-workload.md).
 
 ## Cilium (local: manifests/bases/networking/cilium.helm-release.yaml)
