@@ -40,9 +40,26 @@ securityContext:
   capabilities:
     drop:
       - ALL
+    # DAC_READ_SEARCH for the 0700 root-owned apiserver audit dir (cmdshift/platform#208) —
+    # root with dropped-ALL cannot bypass DAC
+    add:
+      - DAC_READ_SEARCH
 
 tolerations:
   - operator: Exists
+
+# kube-apiserver audit logs (cmdshift/platform#90/#208) — written on ctrl only;
+# ro mount, reads ride DAC_READ_SEARCH
+extraVolumes:
+  - name: audit-logs
+    hostPath:
+      path: /var/log/audit
+      type: DirectoryOrCreate
+
+extraVolumeMounts:
+  - name: audit-logs
+    mountPath: /var/log/audit
+    readOnly: true
 
 resources:
   requests:
@@ -94,6 +111,11 @@ config:
       headers:
         Authorization: ${env:O2_AUTH_BASIC}
         stream-name: k8s_logs
+    otlphttp/openobserve_audit:
+      endpoint: http://openobserve.observability.svc:5080/api/default/
+      headers:
+        Authorization: ${env:O2_AUTH_BASIC}
+        stream-name: k8s_audit
     otlphttp/openobserve:
       endpoint: http://openobserve.observability.svc:5080/api/default/
       headers:
@@ -103,6 +125,41 @@ config:
     zipkin: null
     otlp: null
     prometheus: null
+    filelog/audit:
+      # apiserver audit events (cmdshift/platform#208) — JSON lines; rotate
+      # chain only on ctrl, idle elsewhere. start_at end: forward-only, no
+      # history backfill (O2 retention is 10d). Redaction happens HERE on the
+      # body — O2 stores/queries the raw body string, so attribute-level
+      # deletion would still ship secret values (live-verified)
+      include:
+        - /var/log/audit/kube/*.log
+      start_at: end
+      include_file_path: true
+      operators:
+        # body → map so the payload keys below are removable; drop (not send)
+        # on parse failure — a malformed line shipped raw would carry secret values
+        - type: json_parser
+          parse_to: body
+          on_error: drop
+        # on_error send: a remove of an ABSENT field must not error the batch —
+        # entries that carry the key are still redacted, the rest pass through.
+        # the != nil presence guards keep absent-field removes from even
+        # attempting (each would otherwise log an error per entry)
+        - type: remove
+          field: body.requestObject
+          on_error: send
+          if: 'body.objectRef != nil and body.objectRef.resource == "secrets" and body.requestObject != nil'
+        - type: remove
+          field: body.responseObject
+          on_error: send
+          if: 'body.objectRef != nil and body.objectRef.resource == "secrets" and body.responseObject != nil'
+        - type: remove
+          field: body.object
+          on_error: send
+          if: 'body.objectRef != nil and body.objectRef.resource == "secrets" and body.object != nil'
+        - type: add
+          field: attributes["job"]
+          value: audit
     hostmetrics:
       collection_interval: 60s
       scrapers:
@@ -141,6 +198,12 @@ config:
         receivers: [filelog]
         processors: [memory_limiter, k8sattributes, transform/parse_json, batch]
         exporters: [otlphttp/openobserve_logs]
+      logs/audit:
+        receivers: [filelog/audit]
+        # no transform: O2 flattens the map body into body_* columns itself —
+        # a transform-side attribute merge only double-stores every field
+        processors: [memory_limiter, batch]
+        exporters: [otlphttp/openobserve_audit]
       metrics:
         receivers: [hostmetrics, kubeletstats]
         processors: [memory_limiter, batch]

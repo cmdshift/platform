@@ -598,6 +598,18 @@ SQL (O2's 400 body is echoed), or auth failed after a refetch, 2 = usage.
   `k8s_logs` stream. Hits carry `_timestamp` (micros), `body` (the raw log
   line), and flat `k8s_*` columns (`k8s_namespace_name`, `k8s_pod_name`,
   `k8s_container_name`, `service_name`, …).
+- **`k8s_audit` stream (cmdshift/platform#208)**: kube-apiserver audit events
+  (agent `filelog/audit` tailing `/var/log/audit/kube/*.log` on ctrl) — a
+  SECOND stream with the OPPOSITE hit shape: **no `body` column, no `k8s_*`
+  columns** — the event is a redacted map body O2 flattens into `body_*`
+  columns (`body_verb`, `body_level`, `body_objectref_resource`,
+  `body_user_username`, `body_responsestatus_code`, …). Select them
+  explicitly (the default body print shows nothing). Secret-mutation
+  RequestResponse payloads are stripped at the collector (security README
+  exposure decision). The `k8s_audit` stream has no O2 self-log noise (no
+  `body` column for the query-plan trap to match), so bare `str_match` there
+  is safe. `log_query` needs no stream flag — the stream name rides the SQL
+  `FROM`.
 - **JSON paths**: event fields live INSIDE `body` — extract with
   `CAST(body->'process_exec'->'process'->'binary' AS VARCHAR)`. The
   `body['x']` index syntax fails (`Utf8 is not Struct`);

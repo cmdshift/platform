@@ -7,9 +7,10 @@
 # the shared forward. The lifecycle is duplicated in prometheus_query (same
 # svc/openobserve:5080, same auth cache discipline — keep the two in
 # lockstep): prometheus_query speaks PromQL to O2's Prometheus-compat API,
-# this tool speaks O2 SQL to the _search API. Queries the `k8s_logs` stream
-# (all container logs, OTel filelog → gateway); the SQL runs server-side, so
-# aggregations never hit a client-side cap.
+# this tool speaks O2 SQL to the _search API. Streams: `k8s_logs` (container
+# logs) and `k8s_audit` (apiserver audit events — `body_*` columns, see
+# tools/bin/README.md); the stream name rides the SQL `FROM`, no flag. The
+# SQL runs server-side, so aggregations never hit a client-side cap.
 #   log_query '<sql>' [duration]     # duration e.g. 30m 4h 2d; default 1h
 #   log_query -j '<sql>' [duration]  # full hit JSON, one per line
 #   log_query -m '<sql>' [duration]  # "ns/pod/container: body" per line
