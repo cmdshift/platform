@@ -32,10 +32,12 @@ The store behind this is O2 (cmdshift/platform#186 — the #171 orphaning is
 resolved). Two O2 query caveats: metric-defined labels (`namespace`,
 `container`, `pod`) survive, but standard target labels are OTel-translated
 (`job` → `service_name`, `instance` → `service_instance_id`) — group by the
-surviving names; and range queries over long windows return **sparse,
-blocky** coverage (data present near ingest start + recent, gaps between) —
-read trend output as "what the store has", not a full grid; instant queries
-(what the audits use) are clean.
+surviving names; and range queries are honest, not buggy — gap clusters in
+trend output are **environment outages** (host sleep or a dead store
+companion, cmdshift/platform#202, root-caused 2026-11-19): check the host
+sleep log (`pmset -g log`) and companion uptimes (`docker ps`) before
+diagnosing the store. Instant queries (what the audits use) scan a narrow
+recent window and look clean through anything.
 
 A fresh cluster's first ~3h is always a ramp (head chunks, WAL, warmup) — judge trends after that. Anything >60% of limit and climbing is a candidate. Distinguish shapes before acting: a steady climb is a leak or cardinality growth (platform#20), a **sawtooth that returns to baseline is a periodic burst** (kyverno reports-controller's hourly scan, platform#21) — that needs limit headroom over the peak, not a leak hunt.
 

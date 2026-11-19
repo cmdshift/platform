@@ -31,10 +31,14 @@ metrics store — `prometheus_query` speaks PromQL to O2's Prometheus-compat
 API and `cpu_audit`'s throttle check works again. Two O2 query caveats:
 metric-defined labels (`pod`, `namespace`, `container`) survive, but the
 standard target labels are OTel-translated (`job` → `service_name`,
-`instance` → `service_instance_id`) — group by the surviving names; and
-range-query history over long windows is sparse (blocky coverage) — read
-trend output as "what the store has", instant queries (what the audits use)
-are clean.
+`instance` → `service_instance_id`) — group by the surviving names. Range
+queries are honest, not buggy: gap clusters in 7d trend output are
+**environment outages** (host sleep or a dead store companion — cmdshift/
+platform#202, root-caused live 2026-11-19), so read gap clusters as outage
+windows — check the host sleep log (`pmset -g log`) and companion uptimes
+(`docker ps`) before diagnosing the store — and never a query fault; instant
+queries (what the audits use) scan a narrow recent window and look clean
+through anything.
 
 - **Seasoning gate**: a fresh rebuild resets recommender history, so `vpa_recs` pulled <48h after one are polluted by the early-cluster ramp (alloy came back +530% CPU that never materialized — the 7d peak stayed single-digit; most deltas collapsed to ±10% noise, cmdshift/platform#66). Pull recommendations only after the cluster has seasoned, and cross-check every delta against 7d max/P99 trend queries before editing.
 - **Reject over-conservative recs at tiny sizes**: below ~20Mi the recommender's output can exceed the observed P99 (loki-gateway's 22Mi rec vs a 7d P99 of 13Mi under a 16Mi request) — the trend query wins (cmdshift/platform#66).
