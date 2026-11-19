@@ -65,9 +65,9 @@ spec:
         - index: 0
           type: file
         - index: 1
-          type: uint32 # PROT_READ(0x01) PROT_WRITE(0x02) PROT_EXEC(0x04)
+          type: ulong # PROT_READ(0x01) PROT_WRITE(0x02) PROT_EXEC(0x04)
         - index: 2
-          type: uint32 # mmap flags (MAP_SHARED, ...)
+          type: ulong # mmap flags (MAP_SHARED, ...)
       returnArg:
         index: 0
         type: int
