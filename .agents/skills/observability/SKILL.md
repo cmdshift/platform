@@ -39,7 +39,8 @@ Useful one-liners: `container_cpu_cfs_throttled_periods_total` (throttling), `co
 ## log_query
 
 O2 SQL against the `k8s_logs` stream (all container logs, OTel filelog →
-gateway). The SQL runs server-side — aggregations never hit a client cap.
+gateway) — plus the dedicated `k8s_audit` stream for apiserver audit events
+(below). The SQL runs server-side — aggregations never hit a client cap.
 
 ```
 log_query "SELECT * FROM \"k8s_logs\" WHERE k8s_pod_name = 'flux-source-controller-0' ORDER BY _timestamp DESC" 15m
@@ -65,12 +66,16 @@ log_query -j "SELECT CAST(body->'process_exec'->'process'->'binary' AS VARCHAR) 
   container `export-stdout`; the event's workload namespace/pod/binary is
   INSIDE the JSON. Extract from `body`, never filter on the workload's
   namespace.
-- **API audit logs do NOT reach O2** (coverage regression vs the loki era,
-  cmdshift/platform#90's query surface is gone): the OTel agent's filelog
-  receiver scrapes `/var/log/pods` only — kube-apiserver audit events on the
-  ctrl node are not shipped. The "who deleted that PVC at 3am" review
-  (cmdshift/platform#90) currently has NO log-store surface; verified absent
-  live 2026-11-10. Follow-up if audit review is needed again.
+- **API audit logs stream: `k8s_audit`** (restored cmdshift/platform#208; the cmdshift/platform#90 review surface lives again): node-local kube-apiserver audit events, agent `filelog/audit` → dedicated O2 stream. **NO `body` column and NO `k8s_*` columns** — the event is a redacted map body O2 flattens into `body_*` columns (`body_verb`, `body_level`, `body_objectref_resource`, `body_objectref_name`, `body_user_username`, `body_responsestatus_code`, …). Select them explicitly — the default body print shows nothing. Secret-mutation payloads (RequestResponse) are stripped at the collector (shipped copy Metadata-equivalent; decision: security README) — expect user/verb/objectRef/status only.
+  ```
+  # "who deleted that PVC at 3am" (cmdshift/platform#90)
+  log_query 'SELECT body_verb, body_user_username, body_objectref_name,
+    body_requestreceivedtimestamp FROM k8s_audit
+    WHERE body_objectref_resource = '"'"'persistentvolumeclaims'"'"'
+    AND body_verb IN ('"'"'delete'"'"','"'"'deletecollection'"'"')' 24h
+  # secret mutated: same shape, resource '"'"'secrets'"'"', verbs create/update/patch/delete
+  # pods/exec: WHERE body_requesturi LIKE '"'"'%/exec%'"'"'
+  ```
 - Aggregations are plain SQL (`GROUP BY … ORDER BY n DESC`) — no LogQL.
   24h windows aggregate in one query (verified live).
 
