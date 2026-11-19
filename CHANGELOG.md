@@ -2,6 +2,12 @@
 
 Narrative log of the platform's evolution, newest first. Dated learnings, incident stories, and decision history live here; durable procedures live in `runbooks/local/`, timeless per-group decisions in `manifests/bases/*/README.md`, and landmines in `.agents/skills/`. Issue/PR references use the `cmdshift/platform#N` form.
 
+## 2026-11-19 (bpf-activity spec-type fix silences the pre-validation warning — cmdshift/platform#204)
+
+- **Both `security_mmap_file` arg types went `uint32` → `ulong` in one pass, not the issue's iterate-on-arg-1 loop**: the kernel signature is `int security_mmap_file(struct file *file, unsigned long prot, unsigned long flags)` — arg 2 (`flags`) mismatched BTF identically, and the pre-validator just stops at the first mismatch, so fixing arg 1 alone would have surfaced the arg 2 warning on the next reload (cmdshift/platform#204 anticipated the iteration; the kernel headers made it unnecessary).
+- **The issue's literal type spelling `unsigned long` is not the CRD enum value** — the TracingPolicy CRD accepts `ulong` for the unsigned-long kprobe type; `cr_validate` rejected `unsigned long` pre-reconcile (the schema-verification gate doing exactly its job). The enum gotcha and the must-match-BTF rule are recorded in the `bases/security-config` README.
+- **Verified on load**: all 3 tetragon agents reloaded `generic_kprobe` clean (zero warn/error lines since the reload window), `security_bpf_map_create` loaded and the `security_bpf_map_alloc` `ignore.callNotFound` tolerance held (sensor loads despite the symbol's absence on Linux 7.0.12), policy stays `monitor_only` with events flowing (NPOST 654 → 1189 after a benign `/sys/fs/bpf` read).
+
 ## 2026-11-19 (#202 closed: range-query holes are environment outages, not an O2 query bug — rustfs object listing + pmset correlation)
 
 - **The #202 "sparse range queries" root cause is settled — the store is honest**: `query_range` gaps mirror holes in the store itself, verified by listing `main/openobserve/files/default/metrics/up/` on rustfs directly (continuous ~15-min parquet flushes → zero objects 07:06→21:09 UTC Nov 18 → normal flushes). Instant queries look clean only because their trace shows a narrow `[now-5m, now)` scan. Both candidates in the issue are dead: OSS v1.1.2 has no compact-settings API (2026-11-09 entry) and there's no upstream PromQL bug to cite. cmdshift/platform#202 closed on its acceptance's workaround branch.
