@@ -51,6 +51,9 @@ auth:
   ZO_S3_SECRET_KEY: ""
 
 extraEnv:
+  # same volume as ZO_DATA_CACHE_DIR — a cross-device rename kills every compaction merge
+  - name: ZO_DATA_TMP_DIR
+    value: "/var/lib/openobserve-cache/tmp/"
   - name: ZO_SMTP_ENABLED
     value: "true"
   - name: ZO_SMTP_HOST

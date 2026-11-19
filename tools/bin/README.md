@@ -507,13 +507,20 @@ per-service lock file keying makes that a non-issue going forward.)
   `k8s_namespace_name`/`k8s_container_name` on translated metrics and
   sanity-check one returned series against `kubectl top` before trusting
   any table built from it.
-- **O2 range-query history is sparse** (cmdshift/platform#186, verified
-  live): `query_range` over long windows returns partial coverage (e.g.
-  `sum(up)` 24h/step600 → a handful of points in blocky clusters, data
-  present at ingest start + recent, gaps between; fixed windows inside the
-  gaps return empty). Instant queries (what the audit tools use) are clean.
-  Treat `-r` output as "what the store has", not a full grid — the
-  resource-sizing 7d trend procedure reads it with that caveat.
+- **Coverage holes in `-r` output == environment outages, not query bugs**
+  (cmdshift/platform#202, root-caused live 2026-11-19): `query_range`
+  honestly reports what the store has. `sum(up)` 24h once returned blocky
+  clusters with gaps, and the parquet listing on rustfs mirrored it exactly
+  (continuous ~15-min flushes → zero objects for 14.4h → normal flushes).
+  Two verified causes, same signature: macOS lid sleep (O2, the collectors,
+  and the companions all sleep with the host — only the pre-sleep WAL tail
+  survives, so the hole is real data that was never ingested) and a dead
+  store companion (the 2026-11-09 rustfs `Exited(137)` outage — O2 couldn't
+  flush, its WAL buffer held only the tail). Instant queries look clean only
+  because they scan a narrow recent window. Before diagnosing the store:
+  check the host sleep log (`pmset -g log`), then companion uptimes
+  (`docker ps`), then the store. The resource-sizing 7d trend procedure
+  reads gap clusters as outage windows, not store sparsity.
 - **shared-forward lifecycle** (cmdshift/platform#77; duplicated in
   `log_query` — keep the two in lockstep): each call validates the recorded
   forward (PID alive AND still a port-forward — the cmdline check defeats

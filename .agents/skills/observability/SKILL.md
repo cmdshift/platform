@@ -28,9 +28,11 @@ prometheus_query 'count(kube_pod_container_status_restarts_total)'
 - **O2 label translation**: `job` → `service_name`, `instance` →
   `service_instance_id`/`server_address`; metric-defined labels (`pod`,
   `namespace`, `container`, …) survive as-is. Group by `service_name`, not `job`.
-- **O2 range-query history is sparse**: long `-r` windows return partial
-  coverage (data at ingest start + recent, gaps between). Instant queries are
-  clean — treat `-r` output as "what the store has".
+- **Coverage holes in `-r` output == environment outages, not query bugs**
+  (cmdshift/platform#202, root-caused 2026-11-19): `query_range` honestly
+  reports what the store has — gap clusters are real data holes from host
+  sleep or a dead store companion. Diagnostic order: host sleep log
+  (`pmset -g log`), companion uptimes (`docker ps`), then the store.
 
 Useful one-liners: `container_cpu_cfs_throttled_periods_total` (throttling), `container_memory_working_set_bytes` (memory trends), `prometheus_tsdb_head_series` (cardinality), `up` (scrape health), `prometheus_scrape_targets_gauge{component_id=...}` (per-collector discovery — the ksm double-target phantom's first check, cmdshift/platform#149), `alloy_components` (what config a collector is actually running).
 
