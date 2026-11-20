@@ -1,8 +1,8 @@
-# Provisional resources — audit after burn-in (JVM operator; limit drives heap sizing)
+# 7d P99 252Mi ×1.2 / VPA 309Mi — JVM heap derives from the limit; re-audit when the first Kafka CR lands
 resources:
   requests:
     cpu: 15m
-    memory: 256Mi
+    memory: 320Mi
   limits:
     cpu: 1000m
-    memory: 384Mi
+    memory: 480Mi

@@ -24,7 +24,7 @@ A silent exit with nothing in the logs is almost always an OOMKill — the proce
 
 ```
 memory_audit 50                                                  # usage vs limits, cluster-wide
-prometheus_query -c -r 6h 'container_memory_working_set_bytes{namespace="<ns>",container="<name>"}'  # ORPHANED: mimir gone (cmdshift/platform#171) — trend method stands, tooling needs a store decision
+prometheus_query 'max_over_time(k8s_pod_memory_working_set{k8s_namespace_name="<ns>"}[6h])'   # O2 shape (cmdshift/platform#186 wired the store; family inventory: tools/bin/README.md → prometheus_query)
 ```
 
 Snapshot proves nothing — judge the trend. A below-limit snapshot doesn't clear a limit either: transient bursts kill between snapshots (seaweed volume died at 240Mi with `kubectl top` at 183Mi) — headroom is judged against the range-query peak, not the last observed value. For prometheus itself, check cardinality too (`prometheus_tsdb_head_series`, `topk(10, count by (job)({__name__=~".+"}))`) — memory growth usually tracks series growth.
@@ -33,7 +33,7 @@ The `ContainerOOMKilled` alert (O2 → SMTP delivery) catches ceiling hits invis
 
 ## 4. Fix and verify
 
-Size per convention (request ≈ P99 × 1.2, limit = 1.5 × request; deliberate deviations get a rationale comment per the `writing-yaml` skill Comments rules — velero runs 2× for kopia repo-maintenance spikes). Bump, reconcile from the root, then confirm stability across **at least one full failure cycle** — velero's cycle was ~14 min, so a few minutes of uptime proved nothing.
+Size per convention (request ≈ P99 × 1.2, limit = 1.5 × request; deliberate deviations get a rationale comment per the `writing-yaml` skill Comments rules — velero: request ≈ P99×1.2 covering the observed kopia burst, with the 512Mi limit holding the spike-absorption role, cmdshift/platform#219). Bump, reconcile from the root, then confirm stability across **at least one full failure cycle** — velero's cycle was ~14 min, so a few minutes of uptime proved nothing.
 
 ## Worked example
 

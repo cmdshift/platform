@@ -281,7 +281,7 @@
      "queryType": "promql",
      "queries": [
       {
-       "query": "sum(rate(system_disk_operations{direction=\"read\"}[1m]))",
+       "query": "sum by (k8s_node_name) (\n  rate(system_disk_operations{direction=\"read\"}[1m])\n)",
        "vrlFunctionQuery": null,
        "customQuery": true,
        "fields": {
@@ -298,13 +298,13 @@
         }
        },
        "config": {
-        "promql_legend": "read",
+        "promql_legend": "{k8s_node_name}-read",
         "layer_type": "scatter",
         "weight_fixed": 1
        }
       },
       {
-       "query": "sum(rate(system_disk_operations{direction=\"write\"}[1m]))",
+       "query": "sum by (k8s_node_name) (\n  rate(system_disk_operations{direction=\"write\"}[1m])\n)",
        "vrlFunctionQuery": "",
        "customQuery": true,
        "fields": {
@@ -321,7 +321,7 @@
         }
        },
        "config": {
-        "promql_legend": "write",
+        "promql_legend": "{k8s_node_name}-write",
         "layer_type": "scatter",
         "weight_fixed": 1
        }
@@ -399,7 +399,7 @@
      "queryType": "promql",
      "queries": [
       {
-       "query": "sum(rate(system_disk_io{direction=\"read\"}[1m]))",
+       "query": "sum by (k8s_node_name, device) (rate(system_disk_io{direction=\"read\"}[1m]))",
        "vrlFunctionQuery": "",
        "customQuery": true,
        "fields": {
@@ -416,13 +416,13 @@
         }
        },
        "config": {
-        "promql_legend": "read",
+        "promql_legend": "{k8s_node_name}-read",
         "layer_type": "scatter",
         "weight_fixed": 1
        }
       },
       {
-       "query": "sum(rate(system_disk_io{direction=\"write\"}[1m]))",
+       "query": "sum by (k8s_node_name, device) (rate(system_disk_io{direction=\"write\"}[1m]))",
        "vrlFunctionQuery": "",
        "customQuery": true,
        "fields": {
@@ -439,7 +439,7 @@
         }
        },
        "config": {
-        "promql_legend": "write",
+        "promql_legend": "{k8s_node_name}-write",
         "layer_type": "scatter",
         "weight_fixed": 1
        }
@@ -521,7 +521,7 @@
      "queryType": "promql",
      "queries": [
       {
-       "query": "100 * k8s_node_cpu_usage{k8s_node_name=~\"$k8s_node_name\"} / on(k8s_node_name) label_replace(kube_node_status_allocatable{resource=\"cpu\", unit=\"core\"}, \"k8s_node_name\", \"$1\", \"node\", \"(.*)\")",
+       "query": "(1 - avg by (k8s_node_name) (\n  system_cpu_utilization{state=\"idle\", k8s_node_name=~\"$k8s_node_name\"}\n))",
        "vrlFunctionQuery": null,
        "customQuery": true,
        "fields": {
@@ -619,7 +619,7 @@
      "queryType": "promql",
      "queries": [
       {
-       "query": "100 * k8s_node_memory_usage{k8s_node_name=~\"$k8s_node_name\"} / on(k8s_node_name) label_replace(kube_node_status_allocatable{resource=\"memory\", unit=\"byte\"}, \"k8s_node_name\", \"$1\", \"node\", \"(.*)\")",
+       "query": "system_memory_utilization{state=\"used\", k8s_node_name=~\"$k8s_node_name\"}",
        "vrlFunctionQuery": null,
        "customQuery": true,
        "fields": {

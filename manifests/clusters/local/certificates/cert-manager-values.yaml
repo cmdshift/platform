@@ -20,10 +20,10 @@ cainjector:
   resources:
     requests:
       cpu: 10m
-      memory: 144Mi
+      memory: 89Mi
     limits:
       cpu: 200m
-      memory: 216Mi
+      memory: 134Mi
 webhook:
   containerSecurityContext:
     runAsUser: 65532

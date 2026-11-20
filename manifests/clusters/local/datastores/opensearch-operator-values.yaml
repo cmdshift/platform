@@ -8,10 +8,10 @@ manager:
   resources:
     requests:
       cpu: 15m
-      memory: 128Mi
+      memory: 61Mi
     limits:
       cpu: 1000m
-      memory: 192Mi
+      memory: 92Mi
   securityContext:
     allowPrivilegeEscalation: false
     capabilities:

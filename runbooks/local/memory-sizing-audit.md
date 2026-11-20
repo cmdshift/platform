@@ -25,19 +25,22 @@ Folded into `memory_audit`'s footer. Expected on this cluster: **3** — three c
 ## 4. Trend, not snapshot
 
 ```
-prometheus_query -c -r 6h 'container_memory_working_set_bytes{namespace="<ns>",container="<name>"}'
+prometheus_query 'max_over_time(k8s_pod_memory_working_set{k8s_namespace_name="<ns>"}[6h])'   # instant eval — no -r (see tools README: -r under-samples bursts)
 ```
 
 The store behind this is O2 (cmdshift/platform#186 — the #171 orphaning is
-resolved). Two O2 query caveats: metric-defined labels (`namespace`,
-`container`, `pod`) survive, but standard target labels are OTel-translated
-(`job` → `service_name`, `instance` → `service_instance_id`) — group by the
-surviving names; and range queries are honest, not buggy — gap clusters in
-trend output are **environment outages** (host sleep or a dead store
-companion, cmdshift/platform#202, root-caused 2026-11-19): check the host
-sleep log (`pmset -g log`) and companion uptimes (`docker ps`) before
-diagnosing the store. Instant queries (what the audits use) scan a narrow
-recent window and look clean through anything.
+resolved). O2 query caveats: the memory gauges are the kubeletstats families
+`k8s_pod_memory_working_set` / `k8s_pod_memory_rss` with OTel labels
+(`k8s_namespace_name`, `k8s_pod_name`, `k8s_node_name`; some series carry no
+`k8s_container_name` — sanity-filter with `kubectl top`), NOT the prometheus
+`container_memory_working_set_bytes` family — the gateway's cadvisor scrape
+keeps only the fs/cfs families (cmdshift/platform#219 inventory; full shape:
+`tools/bin/README.md` → `prometheus_query`); and range queries are honest,
+not buggy — gap clusters in trend output are **environment outages** (host
+sleep or a dead store companion, cmdshift/platform#202, root-caused
+2026-11-19): check the host sleep log (`pmset -g log`) and companion uptimes
+(`docker ps`) before diagnosing the store. Instant queries (what the audits
+use) scan a narrow recent window and look clean through anything.
 
 A fresh cluster's first ~3h is always a ramp (head chunks, WAL, warmup) — judge trends after that. Anything >60% of limit and climbing is a candidate. Distinguish shapes before acting: a steady climb is a leak or cardinality growth (platform#20), a **sawtooth that returns to baseline is a periodic burst** (kyverno reports-controller's hourly scan, platform#21) — that needs limit headroom over the peak, not a leak hunt.
 
@@ -53,7 +56,7 @@ Reference finding (platform#20): the apiserver job alone was 52k of 111k head se
 
 ## 6. Decide and record
 
-- size per the convention (AGENTS.md → Do list: request ≈ P99 × 1.2, limit = 1.5 × request); deliberate deviations get a rationale comment in the manifest (comment rules: the `writing-yaml` skill, Comments section, cmdshift/platform#43 — velero runs 2× for kopia spikes)
+- size per the convention (AGENTS.md → Do list: request ≈ P99 × 1.2, limit = 1.5 × request); deliberate deviations get a rationale comment in the manifest (comment rules: the `writing-yaml` skill, Comments section, cmdshift/platform#43 — velero: request ≈ P99×1.2 covering the observed kopia burst, with the 512Mi limit holding the spike-absorption role, cmdshift/platform#219)
 - the CPU sibling of this audit is `cpu_audit` (throttled-periods top-N + usage-vs-limits table)
 - the scheduling-side sibling is `request_audit` (usage-vs-**requests** for memory + CPU — containers over 100% of their memory request are first in line for eviction under node pressure, and their scheduling reservation lies)
 - the recommendation-side sibling is `vpa_recs` (VPA targets vs current requests; Off-mode VPAs are hand-maintained per workload — goldilocks the auto-creator was removed — `manifests/bases/observability/README.md`). A recommendation is a P99-shaped candidate request, **not a drop-in**: cross-check against the usage audits and the convention above before editing manifests. Two `vpa_recs` traps (cmdshift/platform#66): a fresh rebuild resets recommender history, so recommendations pulled <48h after one are inflated by the early-cluster ramp — pull only after seasoning and cross-check deltas against 7d max/P99 trends; and at tiny sizes the recommender can overshoot the observed P99 (loki-gateway: 22Mi rec vs 13Mi P99 under a 16Mi request) — reject with the trend evidence

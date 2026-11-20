@@ -50,10 +50,10 @@ backgroundController:
   resources:
     requests:
       cpu: 10m
-      memory: 144Mi
+      memory: 105Mi
     limits:
       cpu: 500m
-      memory: 216Mi
+      memory: 158Mi
   podSecurityContext:
     runAsNonRoot: true
 cleanupController:
@@ -62,10 +62,10 @@ cleanupController:
   resources:
     requests:
       cpu: 10m
-      memory: 104Mi
+      memory: 61Mi
     limits:
       cpu: 500m
-      memory: 156Mi
+      memory: 92Mi
   podSecurityContext:
     runAsNonRoot: true
 reportsController:

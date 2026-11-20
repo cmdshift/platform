@@ -28,7 +28,7 @@ In-cluster CronJob (04:00 daily, after velero's 03:00 — the pipelines stay ind
 
 ## Structural decisions
 
-- **Memory sizing is 2× the convention on purpose** (evidence at the value in `velero.helm-release.yaml`): kopia repo-maintenance spikes OOM-killed the server at 1.5× (cmdshift/platform#20 trend data; verified across a full failure cycle).
+- **Memory: the request covers the observed burst; the limit absorbs kopia spikes** (evidence at the value in `clusters/local/backups/velero-values.yaml`): the request is 448Mi ≈ observed burst 387Mi × 1.16 — the plain 7d-P99×1.2 rounding (384Mi) sits BELOW the burst, which is the eviction-risk driver; the limit stays 512Mi — deliberately NOT 1.5× of the request, because kopia repo-maintenance spikes OOM-killed the server at 1.5× (cmdshift/platform#20 trend data; verified across a full failure cycle). VPA target 488Mi is the recorded upper argument (cmdshift/platform#219).
 - **The `node-agent-config` configmap ships with the release in `backups/`, not `backups-config/`** — velero exits at startup if the flag's configmap is missing, and `backups-config` `dependsOn` backups, so keeping it in the config group was a circular wedge on fresh rebuilds (rebuilds are one-shot again since the move).
 - The data-mover PolicyException is extended to match the temporary hosting pods via the `velero.io/pod-volume-*` labels (their names derive from the PVB/PVR, no usable prefix). `require-graceful-termination` covers the movers: velero hardcodes `TerminationGracePeriodSeconds: 0`, no upstream knob (cmdshift/platform#111).
 - The `pvcs` schedule (03:00 daily, all namespaces, fs-backup, 72h TTL) rides the `defaultVolumeType: local` StorageClass annotation — **FSB silently skips hostPath PVs**, so a hostPath regression shows up as PodVolumeBackups going empty, not as an error.
@@ -36,7 +36,7 @@ In-cluster CronJob (04:00 daily, after velero's 03:00 — the pipelines stay ind
 
 ## velero-values evidence (`clusters/local/backups/velero-values.yaml`)
 
-- velero server: OOMKilled at 132Mi during kopia repo prep — the 2× limit absorbs maintenance spikes (see the sizing decision above).
+- velero server: request 448Mi = observed burst 387×1.16 (7d P99 309Mi; instant 387→154Mi within 15min — bursty); limit 512 = spike absorption — OOMKilled at 132Mi at 1.5× during kopia repo prep (see the sizing decision above).
 - node-agent: busiest node-agent 51Mi steady — 88Mi = observed × 1.2.
 - velero server metrics `enabled` — :8085, the metrics collector scrapes the metrics service.
 - JSON logging: platform convention.

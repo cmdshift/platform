@@ -25,10 +25,10 @@ nodePathMap:
 resources:
   requests:
     cpu: 10m
-    memory: 48Mi
+    memory: 35Mi
   limits:
     cpu: 100m
-    memory: 72Mi
+    memory: 53Mi
 helperPod:
   resources:
     requests:

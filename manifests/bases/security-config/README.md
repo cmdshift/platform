@@ -4,7 +4,7 @@ TracingPolicies + the namespace ResourceQuota for the [security](../security/REA
 
 ## ResourceQuota
 
-`ResourceQuota/compute` (namespace `security`): limits.cpu 12 sits above the tetragon daemons' limits sum (1100m × 3 nodes + operator 500m = 3800m) so one rollout overlap doesn't block (surge fit: 4300m of 12000; cmdshift/platform#93, re-audited cmdshift/platform#186). trivy moved to `scanning/` — this quota is tetragon-only now. 2026-11 re-audit: request sum 2752Mi (tetragon 880Mi × 3 dominates), VPA-shaped ~1690Mi (tetragon P99 427–483Mi/pod, target 561Mi) — 11Gi/14Gi holds wide.
+`ResourceQuota/compute` (namespace `security`): limits.cpu 12 sits above the tetragon daemons' limits sum (1100m × 3 nodes + operator 500m = 3800m) so one rollout overlap doesn't block (surge fit: 4300m of 12000; cmdshift/platform#93, re-audited cmdshift/platform#186). trivy moved to `scanning/` — this quota is tetragon-only now. cmdshift/platform#219 re-audit: request sum 1840Mi (tetragon 576Mi × 3 + export-stdout 16Mi × 3 + operator 64Mi), limits sum 2912Mi (864Mi × 3 + 64Mi × 3 + 128Mi); the 3800m limits.cpu surge fit holds (agent CPU limits untouched) — 11Gi/14Gi still holds wide (cmdshift/platform#219).
 
 ## TracingPolicy table (policy | namespace target | scoping label | why it exists)
 

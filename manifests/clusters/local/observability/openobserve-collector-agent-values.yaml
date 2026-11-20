@@ -63,8 +63,8 @@ extraVolumeMounts:
 
 resources:
   requests:
-    cpu: 50m
-    memory: 128Mi
+    cpu: 64m # VPA target 63m (cmdshift/platform#219)
+    memory: 144Mi # VPA target 138Mi, 7d P99 89-106Mi (cmdshift/platform#219)
   limits:
     cpu: 500m
     memory: 512Mi
@@ -75,6 +75,10 @@ extraEnvs:
       secretKeyRef:
         name: openobserve-credentials
         key: O2_AUTH_BASIC
+  - name: MY_NODE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
 
 ports:
   otlp:
@@ -98,6 +102,15 @@ rewriteDeprecatedComponentNames: false
 
 config:
   processors:
+    # system_* only (cmdshift/platform#217): the k8s_cluster receiver's
+    # k8s_node_condition_* series already carry node labels — the metric-name
+    # scope can never clobber them
+    transform/node_metrics:
+      error_mode: ignore
+      metric_statements:
+        - context: metric
+          statements:
+            - set(resource.attributes["k8s_node_name"], "${env:MY_NODE_NAME}") where IsMatch(metric.name, "^system\\.")
     transform/parse_json:
       error_mode: ignore
       log_statements:
@@ -206,6 +219,6 @@ config:
         exporters: [otlphttp/openobserve_audit]
       metrics:
         receivers: [hostmetrics, kubeletstats]
-        processors: [memory_limiter, batch]
+        processors: [memory_limiter, transform/node_metrics, batch]
         exporters: [otlphttp/openobserve]
       traces: null
