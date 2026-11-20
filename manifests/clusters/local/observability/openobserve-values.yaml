@@ -107,7 +107,7 @@ config:
 resources:
   requests:
     cpu: 500m
-    memory: 5Gi
+    memory: 2Gi # 7d P99 1562Mi x 1.2 = 1875Mi, VPA target 1850Mi — 2Gi clean round-up (cmdshift/platform#219)
   limits:
     cpu: "4"
     memory: 7Gi

@@ -178,6 +178,12 @@ Validated 2026-09-07 across a docker daemon restart: nodes rejoin and go Ready i
 
 Note: the docker daemon kills containers with SIGKILL (exit 137) on shutdown — harmless. And the node alerts (DiskIO/PageFaults) that fire during heavy scan floods **clear with the restart**; the budget lever when they recur is host/container sizing (see the ARCHITECTURE.md memory budget).
 
+## Node container dies mid-boot (no rebuild)
+
+**A single node container can die mid-boot with exit 129 outside any daemon restart** (cmdshift/platform#219 session): `docker inspect` shows no `OOMKilled` and every other container stays up — the Talos boot attempt itself failed (kubelet: `failed to load kubelet config file /etc/kubernetes/kubelet.yaml: no such file`) and the container exited. Recovery is the same plain `docker start` as the daemon-restart section above — node state persists in volumes/disks, not in process memory — and the next boot was clean in seconds once the kubelet config file was present. Diagnose before restarting (`docker inspect` for exit code + OOMKilled flag, `docker logs <container>` for the boot failure); don't jump to a rebuild.
+
+**Pods crashlooping during an apiserver outage self-converge — wait out the backoff before intervening** (same incident): with the ctrl container down, the datastores operators (cloudnative-pg, strimzi-cluster-operator, valkey-operator) crashlooped on SA-token FailedMount (the kubeaccess proxy 127.0.0.1:7445 path) plus startup-probe kills — and all three converged on their own within ~15min of the apiserver returning, with no manifest action. Strimzi's transient `GET /version → 401 Unauthorized` during recovery was an apiserver-still-warming race; the next backoff succeeded. An outage-window crashloop is not a workload fault: once the API is back, let the restart backoff run before diagnosing anything.
+
 ## Data implications
 
 A full destroy/apply wipes everything not in the local manifests **except** the two docker volumes that outlive the terraform state: the registry's `platform-registry-data` (image cache) and storage's `platform-storage-data` (all rustfs buckets — S3 data survives the rebuild).

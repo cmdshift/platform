@@ -10,12 +10,13 @@ tetragon:
   grpc:
     address: "localhost:54321"
   resources:
+    # request: 7d P99 414Mi × 1.2 / VPA target 561Mi / 7d max 509Mi (RSS trend); limit 1.5×
     requests:
-      cpu: 50m
-      memory: 880Mi
+      cpu: 25m
+      memory: 576Mi
     limits:
       cpu: 1000m
-      memory: 1320Mi
+      memory: 864Mi
   prometheus:
     enabled: true # agent metrics :2112 — the metrics collector scrapes the tetragon service
 export:
@@ -29,3 +30,11 @@ export:
 tetragonOperator:
   prometheus:
     enabled: true # operator metrics :2113 — the metrics collector scrapes it
+  resources:
+    # VPA target 22Mi; limit 1.5×
+    requests:
+      cpu: 10m
+      memory: 22Mi
+    limits:
+      cpu: 500m
+      memory: 33Mi

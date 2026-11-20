@@ -43,8 +43,8 @@ securityContext:
 
 resources:
   requests:
-    cpu: 100m
-    memory: 256Mi
+    cpu: 25m # live 5-16m, VPA target 23m (cmdshift/platform#219)
+    memory: 400Mi # 7d P99 329Mi x 1.2 = 395Mi, VPA target 392Mi (cmdshift/platform#219)
   limits:
     cpu: "1"
     memory: 1536Mi

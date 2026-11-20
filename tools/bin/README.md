@@ -491,22 +491,26 @@ per-service lock file keying makes that a non-issue going forward.)
   `up{job!~""}` selects everything (vacuous, not a filter). Group by
   `service_name` instead.
 - **Metric shape depends on the scrape path — know yours before querying**
-  (cmdshift/platform#186, verified live): cadvisor metrics scraped from the
-  kubelet's `/metrics/cadvisor` keep native names + labels
+  (cmdshift/platform#186, #219; verified live): cadvisor metrics scraped from
+  the kubelet's `/metrics/cadvisor` keep native names + labels
   (`container_cpu_cfs_throttled_periods_total{namespace=,container=,…}` —
-  what `cpu_audit`'s throttle query uses), but the kubeletstatsreceiver
-  family is OTel-translated: unit suffixes leave the name
-  (`container_memory_working_set_bytes` → `container_memory_working_set`,
-  bytes are still the value) and labels become resource attributes
-  (`k8s_namespace_name` / `k8s_container_name` / `k8s_pod_name`). The
-  legacy names don't exist (`container_memory_working_set_bytes` → empty
-  result) and — worse — a legacy-label selector on the translated metric
-  **silently matches wrong series** (O2 matcher leniency:
-  `container_memory_working_set{namespace="observability"}` returns
-  kube-system pods) instead of erroring. Audit queries must select
-  `k8s_namespace_name`/`k8s_container_name` on translated metrics and
+  what `cpu_audit`'s throttle query uses), but the gateway's cadvisor
+  keep-regex passes ONLY the `container_fs_*` + `container_cpu_cfs_*`
+  families — **there are NO cadvisor `container_memory_*` series in O2 at
+  all**. The memory gauges come from the kubeletstats receiver instead:
+  `k8s_pod_memory_working_set` / `k8s_pod_memory_rss`, OTel-translated on
+  both name and labels — `k8s_namespace_name` / `k8s_pod_name` /
+  `k8s_node_name` / `service_name`, NOT the prometheus
+  `container_memory_working_set_bytes` family and NOT `job`/`instance`
+  labels. The legacy names don't exist (querying them → empty result) and
+  legacy-label selectors on translated metrics **silently match wrong
+  series** instead of erroring (O2 matcher leniency: a `namespace=`
+  selector on a translated memory metric returned kube-system pods). Audit
+  queries must select the OTel labels on translated metrics and
   sanity-check one returned series against `kubectl top` before trusting
-  any table built from it.
+  any table built from it — and some series carry **no
+  `k8s_container_name` at all** (the velero server series), so a
+  container-name selector can quietly select nothing.
 - **Coverage holes in `-r` output == environment outages, not query bugs**
   (cmdshift/platform#202, root-caused live 2026-11-19): `query_range`
   honestly reports what the store has. `sum(up)` 24h once returned blocky
@@ -521,6 +525,19 @@ per-service lock file keying makes that a non-issue going forward.)
   check the host sleep log (`pmset -g log`), then companion uptimes
   (`docker ps`), then the store. The resource-sizing 7d trend procedure
   reads gap clusters as outage windows, not store sparsity.
+- **`-r` range mode under-samples short bursts — burst evidence wants
+  instant over_time evals** (cmdshift/platform#219): range queries auto-step
+  to ~30 points over 7d, which can step right past a short memory burst.
+  For burst evidence, evaluate `max_over_time`/`quantile_over_time` over
+  `[7d]` selectors as an INSTANT query — the over_time functions scan the
+  raw samples, not the stepped range — with a `kubectl top` sanity
+  cross-check.
+- **VPA targets whose window overlaps an outage are polluted** (cmdshift/platform#219):
+  operators crashlooping through an apiserver outage reshape the
+  recommender's recent samples — cloudnative-pg's fresh target drifted
+  75→105Mi (+40%, past the ±15% drift gate) purely on outage-window
+  crashlooping. The 48h seasoning gate extends to: distrust fresh targets
+  whose window overlaps an outage; prefer the unaffected 7d P99 trend.
 - **shared-forward lifecycle** (cmdshift/platform#77; duplicated in
   `log_query` — keep the two in lockstep): each call validates the recorded
   forward (PID alive AND still a port-forward — the cmdline check defeats

@@ -32,7 +32,7 @@ memory_audit 50
 Snapshot proves nothing — judge the trend. **And for an OOMKill specifically, a below-limit snapshot does not clear the limit either**: transient bursts kill between snapshots (seaweed volume server died at a 240Mi limit while `kubectl top` showed 183Mi) — pull the range query and judge headroom against the burst peak, not the last observed value ([memory-sizing-audit.md](memory-sizing-audit.md) §4; seaweed burst traps: [../../manifests/bases/objects/README.md](../../manifests/bases/objects/README.md)).
 
 ```
-prometheus_query -c -r 6h 'container_memory_working_set_bytes{namespace="<ns>",container="<name>"}'
+prometheus_query 'max_over_time(k8s_pod_memory_working_set{k8s_namespace_name="<ns>"}[6h])'   # O2 shape: kubeletstats family, NOT container_memory_working_set_bytes (tools/bin/README.md → prometheus_query)
 ```
 
 For prometheus specifically, also check series count and cardinality by job (`prometheus_tsdb_head_series`, `topk(10, count by (job)({__name__=~".+"}))` via `prometheus_query`) — memory growth usually tracks series growth.
@@ -41,7 +41,7 @@ The `ContainerOOMKilled` alert (O2 → SMTP → mailpit) catches ceiling hits th
 
 ## 4. Fix and verify
 
-Size per the convention (AGENTS.md → Do list: request ≈ P99 × 1.2, limit = 1.5 × request); deliberate deviations (velero runs 2× for kopia repo-maintenance spikes) get a rationale comment in the manifest (comment rules: the `writing-yaml` skill, Comments section, cmdshift/platform#43). Bump, reconcile from the root, then confirm stability across **at least one full failure cycle** — velero's cycle was ~14 min, so a few minutes of uptime proved nothing. For trend-driven cases (prometheus), watch the next day's trend rather than the immediate snapshot.
+Size per the convention (AGENTS.md → Do list: request ≈ P99 × 1.2, limit = 1.5 × request); deliberate deviations (velero: request ≈ P99×1.2 covering the observed kopia burst, with the 512Mi limit holding the spike-absorption role, cmdshift/platform#219) get a rationale comment in the manifest (comment rules: the `writing-yaml` skill, Comments section, cmdshift/platform#43). Bump, reconcile from the root, then confirm stability across **at least one full failure cycle** — velero's cycle was ~14 min, so a few minutes of uptime proved nothing. For trend-driven cases (prometheus), watch the next day's trend rather than the immediate snapshot.
 
 ## Worked example
 

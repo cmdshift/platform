@@ -1,9 +1,9 @@
 resources:
   requests:
     cpu: 10m
-    memory: 40Mi
+    memory: 35Mi
   limits:
     cpu: 500m
-    memory: 60Mi
+    memory: 53Mi
 metrics:
   enabled: true
