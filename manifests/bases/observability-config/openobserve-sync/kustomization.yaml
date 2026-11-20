@@ -40,6 +40,8 @@ configMapGenerator:
       - kubernetes-namespaces.json=dashboards/kubernetes-namespaces.json
       - kubernetes-nodes-pressure.json=dashboards/kubernetes-nodes-pressure.json
       - kubernetes-nodes.json=dashboards/kubernetes-nodes.json
+      - host-metrics.json=dashboards/host-metrics.json
+      - kubernetes-node-pods.json=dashboards/kubernetes-node-pods.json
       - velero-backup-health.json=dashboards/velero-backup-health.json
   - name: openobserve-sync-destinations
     files:
