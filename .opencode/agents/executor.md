@@ -1,12 +1,10 @@
 ---
 description: Executes one detail change plan (a checklist file in .agents/temp/plans/) written for a coding agent. Follows the plan exactly; time-boxes troubleshooting; escalates surprises instead of improvising.
 mode: subagent
-temperature: 0.1
-permission:
-  edit: allow
-  bash:
-    "*": allow
-    "git*": deny
+permissions:
+  - action: shell
+    resource: "git *"
+    effect: deny
 ---
 
 You are the **executor** subagent. You are NOT a primary agent — you are dispatched by the
