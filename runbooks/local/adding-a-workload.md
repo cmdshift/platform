@@ -19,7 +19,7 @@ All containers + initContainers need cpu/memory requests and limits. Size per th
 
 Conventions:
 
-- For anything serving traffic, **set tgps deliberately**: ≈ max in-flight request duration + shutdown overhead. Don't drift on the 30s default for apps that need longer (alertmanager uses 120s, prometheus 600s — evidence-shaped values).
+- For anything serving traffic, **set tgps deliberately**: ≈ max in-flight request duration + shutdown overhead. Don't drift on the 30s default for apps that need longer — pick an evidence-shaped value.
 - **`preStop` hooks are convention, not policy.** Kyverno can validate presence only, never hook *effectiveness* — a presence-only Deny rule invites hooks that exist but do nothing. Add `preStop: sleep <grace-readiness-lag>` only when the app has no in-pod graceful drain of its own; when it handles SIGTERM properly, no hook is the better shape.
 - The 1s-terminating system agents (cilium, cilium-envoy, hubble-relay, tetragon) are PolicyExcepted in `policies-config/` — deliberate, don't copy their values.
 
@@ -31,7 +31,7 @@ Render and size them — they're admission-checked too:
 helm template <chart> | yq 'select(.kind == "Job")'
 ```
 
-Known-proofed: cert-manager `startupapicheck.resources` (all-lowercase key!), velero `upgradeJobResources`, kube-prometheus-stack `prometheusOperator.admissionWebhooks.patch.resources`. The no-knob case: emqx-operator's pre-upgrade Job renders zero resources with no values knob — fixed with HelmRelease postRenderers SMP on its `cleanup` container (cmdshift/platform#64). Full admission-policy context: [manifests/bases/policies/README.md](../../manifests/bases/policies/README.md).
+Known-proofed: cert-manager `startupapicheck.resources` (all-lowercase key!), velero `upgradeJobResources`. The no-knob case: a hook Job that renders zero resources with no values knob — fix with HelmRelease postRenderers SMP on its container (precedent: the since-removed emqx-operator's pre-upgrade `cleanup` Job, cmdshift/platform#64). Full admission-policy context: [manifests/bases/policies/README.md](../../manifests/bases/policies/README.md).
 
 ## 4. Network policy
 
@@ -51,17 +51,17 @@ Credentials come from the secrets server: add the payload to `cluster/local/secr
 - **namespace**: plain manifest in `namespaces/` **and register it in `namespaces/kustomization.yaml`** — the list is explicit, so an unregistered `*.namespace.yaml` is silently not applied and everything depending on the namespace hangs on `namespaces "<name>" not found` (cost a debugging round with tetragon, 2026-09-07). Prune is deliberately false there
 - **helm release**: in the relevant `<thing>/` dir; **CRs/config** in the matching `<thing>-config/` dir (O2 dashboards/alerts sync via the `observability-config/openobserve-sync/` Job — cmdshift/platform#206)
 - **custom resources**: if operator-managed, add `healthCheckExprs` to the owning kustomization (copy from the CEL cheatsheet — see the Flux API traps in [manifests/bases/flux/README.md](../../manifests/bases/flux/README.md))
-- **scheduling on the ctrl node** (alloy the first, cmdshift/platform#90; talos-backup the second, #94): pods newly scheduled on ctrl need, beyond the usual checks — a toleration for `node-role.kubernetes.io/control-plane:NoSchedule` (nothing runs there by default; talos-backup doesn't schedule ON ctrl — it reaches the ctrl apid from a work node via the Talos ServiceAccount secret, so no toleration); if the pod pulls images, its **namespace must be in `kubernetesTalosAPIAccess.allowedKubernetesNamespaces`** in `cluster/local/nodes/templates/ctrl.tftpl.yaml` — in container mode kubelet verifies image pulls through the Talos API on ctrl, and non-allowed namespaces fail pulls with `failed to verify image "..." with talos: rpc error: code = PermissionDenied desc = not authorized`; the same list gates Talos ServiceAccount-secret consumption (cmdshift/platform#94). Editing that template is a machine-config change = **full rebuild** (cmdshift/platform#140 — the "terraform apply only" shortcut in this paragraph's older text is dead). Host-path reads of root-owned dirs need a capability beyond the dropped-ALL baseline — `DAC_READ_SEARCH` for the 0600-node-local audit logs — which means the workload's PolicyException gains `disallow-capabilities-strict` in its policyRefs
+- **scheduling on the ctrl node** (first the log agent's apiserver audit-log tail, cmdshift/platform#90; talos-backup the second, cmdshift/platform#94): pods newly scheduled on ctrl need, beyond the usual checks — a toleration for `node-role.kubernetes.io/control-plane:NoSchedule` (nothing runs there by default; talos-backup doesn't schedule ON ctrl — it reaches the ctrl apid from a work node via the Talos ServiceAccount secret, so no toleration); if the pod pulls images, its **namespace must be in `kubernetesTalosAPIAccess.allowedKubernetesNamespaces`** in `cluster/local/nodes/templates/ctrl.tftpl.yaml` — in container mode kubelet verifies image pulls through the Talos API on ctrl, and non-allowed namespaces fail pulls with `failed to verify image "..." with talos: rpc error: code = PermissionDenied desc = not authorized`; the same list gates Talos ServiceAccount-secret consumption (cmdshift/platform#94). Editing that template is a machine-config change = **full rebuild** (cmdshift/platform#140). Host-path reads of root-owned dirs need a capability beyond the dropped-ALL baseline — `DAC_READ_SEARCH` for the 0600-node-local audit logs — which means the workload's PolicyException gains `disallow-capabilities-strict` in its policyRefs
 
 ## 7. When admission rejects something you can't fix
 
-Controllers that generate non-compliant pods with no config knobs (e.g. the thanos-operator's config-reloader sidecar in its day — the operator is gone since cmdshift/platform#128, but the pattern stands) get a **PolicyException** in `policies-config/`: scoped by namespace + name prefix, with the rationale recorded in the group README (comment rules: the `writing-yaml` skill, Comments section). Don't reach for exceptions for workloads you control — fix the workload.
+Controllers that generate non-compliant pods with no config knobs (e.g. an operator's config-reloader sidecar, cmdshift/platform#111) get a **PolicyException** in `policies-config/`: scoped by namespace + name prefix, with the rationale recorded in the group README (comment rules: the `writing-yaml` skill, Comments section). Don't reach for exceptions for workloads you control — fix the workload.
 
 ### Quota vs exception: ResourceQuota ignores kyverno PolicyExceptions (cmdshift/platform#111)
 
 A PolicyException exempts a pod from **kyverno** policies only — **ResourceQuota admission is not skipped**. An exception-exempt container with no resources still fails the namespace's `compute` quota (`FailedCreate: failed quota: compute: must specify limits.cpu for: <container>`), and since the pod predating the quota ran fine, the wedge surfaces only when something rolls the controller: the old pod is deleted, the create is denied, and the workload is down.
 
-Fix pattern: a `LimitRange/compute-defaults` in the namespace (Container `default`/`defaultRequest` sized from an audit of the exempt container) — LimitRange is the only defaults source for exception-exempt containers (example: `observability-config/limit-range.yaml` for the config-reloader sidecar, ~18Mi/10m audit). Also expect it for velero's data-mover hosting pods, which hardcode `TerminationGracePeriodSeconds: 0` in velero's source — that's why the velero PolicyException carries `require-graceful-termination` ([runbooks/local/velero-backups.md](velero-backups.md)).
+Fix pattern: a `LimitRange/compute-defaults` in the namespace (Container `default`/`defaultRequest` sized from an audit of the exempt container) — LimitRange is the only defaults source for exception-exempt containers (example: `observability-config/logging.limit-range.yaml`, defaults sized from an exempt sidecar's audit). Also expect it for velero's data-mover hosting pods, which hardcode `TerminationGracePeriodSeconds: 0` in velero's source — that's why the velero PolicyException carries `require-graceful-termination` ([runbooks/local/velero-backups.md](velero-backups.md)).
 
 Two operational notes from the live hit:
 
@@ -72,7 +72,7 @@ Two operational notes from the live hit:
 
 A quota bump for a NEW workload lives in `<group>-config/`, which `dependsOn: [<group>]` — flux applies the group's releases first, then the config. But if the new pods don't fit under the OLD quota, they sit StartError/FailedCreate (`exceeded quota`) while the config kustomization waits on a group that can't go Ready. The dependency order applies the fix after it's needed.
 
-Hit live on the beyla/tempo adoption: the observability quota bumps (limits.memory 8Gi→12Gi, pods 35→41, requests.cpu 750m→1 across `compute` + `logging-compute`) lived in `observability-config` and the observability pods couldn't schedule under the old values.
+Hit live on the (since-removed) beyla/tempo adoption: the observability quota bumps (limits.memory 8Gi→12Gi, pods 35→41, requests.cpu 750m→1 across `compute` + `logging-compute`) lived in `observability-config` and the observability pods couldn't schedule under the old values.
 
 Break the cycle out-of-band: `kubectl apply -f` the two declared quota manifests mid-rollout. This is not a live patch — the manifests are already the source of truth and flux adopts the identical spec on the next reconcile (no drift, no annotation games). Expect exactly one manual apply per adoption that needs its OWN quota headroom; bump-and-adopt in the same change, plan the apply as part of the rollout rather than a deviation.
 
@@ -80,12 +80,12 @@ Break the cycle out-of-band: `kubectl apply -f` the two declared quota manifests
 
 ```
 yaml_lint                                       # parse-check
-helm_verify                                     # values render check (HelmReleases)
+helm_verify                                     # values render check (every group overlay's HelmReleases)
 cr_validate <file-or-dir>                       # server-side dry-run of new/changed CRs
 flux_wait                                       # reconcile from the root + poll
 ```
 
-Then the final checks: helmreleases green (`helm_wait -c <ns> <name>` per release), `policy_report` → failures 0, no stale reports. If the workload exposes metrics: ServiceMonitor (+ `service-monitor` feature where applicable) — verification via `prometheus_query` (O2-backed since the store decision, cmdshift/platform#186). If it should alert: add a detector JSON to `observability-config/openobserve-sync/alerts/` — the alerts CM hash re-triggers the sync Job into O2 (the old `observability/mimir-rules.yaml` path is historical); delivery is O2 SMTP → `mailpit` (http://mail.cloud.test).
+Then the final checks: helmreleases green (`helm_wait -c <ns> <name>` per release), `policy_report` → failures 0, no stale reports. If the workload exposes metrics: add a scrape job to the gateway collector's `prometheus` receiver (`manifests/clusters/local/observability/openobserve-collector-gateway-values.yaml` — `kubernetes_sd` + keep-rules on namespace/instance/name labels and port name; the `valkey-operator` job is the template; the ServiceMonitor CRD is not installed) — verification via `prometheus_query` (O2-backed, cmdshift/platform#186). If it should alert: add a detector JSON to `observability-config/openobserve-sync/alerts/` — the alerts CM hash re-triggers the sync Job into O2; delivery is O2 SMTP → `mailpit` (http://mail.cloud.test).
 
 ---
 

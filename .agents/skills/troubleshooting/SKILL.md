@@ -9,7 +9,7 @@ description: Something broke, behaves unexpectedly, or a change isn't landing �
 
 Chart traps, per-group decisions, and pipeline mechanics live with the thing they describe — read the README nearest the area being worked on **before** diagnosing:
 
-- `manifests/bases/<group>/README.md` — the group's chart landmines (kyverno, cilium/ztunnel, velero, openobserve/otel-collector, cert-manager, local-path, …; the LGTM-era mimir/alloy/seaweedfs entries died with cmdshift/platform#171)
+- `manifests/bases/<group>/README.md` — the group's chart landmines (kyverno, cilium/ztunnel, velero, openobserve/otel-collector, cert-manager, local-path, …)
 - `manifests/bases/flux/README.md` — flux API traps, the pipeline's own objects, propagation mechanics
 - `cluster/local/README.md` — terraform/docker traps (endpoint rewrite, bootstrap pins, port publishing)
 - `manifests/README.md` — cross-cutting conventions + the hardening-deviations baseline
@@ -40,9 +40,9 @@ helm_wait -c <ns> <name>   # instant verdict on one HelmRelease
 kubectl get events -A --sort-by=.lastTimestamp | tail -30
 ```
 
-Observability evidence (`prometheus_query`, `log_query`, `exec_inventory`, `mailpit`, `tetra`): the `observability` skill. Both query tools speak to OpenObserve (metrics: PromQL-compat API #186; logs: `_search` SQL API #203) — mimir/loki are gone (cmdshift/platform#171).
+Observability evidence (`prometheus_query`, `log_query`, `exec_inventory`, `mailpit`, `tetra`): the `observability` skill. Both query tools speak to OpenObserve (metrics: PromQL-compat API, cmdshift/platform#186; logs: `_search` SQL API, cmdshift/platform#203).
 
-**No invocation longer than 60 seconds** (AGENTS.md rule): local ops either make progress or fail fast. No sleep loops, no blind polling to a long timeout — estimate the wait, cap the poll at ~2× that, and diagnose early failures (StartError, admission denial, failed mounts at t=10s) instead of waiting out the timeout. Bounded wait helpers (`flux_wait`, `helm_wait`, `velero_wait`) exist in `tools/bin/` precisely so this rule doesn't get improvised around.
+**Bound every wait** — estimate it, cap the poll at ~2× the estimate, and fail fast on early errors (StartError, admission denial, failed mounts at t=10s) instead of waiting out a timeout. Use the bounded helpers (`flux_wait`/`helm_wait`/`velero_wait`/`sync_wait`/`bench`); never sleep loops or blind polls.
 
 ## 4. Write-back rule
 

@@ -18,16 +18,16 @@ The standard loop for every change to `manifests/` (bases + clusters). Flux v2 d
 ```
 yaml_lint            # parse-check all YAML; prints every bad file, exit 1 if any
 kustomization_audit  # registration guard: every yaml in a kustomize dir must be referenced in that dir's kustomization.yaml
-helm_verify          # renders every HelmRelease's values via helm template
+helm_verify          # renders every group overlay's HelmReleases with the values flux ships; FAILs on 0 (focused: helm_verify manifests/clusters/local/<group>)
 cr_validate          # server-side dry-run of CRs against on-cluster CRD schemas
 dryrun_check         # kustomize build + per-object server-side dry-run of a changed group
 ```
 
-`kustomization_audit` is the registration check next to `yaml_lint`'s parse check: an unregistered yaml in a kustomize dir silently never deploys (the landmine hit three times — cmdshift/platform#183 twice, #186's talos-backup VPA orphan). Values files (generator inputs) and the terraform-applied root `local.kustomization.yaml` are excepted automatically.
+`kustomization_audit` is the registration check next to `yaml_lint`'s parse check: an unregistered yaml in a kustomize dir silently never deploys (the landmine hit three times — cmdshift/platform#183 twice, cmdshift/platform#186's talos-backup VPA orphan). Values files (generator inputs) and the terraform-applied root `local.kustomization.yaml` are excepted automatically.
 
 `dryrun_check <path>` is the whole-group gate: `kubectl apply` on a multi-doc build stops at the first failure, but the controller's dry-run failure message reads group-wide — dryrun_check reports EVERY failing object individually (catches CM last-applied-annotation oversize (~256KB, cmdshift/platform#171), kyverno denials, strict-decode errors pre-reconcile). It also resolves `${VAR}` tokens (flux `postBuild.substitute`) and FAILs any survivor — tokenized groups (CNPs, talos-backup) must gate through it, not raw `cr_validate` (the cilium FQDN regex rejects literal `${...}`).
 
-`helm_verify` catches nil-pointer template errors, but schema-less charts do **not** reject values-key typos — cross-check surprise diffs against the chart's `values.yaml`. `cr_validate` is mandatory for any new/changed CR (TracingPolicy, AlertmanagerConfig,CEL health checks…): kustomize-controller dry-runs the whole group before applying, so one undeclared field blocks every file in the directory and repeats at `retryInterval` forever. **But `cr_validate` proves nothing for schema-less CRDs** (`x-kubernetes-preserve-unknown-fields`, e.g. Alloy): a wrong spec field validates clean and the operator silently drops it — check field names against the chart values the operator maps onto, and verify the rendered result (e.g. `kubectl get sts -o jsonpath='{.spec.template.metadata.labels}'`, cmdshift/platform#155). (Historical: dirs without a `kustomization.yaml` failed standalone `kustomize build`/`kubectl kustomize` but built fine in flux via the auto-generated implicit kustomization — the multi-cluster restructure gave every dir an explicit one, so the CLI now matches the flux build everywhere.)
+`helm_verify` catches nil-pointer template errors, but schema-less charts do **not** reject values-key typos — cross-check surprise diffs against the chart's `values.yaml`. `cr_validate` is mandatory for any new/changed CR (TracingPolicy, ExternalSecret, CEL health checks…): kustomize-controller dry-runs the whole group before applying, so one undeclared field blocks every file in the directory and repeats at `retryInterval` forever. **But `cr_validate` proves nothing for schema-less CRDs** (`x-kubernetes-preserve-unknown-fields`): a wrong spec field validates clean and the operator silently drops it — check field names against the chart values the operator maps onto, and verify the rendered result (e.g. `kubectl get sts -o jsonpath='{.spec.template.metadata.labels}'`, cmdshift/platform#155).
 
 ## 2. Converge the bucket, then reconcile
 
@@ -53,9 +53,7 @@ flux_triage                      # scoreboard: kustomization revision lag + HR v
 policy_report                    # failures: 0 expected (skips = PolicyExceptions); lists stale reports for gone resources
 ```
 
-After any **scrape-path change** (alloy/collector config, SM values, chart metrics toggles): `metrics_summary -t -w` — per-job up-target counts + total + Watchdog heartbeat in one call. Empty output = no series; a family missing or a per-replica count collapsed (node-exporter/cilium-agent < node count) is the scrape regression tell. Don't hand-roll port-forward+curl — the tool carries the mimir tenant/forward plumbing.
-
-Posture scanning (kubescape) was removed — single-purpose hardening tools are its replacement (see `manifests/README.md` for the accepted-deviations baseline those tools will audit against).
+After any **scrape-path change** (openobserve-collector agent/gateway config, chart metrics toggles): `metrics_summary -t` — per-family up-target counts (grouped by `service_name`) + total in one call. Empty output = no series; a family missing or a per-replica count collapsed (cilium-agent/kubelet < node count) is the scrape regression tell. Don't hand-roll port-forward+curl — the tool rides `prometheus_query`'s shared O2 forward.
 
 ## Hard rule: no live patches
 
@@ -69,7 +67,7 @@ Docs are part of the change — a change isn't ready to commit or PR until the d
 - `manifests/bases/<group>/README.md` — group-level decisions the change touched (keep current)
 - `runbooks/local/` — changed procedures, new gotchas, incident post-mortems
 - `.agents/skills/*/SKILL.md` — sync any skill whose trigger/steps/traps changed (this one included)
-- `tools/bin/README.md` — new/changed helper scripts: args, defaults, exit codes
+- `tools/bin/README.md` — new/changed helper scripts: quick-reference row + gotchas (usage, defaults, and exit codes live in the script header — `<name> --help`)
 
 Rule of thumb: if this session hit a landmine or learned something the hard way, it's documentation — write it down where the next operator (or agent) will find it.
 

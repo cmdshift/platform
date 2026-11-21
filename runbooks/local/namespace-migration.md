@@ -12,10 +12,12 @@ How the 2026-09-07 namespace refactor landed, the conventions it locked in, and 
 | `secrets` | `secrets` | external-secrets + ClusterSecretStore |
 | `policies` | `policies` | kyverno + all PolicyException objects |
 | `storage` | `storage` | local-path-provisioner |
-| `objects` | `objects` | seaweedfs-operator (+ seaweed cluster/admin) |
-| `observability` | `observability` | grafana-operator, alertmanager (chart), opentelemetry-operator + otel-collector (target allocator, the sole scraper), prometheus-operator-crds (CRDs-only — SM discovery needs the CRDs), loki, alloy, mimir (plain StatefulSet), metrics-server, vpa (the last two install into kube-system but their HelmReleases live in the observability group by domain) |
-| `backups` | `backups` | velero |
-| `security` | `security` | tetragon, trivy-operator |
+| `observability` | `observability` | openobserve, openobserve-collector (agent DaemonSet + gateway Deployment), kube-state-metrics, metrics-server, vpa (the last two install into kube-system but their HelmReleases live in the observability group by domain) |
+| `backups` | `backups` | velero, talos-backup (CronJob) |
+| `security` | `security` | tetragon |
+| `scanning` | `scanning` | trivy-operator (split out of `security`, cmdshift/platform#60) |
+| `datastores` | `datastores` | cloudnative-pg, opensearch-operator, strimzi-kafka-operator, valkey-operator |
+| `access` | `access` | oauth2-proxy per admin app (`hubble-auth-proxy`, `openobserve-auth-proxy`) |
 
 Secrets-server upload paths (`cluster/local/secrets/main.tf`) mirror the namespaces (`/www/<namespace>/<key>`) — when a namespace is born or renamed, the terraform path and the ExternalSecret's `key` move together.
 
@@ -68,7 +70,7 @@ storage → objects → observability (thanos bundle) → certificates (+ terraf
 
 The thanos-operator `bundle.yaml` ships `Namespace: thanos-operator-system`; cmdshift/platform#31 renamed it to the monitoring namespace (today `observability`, cmdshift/platform#120) via JSON6902. Two flux kustomizations (`namespaces` and `thanos-operator`) then apply the **same Namespace as the same SSA field manager** (`kustomize-controller`) — SSA treats an Apply from a manager as authoritative for the fields it owns, so whichever kustomization reconciles last rewrites the label map and **prunes the other's labels**. On the 2026-09-07 rebuild `thanos-operator` went last: the `pod-security.kubernetes.io/enforce: privileged` label vanished and the kps node-exporter DaemonSet was denied by PSS at pod creation (`violates PodSecurity "baseline:latest"` — kubelet admission, invisible to kyverno and to `policy_report`), failing the kps install into uninstall-remediation/Stalled.
 
-Fix (in `observability/thanos-operator.kustomization.yaml`): a strategic-merge patch puts the same PSS labels on the bundle's Namespace so both appliers declare the identical load-bearing set — order no longer matters. General rule: **when a kustomization renames a bundle Namespace onto one the `namespaces` group owns, mirror the namespace's load-bearing labels into that kustomization's patch** (or pick a different bundle namespace entirely).
+Fix (in the since-removed `observability/thanos-operator.kustomization.yaml`): a strategic-merge patch puts the same PSS labels on the bundle's Namespace so both appliers declare the identical load-bearing set — order no longer matters. General rule: **when a kustomization renames a bundle Namespace onto one the `namespaces` group owns, mirror the namespace's load-bearing labels into that kustomization's patch** (or pick a different bundle namespace entirely).
 
 Triage fingerprint: kps install timeout on node-exporter + `FailedCreate` events citing PSS + `kubectl get ns <ns> --show-managed-fields -o json` showing a single `kustomize-controller` Apply entry whose label set is missing the PSS keys.
 

@@ -62,7 +62,7 @@ Incidents documented in their owning runbooks (kept there for context):
 
 ## Gateway-API ingress born dead (cmdshift/platform#70)
 
-**Symptom**: the `cilium` GatewayClass and the `local-test` Gateway both sat "Waiting for controller" indefinitely; agent logs carried zero GatewayClass activity; the internal haproxy answered 503. Found during the #54 rebuild (2026-09-09) but pre-existing — nothing in that change touched cilium values, the Gateway, or the LB.
+**Symptom**: the `cilium` GatewayClass and the `local-test` Gateway both sat "Waiting for controller" indefinitely; agent logs carried zero GatewayClass activity; the internal haproxy answered 503. Found during the cmdshift/platform#54 rebuild (2026-09-09) but pre-existing — nothing in that change touched cilium values, the Gateway, or the LB.
 
 **Root cause**: the bootstrap pinned `kubeProxyReplacement=false` — cilium's Gateway API controller requires KPR and refuses the GatewayClass, logging exactly `Gateway API support requires kube-proxy-replacement enabled`. The KPR=false flip (+ Talos `proxy.disabled=false`) had landed as an unexplained drive-by in c4a6077 (2026-08-31, the kyverno-policies commit — the same commit that introduced the Gateway manifest): no CHANGELOG entry, no issue, and it inverted the docs-recommended 2026-08-26 pairing (KPR=true + proxy.disabled=true). The Gateway path was never green — it was born into the dead window.
 
@@ -167,7 +167,7 @@ Three incident shapes from the Alloy-CR migration, each with a distinct tell:
 
 ## Beyla host kernel panic → removal (2026-09-18)
 
-**Symptom**: within a day of the beyla adoption (cmdshift/platform#83, merged as PR #124) the host kernel panicked with beyla's eBPF probes attached. No exact panic text captured (cluster destroyed for a clean rebuild immediately after); symptom-level evidence only: the panic correlated with beyla's DaemonSet running probes on the work nodes.
+**Symptom**: within a day of the beyla adoption (cmdshift/platform#83, merged as PR cmdshift/platform#124) the host kernel panicked with beyla's eBPF probes attached. No exact panic text captured (cluster destroyed for a clean rebuild immediately after); symptom-level evidence only: the panic correlated with beyla's DaemonSet running probes on the work nodes.
 
 **Root cause**: beyla 1.16.11's eBPF instrumentation is incompatible with the host kernel (7.2) — the same host-kernel constraint class that already forces the cilium `1.21.0-pre.2` pin (cilium/cilium#48016). Unlike cilium, beyla's panic mode is fatal to the host, not degraded functionality. The eBPF programs that load cleanly for tetragon (kprobes, and kallsyms-verified symbols) do not imply kprobe/tracepoint coverage for a different instrumenter's probe set — each eBPF workload must be verified against this kernel independently.
 

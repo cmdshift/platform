@@ -1,11 +1,11 @@
 ---
 name: observability
-description: Querying cluster metrics, logs, and alert delivery — prometheus_query (PromQL against OpenObserve), log_query (O2 SQL log search), exec_inventory (exec-inventory review), and mailpit (alert emails). Use when you need metrics, log lines, or to confirm alerts fired. NOTE: mimir/loki are gone since the OpenObserve migration (cmdshift/platform#171); prometheus_query and log_query both ride O2 (#186 metrics rewiring, #203 log rewiring) — mailpit and tetra also work.
+description: Querying cluster metrics, logs, and alert delivery — prometheus_query (PromQL against OpenObserve), log_query (O2 SQL log search), exec_inventory (exec-inventory review), mailpit (alert emails), and tetra (Tetragon process events). Use when you need metrics, log lines, exec evidence, or to confirm alerts fired.
 ---
 
 # Observability queries
 
-**Store status (cmdshift/platform#171, #186, #203)**: OpenObserve is the single
+**Store status (cmdshift/platform#171, cmdshift/platform#186, cmdshift/platform#203)**: OpenObserve is the single
 metrics + log store. `prometheus_query` speaks PromQL to O2's
 Prometheus-compat API, `log_query` speaks O2 SQL to the `_search` API — both
 query svc/openobserve:5080 with their own shared port-forward (lock files in
@@ -17,24 +17,24 @@ query svc/openobserve:5080 with their own shared port-forward (lock files in
 
 ```
 prometheus_query 'container_cpu_cfs_throttled_periods_total{namespace="…",container="…"}'
-prometheus_query -c -r 6h 'container_memory_working_set_bytes{namespace="ns",container="c"}'
+prometheus_query -c -r 6h 'k8s_pod_memory_working_set{k8s_namespace_name="ns"}'
 prometheus_query 'count(kube_pod_container_status_restarts_total)'
 ```
 
 - Default: raw JSON. `-v`: values only. `-c`: compact, one line per series (token-cheap).
 - `-r 6h`: range query over m|h|d, auto-stepped to ~30 points.
 - Queries svc/openobserve (ns observability, port 5080); the org is hardcoded
-  `default` (no OrgID header — that was mimir multi-tenancy).
+  `default` (no OrgID header).
 - **O2 label translation**: `job` → `service_name`, `instance` →
   `service_instance_id`/`server_address`; metric-defined labels (`pod`,
   `namespace`, `container`, …) survive as-is. Group by `service_name`, not `job`.
 - **Coverage holes in `-r` output == environment outages, not query bugs**
-  (cmdshift/platform#202, root-caused 2026-11-19): `query_range` honestly
+  (cmdshift/platform#202): `query_range` honestly
   reports what the store has — gap clusters are real data holes from host
   sleep or a dead store companion. Diagnostic order: host sleep log
   (`pmset -g log`), companion uptimes (`docker ps`), then the store.
 
-Useful one-liners: `container_cpu_cfs_throttled_periods_total` (throttling), `container_memory_working_set_bytes` (memory trends), `prometheus_tsdb_head_series` (cardinality), `up` (scrape health), `prometheus_scrape_targets_gauge{component_id=...}` (per-collector discovery — the ksm double-target phantom's first check, cmdshift/platform#149), `alloy_components` (what config a collector is actually running).
+Useful one-liners: `container_cpu_cfs_throttled_periods_total` (throttling), `k8s_pod_memory_working_set` (memory trends — OTel labels `k8s_namespace_name`/`k8s_pod_name`; there is no cadvisor `container_memory_*` family in O2, cmdshift/platform#219), `kube_pod_container_status_restarts_total` (restarts), `up` (scrape health — `metrics_summary` breaks it down per `service_name`).
 
 ## log_query
 
@@ -66,7 +66,7 @@ log_query -j "SELECT CAST(body->'process_exec'->'process'->'binary' AS VARCHAR) 
   container `export-stdout`; the event's workload namespace/pod/binary is
   INSIDE the JSON. Extract from `body`, never filter on the workload's
   namespace.
-- **API audit logs stream: `k8s_audit`** (restored cmdshift/platform#208; the cmdshift/platform#90 review surface lives again): node-local kube-apiserver audit events, agent `filelog/audit` → dedicated O2 stream. **NO `body` column and NO `k8s_*` columns** — the event is a redacted map body O2 flattens into `body_*` columns (`body_verb`, `body_level`, `body_objectref_resource`, `body_objectref_name`, `body_user_username`, `body_responsestatus_code`, …). Select them explicitly — the default body print shows nothing. Secret-mutation payloads (RequestResponse) are stripped at the collector (shipped copy Metadata-equivalent; decision: security README) — expect user/verb/objectRef/status only.
+- **API audit logs stream: `k8s_audit`** (cmdshift/platform#208 — the cmdshift/platform#90 review surface): node-local kube-apiserver audit events, agent `filelog/audit` → dedicated O2 stream. **NO `body` column and NO `k8s_*` columns** — the event is a redacted map body O2 flattens into `body_*` columns (`body_verb`, `body_level`, `body_objectref_resource`, `body_objectref_name`, `body_user_username`, `body_responsestatus_code`, …). Select them explicitly — the default body print shows nothing. Secret-mutation payloads (RequestResponse) are stripped at the collector (shipped copy Metadata-equivalent; decision: security README) — expect user/verb/objectRef/status only.
   ```
   # "who deleted that PVC at 3am" (cmdshift/platform#90)
   log_query 'SELECT body_verb, body_user_username, body_objectref_name,
@@ -85,15 +85,14 @@ log_query -j "SELECT CAST(body->'process_exec'->'process'->'binary' AS VARCHAR) 
 exec_inventory 24h    # per-namespace/binary counts + first/last seen UTC + TOTAL
 ```
 
-The phase-4 evidence base (cmdshift/platform#163, #60): tetragon
+The phase-4 evidence base (cmdshift/platform#163, cmdshift/platform#60): tetragon
 exec-inventory events (`export-stdout` container, `process_exec` records
 only — kprobe enforcement excluded), one server-side GROUP BY over the whole
 window. **Exits 1 if the result hit the size cap** — a review must never
 conclude from truncated data. Known undercount: container-init/entrypoint
 execs escape pod-scoped hooks (the init-exec gap) — an empty result never
 proves a binary never runs at container start (kyverno owns that half;
-security README). Steady state ~0.4 events/min cluster-wide (re-measured
-live 2026-11-10, well below the loki-era "~30/min" note).
+security README). Steady state ~0.4 events/min cluster-wide.
 
 ## mailpit
 
@@ -103,7 +102,7 @@ mailpit -s <substring>             # newest message whose subject matches (case-
 mailpit -b <id>                    # body of message <id> (text if present, else HTML)
 ```
 
-Alert delivery path: O2 native alerts → O2 built-in SMTP → mailpit — no alertmanager (cmdshift/platform#182). **The alert set is GitOps-synced by the `openobserve-sync` Job** (`observability-config/openobserve-sync/`, restored 2026-11-12; 18 detectors incl. the always-firing `watchdog` heartbeat, cmdshift/platform#206). Alerts land at **http://mail.cloud.test** — use it to confirm a detector fired (watchdog silence = broken delivery path) or to read `ContainerOOMKilled` events. Verifying templated alert annotations (dashboard links etc.) rendered requires the body — `mailpit -s` to find the alert email, `-b` to read it (exit 0/1/2 = found/not-found/usage). Bare listing prints the ID prefix needed for `-b` (cmdshift/platform#155).
+Alert delivery path: O2 native alerts → O2 built-in SMTP → mailpit — no alertmanager (cmdshift/platform#182). **The alert set is GitOps-synced by the `openobserve-sync` Job** (`observability-config/openobserve-sync/`; 18 detectors incl. the always-firing `watchdog` heartbeat, cmdshift/platform#206). Alerts land at **http://mail.cloud.test** — use it to confirm a detector fired (watchdog silence = broken delivery path) or to read `ContainerOOMKilled` events. Verifying templated alert annotations (dashboard links etc.) rendered requires the body — `mailpit -s` to find the alert email, `-b` to read it (exit 0/1/2 = found/not-found/usage). Bare listing prints the ID prefix needed for `-b` (cmdshift/platform#155).
 
 ## tetra (Tetragon process events)
 
