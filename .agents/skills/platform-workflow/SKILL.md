@@ -36,7 +36,7 @@ sync_wait          # wait until edited manifests actually landed in the flux buc
 flux_wait          # reconcile root kustomization local --with-source + bounded poll
 ```
 
-The sync mirror is a ≤5s poll (cmdshift/platform#55) and the Bucket source pulls on its own schedule, so reconciling without `sync_wait` can still run against an artifact older than the edit — `sync_wait` keeps that window closed.
+The sync mirror is a ≤5s poll (cmdshift/platform#55) and the Bucket source pulls on its own schedule, so reconciling without `sync_wait` can still run against an artifact older than the edit — `sync_wait` keeps that window closed. **But sync_wait proves bucket parity, NOT artifact freshness** (cmdshift/platform#216): the source-controller artifact lags bucket objects until its next 5m poll, and groups reconcile happily against the previous artifact — `sync_wait` OK + `flux_wait` all-Ready can BOTH pass while the edit never applied (only symptom: unchanged live state). When a change must land now (or right after a just-mirrored edit), force the pull between the two: `flux reconcile source bucket main`.
 
 - **The bucket sync runs on its own interval — it can land mid-recovery and undo temporary state.** While a release is wedged (kyverno-denied install, uninstall remediation loop) you often manipulate cluster state (secret cleanup, hook-job deletion) that the next bucket-driven reconcile will re-run against. If the interval is short, `sync_wait`-then-reconcile can race your cleanup. Set the root `Kustomization/local` `interval` long during heavy iterating (or annotation-reconcile per step instead of waiting for the timer) so you drive each reconcile explicitly.
 
