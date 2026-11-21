@@ -102,15 +102,18 @@ rewriteDeprecatedComponentNames: false
 
 config:
   processors:
-    # system_* only (cmdshift/platform#217): the k8s_cluster receiver's
-    # k8s_node_condition_* series already carry node labels — the metric-name
-    # scope can never clobber them
+    # stamps k8s_node_name on system_* and nil-guard fills it on unlabeled
+    # k8s_pod_* series (static pods: kubelet summary UID ≠ mirror-pod UID, so
+    # k8sattributes association never matches — cmdshift/platform#217); the
+    # k8s_cluster receiver's k8s_node_condition_* series carry node labels
+    # already and pass through untouched
     transform/node_metrics:
       error_mode: ignore
       metric_statements:
         - context: metric
           statements:
             - set(resource.attributes["k8s_node_name"], "${env:MY_NODE_NAME}") where IsMatch(metric.name, "^system\\.")
+            - set(resource.attributes["k8s_node_name"], "${env:MY_NODE_NAME}") where IsMatch(metric.name, "^k8s\\.pod\\.") and resource.attributes["k8s_node_name"] == nil
     transform/parse_json:
       error_mode: ignore
       log_statements:
