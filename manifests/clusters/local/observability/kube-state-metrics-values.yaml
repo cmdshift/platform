@@ -5,7 +5,7 @@ containerSecurityContext:
 resources:
   requests:
     cpu: 10m
-    memory: 48Mi # 7d P99 35Mi x 1.2 = 42Mi, VPA target 47Mi (cmdshift/platform#219); limit 144Mi keeps series-growth headroom (12h-era max 79Mi)
+    memory: 48Mi
   limits:
     cpu: 200m
     memory: 144Mi

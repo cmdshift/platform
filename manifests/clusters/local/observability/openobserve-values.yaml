@@ -76,9 +76,6 @@ extraEnv:
         key: ZO_S3_SECRET_KEY
 
 config:
-  # cmdshift/platform#216: chart 1.0.1 defaults this to "false" — /metrics then
-  # serves an empty 200 and the gateway's `openobserve` scrape job ingests 0
-  # samples, so no zo_* self-monitoring series ever reach O2
   ZO_PROMETHEUS_ENABLED: "true"
   ZO_LOCAL_MODE: "true"
   ZO_DATA_CACHE_DIR: "/var/lib/openobserve-cache"
@@ -111,7 +108,7 @@ config:
 resources:
   requests:
     cpu: 500m
-    memory: 2Gi # 7d P99 1562Mi x 1.2 = 1875Mi, VPA target 1850Mi — 2Gi clean round-up (cmdshift/platform#219)
+    memory: 2Gi
   limits:
     cpu: "4"
     memory: 7Gi

@@ -10,8 +10,7 @@
 # forwards. The lifecycle is duplicated in log_query (same
 # svc/openobserve:5080, same auth cache discipline — keep the two in
 # lockstep): this tool speaks PromQL to O2's Prometheus-compat API,
-# log_query speaks O2 SQL to the _search API (cmdshift/platform#171 removed
-# mimir/loki with the LGTM stack; the log rewiring is cmdshift/platform#203).
+# log_query speaks O2 SQL to the _search API.
 # Queries svc/openobserve ns observability, port 5080; the org is hardcoded
 # `default` (the collectors push to /api/default/, no X-Scope-OrgID — that
 # was mimir multi-tenancy). Auth is the O2 Basic token from
@@ -116,7 +115,7 @@ port_forward() { # service_name — sets PORT_FORWARD_PORT / PORT_FORWARD_PID
     # fresh forward; one restart when kubectl dies (transient bind collision —
     # random-port collisions are rare but cheaper to retry than to fail)
     # O2's API lives on 5080; /healthz is the unauthenticated ready check
-    # (/ready and the query API require auth — cmdshift/platform#186)
+    # (/ready and the query API require auth)
     for _ in 1 2; do
       PORT_FORWARD_PORT=$((20000 + RANDOM % 1000))
       kubectl -n observability port-forward "svc/$service" "$PORT_FORWARD_PORT:5080" >/dev/null 2>&1 &
@@ -215,7 +214,7 @@ prometheus_query() {
 
   port_forward "$service" || return 1
   # O2 serves the prometheus-compat query API under /api/{org}/prometheus —
-  # the org is hardcoded default (cmdshift/platform#186)
+  # the org is hardcoded default
   local base="http://localhost:$PORT_FORWARD_PORT/api/default/prometheus/api/v1"
   local url="$base/query"
 

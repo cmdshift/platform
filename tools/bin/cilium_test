@@ -85,10 +85,8 @@ cilium_test() {
   local args=("$@")
   # flow validation off: cilium monitor aggregation hides DNS flows — hubble
   # can never match what the CLI looks for. The resulting "not found" spam is
-  # the matcher failing, not the datapath. (The old kube-proxy-DNAT rationale
-  # is gone since cilium KPR=true, cmdshift/platform#70 — cilium sees service
-  # IPs itself now.) The datapath tests themselves still run; only flow
-  # matching is skipped.
+  # the matcher failing, not the datapath. The datapath tests themselves
+  # still run; only flow matching is skipped.
   if ! printf '%s\n' "${args[@]}" 2>/dev/null | grep -q -- '--flow-validation'; then
     args+=(--flow-validation=disabled)
   fi

@@ -121,7 +121,7 @@ port_forward() { # sets PORT_FORWARD_PORT / PORT_FORWARD_PID
     # fresh forward; one restart when kubectl dies (transient bind collision —
     # random-port collisions are rare but cheaper to retry than to fail)
     # O2's API lives on 5080; /healthz is the unauthenticated ready check
-    # (/ready and the query API require auth — cmdshift/platform#186)
+    # (/ready and the query API require auth)
     for _ in 1 2; do
       PORT_FORWARD_PORT=$((21000 + RANDOM % 1000))
       kubectl -n observability port-forward "svc/$service" "$PORT_FORWARD_PORT:5080" >/dev/null 2>&1 &
