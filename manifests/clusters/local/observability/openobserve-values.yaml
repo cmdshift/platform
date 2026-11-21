@@ -76,6 +76,10 @@ extraEnv:
         key: ZO_S3_SECRET_KEY
 
 config:
+  # cmdshift/platform#216: chart 1.0.1 defaults this to "false" — /metrics then
+  # serves an empty 200 and the gateway's `openobserve` scrape job ingests 0
+  # samples, so no zo_* self-monitoring series ever reach O2
+  ZO_PROMETHEUS_ENABLED: "true"
   ZO_LOCAL_MODE: "true"
   ZO_DATA_CACHE_DIR: "/var/lib/openobserve-cache"
   ZO_LOCAL_MODE_STORAGE: "s3"
