@@ -12,6 +12,10 @@ usage() {
   exit 2
 }
 
+help() { # print the header comment block
+  awk 'NR==1 {next} /^#/ {sub(/^# ?/,""); print; next} {exit}' "$0"
+}
+
 collect_usage() { # ns/pod/container cpu_millicores
   kubectl top pods -A --containers --no-headers \
     | awk '{v=$4; if (v ~ /m$/) gsub(/m$/,"",v); else v*=1000; print $1"/"$2"/"$3, v}' | sort
@@ -45,6 +49,7 @@ throttled() { # top 10 by throttled-periods ratio (1h), via the sibling promethe
 }
 
 cpu_audit() {
+  case "${1:-}" in -h|--help) help; exit 0 ;; esac
   [ $# -le 1 ] || usage
   local threshold="${1:-50}"
   case "$threshold" in ''|*[!0-9]*) usage ;; esac # non-numeric silently corrupts the awk comparisons

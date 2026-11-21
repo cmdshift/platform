@@ -1,0 +1,229 @@
+#!/usr/bin/env bash
+# List agent scratch under .agents/temp with size + age, flag what is stale,
+# and (only with --delete) remove the flagged entries.
+#   temp_prune                    # dry run: table + summary, nothing removed
+#   temp_prune --days 30          # age threshold in days (default 14)
+#   temp_prune --keep 231         # never flag issue 231's entries (repeatable)
+#   temp_prune --offline          # no gh lookups (cached states only)
+#   temp_prune --root DIR         # a fixture dir at or under .agents/temp
+#   temp_prune --delete           # remove the FLAG rows of this same run
+# Entries: every top-level entry, plus the children of plans/, issues/ and
+# cache/. Never listed or removed: dotfiles (.gitignore), the plans/
+# issues/ cache/ dirs themselves, *.forward lock files, *.o2.auth caches,
+# and the issue-state cache (cache/temp_prune.issue-state.tsv).
+# Issue-numbered entries (name starts with <N> then - _ . or end: 230-s1,
+# 206/, issues/230.md, plans/230-agent-audit.md) are judged ONLY by the
+# issue's state on cmdshift/platform via gh: CLOSED -> FLAG, OPEN or
+# unknown -> keep. Protected issues are never flagged: --keep N, digits in
+# the current branch name, and any issues/<N>*.md whose "Branch:" line
+# names the current branch. Other entries -> FLAG when older than --days
+# (files by mtime; dirs by their own mtime AND no descendant modified since).
+# gh states are cached for a day in cache/temp_prune.issue-state.tsv.
+# Symlinks are never followed: a symlink entry is listed and removed as a
+# link. --delete removes only paths that resolve inside the root.
+# Exit 0 = listed (and deleted, with --delete), 1 = a removal failed or was
+# refused, 2 = usage error.
+
+set -uo pipefail
+
+REPO=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null || { cd "$(dirname "$0")/../.." && pwd; })
+ROOT='' DAYS=14 DELETE=0 OFFLINE=0 KEEP=() PROTECTED='' STATES=''
+STATE_FILE='' CACHE_TTL=86400 NOW=$(date +%s)
+GH_REPO=cmdshift/platform
+
+usage() {
+  echo "usage: temp_prune [--days N] [--keep N]... [--offline] [--root DIR] [--delete]" >&2
+  exit 2
+}
+
+help() { # print the header comment block
+  awk 'NR==1 {next} /^#/ {sub(/^# ?/,""); print; next} {exit}' "$0"
+}
+
+is_uint() { case "$1" in ''|*[!0-9]*) return 1 ;; esac; }
+
+resolve_root() { # dir -> physical path, refused unless at/under $REPO/.agents/temp
+  local base dir
+  base=$(cd "$REPO/.agents/temp" 2>/dev/null && pwd -P) || { echo "temp_prune: $REPO/.agents/temp missing" >&2; exit 2; }
+  dir=$(cd "$1" 2>/dev/null && pwd -P) || { echo "temp_prune: no such directory: $1" >&2; usage; }
+  case "$dir" in
+    "$base"|"$base"/*) printf '%s' "$dir" ;;
+    *) echo "temp_prune: --root must be .agents/temp or a directory under it: $1" >&2; usage ;;
+  esac
+}
+
+parse_args() {
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -h|--help) help; exit 0 ;;
+      --days) is_uint "${2:-}" && [ "$2" -gt 0 ] || usage; DAYS=$2; shift 2 ;;
+      --keep) is_uint "${2:-}" || usage; KEEP+=("$2"); shift 2 ;;
+      --offline) OFFLINE=1; shift ;;
+      --root) [ -n "${2:-}" ] || usage; ROOT=$(resolve_root "$2") || exit 2; shift 2 ;;
+      --delete) DELETE=1; shift ;;
+      *) echo "temp_prune: unknown argument $1" >&2; usage ;;
+    esac
+  done
+  [ -n "$ROOT" ] || ROOT=$(resolve_root "$REPO/.agents/temp") || exit 2
+  STATE_FILE="$ROOT/cache/temp_prune.issue-state.tsv"
+}
+
+protected_issues() { # one issue number per line: --keep, branch-name digits, ledgers naming the branch
+  local branch n f
+  for n in "${KEEP[@]+"${KEEP[@]}"}"; do echo "$n"; done
+  branch=$(git -C "$REPO" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+  [ -n "$branch" ] && [ "$branch" != HEAD ] || return 0
+  grep -oE '[0-9]+' <<<"$branch" || true
+  for f in "$ROOT"/issues/*.md; do
+    [ -f "$f" ] || continue
+    if grep "Branch:" "$f" | grep -qF -- "$branch"; then
+      issue_number "$(basename "$f")"
+    fi
+  done
+}
+
+issue_number() { # basename -> leading issue number, or nothing
+  local n=${1%%[!0-9]*}
+  [ -n "$n" ] || return 0
+  case "${1#"$n"}" in ''|-*|_*|.*) echo "$n" ;; esac
+}
+
+cached_state() { # n -> state from the cache when fresher than CACHE_TTL
+  [ -f "$STATE_FILE" ] || return 1
+  awk -F'\t' -v n="$1" -v now="$NOW" -v ttl="$CACHE_TTL" \
+    '$1 == n && now - $3 < ttl {s = $2} END {if (s == "") exit 1; print s}' "$STATE_FILE"
+}
+
+gh_state() { # n -> OPEN / CLOSED, or nothing when gh can't say
+  [ "$OFFLINE" -eq 0 ] || return 0
+  command -v gh >/dev/null 2>&1 || return 0
+  gh issue view "$1" --repo "$GH_REPO" --json state -q .state 2>/dev/null || true
+}
+
+issue_state() { # n -> OPEN / CLOSED / UNKNOWN (gh results cached)
+  local s
+  if s=$(cached_state "$1"); then echo "$s"; return; fi
+  s=$(gh_state "$1")
+  case "$s" in
+    OPEN|CLOSED)
+      mkdir -p "$(dirname "$STATE_FILE")"
+      printf '%s\t%s\t%s\n' "$1" "$s" "$NOW" >> "$STATE_FILE"
+      echo "$s" ;;
+    *) echo UNKNOWN ;;
+  esac
+}
+
+issue_states() { # "<n> <state>" once per unprotected issue number among the entries
+  local n rel
+  entries | while IFS= read -r rel; do issue_number "$(basename "$rel")"; done | sort -u \
+    | while IFS= read -r n; do
+        grep -qxF -- "$n" <<<"$PROTECTED" || printf '%s %s\n' "$n" "$(issue_state "$n")"
+      done
+}
+
+containers() { # the plans/ issues/ cache/ dirs that are real dirs, never symlinks
+  local c
+  for c in plans issues cache; do
+    if [ -d "$ROOT/$c" ] && [ ! -L "$ROOT/$c" ]; then printf '%s\n' "$ROOT/$c"; fi
+  done
+}
+
+entries() { # relative paths of the entries to judge
+  local p name c
+  local -a globs=("$ROOT"/*)
+  while IFS= read -r c; do globs+=("$c"/*); done < <(containers)
+  for p in "${globs[@]}"; do
+    [ -e "$p" ] || [ -L "$p" ] || continue
+    name=$(basename "$p")
+    case "$name" in .*|*.forward|*.o2.auth) continue ;; esac
+    case "${p#"$ROOT"/}" in plans|issues|cache|cache/temp_prune.issue-state.tsv) continue ;; esac
+    printf '%s\n' "${p#"$ROOT"/}"
+  done
+}
+
+age_days() { # path -> "<N>d" since its own mtime ("-" for a symlink)
+  if [ -L "$1" ]; then echo -; return; fi
+  echo "$(( (NOW - $(date -r "$1" +%s)) / 86400 ))d"
+}
+
+older_than_days() { # path -> 0 when its own mtime (lstat, links not followed) is past DAYS
+  [ -n "$(find "$1" -maxdepth 0 -mtime +"$DAYS" -print 2>/dev/null)" ]
+}
+
+size_kb() { # path -> KB, links counted as 0
+  if [ -L "$1" ]; then echo 0; else du -sk "$1" 2>/dev/null | awk '{print $1}'; fi
+}
+
+human() { # KB -> K/M/G
+  awk -v k="$1" 'BEGIN { if (k >= 1048576) printf "%.1fG", k/1048576; else if (k >= 1024) printf "%.1fM", k/1024; else printf "%dK", k }'
+}
+
+recent_inside() { # dir -> 0 when anything below it changed within DAYS
+  [ -n "$(find "$1" -mindepth 1 -mtime -"$DAYS" -print 2>/dev/null | head -n 1)" ]
+}
+
+verdict() { # rel -> "FLAG|KEEP<TAB>reason"
+  local rel=$1 path="$ROOT/$1" n state
+  n=$(issue_number "$(basename "$rel")")
+  if [ -n "$n" ]; then
+    if grep -qxF -- "$n" <<<"$PROTECTED"; then printf 'KEEP\tissue %s protected\n' "$n"; return; fi
+    state=$(awk -v n="$n" '$1 == n {print $2}' <<<"$STATES")
+    case "$state" in
+      CLOSED) printf 'FLAG\tissue %s closed\n' "$n" ;;
+      OPEN) printf 'KEEP\tissue %s open\n' "$n" ;;
+      *) printf 'KEEP\tissue %s state unknown\n' "$n" ;;
+    esac
+    return
+  fi
+  if ! older_than_days "$path"; then printf 'KEEP\tnewer than %sd\n' "$DAYS"; return; fi
+  if [ -d "$path" ] && [ ! -L "$path" ] && recent_inside "$path"; then
+    printf 'KEEP\tcontent changed within %sd\n' "$DAYS"; return
+  fi
+  printf 'FLAG\tolder than %sd\n' "$DAYS"
+}
+
+remove_entry() { # rel -> rm, refusing anything that resolves outside ROOT
+  local rel=$1 path="$ROOT/$1" parent
+  case "$(basename "$rel")" in .gitignore|.*) echo "temp_prune: refusing dotfile $rel" >&2; return 1 ;; esac
+  parent=$(cd "$(dirname "$path")" 2>/dev/null && pwd -P) || return 1
+  case "$parent" in
+    "$ROOT"|"$ROOT"/plans|"$ROOT"/issues|"$ROOT"/cache) ;;
+    *) echo "temp_prune: refusing $rel — parent resolves outside $ROOT" >&2; return 1 ;;
+  esac
+  rm -rf -- "${parent:?}/$(basename "$rel")"
+}
+
+temp_prune() {
+  parse_args "$@"
+  [ "$OFFLINE" -eq 1 ] || command -v gh >/dev/null 2>&1 \
+    || echo "temp_prune: gh not on PATH — issue states unknown, numbered entries kept" >&2
+  PROTECTED=$(protected_issues | sort -u)
+  STATES=$(issue_states)
+  local rel v status reason kb age total=0 flagged=0 flagged_kb=0 failed=0 deleted=0
+  local -a flag_list=()
+  printf '%-5s %5s %8s  %-60s %s\n' STATE AGE SIZE ENTRY REASON
+  while IFS= read -r rel; do
+    v=$(verdict "$rel")
+    status=${v%%$'\t'*}
+    reason=${v#*$'\t'}
+    kb=$(size_kb "$ROOT/$rel")
+    age=$(age_days "$ROOT/$rel")
+    total=$((total + 1))
+    if [ "$status" = FLAG ]; then
+      flagged=$((flagged + 1)); flagged_kb=$((flagged_kb + kb)); flag_list+=("$rel")
+    fi
+    printf '%-5s %5s %8s  %-60s %s\n' "$status" "$age" "$(human "$kb")" "$rel$([ -d "$ROOT/$rel" ] && [ ! -L "$ROOT/$rel" ] && echo /)" "$reason"
+  done < <(entries)
+  echo "temp_prune: $total entries, $flagged flagged ($(human "$flagged_kb")) under $ROOT"
+  if [ "$DELETE" -eq 0 ]; then
+    [ "$flagged" -eq 0 ] || echo "temp_prune: dry run — re-run with --delete to remove the FLAG rows"
+    return 0
+  fi
+  for rel in "${flag_list[@]+"${flag_list[@]}"}"; do
+    if remove_entry "$rel"; then deleted=$((deleted + 1)); else failed=1; fi
+  done
+  echo "temp_prune: deleted $deleted of $flagged flagged"
+  return "$failed"
+}
+
+temp_prune "$@"

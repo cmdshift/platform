@@ -10,11 +10,16 @@ usage() {
   exit 2
 }
 
+help() { # print the header comment block
+  awk 'NR==1 {next} /^#/ {sub(/^# ?/,""); print; next} {exit}' "$0"
+}
+
 api() {
   curl -s --max-time 5 "$1"
 }
 
 mailpit() {
+  case "${1:-}" in -h|--help) help; exit 0 ;; esac
   if [ "${1:-}" = "-b" ]; then
     [ $# -eq 2 ] || usage
     local body

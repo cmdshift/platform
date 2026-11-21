@@ -4,7 +4,7 @@
 # (only table/json/yaml), hence the -o json | jq phase extraction.
 #   velero_wait backup|restore <name> [max_polls]   # 5s per poll; default 36 (~3m)
 # Exit 0 = Completed. Exit 1 = Failed/PartiallyFailed (terminal — no point
-# waiting) or timeout, each with a diagnose hint.
+# waiting) or timeout, each with a diagnose hint. Exit 2 = usage error.
 
 set -euo pipefail
 
@@ -13,7 +13,12 @@ usage() {
   exit 2
 }
 
+help() { # print the header comment block
+  awk 'NR==1 {next} /^#/ {sub(/^# ?/,""); print; next} {exit}' "$0"
+}
+
 velero_wait() {
+  case "${1:-}" in -h|--help) help; exit 0 ;; esac
   local kind="${1:-}" name="${2:-}" max="${3:-36}"
   [ $# -ge 2 ] && [ $# -le 3 ] || usage
   case "$kind" in

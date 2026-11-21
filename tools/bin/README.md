@@ -2,58 +2,48 @@
 
 Helper scripts for the repeated plumbing of this repo. `direnv` adds this
 directory to PATH — invoke as `<name>` inside the repo; otherwise
-`tools/bin/<name>`. Each script is self-contained bash, named for its entry
-function; the observability ones (`prometheus_query`, `log_query`, and
-`metrics_summary`/`exec_inventory`, which ride their forwards) share a
-port-forward lifecycle: a per-service forward is started once and reused via
-a lock file in `.agents/temp/` (`<tool>.<service>.forward`, `<pid> <port>`)
-instead of churning a listener per call; `--stop` evicts them. Both query
-tools speak to O2 (svc/openobserve:5080) since the #186 store rewiring:
-`prometheus_query` speaks PromQL to O2's Prometheus-compat API, `log_query`
-speaks O2 SQL to the `_search` API (loki_query was retired with the log
-rewiring, cmdshift/platform#203 — no LogQL shim).
+`tools/bin/<name>`. **Args, defaults, and exit codes live in each script's
+`--help`** (`<name> -h` prints the header block, exit 0, before any cluster
+call); this README carries the quick reference plus what `--help` doesn't:
+gotchas, exit-code semantics, landmines, and provenance.
 
-**Shared conventions:**
+## Shared conventions
 
 - **Pure bash + accepted CLIs only** — no python/ruby/node (or any other
-  interpreter) inside the scripts. If bash+`awk`/`sed`+a CLI can't do it,
-  reconsider the approach; the interpreter dependency always costs the next
-  person (bench's worker-node count started as a python3 one-liner and
-  became `kubectl get nodes` label-selector arithmetic).
-
-- Polling is bounded with progress echoes — never a blind sleep. Exit codes
-  are the contract (0 = done/green, 1 = timeout or terminal failure with a
-  diagnose hint, 2 = usage error), so wrap them in `until`/`if` rather than
-  parsing output. A CLI failure inside a wait loop must land in the exit-1
-  diagnose path, never silently kill the script (`set -e` + pipefail on a
-  failed command substitution — hit in `velero_wait`/`helm_wait`).
-- Bad input prints `usage: …` to stderr and exits 2 — every script validates
-  its args (unknown flags, missing values, non-integer counts, nonexistent
-  paths) instead of misbehaving downstream: a typo'd `pod_status -x` used to
-  act as a name prefix, `prometheus_query -r` used to loop forever,
-  `memory_audit abc` silently corrupted the awk comparisons, and a typo'd
-  `yaml_lint` path reported "OK: 0 files parse clean" (cmdshift/platform#34).
-- Units are normalized per-script (`1Gi` silently parses as `1`, and `2`
+  interpreter) inside the scripts; if bash+`awk`/`sed`+a CLI can't do it,
+  reconsider the approach (bench's worker-node count started as a python3
+  one-liner and became `kubectl get nodes` label-selector arithmetic).
+- **`-h`/`--help` on every script** prints the header comment block and
+  exits 0 before any side effect (no port-forward, no cluster call).
+  Passthrough wrappers (`rustfs`, `cilium_test`) intercept only a *leading*
+  `-h`/`--help`; any later one reaches the wrapped CLI (`rustfs ls --help`).
+- **Exit codes are the contract** (0 = done/green, 1 = timeout or terminal
+  failure with a diagnose hint, 2 = usage error — per-script deviations are
+  in each `--help`), so wrap them in `until`/`if` rather than parsing
+  output. Polling is bounded with progress echoes — never a blind sleep. A
+  CLI failure inside a wait loop must land in the exit-1 diagnose path,
+  never silently kill the script (`set -e` + pipefail on a failed command
+  substitution — hit in `velero_wait`/`helm_wait`).
+- **Bad input prints `usage: …` to stderr and exits 2** — every script
+  validates unknown flags, missing values, non-integer counts, and
+  nonexistent paths up front (cmdshift/platform#34: `pod_status -x` acted
+  as a name prefix, `prometheus_query -r` looped forever, `memory_audit
+  abc` corrupted the awk, a typo'd `yaml_lint` path read as green).
+- **Units are normalized per-script** (`1Gi` silently parses as `1`, and `2`
   CPU cores as `2m`, in naive awk — both bugs cost an hour once).
-- When a task needs more than a round or two of hand-rolled jq/kubectl
-  plumbing, promote it to a new script here instead of re-deriving it next
-  time — that's how `policy_report`/`cpu_audit`/`request_audit` started
-  (cmdshift/platform#21).
+- **Promote repeated plumbing** to a script here (cmdshift/platform#21;
+  the `writing-bash` skill) — `policy_report`/`cpu_audit`/`request_audit`
+  started as hand-rolled jq.
+- **Host-portable**: time math is bash arithmetic off `date +%s` (never
+  darwin-only `date -v` or GNU-only `date -d`); non-integer durations are
+  rejected first (a float in `$(( ))` aborts before `|| usage` fires).
+  Random ports are `$RANDOM` over disjoint windows (prometheus_query
+  20000-20999, log_query 21000-21999) — `jot` was BSD-only.
 
 Dependencies: `kubectl`, `jq`, `yq`, plus `helm`/`git` for `helm_verify`,
-`velero` / `cilium` CLIs for their respective tools, `docker`
-for `rustfs`. The full toolchain installs via
-`brew bundle --file=tools/Brewfile` (Homebrew; also available through most
-Linux package managers). Host-portable: the time math in `log_query`/`prometheus_query`
-is bash arithmetic off `date +%s` — never `date -v`
-(darwin-only) or `date -d` (GNU-only), and non-integer durations are
-rejected before the arithmetic (a float inside `$(( ))` is fatal in
-non-interactive bash — the script would abort before `|| usage` fires).
-The random-port picks are bash `$RANDOM` arithmetic over disjoint windows
-(prometheus_query 20000-20999, log_query 21000-21999) — `jot` was BSD-only and its
-fallback silently pinned one fixed port per script on Linux.
-Nothing here shells out to an interpreter — bash + these CLIs is the
-whole dependency tree.
+`velero` / `cilium` CLIs for their respective tools, `docker` for `rustfs`,
+`gh` for `temp_prune`'s issue states.
+The toolchain installs via `brew bundle --file=tools/Brewfile`.
 
 ## Quick reference
 
@@ -61,12 +51,12 @@ whole dependency tree.
 |---|---|
 | `yaml_lint` | parse-check all YAML manifests (pre-reconcile lint) |
 | `kustomization_audit` | registration guard: every yaml in a kustomize dir must be referenced (pre-reconcile) |
-| `helm_verify` | render every HelmRelease's values via `helm template` (values-path check) |
+| `helm_verify` | render HelmReleases' values via `helm template` — bare = every group overlay (values-path check) |
+| `cr_validate` | server-side dry-run: validate CRs against on-cluster CRD schemas + admission (pre-reconcile) |
+| `dryrun_check` | kustomize build + per-object server-side dry-run — reports EVERY failing object (pre-reconcile) |
 | `sync_wait` | wait until changed manifests have actually landed in the flux bucket |
 | `flux_wait` | reconcile from the root + bounded poll to all-green |
 | `helm_wait` | reconcile one HelmRelease + bounded poll; exits fast on terminal failure |
-| `cr_validate` | server-side dry-run: validate CRs against on-cluster CRD schemas + admission (pre-reconcile) |
-| `dryrun_check` | kustomize build + per-object server-side dry-run — reports EVERY failing object (pre-reconcile) |
 | `flux_triage` | convergence scoreboard: kustomization revision lag + HelmRelease verdicts |
 | `flux_unstick` | suspend/resume/annotate a kustomization stuck behind an in-flight health-check wait |
 | `pod_status` | pod table with restarts + last exit code/reason (crashloop triage) |
@@ -77,787 +67,423 @@ whole dependency tree.
 | `policy_report` | PolicyReport summary + stale-report detection (`--clean` deletes them) |
 | `kyverno_unblock` | unstick kyverno rollouts deadlocked on hostNetwork ports |
 | `tetragon_probe` | verify a deny-list TracingPolicy kills: labeled probe pod + counter deltas |
-| `prometheus_query` | PromQL with port-forward lifecycle handled |
+| `prometheus_query` | PromQL against O2 with the port-forward lifecycle handled |
 | `metrics_summary` | post-scrape-change gate: per-family up-target counts |
-| `log_query` | O2 SQL log search with port-forward lifecycle handled |
-| `alloy_components` | dump the alloy components a pod is actually running (config-mismatch triage) |
+| `log_query` | O2 SQL log search with the port-forward lifecycle handled |
+| `exec_inventory` | tetragon exec-inventory review: per-namespace/binary counts over a window |
 | `mailpit` | alert-email subjects, or `-s <subj>` / `-b <id>` for body fetch |
 | `velero_wait` | poll a velero backup/restore to Completed |
 | `rustfs` | rustfs `rc` CLI inside the storage container, alias preset |
 | `cilium_test` | `cilium connectivity test` with temp admission scaffolding |
 | `bench` | episodic kube-bench CIS scan (one-shot Job pair + temp scaffolding) |
+| `agent_lint` | lint the agent surfaces: skill/agent frontmatter, config, links, bare refs, dates, tool registration, removed components |
+| `temp_prune` | list `.agents/temp` scratch by size/age; flag stale + closed-issue entries; delete only with `--delete` |
 
 ## GitOps pipeline
 
-### `yaml_lint [path]`
+### `yaml_lint`
 
-Parse-checks every `.yaml` under `path` (default `manifests/clusters/local`) with yq.
-The pre-reconcile lint step.
+Syntax only — value paths are `helm_verify`'s job. A nonexistent path is a
+usage error (exit 2); it used to report `OK: 0 files parse clean`, reading
+as green.
 
-- Exits 1 if any file fails (prints **all** bad files + errors); `OK: N files …` when clean
-- A nonexistent path is a usage error (exit 2) — it used to report
-  `OK: 0 files parse clean`, reading as green
-- Syntax only — value-path verification is `helm_verify`'s job
+### `kustomization_audit`
 
-### `kustomization_audit [path]`
+Registration guard born from a landmine hit three times
+(cmdshift/platform#183 twice, cmdshift/platform#186's talos-backup VPA
+orphan): an unregistered file silently never deploys. Two failure shapes:
+`FAIL: <file> — not in kustomization.yaml` (unregistered) and
+`FAIL: <kustomization.yaml> — <entry> points at missing file` (broken
+registration). The `local.kustomization.yaml` exception:
+[manifests/bases/flux/README.md](../../manifests/bases/flux/README.md).
 
-Registration guard (born from the landmine hit three times — cmdshift/platform#183
-twice, #186's talos-backup VPA orphan): every `.yaml` in a kustomize dir must be
-referenced somewhere in that dir's `kustomization.yaml`, or it silently never
-deploys. The second pre-reconcile check next to `yaml_lint` (parse) — this is
-the registration check, default path `manifests/`.
+### `helm_verify`
 
-- **Matching is mechanical, not by path heuristic**: any basename appearing as a
-  scalar anywhere in the kustomization doc counts as registered (resources,
-  generator `key=file` inputs, patches, helmCharts) — so values files are
-  excepted automatically, including the `values.yaml=<name>.yaml` generator form
-- **Two failure shapes**: `FAIL: <file> — not in kustomization.yaml`
-  (unregistered file) and `FAIL: <kustomization.yaml> — <entry> points at
-  missing file` (broken registration). Per-dir `OK:` lines; final
-  `OK: N kustomization.yaml files registered clean` when all green
-- **One known exception, skipped by name**: `local.kustomization.yaml` in
-  `flux-config` dirs — the root Kustomization CR is terraform-applied via the
-  HCL twin in `cluster/local/bootstrap/main.tf` (`ignore_changes = all`) and
-  flux cannot own its own root pointer
-  ([manifests/bases/flux/README.md](../../manifests/bases/flux/README.md))
-- Exits 0 clean, 1 failures, 2 usage error (bad path, extra args)
+- **A bare run is the full tree** — the pre-reconcile gate: each child dir
+  of `manifests/clusters/local` holding a `kustomization.yaml` (the group
+  overlays) is built and verified on its own, then a `TOTAL` line and the
+  verdict (always the last line). Measured ~22s for 22 releases across 26
+  overlays — bound a wait at ~60s. One temp helm home and one source lookup
+  serve every group. `HELM_VERIFY_ROOT` points it at another overlay root
+  (fixtures).
+- **Granularity stays the per-group overlay** (cmdshift/platform#187): each
+  build inherits layer precedence, name refs, and hash suffixes — no
+  tie-break heuristics. The root itself is never built: it holds only flux
+  Kustomization CRs, so the old bare default rendered `OK: 0 releases` and
+  exited 0 — a false green on every bare pre-reconcile run
+  (cmdshift/platform#230). For a focused run pass the overlay:
+  `helm_verify manifests/clusters/local/<group> [release]`. The base dir
+  (`manifests/bases/<group>`) FAILs on unresolved `valuesFrom` — the values
+  live in the overlay (cmdshift/platform#183).
+- **Empty sets**: a full-tree run that renders 0 releases FAILs, and so does
+  a `[release]` filter that matches nothing, in either mode (a typo'd name
+  used to print `OK: 0 releases render clean`). An explicit dir with no
+  HelmRelease stays an `OK: 0 releases` notice — most `-config` groups have
+  none.
+- A failed `kubectl kustomize` build is a hard FAIL (exit 1) — it would
+  wedge flux too. On a full-tree run that group FAILs and the remaining
+  groups still run, so one broken overlay can't hide the others' verdicts.
+- A built ConfigMap carrying a hash suffix when the release refs the plain
+  name is a **legitimate FAIL** (identical to what flux would ship), not a
+  tool bug. Ad-hoc paths without a `kustomization.yaml` keep same-dir
+  resolution (the cmdshift/platform#31 pattern).
+- **Pins are checked against the repo index before rendering**, v-prefix
+  normalized on both sides (indexes publish `v1.2.3`, HelmReleases pin
+  `1.2.3`). Without it `helm template --version` silently falls back to the
+  closest version and still PASSes. The probe searches with `--devel` —
+  plain `helm search repo` hides prerelease pins (cilium `1.21.0-pre.x`)
+  and would false-FAIL them.
+- **Repos are fetched only on a miss**: one scoped `helm repo update` per
+  repo per run (per-release `--force-update` widened the stale-index window
+  enough to false-FAIL external-secrets 2.10.0). A failed add/update is a
+  FAIL, not a swallowed `|| true`.
+- Gotcha: a stale/partial local index can surface as the chart-tgz fetch
+  failing with `618 jwt:jwt-not-provided` for a version that IS in the
+  index — re-run once before suspecting the manifest
+  (cmdshift/platform#106).
+- Schema-less charts (most — `--help` has the rule) silently ignore typo'd
+  keys: trivy-operator 0.36.0 ignored `operator.resources` (the key is
+  top-level `resources`); `scanJobsConcurrentLimit`/`scanJobTTL` live under
+  `operator.`, not `trivyOperator.`.
 
-### `helm_verify [path] [release]`
+### `cr_validate`
 
-Renders every HelmRelease's values through `helm template` (the pre-reconcile
-values check of the `platform-workflow` loop, automated). Charts resolve from the source CRs on
-the live cluster: HelmRepository → repo index, OCI HelmRepository (`oci://` url) →
-`helm pull` of the exact `url/chart --version` tag (the OCI tag IS the version —
-a typo'd pin fails loudly instead of helm's silent closest-version fallback),
-GitRepository (tag/commit) → shallow clone. All helm state lives in a scratch
-dir under the repo's `.agents/temp/` (gitignored, removed by an EXIT trap). An
-optional release-name argument renders just that one (ad-hoc values debugging
-without the full-suite noise).
+- `-n` sets the namespace for namespaced objects whose namespace doesn't
+  exist yet; cluster-scoped objects ignore it.
+- **CRs only**: raw-YAML files folded into a ConfigMap via
+  configMapGenerator (values or rules files) fail with "apiVersion not
+  set" — those go through `yaml_lint` (or `dryrun_check` on the build).
 
-When `path` contains a `kustomization.yaml`, releases and values sources are
-resolved from the `kubectl kustomize` build — the tool renders what flux
-ships: layer precedence, name refs, and hash suffixes are inherited from the
-build, with no tie-break heuristics (cmdshift/platform#187). The intended
-granularity is the per-group overlay (e.g. `helm_verify
-manifests/clusters/local/backups`); a bare repo-root run (no args, defaulting
-to `manifests/clusters/local`) builds only the root's flux Kustomization CRs
-and reports `OK: 0 releases — no 'kind: HelmRelease' found under …` by
-design — that message is the loud empty-set notice, not a failure.
+### `dryrun_check`
 
-Values sources, merged in flux order (inline first, refs after, last wins):
+- Unlike `cr_validate` it validates generated CMs/values (no "apiVersion
+  not set" filter) — the CM-size (~256KB `last-applied-configuration`) and
+  content traps live here.
+- `${VAR}` substitution (cmdshift/platform#191, cmdshift/platform#197)
+  happens only in dir mode — built-file mode has no group CR to read, so
+  tokens in an already-built file FAIL: substitute before validating.
 
-- `spec.values` inline in the HelmRelease
-- `spec.valuesFrom` ConfigMap refs, resolved from the **kustomize build
-  output** when the path has a `kustomization.yaml`: each ref matches the
-  built ConfigMap's `metadata.name`, and the `valuesKey` data key (default
-  `values.yaml`) is extracted for `helm template --values`. A ref with no
-  matching ConfigMap in the build is a FAIL, not a skip — and a built CM
-  carrying a hash suffix when the release refs the plain name is also a
-  legitimate FAIL (identical to what flux would ship), not a tool bug.
-  Single-file / ad-hoc paths without a `kustomization.yaml` keep the same-dir
-  resolution (the cmdshift/platform#31 pattern): a `configMapGenerator`
-  entry in the path's `kustomization.yaml` — the referenced file (e.g.
-  `values.yaml=trivy-values.yaml`) is a plain values doc that
-  `helm template --values` consumes directly — falls back to a literal
-  `kind: ConfigMap` manifest with a matching name (data key extracted).
-  A ref with no source is a FAIL, not a skip — the render would be
-  lying about what flux will ship.
-- A failed `kubectl kustomize` build is a hard FAIL with kustomize's stderr
-  (exit 1) — a build that breaks would wedge flux too, so it must never read
-  as green.
+### `sync_wait`
 
-- `PASS/FAIL` per release + `OK: N releases render clean`; exit 1 on any
-  failure or missing source CR; exit 2 on usage errors (nonexistent path,
-  extra args)
-- **Pinned versions are checked against the repo index before rendering**
-  (v-prefix normalized on both sides — indexes publish `v1.2.3` where
-  HelmReleases pin `1.2.3`; flux resolves identically via semver
-  constraints). Without this, `helm template --version` silently falls back
-  to the *closest* index version with only a warning — a typo'd pin would
-  render the wrong chart and still PASS. The index probe searches with
-  `--devel` — plain `helm search repo` hides prerelease pins (cilium
-  `1.21.0-pre.x`) and would false-FAIL them as missing from the index
-- **Repos are fetched only on a miss**: the check probes the local index
-  first; a miss triggers exactly one scoped `helm repo update` before the
-  verdict, so each unique repo is fetched at most once per run (the old
-  per-release `helm repo add --force-update` wasted a fetch per release and
-  widened the window for transient stale-index reads — external-secrets
-  FAILED a full run with 2.10.0 very much in the upstream index). A failed
-  add/update is a FAIL with a message, not a swallowed `|| true`
-- Gotcha: a stale/partial local index can also surface as the chart-tgz
-  fetch itself failing with `618 jwt:jwt-not-provided` for a version that
-  IS in the index and downloadable — an index-staleness artifact of the
-  fetch, not a bad pin. Re-run once (the script's scoped `helm repo
-  update` re-fetches on the second pass) before suspecting the manifest
-  (cmdshift/platform#106)
-- Gotcha: `helm template` rejects unknown values keys **only** for charts
-  shipping a `values.schema.json` (kube-prometheus-stack does; most don't)
-  — for schema-less charts this catches nil-pointer template errors, not
-  key typos. Cross-check surprise diffs against the chart's values.yaml
-  (trivy-operator 0.36.0: `operator.resources` silently ignored — the key
-  is top-level `resources`; `scanJobsConcurrentLimit`/`scanJobTTL` live
-  under `operator.`, not `trivyOperator.`)
-- Needs `helm` + `git` CLIs beyond the shared deps
+The sync mirror is a ≤5s polling re-mirror (cmdshift/platform#55 — the old
+inotify watcher dropped events), so a timeout is never a dropped event:
+check the sync container (stopped?) and storage container (rustfs down?). A
+`rustfs cat` content-marker spot-check is optional insurance.
 
-### `sync_wait [path...]`
+- **LANDMINE — bucket parity is NOT artifact freshness**
+  (cmdshift/platform#216, hit twice in one session). The source-controller
+  artifact lags the bucket until its next 5m poll and groups reconcile
+  happily against the previous artifact — `sync_wait` OK + `flux_wait`
+  all-Ready can BOTH pass while the edit never applied (only symptom:
+  unchanged live state). When a reconcile must land NOW, force the pull
+  between the two: `flux reconcile source bucket main`.
+- Default mode includes **untracked** files (newly-created manifests were
+  once silently excluded). Explicit args are validated first — a
+  nonexistent file, a directory, or a file unknown to HEAD is exit 2 (a
+  typo'd path used to hash as "deleted" and hang until timeout).
+- Renames are tracked on **both sides** (porcelain prints `old -> new`;
+  reading the line as one path hung until timeout): the new path must
+  match, the old path converges when its bucket object is gone.
 
-Waits until locally-changed manifests have actually landed in the flux
-bucket. The sync mirror is a ≤5s polling re-mirror (cmdshift/platform#55 —
-the old inotify watcher dropped events, so polling replaced it) and the
-Bucket source pulls on its own 5m schedule, so reconciling without
-`sync_wait` can still run against an artifact older than the edit — it
-fails confusingly or, for a helm release, churns upgrade/rollback. Run
-between editing and `flux_wait`; a `rustfs cat` content-marker spot-check
-is optional insurance, not a dropped-edit defense.
+### `flux_wait`
 
-**Convergence boundary: sync_wait proves bucket parity, NOT artifact
-freshness** (cmdshift/platform#216, hit twice in one session). The
-source-controller artifact lags the bucket objects until its next 5m
-poll, and groups reconcile happily against the previous artifact — so
-`sync_wait` OK + `flux_wait` all-Ready can BOTH pass while the edit
-never applied (no error anywhere; the only symptom is unchanged live
-state, e.g. a values key absent from the rendered ConfigMap). If a
-reconcile must land NOW (or immediately after a just-mirrored edit),
-force the pull between sync_wait and flux_wait:
-`flux reconcile source bucket main` — it fetches a new revision when
-bucket content changed, and all groups follow.
+- Ready=False with an **empty** message is a transitioning group — pending,
+  not failure. The unanchored dependency-wait match cost a debugging round
+  when an anchored regex aborted mid-cascade (cmdshift/platform#58
+  session).
+- Default 42 polls is sized for the fresh-rebuild worst case (~10m).
+  **Interactive reality check**: a single-group change is green within ~5
+  polls (~1m); pending past ~8 polls is almost always **failing, not slow**
+  (dry-run rejection, dependency cycle, health check) — `describe` instead
+  of waiting out the cap; `flux_wait 15` is a good interactive cap. Bound
+  the poll per [AGENTS.md](../../AGENTS.md); a stuck loop is a real problem
+  ([reconciliation-stuck.md](../../runbooks/local/reconciliation-stuck.md)).
 
-- No args: every uncommitted change under `manifests/` (bases + clusters —
-  from git status —
-  modified, added, deleted, renamed **and untracked**; untracked files were
-  silently excluded before the fix, so newly-created manifests were never
-  checked); args: specific files (repo-relative or absolute) — validated
-  first (nonexistent file, directory, or file unknown to HEAD → usage exit
-  2; without the check a typo'd path hashed as "deleted" and hung until
-  timeout)
-- Renames are tracked on **both sides** (porcelain prints `old -> new` —
-  treating that line as one path used to hang until timeout): the new path
-  must match bucket content, the old path converges when its bucket object
-  is gone
-- Compares sha256 of each local file against `rustfs cat main/flux/<path>`;
-  deleted files converge when the bucket object is gone
-- Bounded: `SYNC_WAIT_TIMEOUT` (default 120s). Exit 0 converged; exit 1
-  timeout with still-stale list + hint to check the sync container (stopped?)
-  and storage container (rustfs down?) — the poll self-heals, so a timeout is
-  never a dropped event
+### `helm_wait`
 
-### `flux_wait [-c] [max_polls] [--with-source]`
+- Recognizes the **release-storage wedge** ("missing target release for
+  rollback: cannot remediate failed release" — hit on an aborted operator
+  install, cmdshift/platform#49): remediation tried to roll back a release
+  whose `sh.helm.release.*` storage secrets are gone. Fix: confirm the
+  release's resources are gone, delete the `sh.helm.release.v1.<name>.*`
+  secrets, re-reconcile. The diagnose hint names it.
+- Born from the ns-refactor velero move (cmdshift/platform#31): three waves
+  of the same admission-denial diagnosis re-derived by hand.
 
-Reconciles the root Kustomization `local --with-source` (4m timeout), then
-polls `flux-system` kustomizations every 5s, echoing the pending list.
-`--with-source` is accepted in any position (implied — the reconcile always
-includes it; docs write both orders). Non-integer, zero, or unknown args
-exit 2 with usage — a non-integer cap used to silently disable the timeout,
-and `0` used to time out instantly.
+### `flux_triage`
 
-- `-c` — status check only, no reconcile: prints every not-Ready group with
-  its failure message (instant verdict); exit 0 all Ready, 3 still progressing
-- **Fast-fail**: `Ready=False` with a real error is a *failed attempt*, not
-  slowness (flux holds Ready=Unknown while progressing) — the loop exits 1 on
-  the first failing group with its message instead of burning the remaining
-  polls; failing groups also print BEFORE the blocking reconcile (a failed
-  group replays its cached error on every trigger). **Dependency-waiting is
-  not failure**: flux reports `dependency '...' is not ready` and
-  `revision is not up to date` as Ready=False too, but those are the normal
-  tree-cascade states that self-heal when the dependency lands — they stay
-  pending, or every artifact bump would fast-fail mid-cascade (hit live on
-  the tetragon stage-2 flip). Classification is by message pattern (no
-  separate waiting condition type exists in flux's status) — **unanchored
-  substring match**: flux composes the two phrasings freely
-  (`dependency 'x/observability' revision is not up to date`) and the original
-  anchored regex classified that composite as a real failure, aborting the
-  loop mid-cascade (cost a debugging round, cmdshift/platform#58 session).
-  Ready=False with an *empty* message is a transitioning group — also
-  pending, not failure
-- Default 42 polls (~7m after the reconcile) — sized for the fresh-rebuild
-  worst case (~10m)
-- Exit 0: all kustomizations Ready. Exit 1: failure or timeout with the
-  message/pending list + diagnose commands
-- **Interactive-change reality check**: a normal
-  single-group change is green within ~5 polls (~1m). A kustomization still
-  pending past ~8 polls is almost always **failing, not slow** (dry-run
-  rejection, dependency cycle, health check) — stop polling and `describe`
-  instead of waiting out the cap: `flux_wait 15` is a good interactive cap
-- Estimate reconcile duration first and cap the poll at ~2×; a stuck loop is
-  a real problem (runbooks/local/reconciliation-stuck.md)
+Read the revision lag: a lagging *attempted* revision = not picking up the
+bucket artifact; advancing attempted with stalled *applied* = the
+apply/dry-run is failing. INTERVENE objects replay their cached error
+without re-attempting — they need annotate or suspend/uninstall/resume (the
+`helmrelease-stuck` ladder). Name args filter kustomizations only;
+helmreleases always print.
 
-### `cr_validate [-n namespace] <file-or-dir>...`
+### `flux_unstick`
 
-Validates manifests against the **on-cluster CRD schemas** via server-side
-dry-run apply — nothing persists, but the API validation + admission pipeline
-run for real.
-
-- Catches exactly what wedges a kustomization: "field not declared in schema"
-  (the CRD dry-run gate), wrong kinds, kyverno admission denials (it
-  dry-runs pods/jobs through the real policies too)
-- Run it on any new/changed CR **before** `sync_wait` — kustomize-controller
-  dry-runs the whole group first, so one bad field blocks every file in the
-  directory and repeats at `retryInterval` forever (hit twice with
-  TracingPolicies)
-- `-n` overrides the namespace for namespaced objects whose namespace doesn't
-  exist yet; cluster-scoped objects ignore it
-- It validates **CRs only** — raw-YAML files folded into a ConfigMap via
-  configMapGenerator (e.g. a values or rules file) fail with "apiVersion not set";
-  those go through `yaml_lint` instead
-- Exit 0: all PASS. Exit 1: any FAIL (per-file PASS/FAIL printed); exit 2
-  usage; `-h` prints the header comment block
-
-### `dryrun_check <path|built.yaml>`
-
-Pre-reconcile gate one step past `cr_validate`: builds the group (or takes an
-already-built multi-doc file), then server-side dry-runs **every document
-individually**, printing `FAIL <kind>/<name>: <reason>` per failing object.
-
-- `kubectl apply` on a full multi-doc file **stops at the first failure** and
-  interleaves objects — one bad object (undeclared CR field, a CM over the
-  ~256KB `last-applied-configuration` dry-run cap, kyverno denial,
-  strict-decode mismatch) masks the rest and reads as a group-wide failure;
-  this tool splits the build output and reports each one
-- Unlike `cr_validate` it accepts generated CMs/values (no "apiVersion not
-  set" filter) — that's the point: CM-size and content traps live here
-- **`${VAR}` tokens are resolved before validation** (cmdshift/platform#191/#197):
-  a dir build carries raw `${VAR}` tokens — flux substitutes them
-  controller-side via `postBuild.substitute`, so this replicates it locally from
-  the group's Kustomization CR (`manifests/clusters/local/<basename>.yaml`,
-  `spec.postBuild.substitute`) and **FAILs (exit 1) any token left after
-  substitution** — a surviving token reconciles silently and breaks later at
-  runtime. Built-file mode does no substitution (no group CR to read), so
-  tokens in an already-built file also FAIL — substitute before validating
-- Exit 0 = every object passes (or nothing to validate); 1 = at least one
-  failed (including unresolved tokens); 2 = usage or kustomize build error
-
-### `flux_triage [names...]`
-
-Read-only convergence scoreboard — the diagnosis layer over `flux_wait`'s
-pending list: per-kustomization attempted/applied revision lag (lagging
-attempted = not picking up the bucket artifact; advancing attempted with
-stalled applied = the apply/dry-run is failing) and per-HelmRelease verdicts
-with `lastAttemptedReleaseAction`. Verdicts: OK / WAITING (dependency
-cascade — leave alone) / PROGRESSING / HEALTHFAIL (applied but health check
-failing — diagnose the workload) / FAILED (reconcile error, message printed)
-/ **INTERVENE** (RetriesExceeded/Stalled/MissingRollbackTarget — the object
-replays its cached error without re-attempting; needs annotate or
-suspend/uninstall/resume, the `helmrelease-stuck` ladder). Exit 0 = all OK;
-1 = any FAILED/INTERVENE/HEALTHFAIL; 2 = only WAITING/PROGRESSING remain;
-3 = usage. Names filter kustomizations only; helmreleases always print.
-
-### `flux_unstick <name> [-l]`
-
-Unsticks a kustomization whose reconcile is wedged **behind an in-flight
-health-check wait**: the controller serializes reconciles per object and a
-wait (up to `spec.timeout`) cannot be preempted by a `requestedAt` annotate —
-a manifest fix queued behind it sits unreachable for the whole window
-(previously 10m; timeouts now 3m tree-wide). Suspend cancels the in-flight
-reconcile context (the documented abort path); resume immediately
-re-attempts against the CURRENT bucket artifact.
-
-- One pass: suspend → resume → annotate. `-l` runs up to 3 passes, 5s apart
-- Compares the kustomization's `lastAttemptedRevision` against the bucket
-  artifact revision — exit 0 once it's attempting the current artifact
-- Exit 1 = still stuck after the passes (diagnose hint printed); 2 = usage.
-  Mutates the kustomization (suspend/resume/annotate) — this is an unstick,
-  not config; never scripted into a pipeline
+Mutates the kustomization (suspend/resume/annotate) — an unstick, not
+config; never scripted into a pipeline. The health-check window it cuts
+short is `spec.timeout` (3m tree-wide).
 
 ## Resource sizing audits
 
-The three siblings — pick by question:
+Pick by question: "is anything near its **limit**?" → `memory_audit` /
+`cpu_audit`; "are **requests** honest for scheduling?" → `request_audit`;
+"what does the recommender suggest?" → `vpa_recs`. All judge trends, not
+snapshots: on a fresh cluster the first ~3h is a ramp
+([memory-sizing-audit.md](../../runbooks/local/memory-sizing-audit.md) §4).
 
-- "is anything near its **limit**?" → `memory_audit` / `cpu_audit`
-- "are **requests** honest for scheduling?" → `request_audit`
-- all judge trends, not snapshots: on a fresh cluster the first ~3h is a
-  ramp (runbooks/local/memory-sizing-audit.md §4)
-
-### `memory_audit [threshold_pct]`
-
-Memory usage-vs-limits table (default 50%), Mi/Gi normalized. Footer counts
-containers with no memory limit — expected 3 (three control-plane statics;
-the thanos-ruler config-reloader left with the LGTM migration
-cmdshift/platform#128, kube-proxy ×5 with the cilium KPR cutover
-cmdshift/platform#70); anything else is a finding. Non-numeric
-thresholds are a usage error — they used to silently corrupt the awk
-comparisons.
-
-### `cpu_audit [threshold_pct]`
-
-CPU sibling. First the silent-killer check: top 10 containers by % of CFS
-periods throttled (1h rate, >5% worth a look — queries the O2 store via the
-sibling `prometheus_query`, same dir required; unblocked by the #186 store
-rewiring, with the 1h rate needing ~1h of post-change history to populate
-rows). Then usage-vs-CPU-limit
-table (default 50%, millicores normalized). Same threshold validation.
-
-### `request_audit [threshold_pct]`
-
-Usage-vs-**requests** for memory and CPU (default 60% filter). Convention is
-request ≈ P99 × 1.2 (usage ~83% of request); containers ≥100% of their
-memory request are first in line for eviction under node pressure and their
-scheduling reservation lies. Footer: counts over 100% and over the audit
-threshold, plus containers without a memory request (control-plane statics
-expected). Same threshold validation.
-
-### `vpa_recs [namespace]`
-
-VPA recommendations vs current requests — the **evidence** side of sizing
-(request_audit/memory_audit are the usage side; a VPA target is a P99-shaped
-candidate request, not a drop-in — cross-check against the audits and the
-sizing convention). One row per container: `req → target  Δ%` for CPU and
-memory, from the Off-mode VPAs (hand-maintained per workload — the
-goldilocks auto-creator was removed) joined against the workload
-controllers' current requests. Footer explains
-`pending` (no recommendation yet) and `*` (uncapped differs from target);
-counts workload containers without a VPA (kube-system/flux-system excluded —
-system plumbing). Optional namespace filter. Exit 0 = audited, 2 = usage or
-kubectl error.
+- `memory_audit`: the expected 3 unlimited containers are the
+  control-plane statics (cmdshift/platform#70).
+- `cpu_audit`: the throttle check rides the sibling `prometheus_query` (same
+  dir required, cmdshift/platform#186); its 1h rate needs ~1h of history
+  after a store or scrape change to populate rows. A rejected query prints
+  prometheus_query's error on stderr and the limits table still runs.
+- `request_audit` footer: counts over 100% and over the audit threshold,
+  plus containers without a memory request (control-plane statics
+  expected).
 
 ## Admission / policy
 
 ### `policy_report`
 
-PolicyReport summary (the `platform-workflow` final check): fail/skip/pass counts
-(failures: 0 expected — skips are PolicyExceptions), per-namespace counts,
-and **stale-report detection** (reports scoped to resources that no longer
-exist — kyverno never retracts them; delete the stale report objects
-directly). Counts pods and controller kinds + jobs. `--clean` deletes the
-stale reports it lists, then re-prints the fresh summary. Unknown args are
-a usage error. **Exit 0 on a green run** — the trailing `&& echo` used to
-make every run (green included) exit 1, breaking any `if`/`until` wrapper.
+Exit 0 on a green run — a trailing `&& echo` once made every run exit 1,
+breaking `if`/`until` wrappers.
 
 ### `kyverno_unblock`
 
-LOCAL-ONLY. Deletes old-generation kyverno **ReplicaSets** when a rollout
-deadlocks on hostNetwork ports (each pod claims its node's port;
-new-generation pod stays Pending — the kyverno rollout-deadlock landmine in
-[manifests/bases/policies/README.md](../../manifests/bases/policies/README.md)). Targets the
-`policies` namespace (ns refactor, cmdshift/platform#31). All victims deleted in a
-single kubectl call — piecemeal deletion loses the race to the deployment
-controller. Takes no args (anything else is a usage error). No-op exit 0
-when nothing is pending. After it runs, re-run `flux_wait`.
-
-**RS deletion, not pod deletion**: deleting stale-generation
-PODS is whack-a-mole — the stale RS still wants its replicas, so it respawns
-a Pending pod, and the deployment controller re-scales the RS back up
-mid-rollout (each deleted pod came back twice, three controllers deep).
-Deleting the stale RS removes the pods AND the respawner; the deployment
-controller never recreates old revisions. Note the ready pods may belong to
-the superseded generation (the rollout was replacing them anyway) — they die
-with their RS and the current template's pods take the freed ports; a brief
-availability gap is expected.
-
-Cross-namespace deadlock variant (old release still in a former namespace
-holding the ports — hit live during the ns refactor): this script can't see
-those pods; delete the old DEPLOYMENTS instead (pods alone get replaced by
-the still-running old deployment, which re-grabs the ports). See
-runbooks/local/namespace-migration.md.
+- **RS deletion, not pod deletion** — deleted stale-generation pods came
+  back twice, three controllers deep (the stale RS respawns, the deployment
+  controller re-scales it). Ready pods of the superseded generation die with
+  their RS; a brief availability gap is expected. One kubectl call for all
+  victims — piecemeal deletion loses the race.
+- Targets the `policies` namespace (ns refactor, cmdshift/platform#31).
+  **Cross-namespace variant** (old release still in a former namespace
+  holding the ports): the script can't see those pods — delete the old
+  DEPLOYMENTS instead (pods alone get replaced and re-grab the ports). See
+  [namespace-migration.md](../../runbooks/local/namespace-migration.md).
 
 ## Observability queries
 
-**Store decision (cmdshift/platform#186, resolving #171's store gap)**:
-OpenObserve is the metrics AND log store — `prometheus_query` is REWIRED to
-O2 (Prometheus-compat API, cmdshift/platform#186) and `log_query` is the
-rewired log tool (O2 `_search` SQL, cmdshift/platform#203 — it replaced the
-retired `loki_query`, which was ORPHANED with the LGTM teardown #171; no
-LogQL shim was ever built). `metrics_summary` groups by `service_name` —
-the OTel receiver translates `job` → `service_name` (see the
-prometheus_query caveats below), so `job`-based grouping is dead on O2
-(cmdshift/platform#201). `memory_audit`/`request_audit` never rode
-prometheus_query (they're kubectl-based); `cpu_audit`'s throttle check rides
-the rewired `prometheus_query` and works.
+**Store decision** (cmdshift/platform#186, resolving cmdshift/platform#171's
+store gap): OpenObserve is the metrics AND log store — `prometheus_query`
+speaks PromQL to O2's Prometheus-compat API, `log_query` speaks O2
+`_search` SQL (cmdshift/platform#203; no LogQL shim). `memory_audit` /
+`request_audit` are kubectl-based and never rode prometheus_query.
 
-### `prometheus_query [-v|-c] [-r 6h] '<promql>' | prometheus_query --stop`
+### `prometheus_query`
 
-Queries svc/openobserve (ns observability, port 5080) — the metrics store
-since the LGTM teardown (cmdshift/platform#171), rewired from svc/mimir by
-cmdshift/platform#186 (history: svc/kube-prometheus-stack-prometheus died
-with the kps removal #141, svc/thanos-query-main before that #128). The
-query API path is `/api/default/prometheus/api/v1/{query,query_range}` — the
-org is hardcoded `default` (the collectors push to `/api/default/`), **no
-`X-Scope-OrgID`** (that was mimir multi-tenancy). The ready check is
-`/healthz` (200 unauthenticated; O2's `/ready` requires auth). Auth is the
-O2 Basic token read live from `secret/openobserve-credentials` key
-`O2_AUTH_BASIC` and cached at
-`.agents/temp/prometheus_query.o2.auth` — never embedded in the script (the
-key is derived in the secrets-server payload alongside the root credential;
-the tool drops the cache and refetches on a 401, and exits
-1 if the fresh token is also rejected). One forward, SHARED across
-invocations via the lock file `.agents/temp/prometheus_query.openobserve.forward`
-(`<pid> <port>`). (Git history note: `--query` targeted svc/thanos-query-main
-before the LGTM migration, cmdshift/platform#128 — a reused-forward lock
-recorded under the old service name silently 302'd the ready check; the
-per-service lock file keying makes that a non-issue going forward.)
-
-- default: raw JSON; `-v`: values only; `-c`: compact, one line per series
-  with a short label subset (token-cheap vs raw JSON's label noise)
-- `-r 6h`: range query over the last m|h|d, auto-stepped to ~30 points
-  (validated before the port-forward, not after)
-- `-v` and `-c` are mutually exclusive, unknown flags and extra positionals
-  are usage errors — `prometheus_query -r` alone used to **loop forever**
-  (failed `shift 2` left `-r` as the first arg) and `-x` used to be silently
-  swallowed
+- **Exit 3 in `-c`/`-v` mode = O2 answered with an error** (bad PromQL,
+  HTTP non-200), message on stderr: those modes used to print nothing and
+  exit 0 — indistinguishable from "no series". Raw mode still prints O2's
+  JSON verbatim (exit 0): check `.status`.
+- API path `/api/default/prometheus/api/v1/{query,query_range}`; ready check
+  `/healthz` (200 unauthenticated — O2's `/ready` requires auth).
 - **O2 label translation** (cmdshift/platform#186, verified live): the OTel
-  prometheus receiver maps standard target labels — `job` → `service_name`
-  (+ `service_namespace`), `instance` → `service_instance_id` /
-  `server_address`; metric-defined labels (`pod`, `namespace`, `container`,
-  `device`, `policy`, …) survive as-is. No `job` label exists on O2 series
-  at all (verified #201): `count by (job) (up)` returns one empty-label row,
-  and — O2 quirk — missing labels MATCH negative regex selectors, so
-  `up{job!~""}` selects everything (vacuous, not a filter). Group by
-  `service_name` instead.
+  prometheus receiver maps target labels — `job` → `service_name` (+
+  `service_namespace`), `instance` → `service_instance_id` /
+  `server_address`; metric-defined labels (`pod`, `namespace`,
+  `container`, `device`, `policy`, …) survive as-is. No `job` label exists
+  on O2 series at all (cmdshift/platform#201): `count by (job) (up)`
+  returns one empty-label row, and — O2 quirk — missing labels MATCH
+  negative regex selectors, so `up{job!~""}` selects everything. Group by
+  `service_name`.
 - **Metric shape depends on the scrape path — know yours before querying**
-  (cmdshift/platform#186, #219; verified live): cadvisor metrics scraped from
-  the kubelet's `/metrics/cadvisor` keep native names + labels
+  (cmdshift/platform#186, cmdshift/platform#219): kubelet-cadvisor metrics
+  keep native names + labels
   (`container_cpu_cfs_throttled_periods_total{namespace=,container=,…}` —
-  what `cpu_audit`'s throttle query uses), but the gateway's cadvisor
-  keep-regex passes ONLY the `container_fs_*` + `container_cpu_cfs_*`
-  families — **there are NO cadvisor `container_memory_*` series in O2 at
-  all**. The memory gauges come from the kubeletstats receiver instead:
-  `k8s_pod_memory_working_set` / `k8s_pod_memory_rss`, OTel-translated on
-  both name and labels — `k8s_namespace_name` / `k8s_pod_name` /
-  `k8s_node_name` / `service_name`, NOT the prometheus
-  `container_memory_working_set_bytes` family and NOT `job`/`instance`
-  labels. The legacy names don't exist (querying them → empty result) and
-  legacy-label selectors on translated metrics **silently match wrong
-  series** instead of erroring (O2 matcher leniency: a `namespace=`
-  selector on a translated memory metric returned kube-system pods). Audit
-  queries must select the OTel labels on translated metrics and
-  sanity-check one returned series against `kubectl top` before trusting
-  any table built from it — and some series carry **no
-  `k8s_container_name` at all** (the velero server series), so a
-  container-name selector can quietly select nothing.
-- **Coverage holes in `-r` output == environment outages, not query bugs**
-  (cmdshift/platform#202, root-caused live 2026-11-19): `query_range`
-  honestly reports what the store has. `sum(up)` 24h once returned blocky
-  clusters with gaps, and the parquet listing on rustfs mirrored it exactly
-  (continuous ~15-min flushes → zero objects for 14.4h → normal flushes).
-  Two verified causes, same signature: macOS lid sleep (O2, the collectors,
-  and the companions all sleep with the host — only the pre-sleep WAL tail
-  survives, so the hole is real data that was never ingested) and a dead
-  store companion (the 2026-11-09 rustfs `Exited(137)` outage — O2 couldn't
-  flush, its WAL buffer held only the tail). Instant queries look clean only
-  because they scan a narrow recent window. Before diagnosing the store:
-  check the host sleep log (`pmset -g log`), then companion uptimes
-  (`docker ps`), then the store. The resource-sizing 7d trend procedure
-  reads gap clusters as outage windows, not store sparsity.
-- **`-r` range mode under-samples short bursts — burst evidence wants
-  instant over_time evals** (cmdshift/platform#219): range queries auto-step
-  to ~30 points over 7d, which can step right past a short memory burst.
-  For burst evidence, evaluate `max_over_time`/`quantile_over_time` over
-  `[7d]` selectors as an INSTANT query — the over_time functions scan the
-  raw samples, not the stepped range — with a `kubectl top` sanity
-  cross-check.
-- **VPA targets whose window overlaps an outage are polluted** (cmdshift/platform#219):
-  operators crashlooping through an apiserver outage reshape the
-  recommender's recent samples — cloudnative-pg's fresh target drifted
-  75→105Mi (+40%, past the ±15% drift gate) purely on outage-window
-  crashlooping. The 48h seasoning gate extends to: distrust fresh targets
-  whose window overlaps an outage; prefer the unaffected 7d P99 trend.
-- **shared-forward lifecycle** (cmdshift/platform#77; duplicated in
-  `log_query` — keep the two in lockstep): each call validates the recorded
-  forward (PID alive AND still a port-forward — the cmdline check defeats
-  PID recycling — AND the port answering HTTP) and reuses it; a stale or
-  wedged forward is evicted and replaced in the same call (~30s worst case
-  for a wedged-but-alive listener: the liveness probe waits out curl's
-  2s max-time per poll). No EXIT trap kills anything — the forward outlives
-  the call; `--stop` is the hygiene valve. A not-ready server is waited out
-  up to 2m with an `openobserve not ready after 2m` exit-1, the forward left
-  recorded so the retry rides the same one. Known
-  race: two simultaneous cold starts can both write the lock (last writer
-  wins, one forward orphans until its lock is overwritten or `--stop`
-  catches it) — sequential loops, the norm for these tools, never race.
-- **LANDMINE — bash parses `a || b && c` as `(a || b) && c`** (hit live,
-  cmdshift/platform#149): the shared `REPO_ROOT="$(git ... || cd ... && pwd)"`
-  ran the fallback `cd && pwd` EVEN ON the git success path, appending a
-  second line to REPO_ROOT → garbage LOCK_DIR → the lock file was never
-  found → "port-forward failed to establish" on EVERY call. Fixed with
-  `{ cd ...; pwd; }` grouping around the fallback. Same bug class anywhere
-  a `||` fallback is chained with `&&`: group it or it runs unconditionally.
-- **per-service knobs live inside `port_forward`**: the service-specific
-  port and ready path must be set on BOTH the fresh-forward and
-  reused-forward branches — the ready check runs before the query-URL
-  build site, so a knob set only next to the URL build leaves the reused
-  path probing the wrong endpoint (hit as a 302→non-200 ready loop,
-  cmdshift/platform#128; still the rule now that the port/ready-path are
-  single-valued — future multi-service splits re-learn this the hard way
-  otherwise).
+  `cpu_audit`'s throttle query), but the gateway's cadvisor keep-regex
+  passes ONLY `container_fs_*` + `container_cpu_cfs_*` — **there are NO
+  cadvisor `container_memory_*` series in O2**. Memory gauges come from the
+  kubeletstats receiver: `k8s_pod_memory_working_set` /
+  `k8s_pod_memory_rss`, OTel-translated on name and labels
+  (`k8s_namespace_name` / `k8s_pod_name` / `k8s_node_name` /
+  `service_name`). Legacy names return empty; legacy-label selectors on
+  translated metrics **silently match wrong series** (a `namespace=`
+  selector on a translated memory metric returned kube-system pods). Select
+  the OTel labels, sanity-check one series against `kubectl top`, and know
+  some series carry **no `k8s_container_name`** (velero server) — a
+  container selector can quietly select nothing.
+- **Coverage holes in `-r` output = environment outages, not query bugs**
+  (cmdshift/platform#202 — macOS lid sleep, or a dead store companion such
+  as rustfs `Exited(137)` leaving O2 unable to flush); `-r` also
+  under-samples short bursts (cmdshift/platform#219). Diagnostic order,
+  burst evidence via instant `*_over_time`, and outage-polluted VPA targets:
+  the `resource-sizing` skill.
+- **Shared-forward lifecycle** (cmdshift/platform#77; duplicated in
+  `log_query` — keep the two in lockstep): reuse requires PID alive AND
+  still a port-forward (defeats PID recycling) AND the port answering; a
+  wedged-but-alive listener costs ~30s before eviction. No EXIT trap —
+  `--stop` is the hygiene valve. Known race: two simultaneous cold starts
+  both write the lock (one forward orphans until `--stop`); sequential
+  loops never race. Locks are keyed per service — a stale-service lock once
+  302'd the ready check (cmdshift/platform#128).
+- **LANDMINE — bash parses `a || b && c` as `(a || b) && c`**
+  (cmdshift/platform#149): the `REPO_ROOT="$(git … || cd … && pwd)"`
+  fallback ran even on the git success path, appending a second line →
+  garbage lock dir → "port-forward failed to establish" on every call.
+  Group the fallback (`{ cd …; pwd; }`) anywhere `||` chains with `&&`.
+- **Per-service knobs live inside `port_forward`**, set on BOTH the
+  fresh-forward and reused-forward branches — the ready check runs before
+  the query-URL build, so a knob set only at the URL site probes the wrong
+  endpoint on reuse (a 302→non-200 ready loop, cmdshift/platform#128).
 
-### `metrics_summary [-t] | metrics_summary --raw '<promql>'`
+### `metrics_summary`
 
-The post-scrape-change verification gate (run after any collector
-scrape edit, SM removal, or chart metrics toggle): one `<n> <family>` line
-per family from `count by (service_name) (up)`, sorted by family
-name — eyeball for expected families and per-replica target counts
-(node-exporter/cilium-agent = node count, etc.). `-t` adds a TOTAL line.
-Rides
-`prometheus_query`'s shared forward — no own port-forward, same
-lifecycle contract. `--raw '<promql>'` is the escape hatch for any other
-instant query in the same compact form (e.g. `--raw 'count by (service_name)
-(up{service_name="kubelet"})'`). Exit 0 on a run (empty output =
-no series — investigate, don't read as green); the shared-forward and
-not-ready semantics are `prometheus_query`'s.
+Run after any collector scrape edit or chart metrics toggle and eyeball the
+families and per-replica target counts (cilium-agent/kubelet = node
+count). Grouping is by `service_name` (cmdshift/platform#201 — no `job`
+label survives on O2). There is no Watchdog line — the heartbeat is O2's
+`watchdog` alert in mailpit (cmdshift/platform#182). Exit 3 passes through
+from `prometheus_query -c` when O2 rejects a `--raw` query.
 
-The default groups by **`service_name`** (cmdshift/platform#201): the OTel
-receiver translates `job` → `service_name`, so no `job` label survives on O2
-(verified live — `up{job!~""}` is vacuous there, O2 matches missing labels
-against `!~""`). The old `-w` Watchdog line is gone (no ruler/alertmanager
-since the removal, cmdshift/platform#182).
+### `log_query`
 
-### `log_query [-j|-m] [-s 500] '<sql>' [duration] | log_query --stop`
+The stream shapes and query landmines — JSON paths (`body['x']` fails with
+`Utf8 is not Struct`), O2 logging its own query plans into `k8s_logs`,
+tetragon events carrying the EXPORTER's k8s columns, the `k8s_audit`
+stream's `body_*` columns (cmdshift/platform#208), truncation — live in the
+[`observability` skill](../../.agents/skills/observability/SKILL.md)'s `log_query` section.
+Beyond it:
 
-O2 SQL log search (cmdshift/platform#203 — replaced the retired
-`loki_query`): POSTs to O2's `_search` API
-(`http://localhost:<port>/api/default/_search`, org hardcoded `default`)
-with the time window from `duration` (m|h|d, default 1h) as
-`start_time`/`end_time` in microseconds. Queries svc/openobserve:5080 (ns
-observability), ready check `/healthz` (unauthenticated), auth via the O2
-Basic token read live from secret/openobserve-credentials key `O2_AUTH_BASIC`
-and cached at `.agents/temp/log_query.o2.auth` (401 drops the cache and
-refetches once — same discipline as `prometheus_query`, separate cache
-file). Shared forward, lock file `.agents/temp/log_query.openobserve.forward`,
-port window 21000-21999 — same service as `prometheus_query` (20000-20999),
-two independent forwards keyed by the lock file. The SQL runs server-side,
-so aggregations never hit a client-side cap. Default prints each hit's
-`body` (the raw log line); `-j` prints full hit JSON (one per line); `-m`
-prefixes `ns/pod/container` — **the k8s columns must be in the SELECT**
-(`SELECT *` or the explicit names; O2 returns only what the query selects).
-`-s` sets the size cap (default 100; the server accepts ≥5000, no ceiling
-observed). Exit codes: 0 = query ran (check output for emptiness, the
-stderr footer for truncation), 1 = forward failed, server not-ready 2m, bad
-SQL (O2's 400 body is echoed), or auth failed after a refetch, 2 = usage.
+- Separate auth cache (`.agents/temp/log_query.o2.auth`) and its own
+  forward/lock on the same service as `prometheus_query`. `-s` accepts
+  ≥5000 (no ceiling observed). Bad SQL exits 1 with O2's 400 body echoed.
+- `k8s_logs` hits carry `_timestamp` in micros. Filter the `security`
+  namespace by container — bare, it also matches O2's access-log noise.
+  `k8s_audit` has no O2 self-log noise, so bare `str_match` is safe there.
+- **Exec-inventory stream facts** (cmdshift/platform#163, re-measure before
+  relying on volume): ~0.4 events/min cluster-wide at 24h steady state;
+  `process_exec` records carry **no `policy_name`** — attribution is by
+  shape (`body->'process_exec' IS NOT NULL` = inventory, `process_kprobe` =
+  enforcement).
 
-- **stream and hit shape (verified live)**: everything lands in the single
-  `k8s_logs` stream. Hits carry `_timestamp` (micros), `body` (the raw log
-  line), and flat `k8s_*` columns (`k8s_namespace_name`, `k8s_pod_name`,
-  `k8s_container_name`, `service_name`, …).
-- **`k8s_audit` stream (cmdshift/platform#208)**: kube-apiserver audit events
-  (agent `filelog/audit` tailing `/var/log/audit/kube/*.log` on ctrl) — a
-  SECOND stream with the OPPOSITE hit shape: **no `body` column, no `k8s_*`
-  columns** — the event is a redacted map body O2 flattens into `body_*`
-  columns (`body_verb`, `body_level`, `body_objectref_resource`,
-  `body_user_username`, `body_responsestatus_code`, …). Select them
-  explicitly (the default body print shows nothing). Secret-mutation
-  RequestResponse payloads are stripped at the collector (security README
-  exposure decision). The `k8s_audit` stream has no O2 self-log noise (no
-  `body` column for the query-plan trap to match), so bare `str_match` there
-  is safe. `log_query` needs no stream flag — the stream name rides the SQL
-  `FROM`.
-- **JSON paths**: event fields live INSIDE `body` — extract with
-  `CAST(body->'process_exec'->'process'->'binary' AS VARCHAR)`. The
-  `body['x']` index syntax fails (`Utf8 is not Struct`);
-  `json_extract`/`json_value` don't exist. Full-text: `str_match(body, 'x')`.
-- **LANDMINE — O2's `total` is NOT the match count for raw queries** (it
-  equals `size` when the cap binds — 586 events in the window with
-  `-s 10` reported `total=10`). Only the tool's probe can detect the cap:
-  when hits == size it re-queries with `from=size, size=1` and warns
-  `TRUNCATED` on stderr. Never conclude "no events" from truncated output.
-- **LANDMINE — tetragon events carry the EXPORTER's k8s columns**: event
-  streams live under `k8s_namespace_name='security'`,
-  `k8s_pod_name='tetragon-*'`, container `export-stdout`; the event's own
-  workload namespace/pod is INSIDE the JSON (`process_exec.process.pod.namespace`,
-  `process_kprobe.process.binary`, …). Per-workload breakdowns extract from
-  `body`, never filter on the workload's namespace. (Selecting the security
-  namespace bare also matches O2's own access-log lines in that
-  namespace's noise — filter by container.)
-- **LANDMINE — O2 logs its own query plans into `k8s_logs`**: a text search
-  (LIKE/str_match) can match O2's internal trace of YOUR query (the LIKE
-  pattern text appears in the logged plan) — self-referential matches that
-  look like hits. Filter by `k8s_container_name`, never bare text.
-- **exec-inventory stream facts (re-measured live, cmdshift/platform#163)**:
-  tetragon exec events ARE in O2 (`export-stdout` container), 24h steady
-  state ~0.4 events/min cluster-wide (586 events — far below the loki-era
-  "~30/min" claim; re-measure before relying on volume). Events are
-  `process_exec` records with **no `policy_name` field** (the security
-  README's old claim was stale — attribution is by event shape:
-  `body->'process_exec' IS NOT NULL` selects inventory, `process_kprobe`
-  would be enforcement).
+### `exec_inventory`
 
-### `exec_inventory [duration]`
+The phase-4 evidence base (cmdshift/platform#163, cmdshift/platform#60).
+The 1000-group cap has never bound live (11 groups at 24h) — the exit-1
+truncation warning is the guard if it ever does.
 
-Per-namespace/binary exec-inventory review over an arbitrary window — the
-phase-4 evidence base (cmdshift/platform#163, cmdshift/platform#60): one
-SQL GROUP BY server-side over the whole window (count + first/last seen
-UTC), sorted count desc, plus a TOTAL line. Default window 24h. Rides
-`log_query`'s shared forward — no own plumbing. Events: the tetragon
-exec-inventory stream (`export-stdout` container), `process_exec` records
-only (kprobe enforcement excluded). Known undercount: container-init/
-entrypoint execs escape pod-scoped hooks (the init-exec gap) — an empty
-result never proves a binary never runs at container start (kyverno owns
-that half; security README). **Exits 1 with a warning if the result hit
-the size cap** (1000 groups — never observed live, 11 groups at 24h) — a
-review must not conclude from truncated data.
+### `mailpit`
 
-### `alloy_components [--all] [pod]`
-
-Dumps the component list alloy is actually running, with health state —
-the wedge-triage check for "is alloy running the config I think it is".
-Default: first alloy pod; `--all` = the whole DaemonSet. Exit 0 = all
-components healthy, 1 = any unhealthy/unreachable.
-
-- Tell of a config mismatch (HelmRelease missing `alloy.configMap` —
-  the chart SILENTLY installs its example config, pods healthy, nothing
-  pushed, see cmdshift/platform#27): `discovery.kubernetes` components
-  for nodes/services/endpoints/endpointslices/ingresses appear, and the
-  `loki.*` components are gone
-- Expected live set: `discovery.kubernetes.pods`,
-  `loki.source.kubernetes.pods`, `loki.process.wrap`,
-  `loki.write.endpoint`
-
-### `mailpit [limit]` / `mailpit -s <subject>` / `mailpit -b <id>`
-
-Alert emails from http://mail.cloud.test (O2 → SMTP delivery, cmdshift/platform#182).
-Bare `mailpit [limit]` prints `<id>  <subject>`, newest first (default 10;
-non-numeric/zero limit is a usage error — it would go straight into the API
-query string). `-s <substring>` finds the newest message whose subject
-contains the substring (case-insensitive) and prints its body; `-b <id>`
-prints the body of a specific message (text if present, else HTML). Exit
-0 = fetched, 1 = not found, 2 = usage error. Subject matching + body fetch
-was added for alert-link verification (cmdshift/platform#155) — listing
-alone can't show whether annotations rendered as links.
+Alert emails from http://mail.cloud.test (O2 → SMTP, cmdshift/platform#182).
+`-s` matches case-insensitively within the newest 50 messages. Subject
+match + body fetch exist for alert-link verification
+(cmdshift/platform#155) — listing alone can't show whether annotations
+rendered as links.
 
 ## Operations
 
-### `pod_status [-n ns] [-l selector] [name-prefix]`
+### `rustfs`
 
-Pod triage table: phase, ready counts, restarts, and the **last termination
-(exit code + reason)** per container — what `kubectl get pods` hides and the
-first step of runbooks/local/crashloop-investigation.md.
+rc quirks (`rc rm --recursive` silently no-ops, `ls` needs `--recursive`,
+buckets auto-provisioned):
+[rustfs-operations.md](../../runbooks/local/rustfs-operations.md) and the
+`rustfs-ops` skill. A stopped container exits 1 pointing at the
+terraform/docker `storage` stack instead of docker's generic "No such
+container". `rustfs -h` is this script's help; `rustfs <subcommand> --help`
+reaches rc.
 
-- Informational: exit 0 even when crashing (the data is the output)
-- Footer lists restart>0 pods as `kubectl logs --previous` one-liners
-- Exit codes: 0 always (usage errors aside); unknown flags, missing flag
-  values, and multiple name prefixes exit 2 — a typo'd flag used to silently
-  act as the name prefix (empty table, exit 0)
+### `tetragon_probe`
 
-### `velero_wait backup|restore <name> [max_polls]`
+Automates the collateral-check ritual
+([security README](../../manifests/bases/security/README.md); flip gates
+cmdshift/platform#28, cmdshift/platform#60).
 
-Polls a velero backup/restore to Completed, echoing the phase. Default 36
-polls × 5s (~3m). Exit 0 = Completed. Exit 1 = Failed/PartiallyFailed
-(terminal — stops early) or timeout, each with a diagnose hint. Exists
-because the velero CLI has no jsonpath output. Non-integer/zero max and
-extra args exit 2; a velero CLI failure (missing object, API down) now lands
-in the timeout path with its diagnose hint instead of silently exiting 1
-(`set -e` + pipefail on the failed command substitution used to kill the
-script with no output).
+- The `tetragon_policy_events_total` line **lags one collector scrape** (up
+  to ~60s) — the immediate check is the exit code + tetra counters.
+- bprm_check kill events are pod-less (cmdshift/platform#57): this metric +
+  `tetra -o json` are the event surfaces; log sinks never see them.
+- The probe pod is deleted on exit; a crashed run leaves
+  `tetragon-probe-<pid>` in flux-system.
 
-### `helm_wait [-c] <namespace> <name> [max_polls]`
+### `cilium_test`
 
-Reconciles one HelmRelease (`flux reconcile helmrelease --with-source`) and
-waits for Ready, echoing progress. Default 15 polls × 10s (~2.5m). The key
-behavior: the reconcile blocks through helm's install/upgrade timeout +
-retries, so once it returns a `Ready=False` is **terminal** — `helm_wait`
-exits 1 immediately with the HR failure message + diagnose hint instead of
-polling out the window ("immediately broken" detection). Polls only guard
-against status lag.
+Defaults added unless overridden: `--flow-validation=disabled` (monitor
+aggregation hides DNS flows, so `not found` spam is the matcher, not the
+datapath; KPR=true since cmdshift/platform#70) and a connectivity-only
+`--test` filter (policy suites can only fail against the allow-all
+scaffold). The temp PolicyException lives in the **`policies` namespace**
+(policies.kyverno.io CEL exceptions — the pre-CEL `-n kyverno` shape fails
+on namespace mismatch before any test runs) and its policyRefs must track
+the live VPolicies the test pods violate — `disallow-host-ports` went
+missing after the CEL migration and the echo deployments died at admission
+(cmdshift/platform#87 session). Only a leading `-h`/`--help` is the
+script's; `cilium connectivity test --help` shows the CLI's flags. Manual
+procedure: [cilium-connectivity-test.md](../../runbooks/local/cilium-connectivity-test.md).
 
-- `-c` — status check only, no reconcile: instant verdict (exit 0 Ready,
-  1 failed with message, 3 still progressing)
-- The **current failure prints before the blocking reconcile** — a failed
-  release replays its cached error on every trigger, so a repeat failure is
-  legible at t=0 rather than after a full retry cycle
-- Recognizes the **release-storage wedge** ("missing target release for
-  rollback: cannot remediate failed release" — hit live on the aborted
-  kubeblocks install, cmdshift/platform#49): remediation tried to roll back a release
-  whose `sh.helm.release.*` storage secrets are gone. Fix: confirm the
-  release's resources are gone/absent, delete the `sh.helm.release.v1.<name>.*`
-  secrets, re-reconcile. The diagnose hint names it
-- Exit 0 = Ready, 1 = failed/timeout, 2 = usage (non-integer/zero max
-  included). A kubectl failure in the poll (missing HR, API down) lands in
-  the timeout path with its diagnose hint instead of silently exiting — same
-  `set -e` + pipefail trap as `velero_wait`. Born from the
-  ns-refactor velero move (three waves of the same admission-denial diagnosis
-  re-derived by hand before this existed).
+### `bench`
 
-### `rustfs <rc args...>`
+- The admin-kubeconfig Secret rewrites the server from the host-loopback LB
+  endpoint (`https://cmd.local.test:6443`) to `kubernetes.default.svc:443`
+  — in-pod, the host-loopback endpoint hits the pod loopback.
+- Logs: `.agents/temp/bench-<ts>/{ctrl,workers}.log`; `--keep` leaves the
+  scaffold up (cleanup command printed). FAIL/WARN triage ledger:
+  [security README](../../manifests/bases/security/README.md).
+- Job pod failures abort the wait immediately; ctrl failures usually mean
+  the admission exception wasn't picked up in time (retry built in, 12×5s)
+  or a kubeconfig/permission problem.
+- **Benchmark pin matters**: kube-bench releases lag k8s (cis-2.0 covers
+  1.34–1.35 but isn't in a released kube-bench yet; cluster is 1.36.4 →
+  cis-1.12). Check kube-bench's docs/platforms.md when bumping.
+- Runs ~3–5 min — launch it in the background; don't edit the script while
+  a run executes (bash reads incrementally). Aborts (exit 2) if
+  `bench-scan` still exists (previous `--keep`, or a terminating ns).
 
-`rc` CLI passthrough inside the `storage-cloud-test` container, admin alias
-`main` preset. Quirks (rc rm --recursive no-ops, ls needs --recursive,
-buckets auto-provisioned): runbooks/local/rustfs-operations.md. Bare
-invocation is a usage error; a stopped container exits 1 with a message
-pointing at the terraform/docker `storage` stack (docker's generic
-"No such container" otherwise).
+## Agent surfaces
 
-```
-rustfs ls main/flux --recursive
-rustfs object remove main/backups/<key>
-rustfs mirror --remove /tmp/manifests/ main/flux/manifests/
-```
+### `agent_lint`
 
-### `tetragon_probe <policy-name>`
+Run it before committing any change to skills, AGENTS.md,
+`.opencode/agents/`, `opencode.jsonc`, runbooks, or `tools/bin` (the
+`writing-bash` skill). Scope decisions (cmdshift/platform#230):
 
-Verifies a deny-list TracingPolicy actually enforces — the documented
-collateral-check ritual (`manifests/bases/security/README.md`, flip gates in
-cmdshift/platform#28/#60) as one command: derives the probe label from the
-policy's **own podSelector** (matchLabels or first In-expression), picks a
-Ready tetragon agent, deploys a busybox probe **pinned to the same node**
-(NPOST/NENFORCE are per-node counters — a mismatched node reads 0),
-execs `/bin/sh` inside it, and prints the exit code plus before/after
-`tetra tracingpolicy list` counters and `tetragon_policy_events_total`.
+- **Bare refs** FAIL on the agent surfaces, runbooks, `manifests/README.md`,
+  and the cloud notes, which were all clean when the check landed. They only
+  WARN in the group READMEs and `cluster/local/README.md`, which still carry
+  legacy bare refs in their decision tables (`-v` lists the lines).
+  `CHANGELOG.md` is skipped: dated, forward-only history isn't rewritten.
+- **Removed components** (the cmdshift/platform#171 migration plus the
+  removed operators; the list is `DENY` in the script) FAIL in skills,
+  AGENTS.md, agents, this README, and `manifests/README.md`. A line that
+  says "removed", "historical", "went with", or "gone since" is history and
+  passes. The allow is a pattern, not a list of line numbers, because line
+  numbers rot. Runbooks aren't scanned: `adopting-a-chart.md` and
+  `incidents.md` hold removed-operator stories by design.
+- **Dates** are checked only on the timeless agent surfaces (skills,
+  AGENTS.md, agents, this README).
+- **Tools**: every executable here needs a quick-reference row and a mention
+  in a skill or AGENTS.md. This is a FAIL, not a WARN: every helper was named
+  somewhere when the check landed.
+- **Agents**: V1 and pinned frontmatter keys FAIL, including `model` and
+  `steps` (no model pins, no step caps — cmdshift/platform#230).
+- Gotchas: frontmatter is parsed one file at a time with
+  `yq --front-matter=extract`, because the multi-file glob form is broken.
+  `opencode.jsonc` goes through `jq`, so adding JSON comments would FAIL the
+  config check: switch the parser first. The link check covers inline
+  links only (no anchors, no reference-style links).
+- Test a check against a fixture tree with `agent_lint --root <dir>`, laid
+  out like the repo. Never mutate real skills to exercise it.
 
-- Interpret: exit 137 + NENFORCE +1 = kill confirmed; exit 0 = no match or
-  monitor mode (NMONITOR delta); exit 255 with an errno = Override(EACCES)
-- The `tetragon_policy_events_total` line **lags one prometheus scrape**
-  (up to ~60s) — the immediate check is the exit code + tetra counters
-- Landmines baked in (each cost a round): the probe label must copy the
-  policy's exact selector or the probe silently lands out of scope; the
-  node pinning (see above); a random local port for the tetra gRPC forward
-  (54321 on the host collides while any other forward lives); busybox has
-  no USER directive so `runAsNonRoot` needs the explicit `runAsUser`
-  (kubelet check); bprm_check kill events are pod-less and misrender in
-  tetra compact output (cmdshift/platform#57) — this metric + `tetra -o
-  json` are the event surfaces, Loki never sees them
-- Exits 0 when the probe ran (the numbers are the output — interpret them);
-  1 setup failure (policy missing/not loaded, no agent, forward or probe
-  pod never ready); 2 usage. The probe pod is deleted on exit; a leftover
-  pod from a crashed run is `tetragon-probe-<pid>` in flux-system
+### `temp_prune`
 
-### `cilium_test [args...]`
+It is a dry run by default. `--delete` removes only that run's FLAG rows.
+Run it when a branch wraps up or `.agents/temp` grows.
 
-`cilium connectivity test` with the temp admission scaffolding applied for
-the run and removed on exit (temp kyverno PolicyException, privileged PSS
-labels + allow-all CNPs on every `cilium-test*` namespace — a scaffold loop
-keeps applying them mid-run because the ccnp suites create namespaces
-partway through). Nothing is committed as manifests, so the cluster's policy
-posture stays minimal. Default args added unless overridden: flow-validation
-disabled (cilium monitor aggregation hides DNS flows, so hubble can never
-match what the CLI's flow matcher looks for — the resulting `not found` spam
-is the matcher, not the datapath; the old kube-proxy-DNAT rationale is gone
-since cilium KPR=true, cmdshift/platform#70), connectivity-suites-only
-test filter (policy suites' deny expectations union with the required
-allow-all scaffold and can only fail here). The temp PolicyException lives in
-the `policies` namespace (policies.kyverno.io CEL exceptions — NOT `-n
-kyverno`; the namespace-mismatch error from the pre-CEL `-n kyverno apply`
-shape kills the script before any test runs) and its policyRefs must track
-the live VPolicies the test pods violate — `disallow-host-ports` was missing
-after the CEL migration and the echo deployments died at admission
-(cmdshift/platform#87 session). Manual procedure + rationale:
-runbooks/local/cilium-connectivity-test.md.
-
-### `bench [--benchmark cis-1.12] [--image aquasec/kube-bench:v0.16.0] [--keep] [--timeout 720]`
-
-Episodic kube-bench CIS scan: applies the temp scaffolding (privileged-PSS
-`bench-scan` namespace, scoped PolicyException `allow-bench` in `policies`,
-temp CNP — kube-dns + the house `kube-apiserver` entity, admin-kubeconfig
-Secret from `$KUBECONFIG` with the server rewritten from the host-loopback LB
-endpoint (`https://cmd.local.test:6443`) to
-`kubernetes.default.svc:443` — in-pod, the host-loopback endpoint would hit the pod loopback),
-runs two Jobs
-(ctrl node: sections master/controlplane/etcd/policies/node with a Talos
-podspec dump prelude; workers: node section, one pod per worker via
-anti-affinity), waits, saves logs to `.agents/temp/bench-<ts>/{ctrl,workers}.log`,
-prints the `== Summary ==` blocks, then deletes the scaffolding. Nothing
-committed as manifests (cilium_test pattern). Talos remaps and the full
-FAIL/WARN triage ledger: `manifests/bases/security/README.md`.
-
-- Exits 0 when both jobs complete (**FAIL counts are scan output, not tool
-  errors** — read the summaries); 1 usage; 2 setup/admission failure; 3 job
-  failure or timeout (partial logs still saved)
-- `--keep` leaves the scaffold up for debugging (cleanup command printed)
-- Job pod failures abort the wait immediately instead of polling to the
-  timeout; ctrl failures usually mean the admission exception didn't get
-  picked up in time (retry is built in — 12×5s) or a kubeconfig/permission
-  problem
-- Benchmark pin matters: kube-bench releases lag k8s (cis-2.0 covers 1.34–1.35
-  but isn't in a released kube-bench yet; cluster is 1.36.4 → cis-1.12).
-  Check kube-bench's docs/platforms.md when bumping
-- Runs ~3–5 min — launch it in the background and collect results when done;
-  don't edit the script while a run is executing (bash reads incrementally)
-- Namespace collision guard: aborts if `bench-scan` still exists (previous
-  `--keep` or terminating ns)
+- **Issue-numbered entries are judged by issue state, never by age.**
+  Age-flagging an OPEN issue's scratch would delete live ledgers and plans.
+  An unknown state (gh missing, offline, or failing) is kept, so gh trouble
+  never widens a deletion.
+- **The current branch's issue is protected through its ledger.** Branch
+  names often carry no issue number, so a `Branch:` line in
+  `issues/<N>.md` that names the current branch is the link. `--keep N`
+  covers anything else.
+- **Safety lives in the script, not in the permissions**: `opencode.jsonc`
+  doesn't deny `rm`. `--root` is confined to `.agents/temp`, symlinks are
+  never followed (a link is removed as a link), and dotfiles are never
+  listed. `*.forward` lock files are skipped too, because deleting one
+  orphans a live port-forward (`prometheus_query --stop` / `log_query
+  --stop` own them).
+- gh states are cached for a day in
+  `.agents/temp/cache/temp_prune.issue-state.tsv` (AGENTS.md: cache
+  fetches); `--offline` uses the cache only.

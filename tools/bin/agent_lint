@@ -1,0 +1,238 @@
+#!/usr/bin/env bash
+# Lint the agent-facing docs surfaces against the repo's conventions.
+#   agent_lint              # lint the repo
+#   agent_lint -v           # also list the line numbers behind bare-ref WARNs
+#   agent_lint --root DIR   # lint a fixture tree laid out like the repo
+# Checks (FAIL unless marked WARN):
+#   frontmatter  every .agents/skills/<dir>/SKILL.md frontmatter parses,
+#                name == <dir>, description is set
+#   agents       .opencode/agents/*.md frontmatter carries none of:
+#                temperature permission bash tools maxSteps model steps
+#   config       opencode.jsonc parses (jq; JSON comments are not supported)
+#   links        relative markdown links resolve — skills, AGENTS.md, agents,
+#                tools/bin/README.md, runbooks/local/*.md
+#   bare-refs    no bare #N issue refs (write cmdshift/platform#N) — skills,
+#                AGENTS.md, agents, tools/bin/README.md, runbooks/local,
+#                manifests/README.md, manifests/clusters/cloud/notes.md;
+#                WARN only in manifests/bases/*/README.md and
+#                cluster/local/README.md; CHANGELOG.md is not checked
+#   dates        no YYYY-MM-DD dates — skills, AGENTS.md, agents,
+#                tools/bin/README.md
+#   tools        every executable in tools/bin has a quick-reference row
+#                (| `name` |) in tools/bin/README.md and is named in a skill
+#                or AGENTS.md
+#   removed      no removed-component names (mimir loki alloy seaweedfs
+#                kubescape thanos emqx rabbitmq nats kubeblocks) — skills,
+#                AGENTS.md, agents, tools/bin/README.md, manifests/README.md;
+#                a line containing removed / historical / went with /
+#                gone since is history and passes
+#   size         WARN for a SKILL.md over 6144 bytes
+# Exit 0 = no FAIL (warnings allowed), 1 = at least one FAIL, 2 = usage error.
+
+set -uo pipefail
+
+ROOT='' VERBOSE=0 FAILS=0 WARNS=0
+DENY='(^|[^A-Za-z0-9])(mimir|loki|alloy|seaweed(fs)?|kubescape|thanos|emqx|rabbitmq|nats|kubeblocks)([^A-Za-z0-9]|$)'
+HISTORY='removed|historical|went with|gone since'
+BARE_REF='(^|[^A-Za-z0-9_./-])#[0-9]+([^0-9A-Za-z_]|$)'
+DATE='20[0-9][0-9]-[0-1][0-9]-[0-3][0-9]'
+BANNED_KEYS='temperature permission bash tools maxSteps model steps'
+SKILL_MAX=6144
+
+usage() {
+  echo "usage: agent_lint [-v] [--root DIR]" >&2
+  exit 2
+}
+
+help() { # print the header comment block
+  awk 'NR==1 {next} /^#/ {sub(/^# ?/,""); print; next} {exit}' "$0"
+}
+
+fail() { echo "FAIL $*"; FAILS=$((FAILS + 1)); }
+warn() { echo "WARN $*"; WARNS=$((WARNS + 1)); }
+rel() { printf '%s' "${1#"$ROOT"/}"; }
+
+existing() { # paths (unmatched globs included) -> the ones that exist, one per line
+  local f
+  for f in "$@"; do
+    if [ -e "$f" ]; then printf '%s\n' "$f"; fi
+  done
+}
+
+skill_files() { existing "$ROOT"/.agents/skills/*/SKILL.md; }
+agent_files() { existing "$ROOT"/.opencode/agents/*.md; }
+core_docs() { skill_files; existing "$ROOT/AGENTS.md"; agent_files; existing "$ROOT/tools/bin/README.md"; }
+runbook_docs() { existing "$ROOT"/runbooks/local/*.md; }
+
+check_frontmatter() {
+  local f dir name desc
+  while IFS= read -r f; do
+    dir=$(basename "$(dirname "$f")")
+    if [ "$(head -n 1 "$f")" != "---" ]; then
+      fail "$(rel "$f"): no frontmatter block"
+      continue
+    fi
+    if ! name=$(yq --front-matter=extract '.name // ""' "$f" 2>&1); then
+      fail "$(rel "$f"): frontmatter does not parse: $(head -n 1 <<<"${name//"$ROOT/"/}" | cut -c1-160)"
+      continue
+    fi
+    desc=$(yq --front-matter=extract '.description // ""' "$f" 2>/dev/null)
+    if [ "$name" != "$dir" ]; then fail "$(rel "$f"): name '$name' != directory '$dir'"; fi
+    if [ -z "$desc" ]; then fail "$(rel "$f"): description missing"; fi
+  done < <(skill_files)
+}
+
+check_agents() {
+  local f keys k
+  while IFS= read -r f; do
+    if ! keys=$(yq --front-matter=extract 'keys | .[]' "$f" 2>&1); then
+      fail "$(rel "$f"): frontmatter does not parse"
+      continue
+    fi
+    for k in $BANNED_KEYS; do
+      if grep -qxF -- "$k" <<<"$keys"; then
+        fail "$(rel "$f"): frontmatter key '$k' — V1 or pinned key (V2 permissions live in opencode.jsonc)"
+      fi
+    done
+  done < <(agent_files)
+}
+
+check_config() {
+  local f="$ROOT/opencode.jsonc" err
+  if [ ! -f "$f" ]; then
+    fail "opencode.jsonc: missing"
+    return
+  fi
+  if ! err=$(jq empty "$f" 2>&1); then
+    fail "opencode.jsonc: does not parse (jq; JSON comments are not supported): $err"
+  fi
+}
+
+check_links() {
+  local f base m line t p
+  while IFS= read -r f; do
+    base=$(dirname "$f")
+    while IFS= read -r m; do
+      line=${m%%:*}
+      t=${m#*:}
+      t=${t#"]("}
+      t=${t%")"}
+      case "$t" in [A-Za-z]*:*|'#'*) continue ;; esac
+      p=${t%%#*}
+      p=${p%%\?*}
+      [ -n "$p" ] || continue
+      case "$p" in
+        /*) p="$ROOT$p" ;;
+        *) p="$base/$p" ;;
+      esac
+      if [ ! -e "$p" ]; then fail "$(rel "$f"):$line: dead link ($t)"; fi
+    done < <(grep -noE '\]\([^)[:space:]]+\)' "$f")
+  done < <(core_docs; runbook_docs)
+}
+
+check_bare_refs() {
+  local f m n
+  while IFS= read -r f; do
+    while IFS= read -r m; do
+      fail "$(rel "$f"):${m%%:*}: bare issue ref — write cmdshift/platform#N"
+    done < <(grep -nE "$BARE_REF" "$f")
+  done < <(core_docs; runbook_docs; existing "$ROOT/manifests/README.md" "$ROOT/manifests/clusters/cloud/notes.md")
+  while IFS= read -r f; do
+    n=$(grep -cE "$BARE_REF" "$f")
+    [ "$n" -gt 0 ] || continue
+    warn "$(rel "$f"): $n line(s) with bare issue refs (qualify as cmdshift/platform#N)"
+    if [ "$VERBOSE" -eq 1 ]; then
+      grep -nE "$BARE_REF" "$f" | cut -d: -f1 | sed "s|^|  $(rel "$f"):|"
+    fi
+  done < <(existing "$ROOT"/manifests/bases/*/README.md "$ROOT/cluster/local/README.md")
+}
+
+check_dates() {
+  local f m
+  while IFS= read -r f; do
+    while IFS= read -r m; do
+      fail "$(rel "$f"):${m%%:*}: date $(grep -oE "$DATE" <<<"${m#*:}" | head -n 1) — timeless surface (dated story goes in CHANGELOG.md)"
+    done < <(grep -nE "$DATE" "$f")
+  done < <(core_docs)
+}
+
+check_tools() {
+  local s name readme="$ROOT/tools/bin/README.md" mention_files=()
+  while IFS= read -r s; do mention_files+=("$s"); done < <(skill_files; existing "$ROOT/AGENTS.md")
+  for s in "$ROOT"/tools/bin/*; do
+    [ -f "$s" ] && [ -x "$s" ] || continue
+    name=$(basename "$s")
+    if ! grep -qE "^\| \`$name\` \|" "$readme" 2>/dev/null; then
+      fail "tools/bin/$name: no quick-reference row (| \`$name\` |) in tools/bin/README.md"
+    fi
+    if [ "${#mention_files[@]}" -eq 0 ] \
+       || ! grep -qE "(^|[^A-Za-z0-9_-])$name([^A-Za-z0-9_-]|\$)" "${mention_files[@]}"; then
+      fail "tools/bin/$name: not named in any skill or AGENTS.md"
+    fi
+  done
+}
+
+check_removed() {
+  local f m
+  while IFS= read -r f; do
+    while IFS= read -r m; do
+      fail "$(rel "$f"):${m%%:*}: removed component '$(grep -oiE "$DENY" <<<"${m#*:}" | head -n 1 | tr -cd 'A-Za-z')' — reword, or mark the line as history ($HISTORY)"
+    done < <(grep -niE "$DENY" "$f" | grep -viE "$HISTORY")
+  done < <(core_docs; existing "$ROOT/manifests/README.md")
+}
+
+check_size() {
+  local f bytes
+  while IFS= read -r f; do
+    bytes=$(wc -c < "$f" | tr -d ' ')
+    if [ "$bytes" -gt "$SKILL_MAX" ]; then
+      warn "$(rel "$f"): $bytes bytes > $SKILL_MAX — thin-dispatcher target; move narrative to the paired runbook"
+    fi
+  done < <(skill_files)
+}
+
+run_check() { # name function
+  echo "== $1 =="
+  "$2"
+}
+
+parse_args() {
+  local default_root
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -h|--help) help; exit 0 ;;
+      -v) VERBOSE=1; shift ;;
+      --root)
+        [ -n "${2:-}" ] || { echo "agent_lint: --root requires a directory" >&2; usage; }
+        [ -d "$2" ] || { echo "agent_lint: no such directory: $2" >&2; usage; }
+        ROOT=$(cd "$2" && pwd)
+        shift 2 ;;
+      *) echo "agent_lint: unknown argument $1" >&2; usage ;;
+    esac
+  done
+  if [ -z "$ROOT" ]; then
+    default_root="$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null || { cd "$(dirname "$0")/../.." && pwd; })"
+    ROOT=$default_root
+  fi
+}
+
+agent_lint() {
+  parse_args "$@"
+  if ! command -v yq >/dev/null || ! command -v jq >/dev/null; then
+    echo "agent_lint: needs yq and jq on PATH" >&2
+    exit 2
+  fi
+  run_check frontmatter check_frontmatter
+  run_check agents check_agents
+  run_check config check_config
+  run_check links check_links
+  run_check bare-refs check_bare_refs
+  run_check dates check_dates
+  run_check tools check_tools
+  run_check removed check_removed
+  run_check size check_size
+  echo "agent_lint: $FAILS FAIL, $WARNS WARN ($ROOT)"
+  [ "$FAILS" -eq 0 ]
+}
+
+agent_lint "$@"

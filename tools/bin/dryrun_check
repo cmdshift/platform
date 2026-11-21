@@ -28,6 +28,10 @@ usage() {
   exit 2
 }
 
+help() { # print the header comment block
+  awk 'NR==1 {next} /^#/ {sub(/^# ?/,""); print; next} {exit}' "$0"
+}
+
 total=0; failed=0
 
 split_docs() {
@@ -95,6 +99,7 @@ check_tokens() {
 }
 
 dryrun_check() {
+  case "${1:-}" in -h|--help) help; exit 0 ;; esac
   [ $# -eq 1 ] || usage
   target=$1
   work=$(mktemp -d)

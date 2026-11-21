@@ -20,6 +20,10 @@ usage() {
   exit 2
 }
 
+help() { # print the header comment block
+  awk 'NR==1 {next} /^#/ {sub(/^# ?/,""); print; next} {exit}' "$0"
+}
+
 artifact_rev() {
   kubectl -n flux-system get bucket main -o jsonpath='{.status.artifact.revision}' 2>/dev/null | cut -c1-16
 }
@@ -40,6 +44,7 @@ unstick_once() {
 }
 
 flux_unstick() {
+  case "${1:-}" in -h|--help) help; exit 0 ;; esac
   local name="" loop=false
   while [ $# -gt 0 ]; do
     case "$1" in

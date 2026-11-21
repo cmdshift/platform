@@ -6,30 +6,23 @@
 # node's port, so every worker can host exactly one pod per controller — a
 # new-generation pod stays Pending until the old one is gone (kyverno
 # rollout-deadlock landmine, manifests/bases/policies/README.md). Deletes
-# the old-generation REPLICA SETS.
+# the old-generation REPLICA SETS in the `policies` namespace, all in one
+# kubectl call — deleting pods instead is whack-a-mole (the stale RS
+# respawns them). A deadlock against an old release in a former namespace
+# is out of reach here: delete that namespace's old DEPLOYMENTS instead.
 #
-# this tool used to delete old-generation PODS — that's
-# whack-a-mole. The stale RS still wants its replicas, so it respawns a
-# Pending pod, and the deployment controller re-scales the RS back up
-# mid-rollout (each deleted pod came back twice, three controllers deep).
-# Deleting the stale RS removes the pods AND the respawner; the deployment
-# controller never recreates old revisions. Pod deletion is also racy in the
-# single-call sense the note below describes — an RS delete is
-# atomic per RS and releases its ports the same way.
-#
-# ns refactor #31: kyverno runs in the `policies` namespace —
-# this script targets it there. Cross-namespace deadlock variant hit live
-# during the move: the OLD namespace's deployments held the ports while the
-# new pods pended — deleting the old DEPLOYMENTS (not just their pods) is the
-# same fix one level up.
-#
-# Exit 0 = nothing pending or unblock applied; nonzero = kubectl failure.
+# Exit 0 = nothing pending or unblock applied; 2 = usage error; other
+# nonzero = kubectl failure.
 
 set -euo pipefail
 
 usage() {
   echo "usage: kyverno_unblock" >&2
   exit 2
+}
+
+help() { # print the header comment block
+  awk 'NR==1 {next} /^#/ {sub(/^# ?/,""); print; next} {exit}' "$0"
 }
 
 pending_pods() {
@@ -57,6 +50,7 @@ stale_rs() {
 }
 
 kyverno_unblock() {
+  case "${1:-}" in -h|--help) help; exit 0 ;; esac
   [ $# -eq 0 ] || usage
   local p pending deploy victims rs
   pending=$(pending_pods)

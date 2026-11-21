@@ -18,6 +18,10 @@ usage() {
   exit 2
 }
 
+help() { # print the header comment block
+  awk 'NR==1 {next} /^#/ {sub(/^# ?/,""); print; next} {exit}' "$0"
+}
+
 # scalar_basenames kustomization.yaml — basename of every string scalar in the
 # doc, with generator `key=file` entries reduced to the file's basename.
 scalar_basenames() {
@@ -60,6 +64,7 @@ audit_kustomization() { # kustomization.yaml — FAIL lines to stdout, rc 0/1
 }
 
 kustomization_audit() {
+  case "${1:-}" in -h|--help) help; exit 0 ;; esac
   [ $# -le 1 ] || usage
   local path="${1:-manifests}" fail=0 count=0 k
   [ -e "$path" ] || { echo "kustomization_audit: no such path: $path" >&2; usage; }

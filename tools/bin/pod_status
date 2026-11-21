@@ -5,7 +5,7 @@
 #
 #   pod_status                        # all namespaces
 #   pod_status -n observability          # one namespace
-#   pod_status -n observability thanos   # namespace + name prefix
+#   pod_status -n observability openobserve   # namespace + name prefix
 #   pod_status -l app.kubernetes.io/name=foo
 #
 # Informational: exit 0 even when things are crashing (the data IS the
@@ -19,6 +19,10 @@ ns_args=(-A); sel_args=(); prefix=""
 usage() {
   echo "usage: pod_status [-n namespace] [-l selector] [name-prefix]" >&2
   exit 2
+}
+
+help() { # print the header comment block
+  awk 'NR==1 {next} /^#/ {sub(/^# ?/,""); print; next} {exit}' "$0"
 }
 
 parse_args() {
@@ -76,6 +80,7 @@ print_suspects() {
 }
 
 pod_status() {
+  case "${1:-}" in -h|--help) help; exit 0 ;; esac
   parse_args "$@"
   print_table
   echo

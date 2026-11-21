@@ -10,11 +10,16 @@ usage() {
   exit 2
 }
 
+help() { # print the header comment block
+  awk 'NR==1 {next} /^#/ {sub(/^# ?/,""); print; next} {exit}' "$0"
+}
+
 check_file() { # file — parse errors land in $err
   yq '.' "$1" >/dev/null 2>"$err"
 }
 
 yaml_lint() {
+  case "${1:-}" in -h|--help) help; exit 0 ;; esac
   [ $# -le 1 ] || usage
   local path="${1:-manifests/clusters/local}" fail=0 count=0 f
   [ -e "$path" ] || { echo "yaml_lint: no such path: $path" >&2; usage; }

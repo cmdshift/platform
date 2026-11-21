@@ -2,11 +2,12 @@
 # Run `cilium connectivity test` on the local cluster, applying the
 # temporary test scaffolding first and removing it on exit.
 #   cilium_test [args...]   # passed through to `cilium connectivity test`
+#   cilium_test -h|--help   # this header (first argument only)
 # Three admission/policy layers block the CLI's test pods; all are handled
 # IMPERATIVELY here (applied for the run, deleted after) — deliberately NOT
 # committed as manifests, so the cluster's policy posture stays minimal.
 # Snippet source of truth + manual procedure: runbooks/local/cilium-connectivity-test.md
-#   1. kyverno ValidatingPolicies — temp PolicyException (kyverno ns)
+#   1. kyverno ValidatingPolicies — temp PolicyException (policies ns)
 #   2. PodSecurity — apiserver defaults unlabeled namespaces to enforce=baseline
 #      (Talos admission-control-config.yaml, kube-system exempt); test pods add
 #      NET_RAW → label every cilium-test* ns privileged
@@ -17,6 +18,10 @@
 
 set -euo pipefail
 
+help() { # print the header comment block
+  awk 'NR==1 {next} /^#/ {sub(/^# ?/,""); print; next} {exit}' "$0"
+}
+
 cleanup() {
   kubectl -n policies delete policyexception allow-cilium-connectivity-test --ignore-not-found >/dev/null 2>&1 || true
   kubectl get ns -o name 2>/dev/null | grep -E '^namespace/cilium-test' | cut -d/ -f2 \
@@ -24,9 +29,8 @@ cleanup() {
   echo "cilium_test: scaffolding removed (exception deleted, test namespaces deleting)"
 }
 
-trap cleanup EXIT
-
-kubectl apply -f - >/dev/null <<'EOF'
+exception_up() {
+  kubectl apply -f - >/dev/null <<'EOF'
 apiVersion: policies.kyverno.io/v1
 kind: PolicyException
 metadata:
@@ -52,6 +56,7 @@ spec:
     - name: match-cilium-test-namespace
       expression: "object.metadata.namespace.startsWith('cilium-test')"
 EOF
+}
 
 scaffold() {
   kubectl get namespaces -o name 2>/dev/null \
@@ -82,6 +87,9 @@ EOF
 }
 
 cilium_test() {
+  case "${1:-}" in -h|--help) help; exit 0 ;; esac
+  trap cleanup EXIT
+  exception_up
   local args=("$@")
   # flow validation off: cilium monitor aggregation hides DNS flows — hubble
   # can never match what the CLI looks for. The resulting "not found" spam is
