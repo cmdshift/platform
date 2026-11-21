@@ -43,6 +43,7 @@ configMapGenerator:
       - host-metrics.json=dashboards/host-metrics.json
       - kubernetes-node-pods.json=dashboards/kubernetes-node-pods.json
       - velero-backup-health.json=dashboards/velero-backup-health.json
+      - openobserve-internals.json=dashboards/openobserve-internals.json
   - name: openobserve-sync-destinations
     files:
       - email.json=destinations/email.json

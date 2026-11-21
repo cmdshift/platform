@@ -210,6 +210,18 @@ fails confusingly or, for a helm release, churns upgrade/rollback. Run
 between editing and `flux_wait`; a `rustfs cat` content-marker spot-check
 is optional insurance, not a dropped-edit defense.
 
+**Convergence boundary: sync_wait proves bucket parity, NOT artifact
+freshness** (cmdshift/platform#216, hit twice in one session). The
+source-controller artifact lags the bucket objects until its next 5m
+poll, and groups reconcile happily against the previous artifact — so
+`sync_wait` OK + `flux_wait` all-Ready can BOTH pass while the edit
+never applied (no error anywhere; the only symptom is unchanged live
+state, e.g. a values key absent from the rendered ConfigMap). If a
+reconcile must land NOW (or immediately after a just-mirrored edit),
+force the pull between sync_wait and flux_wait:
+`flux reconcile source bucket main` — it fetches a new revision when
+bucket content changed, and all groups follow.
+
 - No args: every uncommitted change under `manifests/` (bases + clusters —
   from git status —
   modified, added, deleted, renamed **and untracked**; untracked files were
