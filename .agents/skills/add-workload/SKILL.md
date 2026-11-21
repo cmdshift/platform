@@ -13,7 +13,7 @@ All containers + initContainers need cpu/memory **requests and limits**. Lean re
 
 Multi-replica (replicas > 1)? A PDB (maxUnavailable: 1) is generated for you in flux-managed namespaces — skip via `pdb.kyverno.io/skip: "true"` only if the chart ships its own. In kube-system the generator silently does nothing (CEL-policy webhook inherits the kube-system namespaceSelector exclusion, cmdshift/platform#84) — write an explicit PDB there.
 
-**The target namespace has a `ResourceQuota/compute`** (`<group>-config/resource-quota.yaml`, cmdshift/platform#93) capping namespace-sum requests/limits/pods — your workload's totals must fit, alongside everything already running. A quota-blocked deployment shows as StartError/FailedCreate with `exceeded quota`; if it doesn't fit, bump the quota in the same change (with the sizing evidence per the comment rules). kyverno admission (below) passes but the pod still won't start — check `kubectl -n <ns> describe resourcequota compute` first.
+**The target namespace has a `ResourceQuota/compute`** (`<group>-config/resource-quota.yaml`, cmdshift/platform#93) capping namespace-sum requests/limits/pods — your workload's totals must fit, alongside everything already running. A quota-blocked deployment shows as StartError/FailedCreate with `exceeded quota`; if it doesn't fit, bump the quota in the same change (with the sizing evidence recorded in the group README per the comment rules). kyverno admission (below) passes but the pod still won't start — check `kubectl -n <ns> describe resourcequota compute` first.
 
 **Quota-ordering deadlock when the bump is for the new workload itself** (cmdshift/platform#83): the quota lives in `<group>-config`, which `dependsOn: [<group>]` — but the new pods can't schedule under the OLD quota, so flux's dependency order applies the bump AFTER the pods that need it, and the group's kustomization wedges (Hit on the beyla adoption: the observability `compute`/`logging-compute` bumps couldn't land before the tempo/beyla pods they created headroom for). Break the cycle out-of-band: `kubectl apply` the declared quota manifests mid-rollout — flux adopts the identical spec, no drift, no live patch (the manifests stay the source of truth). Expect exactly one manual apply per adoption needing quota headroom; see [runbooks/local/adding-a-workload.md](../../../runbooks/local/adding-a-workload.md).
 
@@ -65,7 +65,7 @@ Credentials come from the secrets server: payload in `cluster/local/secrets/loca
 
 ## 7. When admission rejects something you can't fix
 
-Controllers generating non-compliant pods with no config knobs get a **PolicyException** in `policies-config/` — scoped by namespace + name prefix, with a rationale comment (comment rules: the `writing-yaml` skill, Comments section). Don't reach for exceptions for workloads you control — fix the workload.
+Controllers generating non-compliant pods with no config knobs get a **PolicyException** in `policies-config/` — scoped by namespace + name prefix, with the rationale recorded in the group README (comment rules: the `writing-yaml` skill, Comments section). Don't reach for exceptions for workloads you control — fix the workload.
 
 ## 8. Verify
 

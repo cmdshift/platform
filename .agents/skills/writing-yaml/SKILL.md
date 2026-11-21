@@ -41,8 +41,8 @@ Comments are a maintenance cost: stale ones actively lie. **Default is no commen
 1. **Don't add comments by default.** Delete-test: *if this comment were removed, would any future reader lose information they couldn't reconstruct from the value, the chart docs, or the git history?* Narration, restated config, section banners: never.
 2. **Max 3 lines.** The story lives in the **group `README.md`** (`bases/<group>/README.md` — one home per group regardless of where values sit) with at most a short pointer at the value.
 3. **Do comment environment-specific values** — anything that exists only because this cluster runs Talos-in-Docker. Exact marker vocabulary `# remove in the cloud` / `# true in the cloud` at the value; a new marker obligates a `manifests/clusters/cloud/notes.md` entry. Never repurpose the markers for ordinary rationale.
-4. **Do reference issues that document bugs** (cmdshift/platform#N, fully qualified — commit SHAs stay SHAs): chart bugs, upstream landmines, workarounds. **Don't reference feature/update issues** — git history carries what landed.
-5. **Evidence numbers justify sizing values at the value** (the `resource-sizing` skill): observed number + derivation, nothing more.
+4. **Issue refs live in the README/CHANGELOG, not in manifest comments** — chart bugs, upstream landmines, workarounds, and feature/update provenance alike carry the fully-qualified `cmdshift/platform#N` in the nearest README or the CHANGELOG (git history carries what landed). A manifest comment never carries an issue ref.
+5. **Sizing evidence lives in the group README's decision table** (the `resource-sizing` skill owns the convention): observed number + derivation + the `cmdshift/platform#N` ref, recorded next to the sizing decision — never at the value.
 6. **Stale comments are worse than none** — changing a value means updating or deleting its comment in the same change.
 
 ## 4. Verification gates

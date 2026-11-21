@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Exec-inventory review over an arbitrary window — the phase-4 evidence base
-# (cmdshift/platform#60): per-namespace/binary counts with first/last seen,
+# Exec-inventory review over an arbitrary window — the phase-4 evidence base:
+# per-namespace/binary counts with first/last seen,
 # the allowlist-by-absence check before each deny-list widening wave.
 # Sits on log_query's shared O2 forward — no own plumbing. Aggregation runs
 # SERVER-SIDE (one SQL GROUP BY over the whole window), so there is no

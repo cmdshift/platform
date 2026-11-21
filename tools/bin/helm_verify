@@ -10,12 +10,11 @@
 #   - spec.valuesFrom ConfigMap refs, resolved from the rendered resources:
 #       a path with a kustomization.yaml is built with `kubectl kustomize` and
 #       each ref matches the built ConfigMap's metadata.name (data key
-#       extracted) (cmdshift/platform#187 — flux ships the build output, so
-#       name refs/hash suffixes are inherited); single-file / ad-hoc paths
-#       without a kustomization fall back to same-dir configMapGenerator
-#       entries (cmdshift/platform#31 pattern — the referenced file is a plain
-#       values doc, e.g. `values.yaml=trivy-values.yaml`) or a literal
-#       kind: ConfigMap manifest with a matching name.
+#       extracted; flux ships the build output, so name refs/hash suffixes
+#       are inherited); single-file / ad-hoc paths without a kustomization
+#       fall back to same-dir configMapGenerator entries (the referenced
+#       file is a plain values doc, e.g. `values.yaml=trivy-values.yaml`) or a
+#       literal kind: ConfigMap manifest with a matching name.
 #       A ref with no matching ConfigMap is a FAIL, not a skip.
 # Chart sources resolve from the live cluster's source CRs
 # (`kubectl get helmrepo,gitrepo -n flux-system`): HelmRepository →

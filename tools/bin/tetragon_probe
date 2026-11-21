@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Tetragon enforcement probe: verifies a deny-list policy actually kills.
 #   tetragon_probe <policy-name>
-# The documented ritual (security/README.md "collateral check", flip gates in
-# cmdshift/platform#28/#60): schedule a probe pod that matches the policy's
+# The documented ritual (security/README.md "collateral check", flip gates):
+# schedule a probe pod that matches the policy's
 # podSelector, exec /bin/sh inside it, expect the enforcement kill, and read
 # the BPF counters before/after.
 #
@@ -20,8 +20,8 @@
 #   - busybox ships no USER directive: runAsNonRoot needs the explicit
 #     runAsUser (kubelet image-USER check, add-workload landmine);
 #   - the compact tetra output misrenders bprm_check kills as host runc
-#     noise (cmdshift/platform#57) — the checked surfaces are the exit code,
-#     the tetra counters, and tetragon_policy_events_total.
+#     noise — the checked surfaces are the exit code, the tetra counters,
+#     and tetragon_policy_events_total.
 #
 # Output: exec exit code, NPOST/NENFORCE/NMONITOR deltas, metric delta.
 #   exit 137 + NENFORCE +1 = enforcement kill confirmed

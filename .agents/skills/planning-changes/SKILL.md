@@ -1,6 +1,6 @@
 ---
 name: planning-changes
-description: How to plan a change before touching manifests — map the issue to owning surfaces (group vs -config), check rationale comments first, sequence dependency groups, anticipate docs surfaces, and start on the right branch. Load when starting any non-trivial change or after pulling an issue.
+description: How to plan a change before touching manifests — map the issue to owning surfaces (group vs -config), check rationale first, sequence dependency groups, anticipate docs surfaces, and start on the right branch. Load when starting any non-trivial change or after pulling an issue.
 ---
 
 # Planning changes
@@ -14,7 +14,7 @@ Never work on `main`. Create a branch before the first edit: `feat/<topic>` or `
 ## 1. Map the issue to surfaces
 
 - **Which group owns it?** Every workload lives in one of the group dirs (`networking/`, `observability/`, `backups/`, …); the group's README carries its decisions. Cluster-protection and cross-cutting objects (PolicyExceptions, quotas, PDBs, limit ranges) live in the `-config/` dir of the group that depends on them — `policies-config/` owns cluster-protection, `<group>-config/` owns that group's CR-managed specs and quota objects.
-- **Read the group README + manifests first.** Check for **rationale comments** before deciding existing config is wrong — deliberate decisions are documented inline at the value (e.g. why `mirror.sh` passes `--remove`). If a choice looks odd, find the comment before planning to "fix" it.
+- **Read the group README + manifests first.** Check for **rationale** before deciding existing config is wrong — deliberate decisions are documented in the group README and at the value (e.g. why `mirror.sh` passes `--remove`). If a choice looks odd, find the rationale before planning to "fix" it.
 - **Sweep the CHANGELOG + skills for prior art.** If the landmine was hit before, it's written down (skills' trap lists, `CHANGELOG.md`, `manifests/README.md`). Re-deriving it is wasted rounds.
 
 ## 2. Sequence the dependency order

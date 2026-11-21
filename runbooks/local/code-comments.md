@@ -8,7 +8,7 @@ The rules live in the **Comments section of the [`writing-yaml` skill](../../.ag
 
 - narration (`# enable hostNetwork`) — reconstructable from the value → delete
 - restate-then-explain (`# 512Mi — the memory limit`) — the "512Mi" half is noise → trim to the why
-- why + evidence (`# 2x request: kopia repo-maintenance spikes OOM-killed it at 1.5x`) — not reconstructable → keep
+- why + evidence — not reconstructable → move to the group README decision table (the #183 pattern; a comment never carries the why + ref anymore)
 
 ## Worked examples from the tree
 
@@ -16,19 +16,11 @@ Note: the cmdshift/platform#183 sweep moved nearly all manifest rationale into t
 
 **Good — surprising choice with provenance** (pattern; live story now in `policies-config/README.md`):
 
-```yaml
-global:
-  image:
-    registry: ghcr.io # reg.kyverno.io (the default vanity proxy of ghcr) fails pull-through silently — 404 on miss; ghcr carries identical content (cmdshift/platform#71)
-```
-
-Why it works: the value looks like a mundane mirror override, the comment says it's a workaround for a silent upstream failure, and the issue ref carries the full diagnosis.
+The value looks like a mundane mirror override, but it's a workaround for a silent upstream failure (reg.kyverno.io, the default vanity proxy of ghcr, fails pull-through silently — 404 on miss; ghcr carries identical content, cmdshift/platform#71). That rationale lives in the group README's decision table; the manifest carries the bare value.
 
 **Good — evidence at the value** (pattern; live story in `backups/README.md`):
 
-```yaml
-memory: 512Mi # limit = 2x request: kopia repo-maintenance spikes OOM-killed the server at 1.5x (cmdshift/platform#20)
-```
+The sizing evidence (`limit = 2x request: kopia repo-maintenance spikes OOM-killed the server at 1.5x`, cmdshift/platform#20) lives in the group README's sizing decision; the manifest carries the bare `memory: 512Mi`.
 
 **Good — deviation marker** (still live: `storage-config/local-path.storage-class.yaml`):
 
@@ -57,10 +49,10 @@ This explains how the pipeline works — the README/runbook owns that story. If 
 # bumped from 128Mi to 256Mi in Aug 2025 after the OOM
 ```
 
-The date and the from-value are git history. What survives is the why:
+The date and the from-value are git history; the why and the ref move to the group README's sizing decision table. What survives at the value is nothing:
 
 ```yaml
-memory: 256Mi # OOM-killed at 128Mi during kopia repo prep (cmdshift/platform#20)
+memory: 256Mi
 ```
 
 ## Marker vocabulary (exact strings — greps depend on them)
@@ -75,21 +67,21 @@ Rules:
 
 - Never invent new spellings or paraphrase these (`# remove in prod`, `# cloud:` — no). The cloud-migration sweep is `grep -rn "in the cloud"`.
 - Adding a marker obligates a matching entry in `manifests/clusters/cloud/notes.md`.
-- Marker semantics are about the **cloud migration**, not general rationale — ordinary surprising choices get a plain rationale comment instead.
+- Marker semantics are about the **cloud migration**, not general rationale — ordinary surprising choices get their rationale recorded in the group README's decision table instead.
 
 ## Where a comment ends and docs begin
 
-- **Comment at the value**: the why in ≤3 lines + evidence numbers + `cmdshift/platform#N` ref.
+- **Manifest comment**: a functional note with no issue ref — the why, the evidence numbers, and the `cmdshift/platform#N` ref live in the README decision table.
 - **Group README** (`manifests/bases/<group>/README.md`): the group-level decision and its timeless rationale.
 - **Runbook** (`runbooks/local/`): the procedure, the mechanics, the worked recovery.
 - **CHANGELOG**: the dated story of the incident/decision.
 
-If a comment won't fit in 3 lines, it's docs — move the narrative out and leave the why + a pointer (writing-yaml skill, Comments rule 2).
+If a comment is carrying a why, it's docs — move the narrative (why + evidence + ref) to the group README and leave only a functional note, if any (writing-yaml skill, Comments rule 2).
 
 ## Sweep checklist (for a rotting file or a pre-PR pass)
 
 1. Delete-test every comment: narration, restated config, section banners → delete.
-2. Dates without a `cmdshift/platform#N` ref → strip the date, add the ref (or delete if pure history).
+2. Any comment with a date or a `cmdshift/platform#N` ref → strip both from the comment; the ref (and the why) belong in the README/CHANGELOG, or delete if pure history.
 3. Stacked/superseded evidence generations → collapse to current.
 4. Tool-mechanics explanations → delete or replace with a link to the owning README/runbook.
 5. TODOs without an issue ref → file the issue (`file-issue` skill) or delete.

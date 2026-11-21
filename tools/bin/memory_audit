@@ -3,8 +3,8 @@
 #   memory_audit [threshold_pct]   # default 50
 # Normalizes Mi/Gi (the classic bug: '1Gi' parses as 1 in naive awk).
 # Footer: containers with no memory limit — expected 3 (control-plane
-# statics; thanos-ruler config-reloader left with the LGTM teardown,
-# cmdshift/platform#128); anything else is a finding.
+# statics; the thanos-ruler config-reloader left with the LGTM teardown);
+# anything else is a finding.
 # Exit 0 = audited, 2 = usage error.
 
 usage() {

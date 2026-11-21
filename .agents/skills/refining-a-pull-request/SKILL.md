@@ -22,7 +22,7 @@ For each review comment, triage before acting:
 
 - **Well-founded change request** → start a **plan** (todo list: surface touched, sequencing per `planning-changes`, docs impact), and **respond to the comment** (`gh pr comment` or a reply on the review thread) acknowledging it and stating the planned approach — so the reviewer sees the request landed.
 - **Do not apply the changes on the PR branch without local human directive.** The rule is the same family as commit-by-permission (`making-a-commit` §0): plan and reply, then stop. The human decides when (or whether) the feedback becomes commits.
-- **Not well-founded** (misreads the diff, conflicts with a documented decision) → respond with the reasoning and the pointer (rationale comment, README, runbook, `cmdshift/platform#N`) — don't silently ignore it, and don't change the code to match a wrong suggestion.
+- **Not well-founded** (misreads the diff, conflicts with a documented decision) → respond with the reasoning and the pointer (README, runbook, `cmdshift/platform#N`) — don't silently ignore it, and don't change the code to match a wrong suggestion.
 - **Question, not a request** → answer it in the thread; no plan needed.
 - Out-of-scope-but-valid findings → the `file-issue` skill, then link the new issue in the reply.
 

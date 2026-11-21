@@ -2,8 +2,8 @@
 # Dump the component list Grafana Alloy is actually running — the wedge-triage
 # check for "is alloy running the config I think it is". The chart SILENTLY
 # installs its example config when the HelmRelease's alloy.configMap wiring is
-# missing (cmdshift/platform#27): pods stay healthy and push nothing, and the
-# tell is discovery.kubernetes.{nodes,services,endpoints,...} components that
+# missing: pods stay healthy and push nothing, and the tell is
+# discovery.kubernetes.{nodes,services,endpoints,...} components that
 # aren't in config.alloy.
 #   alloy_components [--all] [pod]   # default: first alloy pod; --all = whole DS
 # Prints "component  health  message" per component. Exit 0 = all healthy,

@@ -40,16 +40,12 @@ securityContext:
   capabilities:
     drop:
       - ALL
-    # DAC_READ_SEARCH for the 0700 root-owned apiserver audit dir (cmdshift/platform#208) —
-    # root with dropped-ALL cannot bypass DAC
     add:
       - DAC_READ_SEARCH
 
 tolerations:
   - operator: Exists
 
-# kube-apiserver audit logs (cmdshift/platform#90/#208) — written on ctrl only;
-# ro mount, reads ride DAC_READ_SEARCH
 extraVolumes:
   - name: audit-logs
     hostPath:
@@ -63,8 +59,8 @@ extraVolumeMounts:
 
 resources:
   requests:
-    cpu: 64m # VPA target 63m (cmdshift/platform#219)
-    memory: 144Mi # VPA target 138Mi, 7d P99 89-106Mi (cmdshift/platform#219)
+    cpu: 64m
+    memory: 144Mi
   limits:
     cpu: 500m
     memory: 512Mi
@@ -102,11 +98,6 @@ rewriteDeprecatedComponentNames: false
 
 config:
   processors:
-    # stamps k8s_node_name on system_* and nil-guard fills it on unlabeled
-    # k8s_pod_* series (static pods: kubelet summary UID ≠ mirror-pod UID, so
-    # k8sattributes association never matches — cmdshift/platform#217); the
-    # k8s_cluster receiver's k8s_node_condition_* series carry node labels
-    # already and pass through untouched
     transform/node_metrics:
       error_mode: ignore
       metric_statements:
@@ -142,11 +133,6 @@ config:
     otlp: null
     prometheus: null
     filelog/audit:
-      # apiserver audit events (cmdshift/platform#208) — JSON lines; rotate
-      # chain only on ctrl, idle elsewhere. start_at end: forward-only, no
-      # history backfill (O2 retention is 10d). Redaction happens HERE on the
-      # body — O2 stores/queries the raw body string, so attribute-level
-      # deletion would still ship secret values (live-verified)
       include:
         - /var/log/audit/kube/*.log
       start_at: end

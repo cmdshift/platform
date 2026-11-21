@@ -10,8 +10,8 @@ The standard loop for every change to `manifests/` (bases + clusters). Flux v2 d
 ## 0. Before editing
 
 - **Branch check**: never work on `main`. Verify `git branch --show-current` shows a feature branch (`feat/<topic>` / `fix/<topic>`); create one before the first edit if not. The commit/PR steps assume it (see the `making-a-commit` skill).
-- Check for **rationale comments** before overriding "odd" config — deliberate decisions are documented inline at the value (why some kustomizations have `prune: false`, why `mirror.sh` passes `--remove`). If a choice looks wrong, find the comment first.
-- Any comment you write, edit, or delete follows the **Comments section of the `writing-yaml` skill** (the rules: default no comment, delete-test; max 3 lines; `# remove/true in the cloud` markers for Talos-in-Docker deviations; `cmdshift/platform#N` bug refs only, never feature refs; update-or-delete comments for values you touch).
+- Check for **rationale** before overriding "odd" config — deliberate decisions are documented in the group README and at the value (why some kustomizations have `prune: false`, why `mirror.sh` passes `--remove`). If a choice looks wrong, find the rationale first.
+- Any comment you write, edit, or delete follows the **Comments section of the `writing-yaml` skill** (the rules: default no comment, delete-test; max 3 lines; `# remove/true in the cloud` markers for Talos-in-Docker deviations; no `cmdshift/platform#N` refs in comments — refs and explanations live in the nearest README; update-or-delete comments for values you touch).
 
 ## 1. Pre-reconcile checks
 

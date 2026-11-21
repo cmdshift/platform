@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Audit kustomization.yaml registration: every *.yaml in a kustomize dir must
 # be referenced somewhere in that dir's kustomization.yaml — the guard for the
-# "silently never deployed" orphan (cmdshift/platform#183/#186). Values files
+# "silently never deployed" orphan. Values files
 # are excepted mechanically: any basename appearing as a scalar anywhere in the
 # kustomization (resources, generator `key=file` inputs, patches, helmCharts)
 # counts as registered. Also flags registrations pointing at missing files.
