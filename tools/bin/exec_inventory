@@ -30,39 +30,43 @@ help() { # print the header comment block
   awk 'NR==1 {next} /^#/ {sub(/^# ?/,""); print; next} {exit}' "$0"
 }
 
-case "${1:-}" in -h|--help) help; exit 0 ;; esac
-duration='24h'
-[ $# -le 1 ] || usage
-if [ $# -eq 1 ]; then
-  case "$1" in [0-9]*[mhd]) duration="$1" ;; *) usage ;; esac
-fi
+exec_inventory() {
+  case "${1:-}" in -h|--help) help; exit 0 ;; esac
+  local duration='24h'
+  [ $# -le 1 ] || usage
+  if [ $# -eq 1 ]; then
+    case "$1" in [0-9]*[mhd]) duration="$1" ;; *) usage ;; esac
+  fi
 
-tool_dir="$(cd "$(dirname "$0")" && pwd)"
+  local tool_dir sql err_file out truncated=0
+  tool_dir="$(cd "$(dirname "$0")" && pwd)"
 
-# inventory-only WHERE (kprobe enforcement events carry process_kprobe, not
-# process_exec); container filter is load-bearing — bare text searches also
-# match O2's own logged query-plan lines
-sql="SELECT CAST(body->'process_exec'->'process'->'pod'->'namespace' AS VARCHAR) AS ns, CAST(body->'process_exec'->'process'->'binary' AS VARCHAR) AS binary, COUNT(*) AS n, MIN(_timestamp) AS first_seen, MAX(_timestamp) AS last_seen FROM \"k8s_logs\" WHERE k8s_container_name = 'export-stdout' AND body->'process_exec' IS NOT NULL GROUP BY ns, binary ORDER BY n DESC LIMIT 1000"
+  # inventory-only WHERE (kprobe enforcement events carry process_kprobe, not
+  # process_exec); container filter is load-bearing — bare text searches also
+  # match O2's own logged query-plan lines
+  sql="SELECT CAST(body->'process_exec'->'process'->'pod'->'namespace' AS VARCHAR) AS ns, CAST(body->'process_exec'->'process'->'binary' AS VARCHAR) AS binary, COUNT(*) AS n, MIN(_timestamp) AS first_seen, MAX(_timestamp) AS last_seen FROM \"k8s_logs\" WHERE k8s_container_name = 'export-stdout' AND body->'process_exec' IS NOT NULL GROUP BY ns, binary ORDER BY n DESC LIMIT 1000"
 
-err_file="$tool_dir/../../.agents/temp/exec_inventory.stderr"
-out=$("$tool_dir/log_query" -j -s 1000 "$sql" "$duration" 2>"$err_file") || {
-  cat "$err_file" >&2
+  err_file="$tool_dir/../../.agents/temp/exec_inventory.stderr"
+  out=$("$tool_dir/log_query" -j -s 1000 "$sql" "$duration" 2>"$err_file") || {
+    cat "$err_file" >&2
+    rm -f "$err_file"
+    exit 1
+  }
+
+  if [ -n "$out" ]; then
+    printf '%s\n' "$out" | jq -r '
+      "\(.n) \(.ns // "<unattributed>") \(.binary // "<unknown>") first=\(.first_seen / 1000000 | strftime("%Y-%m-%d %H:%M:%S")) last=\(.last_seen / 1000000 | strftime("%Y-%m-%d %H:%M:%S")) UTC"'
+    printf '%s\n' "$out" | jq -s -r '"TOTAL events=\(map(.n) | add // 0) groups=\(length) window (UTC first/last)"'
+  else
+    echo "TOTAL events=0 groups=0 (window $duration) — empty stream: investigate before reading as green"
+  fi
+
+  grep -q TRUNCATED "$err_file" 2>/dev/null && truncated=1
   rm -f "$err_file"
-  exit 1
+  if [ "$truncated" -eq 1 ]; then
+    echo "exec_inventory: window hit the size cap — the counts above are INCOMPLETE; narrow the duration or split it (a review must not conclude from truncated data)" >&2
+    exit 1
+  fi
 }
 
-if [ -n "$out" ]; then
-  printf '%s\n' "$out" | jq -r '
-    "\(.n) \(.ns // "<unattributed>") \(.binary // "<unknown>") first=\(.first_seen / 1000000 | strftime("%Y-%m-%d %H:%M:%S")) last=\(.last_seen / 1000000 | strftime("%Y-%m-%d %H:%M:%S")) UTC"'
-  printf '%s\n' "$out" | jq -s -r '"TOTAL events=\(map(.n) | add // 0) groups=\(length) window (UTC first/last)"'
-else
-  echo "TOTAL events=0 groups=0 (window $duration) — empty stream: investigate before reading as green"
-fi
-
-truncated=0
-grep -q TRUNCATED "$err_file" 2>/dev/null && truncated=1
-rm -f "$err_file"
-if [ "$truncated" -eq 1 ]; then
-  echo "exec_inventory: window hit the size cap — the counts above are INCOMPLETE; narrow the duration or split it (a review must not conclude from truncated data)" >&2
-  exit 1
-fi
+exec_inventory "$@"

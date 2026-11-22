@@ -109,13 +109,13 @@ resolve_cm_values() { # reldir refname refkey
   fi
   if [[ -z "$src" ]]; then
     # fallback: a literal ConfigMap manifest — extract the data key
-    for c in $(grep -rl --include='*.yaml' 'kind: ConfigMap' "$path" 2>/dev/null | sort); do
+    while IFS= read -r c; do
       if yq -e 'select(.kind == "ConfigMap" and .metadata.name == "'"$rname"'")' "$c" >/dev/null 2>&1; then
         yq 'select(.kind == "ConfigMap" and .metadata.name == "'"$rname"'") | .data["'"$rkey"'"]' "$c" > "$tmp/cm-$rname.yaml"
         [[ -s "$tmp/cm-$rname.yaml" ]] && src="$tmp/cm-$rname.yaml"
         break
       fi
-    done
+    done < <(grep -rl --include='*.yaml' 'kind: ConfigMap' "$path" 2>/dev/null | sort)
   fi
   [[ -n "$src" ]] && echo "$src"
 }
@@ -251,6 +251,8 @@ render_release() { # file name ns chart version srcKind srcName -> PASS/FAIL lin
     echo "PASS: $name ($chart${version:+ $version})"
   else
     echo "FAIL: $name ($chart${version:+ $version})"
+    # per-line indent; ${//} can't prefix every line of a multiline value
+    # shellcheck disable=SC2001
     sed 's/^/  /' <<< "$err" | head -15
     return 1
   fi

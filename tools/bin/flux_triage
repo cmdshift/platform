@@ -119,7 +119,6 @@ collect() {
 report() {
   local verdict name ready detail msg
   printf '%-40s %-11s %-11s %s\n' "KUSTOMIZATION/RELEASE" "VERDICT" "READY" "DETAIL"
-  declare -A counts
   local attention=0 progressing=0 ok=0
   for row in "${ROWS[@]}"; do
     IFS=$'\t' read -r verdict name ready detail msg <<< "$row"

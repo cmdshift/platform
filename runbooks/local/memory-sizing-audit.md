@@ -26,13 +26,16 @@ Folded into `memory_audit`'s footer. Expected on this cluster: **3** — three c
 
 ```
 prometheus_query 'max_over_time(k8s_pod_memory_working_set{k8s_namespace_name="<ns>"}[6h])'   # instant eval — no -r (see tools README: -r under-samples bursts)
+prometheus_query 'max_over_time(container_memory_working_set{k8s_namespace_name="<ns>"}[6h])'  # per-container P99 (adds k8s_container_name)
 ```
 
 The store behind this is O2 (cmdshift/platform#186 — the cmdshift/platform#171 orphaning is
 resolved). O2 query caveats: the memory gauges are the kubeletstats families
-`k8s_pod_memory_working_set` / `k8s_pod_memory_rss` with OTel labels
-(`k8s_namespace_name`, `k8s_pod_name`, `k8s_node_name`; some series carry no
-`k8s_container_name` — sanity-filter with `kubectl top`), NOT the prometheus
+`k8s_pod_memory_working_set` / `k8s_pod_memory_rss` (pod level) and
+`container_memory_working_set` (container level, with `k8s_container_name`
+except on the velero server series — sanity-filter with `kubectl top`) with
+OTel labels
+(`k8s_namespace_name`, `k8s_pod_name`, `k8s_node_name`), NOT the prometheus
 `container_memory_working_set_bytes` family — the gateway's cadvisor scrape
 keeps only the fs/cfs families (cmdshift/platform#219 inventory; full shape:
 `tools/bin/README.md` → `prometheus_query`); and range queries are honest,
