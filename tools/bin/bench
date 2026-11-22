@@ -272,6 +272,8 @@ __PRELUDE__
 
 # ctrl: dump the three control-plane static-pod specs (served via
 # staticPodURL on Talos, not files) so section 1 file checks read real specs
+# (single quotes are the point: $p/$NODE_NAME expand at the use site)
+# shellcheck disable=SC2016
 CTRL_PRELUDE='              set -e
               for p in kube-apiserver kube-controller-manager kube-scheduler; do
                 kubectl -n kube-system get pod "$p-$NODE_NAME" -o yaml > "/etc/kubernetes/manifests/$p.yaml"

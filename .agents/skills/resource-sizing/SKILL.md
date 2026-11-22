@@ -40,12 +40,19 @@ windows — check the host sleep log (`pmset -g log`) and companion uptimes
 queries (what the audits use) scan a narrow recent window and look clean
 through anything. Scrape-path inventory (cmdshift/platform#219): the
 gateway's cadvisor scrape keeps only `container_fs_*` +
-`container_cpu_cfs_*` families — there are NO cadvisor `container_memory_*`
-series in O2; memory gauges come from the kubeletstats receiver as
-`k8s_pod_memory_working_set`/`k8s_pod_memory_rss` with OTel labels
+`container_cpu_cfs_*` families — O2 has no cadvisor `container_memory_*`
+series (that is about the scrape path, not about container-level data).
+Memory gauges come from the kubeletstats receiver as
+`k8s_pod_memory_working_set`/`k8s_pod_memory_rss` (pod level) and, per
+container, `container_memory_working_set` (labels add
+`k8s_container_name`), with OTel labels
 (`k8s_namespace_name`/`k8s_pod_name`/`k8s_node_name`/`service_name`), not
 the prometheus `container_memory_working_set_bytes` family and not
-`job`/`instance`. Some series carry no `k8s_container_name` at all (the
+`job`/`instance`. Sizing is per container — the P99 for a sizing check is
+`max_over_time(container_memory_working_set{k8s_namespace_name="<ns>"}[7d])`
+(instant eval, no `-r`); `memory_audit` stays on `kubectl top --containers`
+for the live snapshot (already per-container, no O2 dependency). Some
+series carry no `k8s_container_name` at all (the
 velero server series) — sanity-filter against `kubectl top` before trusting
 a selector. Range mode under-samples short bursts (~30 points over 7d) —
 for burst evidence, run instant `max_over_time`/`quantile_over_time` evals

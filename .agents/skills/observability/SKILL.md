@@ -34,7 +34,7 @@ prometheus_query 'count(kube_pod_container_status_restarts_total)'
   sleep or a dead store companion. Diagnostic order: host sleep log
   (`pmset -g log`), companion uptimes (`docker ps`), then the store.
 
-Useful one-liners: `container_cpu_cfs_throttled_periods_total` (throttling), `k8s_pod_memory_working_set` (memory trends — OTel labels `k8s_namespace_name`/`k8s_pod_name`; there is no cadvisor `container_memory_*` family in O2, cmdshift/platform#219), `kube_pod_container_status_restarts_total` (restarts), `up` (scrape health — `metrics_summary` breaks it down per `service_name`).
+Useful one-liners: `container_cpu_cfs_throttled_periods_total` (throttling), `k8s_pod_memory_working_set` (pod-level memory trends — OTel labels `k8s_namespace_name`/`k8s_pod_name`) and its container-level twin `container_memory_working_set` (adds `k8s_container_name` — the per-container P99 shape; O2 has no cadvisor `container_memory_*` family, cmdshift/platform#219), `kube_pod_container_status_restarts_total` (restarts), `up` (scrape health — `metrics_summary` breaks it down per `service_name`).
 
 ## log_query
 

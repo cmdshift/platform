@@ -79,12 +79,25 @@ substitute_vars() {
   local cr
   cr="manifests/clusters/local/$(basename "$target").yaml"
   [ -f "$cr" ] || return 0
+  local key value tok
   yq -r '.spec.postBuild.substitute // {} | to_entries[] | .key + "\t" + .value' "$cr" \
     | while IFS=$'\t' read -r key value; do
         [ -n "$key" ] || continue
-        VAR_KEY="$key" VAR_VAL="$value" perl -pi -e \
-          'BEGIN { $k = quotemeta "\${$ENV{VAR_KEY}}"; $v = $ENV{VAR_VAL}; }
-           s/$k/$v/g' "$work/build.yaml"
+        tok="\${$key}"
+        # awk index()/substr() — a literal replace. bash ${line//pat/val}
+        # expands & in the replacement to the match (5.2), so values with
+        # / & \ $ are not safe in it.
+        KEY="$tok" VAL="$value" awk '{
+          k = ENVIRON["KEY"]; v = ENVIRON["VAL"]; out = ""
+          i = index($0, k)
+          while (i > 0) {
+            out = out substr($0, 1, i - 1) v
+            $0 = substr($0, i + length(k))
+            i = index($0, k)
+          }
+          print out $0
+        }' "$work/build.yaml" > "$work/build.sub"
+        mv "$work/build.sub" "$work/build.yaml"
       done
 }
 

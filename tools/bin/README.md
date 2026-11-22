@@ -38,7 +38,8 @@ gotchas, exit-code semantics, landmines, and provenance.
   darwin-only `date -v` or GNU-only `date -d`); non-integer durations are
   rejected first (a float in `$(( ))` aborts before `|| usage` fires).
   Random ports are `$RANDOM` over disjoint windows (prometheus_query
-  20000-20999, log_query 21000-21999) — `jot` was BSD-only.
+  20000-20999, log_query 21000-21999, tetragon_probe 22000-22999) — `jot`
+  was BSD-only.
 
 Dependencies: `kubectl`, `jq`, `yq`, plus `helm`/`git` for `helm_verify`,
 `velero` / `cilium` CLIs for their respective tools, `docker` for `rustfs`,
@@ -293,12 +294,15 @@ speaks PromQL to O2's Prometheus-compat API, `log_query` speaks O2
   keep native names + labels
   (`container_cpu_cfs_throttled_periods_total{namespace=,container=,…}` —
   `cpu_audit`'s throttle query), but the gateway's cadvisor keep-regex
-  passes ONLY `container_fs_*` + `container_cpu_cfs_*` — **there are NO
-  cadvisor `container_memory_*` series in O2**. Memory gauges come from the
-  kubeletstats receiver: `k8s_pod_memory_working_set` /
-  `k8s_pod_memory_rss`, OTel-translated on name and labels
+  passes ONLY `container_fs_*` + `container_cpu_cfs_*` — O2 has no cadvisor
+  `container_memory_*` series (that is about the scrape path, not about
+  container-level data). Memory gauges come from the kubeletstats receiver,
+  at both levels: `k8s_pod_memory_working_set` / `k8s_pod_memory_rss`
+  (pod level) and `container_memory_working_set` (container level — the
+  per-container P99 shape for sizing), OTel-translated on name and labels
   (`k8s_namespace_name` / `k8s_pod_name` / `k8s_node_name` /
-  `service_name`). Legacy names return empty; legacy-label selectors on
+  `service_name`; the container-level series add `k8s_container_name`,
+  absent only on the velero server series). Legacy names return empty; legacy-label selectors on
   translated metrics **silently match wrong series** (a `namespace=`
   selector on a translated memory metric returned kube-system pods). Select
   the OTel labels, sanity-check one series against `kubectl top`, and know

@@ -47,6 +47,8 @@ cr_validate() {
       echo "PASS: $f"
     else
       echo "FAIL: $f"
+      # per-line indent; ${//} can't prefix every line of a multiline value
+      # shellcheck disable=SC2001
       sed 's/^/  /' <<< "$out"
       fail=1
     fi

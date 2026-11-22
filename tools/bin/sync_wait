@@ -101,6 +101,8 @@ sync_wait() {
     fi
     if (( $(date +%s) - START > TIMEOUT )); then
       echo "sync_wait: TIMEOUT after ${TIMEOUT}s — still stale in bucket:"
+      # per-line indent; ${//} can't prefix every line of a multiline value
+      # shellcheck disable=SC2001
       sed 's/^/  /' <<< "$pending"
       echo "hint: check the sync + storage containers per runbooks/local/pipeline-wedged.md — the mirror poll self-heals, so a timeout means the sync container is stopped or rustfs is down"
       exit 1

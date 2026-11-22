@@ -12,8 +12,9 @@
 #     the exact key/value or it lands out of scope silently);
 #   - the probe is PINNED to the same node as the queried agent via nodeName
 #     — NPOST/NENFORCE are per-node counters, a mismatched node reads 0;
-#   - a random local port is used for the tetra gRPC forward (54321 on the
-#     host is a likely collision while any other forward is live);
+#   - a random local port (22000-22999, disjoint from the query tools'
+#     windows) is used for the tetra gRPC forward (54321 on the host is a
+#     likely collision while any other forward is live);
 #   - image maps through the LOCAL pull-through cache (registry.cloud.test)
 #     — cloud needs the direct docker.io spelling (bench's kubeconfig
 #     rewrite is the same local-only mechanic);
@@ -52,7 +53,6 @@ cleanup() {
     kill "$PF_PID" 2>/dev/null || true
   fi
 }
-trap cleanup EXIT
 
 # read the policy's podSelector and derive one matching label (key=value).
 # In-expressions: any value matches; pick the first. matchLabels: first entry.
@@ -77,51 +77,55 @@ metric_value() { # policy -> tetragon_policy_events_total sum (empty -> 0)
     | jq -r '[.data.result[]?.value[1] | tonumber] | add // 0' 2>/dev/null || echo 0
 }
 
-case "${1:-}" in -h|--help) help; exit 0 ;; esac
-[ $# -eq 1 ] || usage
-POLICY="$1"
+check_prereqs() { # policy
+  kubectl get tracingpolicy "$1" >/dev/null 2>&1 || {
+    echo "tetragon_probe: tracingpolicy $1 not found" >&2; exit 1; }
+  command -v tetra >/dev/null 2>&1 || {
+    echo "tetragon_probe: tetra not on PATH" >&2; exit 1; }
+}
 
-kubectl get tracingpolicy "$POLICY" >/dev/null 2>&1 || {
-  echo "tetragon_probe: tracingpolicy $POLICY not found" >&2; exit 1; }
-command -v tetra >/dev/null 2>&1 || {
-  echo "tetragon_probe: tetra not on PATH" >&2; exit 1; }
+find_agent() { # sets AGENT / NODE
+  AGENT="$(kubectl -n "$NS" get pods -l app.kubernetes.io/name=tetragon \
+    --no-headers | awk '$2 ~ /^[0-9]+\/[0-9]+$/ && $3=="Running" {print $1}' \
+    | head -n 1)"
+  [ -n "$AGENT" ] || { echo "tetragon_probe: no Ready agent pod" >&2; exit 1; }
+  NODE="$(kubectl -n "$NS" get pod "$AGENT" -o jsonpath='{.spec.nodeName}')"
+}
 
-LABEL="$(probe_label "$POLICY" || true)"
-echo "policy: $POLICY  probe label: ${LABEL:-<none>}"
-
-AGENT="$(kubectl -n "$NS" get pods -l app.kubernetes.io/name=tetragon \
-  --no-headers | awk '$2 ~ /^[0-9]+\/[0-9]+$/ && $3=="Running" {print $1}' \
-  | head -n 1)"
-[ -n "$AGENT" ] || { echo "tetragon_probe: no Ready agent pod" >&2; exit 1; }
-NODE="$(kubectl -n "$NS" get pod "$AGENT" -o jsonpath='{.spec.nodeName}')"
-echo "agent: $AGENT on node $NODE"
-
-LOCAL_PORT=$(jot -r 1 20000 29999 2>/dev/null || echo 29123)
-kubectl -n "$NS" port-forward "pod/$AGENT" "$LOCAL_PORT:$GRPC_PORT" >/dev/null 2>&1 &
-PF_PID=$!
-trap cleanup EXIT
-i=0
-until tetra --server-address "localhost:$LOCAL_PORT" status >/dev/null 2>&1; do
-  i=$((i + 1)); [ "$i" -gt 20 ] && {
+grpc_forward() { # agent — sets LOCAL_PORT / PF_PID; one restart on a dead kubectl
+  # (transient bind collision — random-port collisions are rare but cheaper to
+  # retry than to fail)
+  local agent=$1 i
+  for _ in 1 2; do
+    LOCAL_PORT=$((22000 + RANDOM % 1000))
+    kubectl -n "$NS" port-forward "pod/$agent" "$LOCAL_PORT:$GRPC_PORT" >/dev/null 2>&1 &
+    PF_PID=$!
+    i=0
+    until tetra --server-address "localhost:$LOCAL_PORT" status >/dev/null 2>&1; do
+      i=$((i + 1))
+      kill -0 "$PF_PID" 2>/dev/null || break
+      [ "$i" -gt 20 ] && break
+      sleep 0.5
+    done
+    kill -0 "$PF_PID" 2>/dev/null && break
+  done
+  kill -0 "$PF_PID" 2>/dev/null || {
     echo "tetragon_probe: gRPC forward never became ready" >&2; exit 1; }
-  sleep 0.5
-done
+}
 
-BEFORE="$(tetra_counters "$POLICY")"
-[ -n "$BEFORE" ] || { echo "tetragon_probe: policy not loaded on $NODE" >&2; exit 1; }
-BASE_METRIC="$(metric_value "$POLICY")"
-
-PROBE_POD="tetragon-probe-$$"
-cat <<EOF | kubectl apply -f - >/dev/null
+run_probe() { # policy label node — sets PROBE_POD / RC
+  local policy=$1 label=$2 node=$3
+  PROBE_POD="tetragon-probe-$$"
+  cat <<EOF | kubectl apply -f - >/dev/null
 apiVersion: v1
 kind: Pod
 metadata:
   name: $PROBE_POD
   namespace: flux-system
   labels:
-$( [ -n "$LABEL" ] && echo "    $(echo "$LABEL" | cut -d= -f1): $(echo "$LABEL" | cut -d= -f2-)" )
+$( [ -n "$label" ] && echo "    $(echo "$label" | cut -d= -f1): $(echo "$label" | cut -d= -f2-)" )
 spec:
-  nodeName: $NODE
+  nodeName: $node
   restartPolicy: Never
   containers:
     - name: probe
@@ -136,28 +140,51 @@ spec:
         seccompProfile: {type: RuntimeDefault}
         capabilities: {drop: ["ALL"]}
 EOF
+  i=0
+  until [ "$(kubectl -n flux-system get pod "$PROBE_POD" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)" = "True" ]; do
+    i=$((i + 1)); [ "$i" -gt 90 ] && {
+      echo "tetragon_probe: probe pod never became Ready — describe it (admission/PSS)" >&2
+      kubectl -n flux-system describe pod "$PROBE_POD" 2>/dev/null | tail -5 >&2
+      exit 1; }
+    sleep 1
+  done
+  RC=0
+  kubectl -n flux-system exec "$PROBE_POD" -- /bin/sh -c "echo probe" || RC=$?
+}
 
-i=0
-until [ "$(kubectl -n flux-system get pod "$PROBE_POD" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)" = "True" ]; do
-  i=$((i + 1)); [ "$i" -gt 90 ] && {
-    echo "tetragon_probe: probe pod never became Ready — describe it (admission/PSS)" >&2
-    kubectl -n flux-system describe pod "$PROBE_POD" 2>/dev/null | tail -5 >&2
-    exit 1; }
-  sleep 1
-done
+report() { # policy before after base_metric end_metric node
+  local policy=$1 before=$2 after=$3 base_metric=$4 end_metric=$5 node=$6
+  echo "---"
+  echo "exec exit code: $RC   (137 = Sigkill, 255+errno = Override, 0 = no match / monitor)"
+  echo "tetra counters (NPOST NENFORCE NMONITOR): before [$before] after [$after]"
+  if [ -n "$base_metric" ] && [ -n "$end_metric" ]; then
+    echo "tetragon_policy_events_total: $base_metric -> $end_metric"
+  else
+    echo "tetragon_policy_events_total: unavailable (prometheus down?) — tetra counters are the check"
+  fi
+}
 
-RC=0
-kubectl -n flux-system exec "$PROBE_POD" -- /bin/sh -c "echo probe" || RC=$?
+tetragon_probe() {
+  case "${1:-}" in -h|--help) help; exit 0 ;; esac
+  [ $# -eq 1 ] || usage
+  local policy=$1 label node before after base_metric end_metric
+  trap cleanup EXIT
 
-sleep 2
-AFTER="$(tetra_counters "$POLICY")"
-END_METRIC="$(metric_value "$POLICY")"
+  check_prereqs "$policy"
+  LABEL="$(probe_label "$policy" || true)"
+  echo "policy: $policy  probe label: ${LABEL:-<none>}"
+  find_agent
+  echo "agent: $AGENT on node $NODE"
+  grpc_forward "$AGENT"
 
-echo "---"
-echo "exec exit code: $RC   (137 = Sigkill, 255+errno = Override, 0 = no match / monitor)"
-echo "tetra counters (NPOST NENFORCE NMONITOR): before [$BEFORE] after [$AFTER]"
-if [ -n "$BASE_METRIC" ] && [ -n "$END_METRIC" ]; then
-  echo "tetragon_policy_events_total: $BASE_METRIC -> $END_METRIC"
-else
-  echo "tetragon_policy_events_total: unavailable (prometheus down?) — tetra counters are the check"
-fi
+  BEFORE="$(tetra_counters "$policy")"
+  [ -n "$BEFORE" ] || { echo "tetragon_probe: policy not loaded on $NODE" >&2; exit 1; }
+  BASE_METRIC="$(metric_value "$policy")"
+  run_probe "$policy" "$LABEL" "$NODE"
+  sleep 2
+  AFTER="$(tetra_counters "$policy")"
+  END_METRIC="$(metric_value "$policy")"
+  report "$policy" "$BEFORE" "$AFTER" "$BASE_METRIC" "$END_METRIC" "$NODE"
+}
+
+tetragon_probe "$@"
