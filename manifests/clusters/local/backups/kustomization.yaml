@@ -9,3 +9,5 @@ configMapGenerator:
       - values.yaml=velero-values.yaml
     options:
       disableNameSuffixHash: true
+      labels:
+        reconcile.fluxcd.io/watch: Enabled

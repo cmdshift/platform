@@ -140,15 +140,17 @@ Flow (POSIX sh, small named functions): destinations → **stream seeding** (exi
 - **kubernetes_sd discovery** (the gateway's prometheus receiver) needs services/endpoints/endpointslices/pods/nodes/namespaces list+watch — the preset role only covers k8sattributes' pods; without it every scrape job resolves zero targets while the pod stays healthy.
 - **Computed utilization metrics are OPT-IN** — stock presets ship them off: `system.cpu.utilization`/`system.memory.utilization` (hostmetrics receiver `metrics:` blocks), `k8s.pod.*_utilization` (kubeletstats `metrics:` block). The o2 community dashboards/alerts read them. `k8s_node_condition_ready` comes from the `k8s_cluster` receiver (clusterMetrics preset, **leader-elected in daemonset mode** so the replicas don't duplicate).
 
-## valuesFrom staleness: the CM-digest trap
+## valuesFrom reaction: the watch label
 
-A values-ConfigMap-only change does **not** re-trigger helm-controller — the HR reconciles clean while `status.lastAttemptedConfigDigest` stays frozen at the old digest (the CM updated underneath it). Hit 4+ times during tuning. Verify:
+Every values CM in this tree carries `reconcile.fluxcd.io/watch: Enabled` (cmdshift/platform#228), so a values-only edit re-triggers the HR within seconds of the CM applying — no annotate, no suspend. The historical CM-digest trap (hit 4+ times during tuning — reconcile + annotate + suspend/uninstall/resume, cmdshift/platform#171) now applies only to a values CM **missing the label**: a NEW generator without it is the landmine (the `writing-yaml` skill owns the rule).
+
+Belt-and-braces verification — before/after a values change:
 
 ```sh
 kubectl get hr openobserve -o jsonpath='{.status.lastAttemptedConfigDigest}'
 ```
 
-If it's stale after reconcile + requestedAt annotate (kubectl only — `flux annotate` doesn't exist; use `--overwrite` since the annotation carries a prior value), the fix is the suspend → `helm uninstall` → resume dance (or a full group bounce). When the pending rollout must not SIGKILL SQLite mid-write (openobserve itself), suspend FIRST, then annotate — the request is queued and processed on resume (cmdshift/platform#209 ran this successfully). `flux_triage` shows attempted-vs-applied revision lag to recognize the state; `helm_wait` for the per-release verdict. (The general ordering rule — `flux_wait` before `helm_wait` on values-only changes — lives in the `platform-workflow` skill.)
+It should move within seconds now. Read it correctly: the digest hashes the **composed** values — YAML comments and key reordering parse away, so a comment-only edit is digest-invisible by design and the check only proves anything for edits that alter the parsed values. A frozen digest on a real values change means the CM is unlabeled — check `kubectl get cm <release>-values --show-labels` first. For an unlabeled/legacy CM: reconcile + requestedAt annotate (kubectl only — `flux annotate` doesn't exist; use `--overwrite` since the annotation carries a prior value), then the suspend → `helm uninstall` → resume dance (or a full group bounce). When the pending rollout must not SIGKILL SQLite mid-write (openobserve itself), suspend FIRST, then annotate — the request is queued and processed on resume (cmdshift/platform#209 ran this successfully). `flux_triage` shows attempted-vs-applied revision lag to recognize the state; `helm_wait` for the per-release verdict. (The general ordering rule — `flux_wait` before `helm_wait` on values-only changes — lives in the `platform-workflow` skill.)
 
 ## ConfigMap size caps: two different limits
 

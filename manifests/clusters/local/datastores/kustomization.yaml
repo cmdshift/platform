@@ -9,21 +9,29 @@ configMapGenerator:
       - values.yaml=cloudnative-pg-values.yaml
     options:
       disableNameSuffixHash: true
+      labels:
+        reconcile.fluxcd.io/watch: Enabled
   - name: valkey-operator-values
     namespace: datastores
     files:
       - values.yaml=valkey-operator-values.yaml
     options:
       disableNameSuffixHash: true
+      labels:
+        reconcile.fluxcd.io/watch: Enabled
   - name: strimzi-kafka-operator-values
     namespace: datastores
     files:
       - values.yaml=strimzi-kafka-operator-values.yaml
     options:
       disableNameSuffixHash: true
+      labels:
+        reconcile.fluxcd.io/watch: Enabled
   - name: opensearch-operator-values
     namespace: datastores
     files:
       - values.yaml=opensearch-operator-values.yaml
     options:
       disableNameSuffixHash: true
+      labels:
+        reconcile.fluxcd.io/watch: Enabled

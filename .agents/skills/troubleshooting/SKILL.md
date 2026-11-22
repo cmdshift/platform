@@ -24,7 +24,7 @@ Most live landmines are already written down with their fingerprints — the REA
 | Manifest edits converge (sync_wait green) but the cluster keeps running OLD config — check the companions first (`docker ps`; the haproxy LB serving s3.cloud.test — now the unified `load` LB, cmdshift/platform#192 — OOM'd silently under S3 traffic, cmdshift/platform#149) | `pipeline-wedged` |
 | A flux Kustomization won't go Ready / `flux_wait` timed out | `reconcile-stuck` |
 | A Kustomization is stuck behind an in-flight health-check wait (annotate does nothing) | `reconcile-stuck` → `flux_unstick` |
-| A HelmRelease failing or stuck reconciling — or values "didn't land" (`lastAttemptedConfigDigest` frozen) | `helmrelease-stuck` |
+| A HelmRelease failing or stuck reconciling — or values "didn't land": check the values CM's `reconcile.fluxcd.io/watch: Enabled` label first; a frozen `lastAttemptedConfigDigest` on an unlabeled/legacy CM routes here | `helmrelease-stuck` |
 | Pods crashlooping / OOMKilled / exiting silently | `crashloop-investigation` |
 | Need metrics, logs, or alert delivery evidence | `observability` |
 | Terraform plan shows unexpected replacements on untouched resources | `terraform-churn` |

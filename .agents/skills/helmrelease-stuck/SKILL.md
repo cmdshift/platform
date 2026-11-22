@@ -25,13 +25,19 @@ kubectl get events -n <ns> --sort-by=.lastTimestamp
 
 Also not ladder material: the release is **kyverno itself** and its pods sit Pending — that's the hostNetwork port deadlock (local-only). Run `kyverno_unblock`, then re-run `flux_wait`.
 
-**Or it isn't stuck at all — valuesFrom staleness (cmdshift/platform#171, hit 4+ times)**: a values-ConfigMap-only change does NOT re-trigger helm-controller; the HR reconciles clean while `status.lastAttemptedConfigDigest` stays frozen. Check it first when "the values didn't land":
+**Or it isn't stuck at all — a values change that didn't land**: with the watch label set (every values generator in this tree carries `reconcile.fluxcd.io/watch: Enabled`, cmdshift/platform#228), a values-ConfigMap-only change re-triggers helm-controller within seconds — so an HR that still doesn't react to a values change is a landmine: **check the CM's labels first**:
+
+```
+kubectl get cm <release>-values --show-labels
+```
+
+Is `reconcile.fluxcd.io/watch: Enabled` there? A generator missing it means interval-only pickup — add the label per the `writing-yaml` rule. Belt-and-braces tell:
 
 ```
 kubectl get hr <name> -o jsonpath='{.status.lastAttemptedConfigDigest}'
 ```
 
-If stale after reconcile + requestedAt annotate, run ladder step 2 then 3 (suspend/uninstall/resume) — the digest only moves when the release is actually re-attempted. `flux_triage` shows attempted-vs-applied revision lag to recognize the state.
+The digest hashes the **composed** values — YAML comments parse away, so a comment-only edit is digest-invisible by design; a frozen digest on a REAL values change on an unlabeled/legacy CM (cmdshift/platform#171, hit 4+ times) means run ladder step 2 then 3 (suspend/uninstall/resume) — the digest only moves when the release is actually re-attempted. `flux_triage` shows attempted-vs-applied revision lag to recognize the state. Related: while an HR is unhealthy its kustomization's health gate holds the stale revision — a revert during that state needs `flux reconcile kustomization <name> --with-source` (cmdshift/platform#228 probe revert; full detail in the runbook).
 
 **Operator-crud denial mid-churn ≠ a spec error**: a controller failing "failed to create or update N resources" during cluster churn can be kyverno's CEL/exception re-pick-up lag — the exception exists and is correct, the admission engine just hasn't re-read it (hit live: an operator CR `main` went Ready=False, cmdshift/platform#90; the pattern generalizes to any operator-driven CR). Fix: reconcile the HR + annotation-bump the PolicyException to force re-pick-up. Don't rewrite the workload spec first.
 
