@@ -9,33 +9,45 @@ configMapGenerator:
       - values.yaml=openobserve-values.yaml
     options:
       disableNameSuffixHash: true
+      labels:
+        reconcile.fluxcd.io/watch: Enabled
   - name: openobserve-collector-agent-values
     namespace: observability
     files:
       - values.yaml=openobserve-collector-agent-values.yaml
     options:
       disableNameSuffixHash: true
+      labels:
+        reconcile.fluxcd.io/watch: Enabled
   - name: openobserve-collector-gateway-values
     namespace: observability
     files:
       - values.yaml=openobserve-collector-gateway-values.yaml
     options:
       disableNameSuffixHash: true
+      labels:
+        reconcile.fluxcd.io/watch: Enabled
   - name: kube-state-metrics-values
     namespace: observability
     files:
       - values.yaml=kube-state-metrics-values.yaml
     options:
       disableNameSuffixHash: true
+      labels:
+        reconcile.fluxcd.io/watch: Enabled
   - name: metrics-server-values
     namespace: kube-system
     files:
       - values.yaml=metrics-server-values.yaml
     options:
       disableNameSuffixHash: true
+      labels:
+        reconcile.fluxcd.io/watch: Enabled
   - name: vpa-values
     namespace: kube-system
     files:
       - values.yaml=vpa-values.yaml
     options:
       disableNameSuffixHash: true
+      labels:
+        reconcile.fluxcd.io/watch: Enabled

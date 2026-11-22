@@ -9,9 +9,13 @@ configMapGenerator:
       - values.yaml=hubble-auth-proxy-values.yaml
     options:
       disableNameSuffixHash: true
+      labels:
+        reconcile.fluxcd.io/watch: Enabled
   - name: openobserve-auth-proxy-values
     namespace: access
     files:
       - values.yaml=openobserve-auth-proxy-values.yaml
     options:
       disableNameSuffixHash: true
+      labels:
+        reconcile.fluxcd.io/watch: Enabled

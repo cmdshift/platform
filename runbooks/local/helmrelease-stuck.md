@@ -32,15 +32,23 @@ And not even a failure: an upgrade timing out with `Deployment/... status: 'InPr
    helm uninstall <release> -n <ns>
    ```
 
-## valuesFrom staleness: the frozen config digest (cmdshift/platform#171, hit 4+ times)
+## valuesFrom reaction: the watch label, and the unlabeled-CM fallback
 
-A values-ConfigMap-only change does **not** re-trigger helm-controller — the CM updates, the HR reconciles clean, and the values never land. The tell: `status.lastAttemptedConfigDigest` stays frozen:
+With the watch label set — every values generator in this tree carries `reconcile.fluxcd.io/watch: Enabled` (cmdshift/platform#228) — a values-ConfigMap-only change re-triggers helm-controller within seconds of the CM applying. So an HR that doesn't react to a values change is a landmine: check the CM's labels first:
+
+```
+kubectl get cm <release>-values --show-labels
+```
+
+`reconcile.fluxcd.io/watch: Enabled` missing = interval-only pickup; add the label per the `writing-yaml` rule. The belt-and-braces tell — `status.lastAttemptedConfigDigest`:
 
 ```
 kubectl get hr <name> -o jsonpath='{.status.lastAttemptedConfigDigest}'
 ```
 
-If it's stale after a reconcile + `reconcile.fluxcd.io/requestedAt` annotate, the annotate alone won't move it — run the suspend → `helm uninstall` → resume dance (or a full group bounce). `flux_triage` shows the attempted-vs-applied lag to recognize the state without hand-rolling jsonpath.
+Read it correctly: the digest hashes the **composed** values — YAML comments and key reordering parse away, so a comment-only edit is digest-invisible by design; the check means something only for edits that alter the parsed values. A frozen digest on a REAL values change on an unlabeled/legacy CM (cmdshift/platform#171, hit 4+ times) points at the ladder: the annotate alone won't move it — run the suspend → `helm uninstall` → resume dance (or a full group bounce). `flux_triage` shows the attempted-vs-applied lag to recognize the state without hand-rolling jsonpath.
+
+Related: while an HR is unhealthy its kustomization's health gate holds the **stale revision** — the kustomization stays "Reconciliation in progress" and does not pick up a new bucket revision until the HR recovers; a revert during that state needs `flux reconcile kustomization <name> --with-source` (observed live during the cmdshift/platform#228 probe revert).
 
 ## Context
 

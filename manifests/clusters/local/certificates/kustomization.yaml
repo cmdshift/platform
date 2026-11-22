@@ -9,9 +9,13 @@ configMapGenerator:
       - values.yaml=cert-manager-values.yaml
     options:
       disableNameSuffixHash: true
+      labels:
+        reconcile.fluxcd.io/watch: Enabled
   - name: kubelet-csr-approver-values
     namespace: kube-system
     files:
       - values.yaml=kubelet-csr-approver-values.yaml
     options:
       disableNameSuffixHash: true
+      labels:
+        reconcile.fluxcd.io/watch: Enabled

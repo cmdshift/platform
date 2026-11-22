@@ -9,3 +9,5 @@ configMapGenerator:
       - values.yaml=local-path-provisioner-values.yaml
     options:
       disableNameSuffixHash: true
+      labels:
+        reconcile.fluxcd.io/watch: Enabled

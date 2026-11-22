@@ -2,6 +2,13 @@
 
 Narrative log of the platform's evolution, newest first. Dated learnings, incident stories, and decision history live here; durable procedures live in `runbooks/local/`, timeless per-group decisions in `manifests/bases/*/README.md`, and landmines in `.agents/skills/`. Issue/PR references use the `cmdshift/platform#N` form.
 
+## 2026-11-21 (valuesFrom reacts instantly: every values ConfigMap carries reconcile.fluxcd.io/watch: Enabled — cmdshift/platform#228)
+
+- **The 22 values `configMapGenerator` blocks across the 12 overlay kustomizations gained `labels: reconcile.fluxcd.io/watch: Enabled` under `options:`, next to `disableNameSuffixHash: true`** (cmdshift/platform#228) — stable names kept, the cmdshift/platform#31 pattern unchanged otherwise.
+- **Live proof, no annotate/suspend anywhere**: a real values edit moved the openobserve-collector HR's `lastAttemptedConfigDigest` within seconds of the CM applying (watcher latency kustomize-SSA → HR reconcile measured at 10–118 ms).
+- **helm-controller v1.6.2 (flux2 chart 2.19.0) has had the config watcher since v1.4.0** (fluxcd/helm-controller#1258, GA with Flux v2.7 in fluxcd/flux2#5446) and the default `--watch-configs-label-selector` is exactly `reconcile.fluxcd.io/watch=Enabled` — the label alone opts in, no controller args.
+- **The docs flipped**: the old CM-digest trap is now framed as "a NEW values configMapGenerator missing the label is the landmine" (the `writing-yaml` skill owns the MUST rule); the suspend/uninstall/resume ladder survives as the remedy for unlabeled/legacy values CMs. The digest check is belt-and-braces — and it hashes the **composed** values, so YAML comments parse away and a comment-only edit is digest-invisible by design. Also documented: a kustomization's health gate holds the stale revision while its HR is unhealthy — a revert during that state needs `flux reconcile kustomization <name> --with-source`.
+
 ## 2026-11-21 (tools/bin hygiene: perl out, jot out, named entrypoints, shellcheck clean, container-level memory metric documented — cmdshift/platform#233)
 
 - **`dryrun_check` postBuild substitution is bash/awk, not perl**: the `${VAR}` replacement now runs through an `awk` `index()`/`substr()` literal replace. First attempt used bash `${line//pat/val}` — `&` in the replacement expands to the match (bash 5.2), corrupting values with `&`; `awk` via `ENVIRON` is fully literal (`/`, `&`, `\`, `$` all safe). Output verified byte-identical to the perl version on the two substitute-var groups (`backups`, `networking-config`).
