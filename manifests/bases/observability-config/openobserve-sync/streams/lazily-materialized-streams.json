@@ -1,0 +1,18 @@
+[
+  {
+    "stream": "kube_pod_container_status_waiting_reason",
+    "type": "metrics"
+  },
+  {
+    "stream": "kube_pod_container_status_terminated_reason",
+    "type": "metrics"
+  },
+  {
+    "stream": "kube_job_failed",
+    "type": "metrics"
+  },
+  {
+    "stream": "velero_repo_maintenance_failure_total",
+    "type": "metrics"
+  }
+]

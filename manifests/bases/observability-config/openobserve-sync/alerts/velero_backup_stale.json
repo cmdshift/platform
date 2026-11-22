@@ -14,7 +14,7 @@
       }
     },
     "sql": null,
-    "promql": "time() - velero_backup_last_successful_timestamp{schedule=\"pvcs\"} > 93600",
+    "promql": "(time() - max_over_time(velero_backup_last_successful_timestamp{schedule=\"pvcs\"}[26h]) > 93600) or absent_over_time(velero_backup_last_successful_timestamp{schedule=\"pvcs\"}[26h])",
     "promql_condition": {
       "column": "value",
       "operator": ">",
@@ -42,9 +42,9 @@
     "email"
   ],
   "context_attributes": {},
-  "row_template": "Schedule: {schedule} | last success: {value}s ago",
+  "row_template": "Schedule: {schedule} | seconds since last success (1 = none in 26h): {value}",
   "row_template_type": "String",
-  "description": "Warning: No successful velero backup in 26h or never succeeded (schedule pvcs) \u2014 nightly 03:00 run missed or failing. NOTE: the absence arm of the original (absent() gauge before first success) is not expressible in O2 promql conditions \u2014 rely on the stream materializing after the first nightly run.",
+  "description": "No successful velero backup of schedule pvcs in 26h, or none ever. The last-success gauge only exists after a fully successful backup (PartiallyFailed never writes it; velero re-derives it from existing Completed backups on every resync/restart, so it drops only when no Completed backup of the schedule exists), so the absent_over_time arm covers never-succeeded, every-night-PartiallyFailed and BSL-Unavailable states (cmdshift/platform#231). Check: kubectl -n backups get backups.velero.io. After a rebuild it fires until the first success; velero backup create --from-schedule pvcs clears it. Runbook: velero-backups.md",
   "enabled": true,
   "tz_offset": 0,
   "creates_incident": false

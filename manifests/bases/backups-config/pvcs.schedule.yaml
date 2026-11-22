@@ -9,6 +9,9 @@ spec:
     includedNamespaces: ["*"]
     includedResources: []
     defaultVolumesToFsBackup: true
+    resourcePolicy:
+      kind: configmap
+      name: volume-policy
     snapshotVolumes: false
     ttl: 72h
     storageLocation: default

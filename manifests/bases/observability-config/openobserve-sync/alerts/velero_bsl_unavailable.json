@@ -1,0 +1,51 @@
+{
+  "name": "velero_bsl_unavailable",
+  "stream_type": "metrics",
+  "stream_name": "velero_backup_location_status_gauge",
+  "is_real_time": false,
+  "query_condition": {
+    "type": "promql",
+    "conditions": {
+      "version": 2,
+      "conditions": {
+        "filterType": "group",
+        "logicalOperator": "AND",
+        "conditions": []
+      }
+    },
+    "sql": null,
+    "promql": "max by (backup_location_name) (velero_backup_location_status_gauge{backup_location_name=\"default\"})",
+    "promql_condition": {
+      "column": "value",
+      "operator": "<",
+      "value": 1,
+      "ignore_case": false
+    },
+    "aggregation": null,
+    "vrl_function": null,
+    "search_event_type": null,
+    "multi_time_range": []
+  },
+  "trigger_condition": {
+    "period": 10,
+    "operator": ">=",
+    "threshold": 1,
+    "frequency": 5,
+    "cron": "",
+    "frequency_type": "minutes",
+    "silence": 60,
+    "timezone": "UTC",
+    "tolerance_in_secs": null,
+    "align_time": true
+  },
+  "destinations": [
+    "email"
+  ],
+  "context_attributes": {},
+  "row_template": "BSL: {backup_location_name} | available: {value}",
+  "row_template_type": "String",
+  "description": "Velero BackupStorageLocation default is Unavailable: every backup (scheduled or ad-hoc) lands FailedValidation, backup-sync and restores stop. Read kubectl -n backups get backupstoragelocations.velero.io default -o jsonpath='{.status.message}'; 'invalid top-level directories' = a foreign writer under the BSL prefix velero/ (runbook velero-backups.md, BSL validation landmine; cmdshift/platform#231)",
+  "enabled": true,
+  "tz_offset": 0,
+  "creates_incident": false
+}

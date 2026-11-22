@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: volume-policy
+  namespace: backups
+data:
+  policies.yaml: |
+    version: v1
+    volumePolicies:
+      - conditions:
+          pvcLabels:
+            app.kubernetes.io/instance: openobserve
+            app.kubernetes.io/name: openobserve-standalone
+        action:
+          type: skip
+      - conditions:
+          volumeTypes:
+            - emptyDir
+            - ephemeral
+        action:
+          type: skip
+      - conditions:
+          storageClass:
+            - local-path
+            - local-path-immediate
+        action:
+          type: fs-backup

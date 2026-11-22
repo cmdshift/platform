@@ -14,7 +14,7 @@
       }
     },
     "sql": null,
-    "promql": "increase(velero_backup_failure_total[24h]) > 0 or increase(velero_backup_partial_failure_total[24h]) > 0",
+    "promql": "max by (schedule) (increase(velero_backup_failure_total[24h]) > 0 or increase(velero_backup_partial_failure_total[24h]) > 0 or increase(velero_backup_validation_failure_total[24h]) > 0)",
     "promql_condition": {
       "column": "value",
       "operator": ">",
@@ -27,7 +27,7 @@
     "multi_time_range": []
   },
   "trigger_condition": {
-    "period": 1440,
+    "period": 60,
     "operator": ">=",
     "threshold": 1,
     "frequency": 30,
@@ -42,9 +42,9 @@
     "email"
   ],
   "context_attributes": {},
-  "row_template": "Schedule: {schedule} | failures: {value}",
+  "row_template": "Schedule: {schedule} | failed, partially failed or failed validation in 24h: {value}",
   "row_template_type": "String",
-  "description": "Critical: A velero backup failed or partially failed in the last 24h (PartiallyFailed lands in partial_failure_total, cmdshift/platform#111)",
+  "description": "A velero backup Failed, PartiallyFailed or FailedValidation in the last 24h. PartiallyFailed counts only in velero_backup_partial_failure_total (cmdshift/platform#111); FailedValidation = BSL Unavailable or a missing/invalid volume-policy ConfigMap, read .status.validationErrors (cmdshift/platform#231). Check: kubectl -n backups get backups.velero.io. Runbook: velero-backups.md",
   "enabled": true,
   "tz_offset": 0,
   "creates_incident": false

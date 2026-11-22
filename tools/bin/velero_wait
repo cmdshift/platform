@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 # Poll a velero backup/restore until it reaches Completed, echoing progress
-# (polling discipline: the velero-ops skill). The velero CLI has no jsonpath output
-# (only table/json/yaml), hence the -o json | jq phase extraction.
+# (polling discipline: the velero-ops skill). Reads the phase via kubectl on the
+# fully-qualified CRD (backups.velero.io / restores.velero.io).
 #   velero_wait backup|restore <name> [max_polls]   # 5s per poll; default 36 (~3m)
-# Exit 0 = Completed. Exit 1 = Failed/PartiallyFailed (terminal — no point
-# waiting) or timeout, each with a diagnose hint. Exit 2 = usage error.
+#   VELERO_NAMESPACE=<ns> overrides the install namespace (default: backups)
+# Exit 0 = Completed. Exit 1 = Failed/PartiallyFailed/FailedValidation/Deleting
+# (terminal — no point waiting) or timeout, each with a diagnose hint.
+# Exit 2 = usage error.
 
 set -euo pipefail
+
+ns="${VELERO_NAMESPACE:-backups}"
 
 usage() {
   echo "usage: velero_wait backup|restore <name> [max_polls]" >&2
@@ -15,6 +19,10 @@ usage() {
 
 help() { # print the header comment block
   awk 'NR==1 {next} /^#/ {sub(/^# ?/,""); print; next} {exit}' "$0"
+}
+
+diagnose_hint() {
+  echo "diagnose: velero --kubeconfig \"\$KUBECONFIG\" -n $ns $1 describe $2 --details ; velero --kubeconfig \"\$KUBECONFIG\" -n $ns $1 logs $2 ; kubectl -n $ns get podvolumebackups,podvolumerestores"
 }
 
 velero_wait() {
@@ -31,24 +39,24 @@ velero_wait() {
 
   local phase n=0
   while :; do
-    # || true: a velero CLI failure (missing object, API down) must fall into
-    # the timeout path below, not silently kill the script via set -e + pipefail
-    phase="$(velero -n velero get "$kind" "$name" -o json 2>/dev/null | jq -r '.status.phase // ""' || true)"
+    # || true: a lookup failure (missing object, API down) must fall into
+    # the timeout path below, not silently kill the script via set -e
+    phase="$(kubectl -n "$ns" get "${kind}s.velero.io" "$name" -o jsonpath='{.status.phase}' 2>/dev/null || true)"
     case "$phase" in
       Completed)
         echo "velero_wait: $kind $name Completed"
         exit 0
         ;;
-      Failed|PartiallyFailed)
+      Failed|PartiallyFailed|FailedValidation|Deleting)
         echo "velero_wait: $kind $name is $phase — stopped early"
-        echo "diagnose: velero -n velero $kind describe $name ; velero -n velero $kind logs $name"
+        diagnose_hint "$kind" "$name"
         exit 1
         ;;
     esac
     n=$((n + 1))
     if [ "$n" -ge "$max" ]; then
       echo "velero_wait: TIMEOUT after $max polls (phase: ${phase:-not-found})"
-      echo "diagnose: velero -n velero $kind describe $name ; kubectl -n velero get podvolumebackups,podvolumerestores"
+      diagnose_hint "$kind" "$name"
       exit 1
     fi
     echo "[$n/$max] $kind $name: ${phase:-pending}"

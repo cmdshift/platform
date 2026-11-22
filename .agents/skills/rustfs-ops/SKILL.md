@@ -20,6 +20,9 @@ Without the wrapper: `docker exec storage-cloud-test sh -c 'rc alias set main ht
 - `rc rm --recursive` **silently removes nothing** — exits 0, reports success. Use `rc object remove <key>` per object, or `rc mirror --remove` for bulk
 - `rc ls` only shows a prefix's contents with **`--recursive`**
 - deletion + resurrection races can make `rm` appear to succeed — re-list to verify
+- Bulk delete = `rc object remove` with many paths: `rustfs ls <prefix> --recursive | awk '{print $NF}' | sed 's#^#main/<bucket>/#' | xargs -n 100 rustfs object remove` (keys print bucket-relative); `--dry-run` one key first; re-list twice (kopia repo reset: velero-backups runbook, cmdshift/platform#240)
+- `rc du` can't size a prefix (data-usage snapshot is bucket-level) — sum sizes from `rc ls --recursive`
+- The `backups` bucket is unversioned: removals are final
 
 ## Provisioning model
 
