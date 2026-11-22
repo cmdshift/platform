@@ -14,7 +14,7 @@
       }
     },
     "sql": null,
-    "promql": "kube_job_failed",
+    "promql": "max by (namespace, job_name) (kube_job_failed{condition=\"true\"})",
     "promql_condition": {
       "column": "value",
       "operator": ">=",
@@ -42,9 +42,9 @@
     "email"
   ],
   "context_attributes": {},
-  "row_template": "*ClusterName:* {k8s_cluster} | Namespace: {namespace} | Job: {job_name}",
+  "row_template": "Namespace: {namespace} | Job: {job_name}",
   "row_template_type": "String",
-  "description": "Warning: Kubernetes Job has failed. Check job logs and pod events.",
+  "description": "A Kubernetes Job has failed; the alert row names namespace and job_name. Read the pod logs (O2 k8s_logs keeps them after the Job is gone) and events. Level signal: it clears when the failed Job object is deleted. talos-backup Jobs age out 24h after finishing (ttlSecondsAfterFinished, cmdshift/platform#239, runbook etcd-backups.md); trivy scan Jobs after 10m.",
   "enabled": true,
   "tz_offset": 0,
   "creates_incident": false

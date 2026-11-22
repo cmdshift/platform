@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+# Read-only kopia CLI against one velero kopia repo, in a throwaway docker
+# container on the companion network (s3.cloud.test via docker DNS → load LB → rustfs).
+#   kopia_verify --check                                  # reachability preflight, no credentials
+#   kopia_verify <repo> repository status
+#   kopia_verify <repo> snapshot list --all --json
+#   kopia_verify <repo> snapshot verify [--verify-files-percent=N] [<snapshot-id>...]
+#   kopia_verify <repo> content verify
+#   kopia_verify <repo> maintenance info --json
+#   kopia_verify <repo> manifest show <id>
+#   kopia_verify <repo> blob list --prefix=q
+#   kopia_verify <repo> index inspect --all
+#   kopia_verify <repo> logs list            |  logs show <session-id>
+# <repo> = the BackupRepository volume namespace (scanning, datastores, ...),
+# i.e. the bucket prefix velero/kopia/<repo>/ in bucket backups.
+# Connects with --readonly and accepts only read subcommands. Credentials come
+# from secrets backups/velero-s3-credentials (default) and
+# backups/velero-repo-credentials (repository-password), passed to docker by
+# env NAME only. The kopia config stays on the container tmpfs; cache + logs
+# land in .agents/temp/cache/kopia/{cache,logs}/<repo>/.
+# Exit codes: kopia's own; 1 = preflight/credential/connect failure; 2 = usage error.
+
+set -euo pipefail
+
+IMAGE='kopia/kopia:0.22.3@sha256:4dcc208c1b191770bf4d0854f8deec06b4a16b35be4b63abdcfa9755cee7960e'
+NETWORK='local-test-internal'
+
+usage() {
+  echo "usage: kopia_verify --check | kopia_verify <repo> <read-only kopia subcommand> [args...]" >&2
+  exit 2
+}
+
+help() { # print the header comment block
+  awk 'NR==1 {next} /^#/ {sub(/^# ?/,""); print; next} {exit}' "$0"
+}
+
+repo_root() {
+  { cd "$(dirname "$0")/../.." && pwd; }
+}
+
+check_repo_name() {
+  case "$1" in
+    ''|*[!a-z0-9-]*) echo "kopia_verify: bad repo name '$1' (a namespace, e.g. scanning)" >&2; exit 2 ;;
+  esac
+}
+
+check_readonly_cmd() {
+  case "${1:-} ${2:-}" in
+    "repository status"|"snapshot list"|"snapshot verify"|"content verify"|"content list"|"content stats"|\
+    "maintenance info"|"manifest list"|"manifest show"|"blob list"|"blob stats"|"index list"|"index inspect"|\
+    "logs list"|"logs show") ;;
+    *) echo "kopia_verify: '${1:-} ${2:-}' is not an allowed read-only subcommand" >&2; exit 2 ;;
+  esac
+}
+
+check_reachable() {
+  local body
+  body="$(docker run --rm --network "$NETWORK" --entrypoint curl "$IMAGE" -sS --max-time 10 http://s3.cloud.test/ 2>&1 || true)"
+  case "$body" in
+    *"<Code>"*) echo "kopia_verify: s3.cloud.test reachable from $NETWORK (S3 error XML from rustfs)" ;;
+    *) echo "kopia_verify: s3.cloud.test NOT reachable from $NETWORK — got: ${body:0:200}" >&2; exit 1 ;;
+  esac
+}
+
+load_creds() {
+  local creds
+  creds="$(kubectl -n backups get secret velero-s3-credentials -o jsonpath='{.data.default}' | base64 -d)"
+  AWS_ACCESS_KEY_ID="$(printf '%s\n' "$creds" | sed -n 's/^[[:space:]]*aws_access_key_id[[:space:]]*=[[:space:]]*//p')"
+  AWS_SECRET_ACCESS_KEY="$(printf '%s\n' "$creds" | sed -n 's/^[[:space:]]*aws_secret_access_key[[:space:]]*=[[:space:]]*//p')"
+  KOPIA_PASSWORD="$(kubectl -n backups get secret velero-repo-credentials -o jsonpath='{.data.repository-password}' | base64 -d)"
+  if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ] || [ -z "$KOPIA_PASSWORD" ]; then
+    echo "kopia_verify: credential extraction failed (values not printed) — check secrets velero-s3-credentials/velero-repo-credentials in ns backups" >&2
+    exit 1
+  fi
+  export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY KOPIA_PASSWORD
+}
+
+run_kopia() {
+  local repo="$1"; shift
+  local root
+  root="$(repo_root)/.agents/temp/cache/kopia"
+  mkdir -p "$root/cache/$repo" "$root/logs/$repo"
+  # shellcheck disable=SC2016 # $REPO_PREFIX / $@ expand inside the container's sh
+  docker run --rm --network "$NETWORK" --user "$(id -u):$(id -g)" \
+    --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \
+    -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e KOPIA_PASSWORD \
+    -e HOME=/tmp -e KOPIA_CONFIG_PATH=/tmp/repository.config \
+    -e KOPIA_CHECK_FOR_UPDATES=false -e KOPIA_PERSIST_CREDENTIALS_ON_CONNECT=false \
+    -e KOPIA_LOG_DIR=/app/logs -e KOPIA_CACHE_DIRECTORY=/app/cache \
+    -e REPO_PREFIX="velero/kopia/$repo/" \
+    -v "$root/cache/$repo:/app/cache" -v "$root/logs/$repo:/app/logs" \
+    --entrypoint sh "$IMAGE" -c '
+      kopia repository connect s3 --readonly --bucket=backups --prefix="$REPO_PREFIX" \
+        --endpoint=s3.cloud.test --disable-tls --region=local \
+        --content-cache-size-mb=512 --metadata-cache-size-mb=512 >/dev/null \
+        || { echo "kopia_verify: connect failed for $REPO_PREFIX" >&2; exit 1; }
+      exec kopia "$@"' kopia "$@"
+}
+
+kopia_verify() {
+  case "${1:-}" in
+    -h|--help) help; exit 0 ;;
+    --check) [ $# -eq 1 ] || usage; check_reachable; exit 0 ;;
+  esac
+  [ $# -ge 3 ] || usage
+  local repo="$1"; shift
+  check_repo_name "$repo"
+  check_readonly_cmd "$@"
+  load_creds
+  run_kopia "$repo" "$@"
+}
+
+kopia_verify "$@"

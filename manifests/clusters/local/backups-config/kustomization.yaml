@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - ../../../bases/backups-config
   - default.backup-storage-location.yaml
+  - volume-policy.config-map.yaml
   - talos-backup-s3-credentials.external-secret.yaml
   - talos-backup-age-public-key.external-secret.yaml
   - velero-s3-credentials.external-secret.yaml

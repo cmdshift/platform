@@ -8,7 +8,9 @@ In-cluster CronJob `backups/talos-backup` (04:00 daily) pulls an etcd snapshot f
 rustfs ls main/backups/talos --recursive     # look for talos/<cluster>-<ts>.snap.zst.age
 ```
 
-The job's history (last 3 success / 1 failure) is under `kubectl get jobs -n backups`; logs show the snapshot size and the upload key. A fresh snapshot of this cluster is ~98 MiB raw → ~11-15 MiB compressed+encrypted.
+Jobs are deleted 24h after finishing (`ttlSecondsAfterFinished`, cmdshift/platform#239); `failedJobsHistoryLimit: 1` / `successfulJobsHistoryLimit: 3` are upper bounds only. Run logs outlive the Job in O2: `log_query -m "SELECT k8s_pod_name, body FROM \"k8s_logs\" WHERE k8s_namespace_name = 'backups' AND k8s_pod_name LIKE 'talos-backup-%' ORDER BY _timestamp DESC" 7d`. The logs show the snapshot size and the upload key. A fresh snapshot of this cluster is ~98 MiB raw → ~11-15 MiB compressed+encrypted.
+
+**Failed-run review window:** `job_failed` is a level signal: it fires while a failed Job exists and re-mails every 60 min. The window is 24h, about one schedule period. If the next run fails too, `failedJobsHistoryLimit: 1` swaps in the new failed Job and the alert continues, so the signal reads "the latest run in the last day failed". The run logs stay in O2 after the Job is gone. A failed run therefore alerts until about the next run. The only failed Job created before the TTL landed (`talos-backup-29910480`, a 503 on upload) needed one human-run `kubectl -n backups delete job`, because a jobTemplate edit never reaches existing Jobs (cmdshift/platform#239).
 
 ## Decrypt a snapshot (restore drill / inspection)
 
@@ -35,6 +37,8 @@ etcdutl snapshot status .agents/temp/etcd-drill/snap -w table   # hash/revision/
 `.agents/temp/` is the scratch surface — don't scatter key material elsewhere; the key file is gitignored by the dir marker.
 
 ## Restore procedure (drilled 2026-09-27, cmdshift/platform#94 phase 2)
+
+**Topology note (2026-11-22, cmdshift/platform#238/#244):** the validated drill ran on a **3-ctrl quorum**; the cluster now runs a **single ctrl node** (`ctrl-local-test-440e` + 2 workers), so the 3-node "Sequence" below is the validated record for a 3-ctrl cluster, not today's topology. Single-ctrl adaptation: "quorum loss" = stopping the ONE ctrl container (step 2 becomes: stop the ctrl container, wipe `lib/etcd` in its `/var` volume, start it); step 3's "all members Preparing" applies to the single etcd member; `talosctl bootstrap --recover-from` still targets exactly one node (`-n` on the one ctrl — unchanged). Workers run no etcd, so the auto-rejoin path (single-node loss with surviving quorum) doesn't exist here — worker loss is pod rescheduling, not cluster recovery. The live re-drill is deferred until the homelab is High-Availability (human decision, 2026-11-22: "i'm going to wait until a High-Availability homelab setup to run this drill") — not scheduled for a dedicated session; it waits for an HA topology.
 
 Validated end-to-end: full 3-node quorum loss → all members `Preparing` → `talosctl bootstrap --recover-from` with the 24h-old rustfs artifact → 3 members rejoined → flux re-converged, all helmreleases green. Quorum-loss-to-joined measured **~6-7m**; full conformance (flux + helmreleases + policy) another ~10m. The primary primitive is **`talosctl bootstrap --recover-from <snap>`** — Talos installs the snapshot into etcd itself (no `--recover-skip-hash-check` needed: our snapshots carry embedded hash/revision, unlike raw data-dir copies). Target exactly ONE ctrl node (the CLI errors on multiple `-n`); the other two rejoin automatically. The docs' "all members Preparing" state is only reachable when **no quorum exists anywhere** — a wiped member with 2/3 alive auto-rejoins (removes its stale member entry, re-adds; new member ID) and never reaches recoverable state. That auto-rejoin is itself a validated zero-touch recovery path for single-node loss.
 
@@ -77,6 +81,7 @@ Every live mutation (pod delete, kubelet restart, etcd teardown) gets narrated w
 
 ## Prereqs (what makes this work)
 
+- **Host tools**: `talosctl` + `zstd` are on PATH; **`age` + `etcdutl` are required for the decrypt/status steps and are ABSENT from the host PATH as of the 2026-11-22 refresh** (both were present at the 2026-09-27 drill — install before the next drill). The private age key extraction (terraform state pull, below) lands the key at `.agents/temp/etcd-backup-age.key`.
 - Machine config (terraform, `nodes/templates/ctrl.tftpl.yaml`): `kubernetesTalosAPIAccess` with `allowedRoles: [os:reader, os:etcd:backup]` and `backups` in `allowedKubernetesNamespaces`. Template edits = full rebuild (cmdshift/platform#140).
 - The Talos `ServiceAccount` CR (`backups/talos-backup`) is reconciled by flux; the talos-sa-controller (api-server sidecar) issues the client cert as Secret `backups/talos-backup` (named after the CR) and provisions the `default/talos` Service → ctrl apid endpoints (`:50000`). If the CronJob's pods can't find `talos.default` as an endpoint, check the TSA status (`failureReason` reports namespace/role rejections, e.g. `Namespace is not allowed`).
 - CNP: `networking-config/backups.cilium-network-policy.yaml` egresses `host`+`remote-node` `:50000` (apid) and `s3.cloud.test:80`.

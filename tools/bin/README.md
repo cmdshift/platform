@@ -73,8 +73,9 @@ The toolchain installs via `brew bundle --file=tools/Brewfile`.
 | `log_query` | O2 SQL log search with the port-forward lifecycle handled |
 | `exec_inventory` | tetragon exec-inventory review: per-namespace/binary counts over a window |
 | `mailpit` | alert-email subjects, or `-s <subj>` / `-b <id>` for body fetch |
-| `velero_wait` | poll a velero backup/restore to Completed |
+| `velero_wait` | poll a velero backup/restore to Completed (kubectl on `backups.velero.io`/`restores.velero.io` in `backups`; stops early on Failed/PartiallyFailed/FailedValidation/Deleting — cmdshift/platform#238) |
 | `rustfs` | rustfs `rc` CLI inside the storage container, alias preset |
+| `kopia_verify` | read-only kopia CLI (throwaway container) against one velero kopia repo |
 | `cilium_test` | `cilium connectivity test` with temp admission scaffolding |
 | `bench` | episodic kube-bench CIS scan (one-shot Job pair + temp scaffolding) |
 | `agent_lint` | lint the agent surfaces: skill/agent frontmatter, config, links, bare refs, dates, tool registration, removed components |
@@ -387,6 +388,39 @@ buckets auto-provisioned):
 terraform/docker `storage` stack instead of docker's generic "No such
 container". `rustfs -h` is this script's help; `rustfs <subcommand> --help`
 reaches rc.
+
+### `kopia_verify`
+
+Read-only integrity checks on the velero kopia repos (procedure:
+[velero-backups.md](../../runbooks/local/velero-backups.md) "Kopia repo
+integrity check"; cmdshift/platform#240).
+
+- The image pin tracks velero's kopia fork: re-resolve it on any velero bump
+  from `go.mod`'s `replace github.com/kopia/kopia => …` line. Velero v1.18.1
+  embeds kopia 0.22.3 plus an Azure-only patch, hence `kopia/kopia:0.22.3`.
+- Runs on `local-test-internal`, where docker's embedded DNS resolves
+  `s3.cloud.test` to the load LB; `local-test-bridge` has no `*.cloud.test`
+  aliases and host loopback isn't reachable from a container.
+- Creds pass to docker by env *name* only and the kopia config stays on the
+  container tmpfs — never bind-mount `repository.config`, it embeds the S3
+  keys. kopia prints `accessKeyID` (an identifier) in `repository status`;
+  the secret is masked.
+- Only read subcommands are accepted, and `--readonly` on connect makes kopia
+  itself refuse writes. Snapshot/orphan deletion is deliberately not offered.
+- Caches cap at 512 MB content + 512 MB metadata per repo under
+  `.agents/temp/cache/kopia/` (soft caps — scanning reached 1.7 GB), so
+  `temp_prune` lists them.
+- kopia writes `Cannot determine current user` / `Connected to repository.`
+  to stderr: keep `2>` separate when capturing `--json` output.
+- Keep `--verify-files-percent` downloads to one snapshot per run: they stream
+  through the load haproxy (512Mi limit).
+
+### `velero_wait`
+
+Reads the phase with kubectl on `backups.velero.io`/`restores.velero.io` in
+namespace `backups`. It used to hardcode the `velero` namespace, never
+found anything, and every wait timed out as `not-found` (cmdshift/platform#238,
+cmdshift/platform#240).
 
 ### `tetragon_probe`
 
