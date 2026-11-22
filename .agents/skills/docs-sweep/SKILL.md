@@ -13,7 +13,7 @@ One bullet per learning, facts only — what was hit, what cost a debugging roun
 
 ## 2. Dispatch the subagent
 
-Task tool, subagent_type `general`. Prompt skeleton (fill the brackets, pass the inventory verbatim):
+The `subagent` tool with `agent: general`. Prompt skeleton (fill the brackets, pass the inventory verbatim):
 
 ```
 You are doing DOCS-ONLY work in this repo (no code, no manifests, no cluster commands
@@ -32,8 +32,9 @@ Surfaces — pick by what the learnings touch (details + examples: AGENTS.md →
   incident post-mortems
 - .agents/skills/*/SKILL.md — sync any skill whose trigger, steps, or trap list
   changed (skills are thin dispatchers; the trap list must stay current)
-- tools/bin/README.md — new or changed helper scripts: args, defaults, exit
-  codes, gotchas
+- tools/bin/README.md — new or changed helper scripts: the quick-reference
+  row + gotchas (usage, defaults, and exit codes live in the script's header —
+  `<name> --help`)
 - manifests/clusters/cloud/notes.md — what the cloud cluster must do differently
 
 Writing rules (AGENTS.md → Docs map):
@@ -46,8 +47,9 @@ Writing rules (AGENTS.md → Docs map):
   owner — link it.
 - Read each target file before editing; match its structure and tone.
 
-Verify before reporting: `git diff --stat` on the doc files you touched; re-read
-each edit for factual consistency with the inventory. Do NOT commit.
+Verify before reporting: re-read each edit for factual consistency with the
+inventory; run `agent_lint` (exit 0 — list any WARNs). No git: the main
+session reviews the diff and owns every commit.
 
 Report back: per-surface list of what changed and why, plus anything in the
 inventory you could not place (so the main session can decide).

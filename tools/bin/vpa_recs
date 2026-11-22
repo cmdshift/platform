@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # VPA recommendations vs current requests — the EVIDENCE side of sizing.
 # Companion to memory_audit/cpu_audit (the usage side): Off-mode VPAs
-# (hand-maintained per workload — goldilocks the auto-creator was removed,
-# see manifests/bases/observability/README.md) feed the VPA recommender,
+# (hand-maintained per workload, see manifests/bases/observability/README.md)
+# feed the VPA recommender,
 # which fills status.recommendation from metrics-server history. A
 # recommendation is a
 # candidate request (P99-shaped), not a drop-in — cross-check against the
@@ -17,6 +17,11 @@ usage() {
   exit 2
 }
 
+help() { # print the header comment block
+  awk 'NR==1 {next} /^#/ {sub(/^# ?/,""); print; next} {exit}' "$0"
+}
+
+case "${1:-}" in -h|--help) help; exit 0 ;; esac
 [ $# -le 1 ] || usage
 NS="${1:-}"
 ns_args=(-A); [ -n "$NS" ] && ns_args=(-n "$NS")

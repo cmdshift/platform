@@ -9,9 +9,9 @@ description: Velero backup and restore operations — the nightly backup check (
 
 BSL `default` → rustfs bucket `backups` **under prefix `velero/`** at `s3.cloud.test` (user `backups-user` via secrets-server payload `backups/velero-s3-credentials`; egress via the backups CNP's `toFQDNs: s3.cloud.test` rule). The `pvcs` schedule (03:00 daily, all namespaces, fs-backup, 72h TTL — at most 3 backup generations live) is the nightly run. talos-backup (etcd snapshots) owns prefix `talos/` in the same bucket — shared-bucket prefix rule in `backups/README.md`; etcd snapshot ops in the etcd-backups runbook.
 
-## RTO/RPO (recorded 2026-09-27, cmdshift/platform#94)
+## RTO/RPO (cmdshift/platform#94)
 
-RPO 24h (both pipelines daily); RTO ~15-20m etcd restore path vs ~10m rebuild fallback. Etcd restore drilled 2026-09-27 — the post-restore checklist (crashlooping controllers, cilium VIP-backend loss, kubelet pod-sync wedge, node-agent rolls) lives in [etcd-backups.md](../../../runbooks/local/etcd-backups.md) and applies to ANY full-cluster restore. Drill cadence: quarterly + after storage changes.
+RPO 24h (both pipelines daily); RTO ~15-20m etcd restore path vs ~10m rebuild fallback. The etcd restore path is drilled — the post-restore checklist (crashlooping controllers, cilium VIP-backend loss, kubelet pod-sync wedge, node-agent rolls) lives in [etcd-backups.md](../../../runbooks/local/etcd-backups.md) and applies to ANY full-cluster restore. Drill cadence: quarterly + after storage changes.
 
 ## Morning check
 
@@ -34,7 +34,7 @@ All BackupRepositories `Failed` + Warning events every ~5m = kopia maintenance J
 
 ## BSL unavailable = silent schedule skips
 
-Velero's BSL validation rejects foreign top-level dirs in the bucket — one stray writer makes the BSL `Unavailable` and **every schedule fire skips silently** (no Backup CR, flat `velero_backup_attempt_total`, only `VeleroBackupStale`'s absent-arm fires). Fingerprint + rule: the velero-backups runbook. Every bucket writer owns a distinct top-level prefix.
+Velero's BSL validation rejects foreign top-level dirs in the bucket — one stray writer makes the BSL `Unavailable` and **every schedule fire skips silently** (no Backup CR, flat `velero_backup_attempt_total`, no failure counters — and no velero detector reliably fires: `VeleroBackupStale` has no absence arm, cmdshift/platform#231). Fingerprint + rule: the velero-backups runbook. Every bucket writer owns a distinct top-level prefix.
 
 ## Deleting — the resurrection trap
 
@@ -51,7 +51,7 @@ Drill procedure after any storage change: compliant throwaway pod writes a marke
 
 ## Alerts
 
-Three velero alerts in `observability/mimir-rules.yaml` (`backup-alerts` — moved from `observability-config/thanos-rules.yaml` with the LGTM migration, cmdshift/platform#128): `VeleroBackupFailed` (critical, watches BOTH `velero_backup_failure_total` **and** `velero_backup_partial_failure_total` — a schedule backup with failed PVBs lands `PartiallyFailed`, which only the second counter counts; fires within ~1m), `VeleroBackupStale` (warning, `for: 1h` — a fresh wedge pends ~1h before firing; carries an `absent()` arm because the last-success gauge only exists after a first Completed backup), `VeleroRepoMaintenanceFailed` (warning, 2h window). Delivery: mailpit. Conventions: `manifests/bases/observability/README.md`.
+Three velero detectors in `observability-config/openobserve-sync/alerts/` (`velero_*.json` — O2 native alerts created by the openobserve-sync Job, cmdshift/platform#206). O2 detectors have no `for:` — each JSON's `trigger_condition` sets `period` and `frequency` (minutes; `frequency` is the evaluation interval); fire latency is unmeasured (cmdshift/platform#231). `VeleroBackupFailed` (critical, period 1440 / frequency 30; watches BOTH `velero_backup_failure_total` **and** `velero_backup_partial_failure_total` — a schedule backup with failed PVBs lands `PartiallyFailed`, which only the second counter counts), `VeleroBackupStale` (warning, period 60 / frequency 30 — **no absence arm**: the last-success gauge only exists after a fully successful backup, so a schedule that never fully succeeded raises no stale alert, and a silently-skipping one fires only if an earlier success left a gauge sample to age past 26h — unverified, cmdshift/platform#231), `VeleroRepoMaintenanceFailed` (warning, period 120 / frequency 30). Delivery: O2 SMTP → mailpit. Conventions: `manifests/bases/observability/README.md`.
 
 ## CLI quirks
 

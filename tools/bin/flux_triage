@@ -27,6 +27,10 @@ usage() {
   exit 3
 }
 
+help() { # print the header comment block
+  awk 'NR==1 {next} /^#/ {sub(/^# ?/,""); print; next} {exit}' "$0"
+}
+
 # classify_ks <ready> <message> -> verdict
 classify_ks() {
   local ready=$1 msg=$2
@@ -137,6 +141,7 @@ report() {
 }
 
 flux_triage() {
+  case "${1:-}" in -h|--help) help; exit 0 ;; esac
   local a
   filters=()
   for a in "$@"; do

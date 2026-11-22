@@ -29,13 +29,13 @@ Usage vs limits across the cluster (Mi/Gi handled — `1Gi` silently parses as `
 memory_audit 50
 ```
 
-Snapshot proves nothing — judge the trend. **And for an OOMKill specifically, a below-limit snapshot does not clear the limit either**: transient bursts kill between snapshots (seaweed volume server died at a 240Mi limit while `kubectl top` showed 183Mi) — pull the range query and judge headroom against the burst peak, not the last observed value ([memory-sizing-audit.md](memory-sizing-audit.md) §4; seaweed burst traps: [../../manifests/bases/objects/README.md](../../manifests/bases/objects/README.md)).
+Snapshot proves nothing — judge the trend. **And for an OOMKill specifically, a below-limit snapshot does not clear the limit either**: transient bursts kill between snapshots (seaweed volume server died at a 240Mi limit while `kubectl top` showed 183Mi) — pull the range query and judge headroom against the burst peak, not the last observed value ([memory-sizing-audit.md](memory-sizing-audit.md) §4).
 
 ```
 prometheus_query 'max_over_time(k8s_pod_memory_working_set{k8s_namespace_name="<ns>"}[6h])'   # O2 shape: kubeletstats family, NOT container_memory_working_set_bytes (tools/bin/README.md → prometheus_query)
 ```
 
-For prometheus specifically, also check series count and cardinality by job (`prometheus_tsdb_head_series`, `topk(10, count by (job)({__name__=~".+"}))` via `prometheus_query`) — memory growth usually tracks series growth.
+For the metrics store (OpenObserve), also check cardinality per metric (`prometheus_query -c 'count by (service_name) (<metric>)'` — O2 rejects name-less selectors like `{__name__=~".+"}`) — memory growth usually tracks series growth.
 
 The `ContainerOOMKilled` alert (O2 → SMTP → mailpit) catches ceiling hits that go unnoticed in logs. **Alerts are readable at http://mail.cloud.test (`mailpit`).**
 

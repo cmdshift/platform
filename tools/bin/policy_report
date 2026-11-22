@@ -15,7 +15,12 @@ usage() {
   exit 2
 }
 
+help() { # print the header comment block
+  awk 'NR==1 {next} /^#/ {sub(/^# ?/,""); print; next} {exit}' "$0"
+}
+
 policy_report() {
+  case "${1:-}" in -h|--help) help; exit 0 ;; esac
   local clean=false
   if [[ "${1:-}" == "--clean" ]]; then clean=true; shift; fi
   [ $# -eq 0 ] || usage # a silently-ignored arg reads as a successful clean

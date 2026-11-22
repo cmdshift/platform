@@ -24,7 +24,7 @@ Skills live in `.agents/skills/<name>/SKILL.md` with `name`/`description` frontm
 1. Read the target skill fully + its runbook before editing; match structure and tone (numbered steps, fenced command blocks, `## Full detail` linker at the bottom when a runbook exists).
 2. Make the edit — add steps in place, don't append unstructured paragraphs.
 3. Update the sync points above.
-4. Verify: frontmatter still parses (name matches the directory), links resolve relative to the skill dir (`../../../runbooks/...` from `.agents/skills/<name>/`).
+4. Verify: `agent_lint` exits 0. It checks that frontmatter parses with `name` == directory, that relative links resolve (`../../../runbooks/...` from `.agents/skills/<name>/`), and that there are no bare refs, dates, or removed-component names. WARNs are allowed but note them — a skill over 6KB means narrative belongs in the runbook.
 5. CHANGELOG entry for the change that motivated it (ref `cmdshift/platform#N`).
 
 ## 4. Adding vs editing

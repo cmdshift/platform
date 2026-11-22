@@ -18,7 +18,7 @@ A silent exit with nothing in the logs is almost always an OOMKill — the proce
 
 ## 2. Kyverno or workload?
 
-`pod_status` shows the exit reason; `policy_report` summarizes admission verdicts (failures > 0 = denials in play). If admission denied the pod, its template violates a policy (requests/limits, `runAsNonRoot`, seccomp, capabilities, `:latest`). Fix the workload if it's ours. If a controller/operator generates non-compliant pods with no config knobs (e.g. the thanos-operator's config-reloader sidecar in its day — a LimitRange can be the better fix, cmdshift/platform#111), add a **scoped PolicyException** in `policies-config/*.policy-exception.yaml` — namespace + name-prefix matching, with the rationale recorded in the group README (comment rules: the `writing-yaml` skill, Comments section).
+`pod_status` shows the exit reason; `policy_report` summarizes admission verdicts (failures > 0 = denials in play). If admission denied the pod, its template violates a policy (requests/limits, `runAsNonRoot`, seccomp, capabilities, `:latest`). Fix the workload if it's ours. If a controller/operator generates non-compliant pods with no config knobs (e.g. an operator's config-reloader sidecar — a LimitRange can be the better fix, cmdshift/platform#111), add a **scoped PolicyException** in `policies-config/*.policy-exception.yaml` — namespace + name-prefix matching, with the rationale recorded in the group README (comment rules: the `writing-yaml` skill, Comments section).
 
 ## 3. Memory: limit too low, or a leak?
 
@@ -27,7 +27,7 @@ memory_audit 50                                                  # usage vs limi
 prometheus_query 'max_over_time(k8s_pod_memory_working_set{k8s_namespace_name="<ns>"}[6h])'   # O2 shape (cmdshift/platform#186 wired the store; family inventory: tools/bin/README.md → prometheus_query)
 ```
 
-Snapshot proves nothing — judge the trend. A below-limit snapshot doesn't clear a limit either: transient bursts kill between snapshots (seaweed volume died at 240Mi with `kubectl top` at 183Mi) — headroom is judged against the range-query peak, not the last observed value. For prometheus itself, check cardinality too (`prometheus_tsdb_head_series`, `topk(10, count by (job)({__name__=~".+"}))`) — memory growth usually tracks series growth.
+Snapshot proves nothing — judge the trend. A below-limit snapshot doesn't clear a limit either: transient bursts kill between snapshots (an object-store volume server died at its 240Mi limit with `kubectl top` at 183Mi) — headroom is judged against the range-query peak, not the last observed value. For the metrics store itself (openobserve), check cardinality too — O2 rejects name-less selectors (`{__name__=~".+"}` → `metric name is required`), so count per metric: `prometheus_query -c 'count by (service_name) (<metric>)'` — memory growth usually tracks series growth.
 
 The `ContainerOOMKilled` alert (O2 → SMTP delivery) catches ceiling hits invisible in logs; alerts land at http://mail.cloud.test (`mailpit`).
 

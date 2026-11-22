@@ -44,7 +44,7 @@ Kyverno builds a fine-grained webhook per CEL policy (e.g. `gpol.validate.kyvern
 
 | value | why | ref |
 |---|---|---|
-| `global.image.registry: ghcr.io` | chart default reg.kyverno.io is a vanity proxy of ghcr (token realm ghcr.io/token) — the caching proxy's pull-through to it fails silently (angos_pull_through_total miss, 404 served) while ghcr.io works; same content | #93 |
+| `global.image.registry: ghcr.io` | chart default reg.kyverno.io is a vanity proxy of ghcr (token realm ghcr.io/token) — the caching proxy's pull-through to it fails silently (angos_pull_through_total miss, 404 served) while ghcr.io works; same content | cmdshift/platform#93 |
 | `features.logging` format json | JSON logging: platform convention (nests under features here) | — |
 | `backgroundScanInterval: 1h` | investigate: was 5m, reports-controller CPU ramped to 5+ cores | #17 |
 | admission-controller memory 208Mi / reports-controller 160→240Mi, 20m CPU req | audits: steady 120Mi (peak×1.2); 7d peak 101m CPU during scan churn, limit keeps burst room (#66); memory sawtooth peaks ~178Mi during the hourly background scan, request 160Mi covers the scan-driven baseline | #66 |

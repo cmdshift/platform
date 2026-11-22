@@ -23,15 +23,13 @@ Without the wrapper: `docker exec storage-cloud-test sh -c 'rc alias set main ht
 
 ## Provisioning model
 
-Buckets, users, and policies are auto-provisioned by the container entrypoint from the `buckets` list in `cluster/local/conf/outputs.tf` — user `<name>-user`, password `password`, scoped R/W/L/D policy per bucket. **Changing the list recreates the container and wipes its data**: the `flux` bucket re-populates via the sync container, everything else is gone.
+Buckets, users, and policies are auto-provisioned by the container entrypoint from the `buckets` list in `cluster/local/conf/outputs.tf` — user `<name>-user`, password `password`, scoped R/W/L/D policy per bucket. **Changing the list recreates the container** — non-destructive: data persists on the `platform-storage-data` docker volume and provisioning is idempotent; removing a bucket from the list orphans its data on the volume (clean up by hand: `rustfs object remove` per key).
 
-Current buckets: `flux` (the GitOps source), `backups` (velero).
+Buckets: `flux` (the GitOps source), `backups` (velero under `velero/`, talos-backup under `talos/`), `openobserve` (O2 parquet data).
 
 ## The flux bucket: single writer
 
 Written **only** by the sync container (`rc mirror --overwrite --remove` from the bind-mounted `manifests/` tree). If contents look wrong or stale, **don't edit the bucket** — fix the local files, or restart the sync container for a full re-mirror (see the `pipeline-wedged` skill).
-
-Notable object: `bundle.yaml` (rendered CRDs + manager for the thanos-operator kustomization, ~2.5MB — historical; the operator was removed with the LGTM migration, cmdshift/platform#128).
 
 ## Full detail
 

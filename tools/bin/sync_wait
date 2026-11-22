@@ -28,6 +28,10 @@ usage() {
   exit 2
 }
 
+help() { # print the header comment block
+  awk 'NR==1 {next} /^#/ {sub(/^# ?/,""); print; next} {exit}' "$0"
+}
+
 collect_paths() { # explicit args, else uncommitted changes under manifests/
   local p
   if [[ $# -gt 0 ]]; then
@@ -81,6 +85,7 @@ stale() { # print paths whose bucket object doesn't match the local hash
 }
 
 sync_wait() {
+  case "${1:-}" in -h|--help) help; exit 0 ;; esac
   collect_paths "$@"
   [[ ${#PATHS[@]} -gt 0 ]] || { echo "nothing changed under manifests/ — bucket sync is a no-op"; exit 0; }
   load_hashes

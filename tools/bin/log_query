@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SQL log search against OpenObserve's _search API, with the port-forward
 # lifecycle handled: a per-service forward is started once and SHARED across
-# invocations via a lock file (${TMPDIR:-/tmp}/log_query.<service>.forward,
+# invocations via a lock file (.agents/temp/log_query.<service>.forward,
 # "<pid> <port>") — a wedged or dead forward is evicted and replaced on the
 # next call; a not-ready server is waited out (bounded 2m). `--stop` evicts
 # the shared forward. The lifecycle is duplicated in prometheus_query (same
@@ -37,6 +37,10 @@ usage() {
   exit 2
 }
 
+help() { # print the header comment block
+  awk 'NR==1 {next} /^#/ {sub(/^# ?/,""); print; next} {exit}' "$0"
+}
+
 range_start() { # e.g. 4h -> epoch seconds; bash math off `date +%s` (portable —
   # BSD `date -v` is darwin-only, GNU `date -d` is linux-only, +%s is both)
   case "$1" in
@@ -56,7 +60,6 @@ range_start() { # e.g. 4h -> epoch seconds; bash math off `date +%s` (portable �
 # output got appended to REPO_ROOT (two lines), producing a garbage LOCK_DIR
 REPO_ROOT="$(git -C "$(dirname "$0")/.." rev-parse --show-toplevel 2>/dev/null || { cd "$(dirname "$0")/../.." && pwd; })"
 LOCK_DIR="$REPO_ROOT/.agents/temp"
-mkdir -p "$LOCK_DIR"
 AUTH_CACHE="$LOCK_DIR/log_query.o2.auth"
 
 http_answer() { # url — exit 0 once any HTTP response arrives; curl exit 0 covers
@@ -104,6 +107,7 @@ o2_token() { # the O2 Basic token, read from the cluster at runtime — never
 
 port_forward() { # sets PORT_FORWARD_PORT / PORT_FORWARD_PID
   local service=openobserve lock i pid port
+  mkdir -p "$LOCK_DIR"
   lock="$LOCK_DIR/log_query.$service.forward"
   unset PORT_FORWARD_PID PORT_FORWARD_PORT
   if [ -f "$lock" ]; then
@@ -262,6 +266,7 @@ log_query() {
   fi
 }
 
+case "${1:-}" in -h|--help) help; exit 0 ;; esac
 if [ "${1:-}" = "--stop" ]; then
   [ $# -eq 1 ] || usage
   stop_forwards

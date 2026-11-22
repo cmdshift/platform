@@ -8,7 +8,7 @@ The rules live in the **Comments section of the [`writing-yaml` skill](../../.ag
 
 - narration (`# enable hostNetwork`) — reconstructable from the value → delete
 - restate-then-explain (`# 512Mi — the memory limit`) — the "512Mi" half is noise → trim to the why
-- why + evidence — not reconstructable → move to the group README decision table (the #183 pattern; a comment never carries the why + ref anymore)
+- why + evidence — not reconstructable → move to the group README decision table (the cmdshift/platform#183 pattern; a comment never carries the why + ref anymore)
 
 ## Worked examples from the tree
 
@@ -30,7 +30,7 @@ allowVolumeExpansion: false # true in the cloud
 
 The comment is not about why `false` is right — it's about what must change when this tree moves to real Talos.
 
-**Bad — tool-mechanics narration** (deleted in the #43 sweep, pattern):
+**Bad — tool-mechanics narration** (deleted in the cmdshift/platform#43 sweep, pattern):
 
 ```yaml
 # flux will re-reconcile this configmap on data change, but helm-controller only
@@ -61,7 +61,7 @@ memory: 256Mi
 |---|---|---|
 | `# remove in the cloud` | delete the line when the manifests move to real Talos | `manifests/clusters/cloud/notes.md` |
 | `# true in the cloud` | flip the value when the manifests move | `manifests/clusters/cloud/notes.md` |
-| `# NSA hardening:` | setting that came from the NSA hardening baseline (kubescape-era, kept) | `manifests/README.md` accepted-deviations ledger |
+| `# NSA hardening:` | setting that came from the NSA hardening baseline (kept after the original posture scanner was removed) | `manifests/README.md` accepted-deviations ledger |
 
 Rules:
 
@@ -86,5 +86,5 @@ If a comment is carrying a why, it's docs — move the narrative (why + evidence
 4. Tool-mechanics explanations → delete or replace with a link to the owning README/runbook.
 5. TODOs without an issue ref → file the issue (`file-issue` skill) or delete.
 6. Marker spellings exact? (`grep -rn "in the cloud" <path>`); each marker has its `manifests/clusters/cloud/notes.md` counterpart.
-7. Surface syntax: River (alloy) comments are `//`, not `#` — `#` crashlooped the pods (cmdshift/platform#39).
+7. Surface syntax: an embedded config takes its own language's comment syntax, not YAML's `#` — JSON payloads (the openobserve-sync alerts/dashboards/streams) take none; a wrong-syntax comment can crashloop the consumer (the removed Alloy River config, cmdshift/platform#39).
 8. Values you changed this session: comment updated in the same change, not "later".

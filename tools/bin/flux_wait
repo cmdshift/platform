@@ -33,6 +33,10 @@ usage() {
   exit 2
 }
 
+help() { # print the header comment block
+  awk 'NR==1 {next} /^#/ {sub(/^# ?/,""); print; next} {exit}' "$0"
+}
+
 reconcile() {
   flux reconcile kustomization local --with-source --timeout 4m 2>&1 | tail -1 || true
 }
@@ -126,6 +130,7 @@ wait_for_green() {
 }
 
 flux_wait() {
+  case "${1:-}" in -h|--help) help; exit 0 ;; esac
   local check_only=false max=42 arg
   while [ $# -gt 0 ]; do
     case "$1" in

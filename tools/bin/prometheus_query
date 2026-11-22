@@ -2,7 +2,7 @@
 # PromQL query against OpenObserve's Prometheus-compat API, with the
 # port-forward lifecycle handled: a per-service forward is started once and
 # SHARED across invocations via a lock file
-# (${TMPDIR:-/tmp}/prometheus_query.<service>.forward, "<pid> <port>") —
+# (.agents/temp/prometheus_query.<service>.forward, "<pid> <port>") —
 # rapid loops stop churning listeners, and a wedged/dead forward is evicted
 # and replaced on the next call. A not-ready server is waited out (bounded
 # 2m): the ready check distinguishes "forward up, server not ready" (HTTP
@@ -12,8 +12,8 @@
 # lockstep): this tool speaks PromQL to O2's Prometheus-compat API,
 # log_query speaks O2 SQL to the _search API.
 # Queries svc/openobserve ns observability, port 5080; the org is hardcoded
-# `default` (the collectors push to /api/default/, no X-Scope-OrgID — that
-# was mimir multi-tenancy). Auth is the O2 Basic token from
+# `default` (the collectors push to /api/default/, no X-Scope-OrgID header).
+# Auth is the O2 Basic token from
 # secret/openobserve-credentials key O2_AUTH_BASIC (rendered by the
 # secrets-server payload), cached at .agents/temp/prometheus_query.o2.auth —
 # never embedded here; a 401 invalidates the cache and refetches once.
@@ -22,13 +22,19 @@
 #   prometheus_query -c '<promql>'            compact: "<pod=... container=...> vals" per line
 #   prometheus_query -r 6h '<promql>'         range over the last 6h (m|h|d), auto step
 #   prometheus_query --stop                   evict the shared forwards
-# Exit 0 = query ran (check the JSON/values for emptiness), 1 = forward
-# failed to establish, the server stayed not-ready for 2m, or auth failed
-# after a token refetch, 2 = usage error.
+# Exit 0 = query ran (raw: check the JSON for emptiness and .status; -v/-c:
+# empty output = no series), 1 = forward failed to establish, the server
+# stayed not-ready for 2m, or auth failed after a token refetch, 2 = usage
+# error, 3 = -v/-c only: O2 answered with an error (bad PromQL, HTTP
+# non-200) — the message is on stderr.
 
 usage() {
   echo "usage: prometheus_query [-v|-c] [-r 6h] '<promql>' | prometheus_query --stop" >&2
   exit 2
+}
+
+help() { # print the header comment block
+  awk 'NR==1 {next} /^#/ {sub(/^# ?/,""); print; next} {exit}' "$0"
 }
 
 range_start() { # e.g. 6h -> epoch seconds; bash math off `date +%s` (portable —
@@ -50,7 +56,6 @@ range_start() { # e.g. 6h -> epoch seconds; bash math off `date +%s` (portable �
 # output got appended to REPO_ROOT (two lines), producing a garbage LOCK_DIR
 REPO_ROOT="$(git -C "$(dirname "$0")/.." rev-parse --show-toplevel 2>/dev/null || { cd "$(dirname "$0")/../.." && pwd; })"
 LOCK_DIR="$REPO_ROOT/.agents/temp"
-mkdir -p "$LOCK_DIR"
 AUTH_CACHE="$LOCK_DIR/prometheus_query.o2.auth"
 
 http_answer() { # url — exit 0 once any HTTP response arrives; curl exit 0 covers
@@ -98,6 +103,7 @@ o2_token() { # the O2 Basic token, read from the cluster at runtime — never
 
 port_forward() { # service_name — sets PORT_FORWARD_PORT / PORT_FORWARD_PID
   local service=$1 lock i pid port
+  mkdir -p "$LOCK_DIR"
   lock="$LOCK_DIR/prometheus_query.$service.forward"
   unset PORT_FORWARD_PID PORT_FORWARD_PORT
   if [ -f "$lock" ]; then
@@ -165,6 +171,19 @@ port_forward() { # service_name — sets PORT_FORWARD_PORT / PORT_FORWARD_PID
     sleep 0.5
   done
   printf '%s %s\n' "$PORT_FORWARD_PID" "$PORT_FORWARD_PORT" > "$lock"
+}
+
+check_response() { # body http_code — an O2 error answer fails -v/-c
+  local msg
+  msg=$(jq -r 'select(.status == "error") | "\(.errorType // "error"): \(.error // "unknown")"' 2>/dev/null <<<"$1")
+  if [ -n "$msg" ]; then
+    echo "prometheus_query: O2 rejected the query — $msg" >&2
+    return 1
+  fi
+  if [ "$2" != 200 ]; then
+    echo "prometheus_query: O2 returned HTTP $2: $(head -c 300 <<<"$1")" >&2
+    return 1
+  fi
 }
 
 format_values() {
@@ -238,6 +257,9 @@ prometheus_query() {
   fi
   out=${out%$'\n'*}
 
+  if [ "$compact" = 1 ] || [ "$values" = 1 ]; then
+    check_response "$out" "$code" || return 3
+  fi
   if [ "$compact" = 1 ]; then
     printf '%s\n' "$out" | format_compact
   elif [ "$values" = 1 ]; then
@@ -248,6 +270,7 @@ prometheus_query() {
   fi
 }
 
+case "${1:-}" in -h|--help) help; exit 0 ;; esac
 if [ "${1:-}" = "--stop" ]; then
   [ $# -eq 1 ] || usage
   stop_forwards

@@ -3,6 +3,7 @@
 #   rustfs ls main/flux --recursive
 #   rustfs object remove main/backups/<key>
 #   rustfs mirror --remove /tmp/manifests/ main/flux/manifests/
+#   rustfs -h                    # this header; `rustfs <subcommand> --help` reaches rc
 # Exit codes: rc's own, 1 = storage container down, 2 = usage error.
 
 usage() {
@@ -10,7 +11,12 @@ usage() {
   exit 2
 }
 
+help() { # print the header comment block
+  awk 'NR==1 {next} /^#/ {sub(/^# ?/,""); print; next} {exit}' "$0"
+}
+
 rustfs() {
+  case "${1:-}" in -h|--help) help; exit 0 ;; esac
   [ $# -gt 0 ] || usage
   docker inspect -f '{{.State.Running}}' storage-cloud-test >/dev/null 2>&1 || {
     echo "rustfs: container storage-cloud-test is not running (terraform/docker 'storage' stack, s3.cloud.test)" >&2

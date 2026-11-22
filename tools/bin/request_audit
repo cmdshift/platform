@@ -16,6 +16,10 @@ usage() {
   exit 2
 }
 
+help() { # print the header comment block
+  awk 'NR==1 {next} /^#/ {sub(/^# ?/,""); print; next} {exit}' "$0"
+}
+
 collect_usage() { # $1 = top column: 5 memory (Mi), 4 cpu (m)
   kubectl top pods -A --containers --no-headers \
     | awk -v col="$1" '{print $1"/"$2"/"$3, $col}' | sort
@@ -63,6 +67,7 @@ count_no_request() { # $1 = memory|cpu
 }
 
 request_audit() {
+  case "${1:-}" in -h|--help) help; exit 0 ;; esac
   [ $# -le 1 ] || usage
   local threshold="${1:-60}"
   case "$threshold" in ''|*[!0-9]*) usage ;; esac # non-numeric silently corrupts the awk comparisons

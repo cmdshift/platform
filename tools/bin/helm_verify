@@ -2,8 +2,15 @@
 # Render every HelmRelease's values through `helm template` — the values-path
 # verification step (catches bad values keys/paths before flux ships them to
 # the cluster).
-#   helm_verify [path] [release]   # default: manifests/clusters/local, all
-#                                  # a release name renders just that one
+#   helm_verify                    # full tree: every group overlay (~25s)
+#   helm_verify '' <release>       # full tree, just that release
+#   helm_verify <path> [release]   # one dir or file; a group overlay is
+#                                  # manifests/clusters/local/<group>
+# Full tree: each child dir of $HELM_VERIFY_ROOT (default
+# manifests/clusters/local) holding a kustomization.yaml is built and
+# verified on its own, exactly like an explicit run on that dir — the root
+# itself is never built (an explicit path that IS the root runs the full
+# tree too). Helm homes and chart sources are set up once per run.
 # Values sources, merged in flux order (inline first, valuesFrom refs after —
 # later files override earlier ones):
 #   - spec.values (inline in the HelmRelease)
@@ -24,10 +31,14 @@
 # (tag or commit ref) → shallow clone + template from the chart subpath. All
 # helm state lives in a temp dir — the user's helm home/cache is untouched.
 #
-# Prints PASS/FAIL per release; exit 1 if any release fails, a source CR
-# is missing, or a pinned version isn't in the repo index (helm's fallback
-# would silently render the closest version instead — diagnose hint printed).
-# Exit 2 = usage error.
+# Prints PASS/FAIL per release (full tree: a `== <group dir>: N releases`
+# line per group, then a TOTAL line); the last line is the verdict. Exit 1
+# if any release fails, a source CR is missing, a pinned version isn't in
+# the repo index (helm's fallback would silently render the closest version
+# instead — diagnose hint printed), a kustomize build fails (full tree: that
+# group FAILs, the rest still run), a named release matches nothing, or a
+# full-tree run renders 0 releases. An explicit path with no HelmRelease is
+# an `OK: 0 releases` notice, exit 0. Exit 2 = usage error.
 #
 # Gotcha: helm template rejects unknown values keys only for charts that
 # ship a values.schema.json (kube-prometheus-stack does; most don't) — for
@@ -36,12 +47,17 @@
 
 set -uo pipefail
 
-path="" filter="" fail=0 count=0
+DEFAULT_ROOT="manifests/clusters/local"
+path="" filter="" fail=0 count=0 failed=0
 tmp="" SOURCES="" kube_args=() VFILES=() releases=""
 
 usage() {
-  echo "usage: helm_verify [path] [release]" >&2
+  echo "usage: helm_verify [path] [release]   ('' or no path = full tree; --help)" >&2
   exit 2
+}
+
+help() { # print the header comment block
+  awk 'NR==1 {next} /^#/ {sub(/^# ?/,""); print; next} {exit}' "$0"
 }
 
 # --- source CRs from the cluster: name<TAB>kind<TAB>url<TAB>ref-type<TAB>ref ---
@@ -223,11 +239,11 @@ collect_values() { # file name -> VFILES (inline first, then valuesFrom refs in
   return "$unresolved"
 }
 
-render_release() { # file name ns chart version srcKind srcName
+render_release() { # file name ns chart version srcKind srcName -> PASS/FAIL line; rc 1 = FAIL
   local f="$1" name="$2" ns="$3" chart="$4" version="$5" srcKind="$6" srcName="$7"
   local ref err v
-  ref=$(chart_ref "$srcKind" "$srcName" "$chart" "$version") || { echo "FAIL: $name — $ref"; fail=1; return 0; }
-  collect_values "$f" "$name" || { fail=1; return 0; }
+  ref=$(chart_ref "$srcKind" "$srcName" "$chart" "$version") || { echo "FAIL: $name — $ref"; return 1; }
+  collect_values "$f" "$name" || return 1
   local args=("$ref" --namespace "$ns" "${kube_args[@]}")
   for v in "${VFILES[@]}"; do args+=(-f "$v"); done
   [[ -n "$version" && "$srcKind" == "HelmRepository" && ! -f "$ref" ]] && args+=(--version "$version")
@@ -236,56 +252,139 @@ render_release() { # file name ns chart version srcKind srcName
   else
     echo "FAIL: $name ($chart${version:+ $version})"
     sed 's/^/  /' <<< "$err" | head -15
-    fail=1
+    return 1
   fi
 }
 
-helm_verify() {
-  [ $# -le 2 ] || usage
-  path="${1:-manifests/clusters/local}"
-  filter="${2:-}"
-  [ -e "$path" ] || { echo "helm_verify: no such path: $path" >&2; usage; }
-
+setup_env() { # temp helm homes, chart sources, kube version — once per run
   command -v helm >/dev/null || { echo "FAIL: helm not installed"; exit 1; }
-  GIT_ROOT=$(git rev-parse --show-toplevel)
-  tmp=$(mktemp -d "$GIT_ROOT/.agents/temp/helm_verify.XXXXXX")
+  local git_root kubever
+  git_root=$(git rev-parse --show-toplevel)
+  tmp=$(mktemp -d "$git_root/.agents/temp/helm_verify.XXXXXX")
   SOURCES="$tmp/sources.tsv"
   trap 'rm -rf "$tmp"' EXIT
   export HELM_CACHE_HOME="$tmp/cache" HELM_CONFIG_HOME="$tmp/config" HELM_DATA_HOME="$tmp/data"
   export HELM_REPOSITORY_CACHE="$tmp/cache/repository"
-
   load_sources
-  local kubever f name ns chart version srcKind srcName
   kubever=$(kubectl version -o json 2>/dev/null | jq -r '.serverVersion.gitVersion // empty')
   kube_args=(); [[ -n "$kubever" ]] && kube_args=(--kube-version "$kubever")
+}
 
-  # kustomize dir → verify against the built output (what flux ships);
-  # otherwise enumerate HelmRelease files directly (single-file / ad-hoc paths)
-  if [[ -d "$path" && -f "$path/kustomization.yaml" ]]; then
-    kubectl kustomize "$path" > "$tmp/build.yaml" 2>"$tmp/build.err" \
-      || { echo "FAIL: kustomize build of $path failed:"; sed 's/^/  /' "$tmp/build.err"; exit 1; }
+find_releases() { # path -> releases (the build output for a kustomize dir,
+                  # else the HelmRelease files under path); rc 1 = build failed
+  releases=""
+  rm -f "$tmp/build.yaml"
+  if [[ -d "$1" && -f "$1/kustomization.yaml" ]]; then
+    if ! kubectl kustomize "$1" > "$tmp/build.yaml" 2>"$tmp/build.err"; then
+      echo "FAIL: kustomize build of $1 failed:"
+      sed 's/^/  /' "$tmp/build.err"
+      rm -f "$tmp/build.yaml"
+      return 1
+    fi
     if yq eval-all -e 'select(.kind == "HelmRelease")' "$tmp/build.yaml" >/dev/null 2>&1; then
       releases="$tmp/build.yaml"
     fi
   else
-    releases=$(grep -rl --include='*.yaml' 'kind: HelmRelease' "$path" 2>/dev/null | sort)
+    releases=$(grep -rl --include='*.yaml' 'kind: HelmRelease' "$1" 2>/dev/null | sort)
   fi
-  [[ -n "$releases" ]] || { echo "OK: 0 releases — no 'kind: HelmRelease' found under $path"; exit 0; }
+}
 
+release_rows() { # -> file<TAB>name<TAB>ns<TAB>chart<TAB>version<TAB>srcKind<TAB>srcName
+                 # per HelmRelease in $releases, narrowed to $filter when set
+  local f
   for f in $releases; do
-    while IFS=$'\t' read -r name ns chart version srcKind srcName; do
-      if [[ -n "$filter" && "$name" != "$filter" ]]; then continue; fi
-      count=$((count + 1))
-      render_release "$f" "$name" "$ns" "$chart" "$version" "$srcKind" "$srcName"
-    done < <(yq eval-all -o=json 'select(.kind == "HelmRelease") | [{"name": .metadata.name, "ns": .metadata.namespace, "chart": .spec.chart.spec.chart, "version": (.spec.chart.spec.version // ""), "srcKind": (.spec.chart.spec.sourceRef.kind // ""), "srcName": (.spec.chart.spec.sourceRef.name // "")}]' "$f" | jq -r '.[] | [.name, .ns, .chart, .version, .srcKind, .srcName] | @tsv')
-  done
+    yq eval-all -o=json 'select(.kind == "HelmRelease") | [{"name": .metadata.name, "ns": .metadata.namespace, "chart": .spec.chart.spec.chart, "version": (.spec.chart.spec.version // ""), "srcKind": (.spec.chart.spec.sourceRef.kind // ""), "srcName": (.spec.chart.spec.sourceRef.name // "")}]' "$f" \
+      | jq -r --arg f "$f" '.[] | [$f, .name, .ns, .chart, .version, .srcKind, .srcName] | @tsv'
+  done | awk -F'\t' -v want="$filter" 'want == "" || $2 == want'
+}
 
+render_rows() { # release rows on fd 3 -> PASS/FAIL per release; updates count/failed/fail
+  local f name ns chart version srcKind srcName
+  while IFS=$'\t' read -r -u 3 f name ns chart version srcKind srcName; do
+    [[ -n "$name" ]] || continue
+    count=$((count + 1))
+    render_release "$f" "$name" "$ns" "$chart" "$version" "$srcKind" "$srcName" \
+      || { failed=$((failed + 1)); fail=1; }
+  done
+}
+
+verify_path() { # path -> exit; one dir or file, verified as given
+  local rows
+  path="$1"
+  find_releases "$path" || exit 1
+  rows=$(release_rows)
+  if [[ -z "$rows" ]]; then
+    [[ -z "$filter" ]] || { echo "FAIL: no HelmRelease named '$filter' under $path"; exit 1; }
+    echo "OK: 0 releases — no 'kind: HelmRelease' found under $path"
+    exit 0
+  fi
+  render_rows 3<<< "$rows"
   if [[ "$fail" -eq 0 ]]; then
     echo "OK: $count releases render clean"
   else
     echo "FAILED releases above — fix before reconciling (values land verbatim in helm-controller)"
   fi
   exit "$fail"
+}
+
+verify_group() { # group dir -> "== <dir>: N releases" + PASS/FAIL lines; rc 1 = build
+                 # failed. With a filter, a group without a match prints nothing.
+  local rows n
+  path="$1"
+  find_releases "$path" || return 1
+  rows=$(release_rows)
+  [[ -z "$rows" && -n "$filter" ]] && return 0
+  n=$(grep -c . <<< "$rows")
+  echo "== $path: $n releases"
+  render_rows 3<<< "$rows"
+}
+
+tree_summary() { # root groups broken -> TOTAL + verdict lines; exit 1 on any FAIL or 0 releases
+  local root="$1" groups="$2" broken="$3"
+  echo "TOTAL: $count releases ($failed failed) across $groups group overlays ($broken builds failed) under $root"
+  if [[ "$count" -eq 0 ]]; then
+    if [[ -n "$filter" ]]; then
+      echo "FAIL: no HelmRelease named '$filter' in any group overlay under $root"
+    else
+      echo "FAIL: 0 releases rendered — a full-tree run must render at least one (wrong HELM_VERIFY_ROOT? every group build failed?)"
+    fi
+    exit 1
+  fi
+  if [[ "$fail" -eq 0 ]]; then
+    echo "OK: $count releases render clean across $groups group overlays"
+  else
+    echo "FAILED releases/builds above — fix before reconciling (values land verbatim in helm-controller; a failed build wedges flux too)"
+  fi
+  exit "$fail"
+}
+
+verify_tree() { # root -> exit; every child dir with a kustomization.yaml, one build each
+  local root="${1%/}" d groups=0 broken=0
+  for d in "$root"/*/; do
+    [[ -f "${d}kustomization.yaml" ]] || continue
+    groups=$((groups + 1))
+    verify_group "${d%/}" || { broken=$((broken + 1)); fail=1; }
+  done
+  [[ "$groups" -gt 0 ]] || { echo "FAIL: no group overlays (child dirs with a kustomization.yaml) under $root"; exit 1; }
+  tree_summary "$root" "$groups" "$broken"
+}
+
+helm_verify() {
+  case "${1:-}" in -h|--help) help; exit 0 ;; esac
+  [ $# -le 2 ] || usage
+  local root="${HELM_VERIFY_ROOT:-$DEFAULT_ROOT}" target="${1:-}"
+  filter="${2:-}"
+  if [[ -z "$target" ]]; then
+    [[ -d "$root" ]] || { echo "helm_verify: no such dir: $root (HELM_VERIFY_ROOT)" >&2; usage; }
+  else
+    [ -e "$target" ] || { echo "helm_verify: no such path: $target" >&2; usage; }
+  fi
+  setup_env
+  if [[ -z "$target" || ( -d "$root" && "$target" -ef "$root" ) ]]; then
+    verify_tree "$root"
+  else
+    verify_path "$target"
+  fi
 }
 
 helm_verify "$@"

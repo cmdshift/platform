@@ -20,7 +20,7 @@ An empty finding means no dispatch. If the issue is a docs fix, dispatch `docs-s
 
 ## 2. Dispatch the subagent
 
-Task tool, subagent_type `general`. Prompt skeleton (fill the brackets, pass the finding verbatim):
+The `subagent` tool with `agent: general`. Prompt skeleton (fill the brackets, pass the finding verbatim):
 
 ```
 File ONE GitHub issue in this repo (cmdshift/platform) from the finding below. gh is

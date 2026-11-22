@@ -3,13 +3,16 @@
 #   memory_audit [threshold_pct]   # default 50
 # Normalizes Mi/Gi (the classic bug: '1Gi' parses as 1 in naive awk).
 # Footer: containers with no memory limit — expected 3 (control-plane
-# statics; the thanos-ruler config-reloader left with the LGTM teardown);
-# anything else is a finding.
+# statics); anything else is a finding.
 # Exit 0 = audited, 2 = usage error.
 
 usage() {
   echo "usage: memory_audit [threshold_pct]   # default 50" >&2
   exit 2
+}
+
+help() { # print the header comment block
+  awk 'NR==1 {next} /^#/ {sub(/^# ?/,""); print; next} {exit}' "$0"
 }
 
 collect_usage() {
@@ -40,6 +43,7 @@ ratios() { # usage_file limits_file threshold
 }
 
 memory_audit() {
+  case "${1:-}" in -h|--help) help; exit 0 ;; esac
   [ $# -le 1 ] || usage
   local threshold="${1:-50}"
   case "$threshold" in ''|*[!0-9]*) usage ;; esac # non-numeric silently corrupts the awk comparisons
