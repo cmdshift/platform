@@ -34,5 +34,5 @@ Burst-heavy delivery components (source/helm-controllers) carry 1000m CPU / 512M
 
 ### flux-values notes (`clusters/local/flux/flux-values.yaml`)
 
-- `securityContext` pod-level non-root on controllers: `# NSA hardening:` baseline (chart sets container level only). Every controller section spells out the FULL container context because of the replace-not-merge trap above — the values file deliberately carries no shortcut comments for it now.
+- `securityContext` pod-level non-root on controllers: from the hardening baseline (chart sets container level only). Every controller section spells out the FULL container context because of the replace-not-merge trap above — the values file deliberately carries no shortcut comments for it now.
 - The single-writer rule for the `flux` bucket (only the sync container writes it; `rc rm --recursive` silently no-ops) lives in the `rustfs-ops` skill.

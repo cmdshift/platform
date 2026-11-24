@@ -12,7 +12,7 @@ browser → internal haproxy (TLS :443) → Gateway local-test (cilium, TLS term
         → app upstream (hubble-ui:80 / openobserve.observability.svc:5080)
 ```
 
-One oauth2-proxy **per app** (`hubble-auth-proxy`, `openobserve-auth-proxy` — grafana's and seaweed's proxies were deleted with their apps, cmdshift/platform#171)
+One oauth2-proxy **per app** (`hubble-auth-proxy`, `openobserve-auth-proxy` — grafana's and seaweed's proxies were removed with their apps, cmdshift/platform#171)
 — legacy-config oauth2-proxy selects its upstream by path, not Host, so a single instance
 cannot fan out across subdomains. Subdomains (not path prefixes) were chosen because
 hubble-ui has no base-path support at all. Each proxy sets a **host-scoped
@@ -25,7 +25,7 @@ All three releases share one cookie secret
 **Why host-scoped, not a shared `.local.test` cookie:** the proxy cookie is a *bearer
 credential for all admin apps* — with `Domain=.local.test`, every host under the domain
 (including future 3rd-party software at `app.local.test`) receives it in request headers
-from admins browsing as end-users, and can replay it against e.g. `grafana.local.test`.
+from admins browsing as end-users, and could replay it against e.g. the removed `grafana.local.test`.
 HttpOnly/Secure/SameSite don't prevent server-side capture, and SameSite can't — all
 `*.local.test` hosts are one site. Cross-app SSO instead rides the **Rauthy session**
 (`AUTH_SESSION_ID`, host-scoped to `auth.cloud.test`): visiting a second app triggers a
@@ -73,25 +73,25 @@ Trust for the IdP connection: `--provider-ca-file /etc/platform-ca/ca.crt` +
    Without `allow-ingress-proxy-egress` CCNP (`reserved:ingress` endpoint → `cluster`+`host`
    egress), every Gateway-routed request returns cilium-Envoy's 403 "Access denied" — even
    though the backend pod's ingress CNP is perfect and direct `pod:4180` curls 302 fine
-   (cilium/cilium#47617, #43519). This was THE 403: we unblocked the inbound arrow twice
+   (cilium/cilium#47617, cilium/cilium#43519). This was THE 403: we unblocked the inbound arrow twice
    before granting the outbound one.
 2. **Ingress to the proxy pods**: `fromEntities: [ingress, host]` (no `toPorts` — restricting
    to 4180 broke the frontend check). Entity names in CRDs are `ingress`/`host`, NOT
    `reserved:ingress` (that's the identity label form — dry-run catches it).
 3. **Egress to upstreams enforces post-DNAT targetPorts, not service ports.** hubble-ui is
    `svc:80 → targetPort 8081`: the CNP must allow `8081` or the upstream dial times out
-   (502). The grafana/seaweed upstreams worked by luck (service port == targetPort); openobserve does too (5080 == 5080).
+   (502). The removed grafana/seaweed upstreams worked by luck (service port == targetPort); openobserve does too (5080 == 5080).
 
-## Grafana auth.proxy
+## Grafana auth.proxy (historical)
 
 (Removed with grafana in the OpenObserve migration, cmdshift/platform#171 — kept as the
 contrast case for the cookie-gate rule below.)
 
-Grafana read `X-Forwarded-Email` (oauth2-proxy's `pass_user_headers` default, sent on
+Grafana (removed) read `X-Forwarded-Email` (oauth2-proxy's `pass_user_headers` default, sent on
 every upstream request). `X-Auth-Request-*` headers only ride the auth flow — pointing
-grafana at them yielded a 401 on every API call with `gap-auth` visible at the edge.
-The Grafana CR carried the config but **the operator did not roll the deployment on
-ConfigMap-only ini changes** — delete the grafana pod (or force a rollout) after changing
+grafana (removed) at them yielded a 401 on every API call with `gap-auth` visible at the edge.
+The Grafana CR (removed) carried the config but **the operator did not roll the deployment on
+ConfigMap-only ini changes** — delete the (removed) grafana pod (or force a rollout) after changing
 `auth.proxy`.
 
 ## Cookie-gate vs header-passthrough: the openobserve rule (cmdshift/platform#171)
@@ -99,12 +99,12 @@ ConfigMap-only ini changes** — delete the grafana pod (or force a rollout) aft
 `openobserve-auth-proxy` is **cookie-gate ONLY**: `pass_authorization_header`,
 `pass_access_token`, `set_authorization_header`, `set_xauthrequest` all false — no auth
 headers reach O2. O2's own session guards its API, and O2 trusting forwarded identity
-headers is an unvalidated path. The contrast is the grafana `auth.proxy` pattern above,
+headers is an unvalidated path. The contrast is the removed grafana `auth.proxy` pattern above,
 which trusted `X-Forwarded-Email` on ANY direct pod API call — in-pod probing with a
 fabricated header minted real user rows (`auto_sign_up`; three phantom users
 accumulated, deleted). Rule: **only pass identity headers to an upstream that has a
 documented, hardened trusted-proxy mode**; otherwise the proxy is a gate, not an
-identity bridge. The grafana auth.proxy section above is retained as precedent.
+identity bridge. The grafana auth.proxy section above is retained as historical precedent.
 
 ## Chart adoption notes
 
@@ -121,12 +121,12 @@ release name suffixes `-oauth2-proxy` onto every object — HTTPRoute backendRef
 |---|---|---|
 | `config` block placeholders (clientID/cookieName via args) | the chart's structured config only feeds the generated oauth2_proxy.cfg; everything env/flag-driven lives in extraArgs | — |
 | empty config Secret placeholders | real values arrive via the chart's existingSecret (env OAUTH2_PROXY_*) — placeholders satisfy requiredSecretKeys without minting a chart Secret | — |
-| `oidc-issuer-url` trailing slash | rauthy issuer — trailing slash is load-bearing | #154 |
-| cookie scope host-scoped | SSO via Rauthy session | #154 |
-| `provider-ca-file` (not caFiles) | legacy key for the alpha-config caFiles API — trust store for the IdP connection only (auth.cloud.test is the proxy's only TLS egress); use-system-trust-store adds the distro CAs on top | #154 |
-| PKCE S256 | Rauthy advertises it (challenges: S256); mirrors the kubernetes client's challenge | #154 |
-| no TLS listener | kill the chart's default (:4443) — TLS terminates at the Gateway | #130 |
-| openobserve proxy: `pass_authorization_header` off | cookie-gate only: no auth headers reach O2 (its own session guards the API; O2 trusting forwarded headers is an unvalidated path, unlike the grafana auth.proxy pattern) | #171 |
+| `oidc-issuer-url` trailing slash | rauthy issuer — trailing slash is load-bearing | cmdshift/platform#154 |
+| cookie scope host-scoped | SSO via Rauthy session | cmdshift/platform#154 |
+| `provider-ca-file` (not caFiles) | legacy key for the alpha-config caFiles API — trust store for the IdP connection only (auth.cloud.test is the proxy's only TLS egress); use-system-trust-store adds the distro CAs on top | cmdshift/platform#154 |
+| PKCE S256 | Rauthy advertises it (challenges: S256); mirrors the kubernetes client's challenge | cmdshift/platform#154 |
+| no TLS listener | kill the chart's default (:4443) — TLS terminates at the Gateway | cmdshift/platform#130 |
+| openobserve proxy: `pass_authorization_header` off | cookie-gate only: no auth headers reach O2 (its own session guards the API; O2 trusting forwarded headers is an unvalidated path, unlike the removed grafana auth.proxy pattern) | cmdshift/platform#171 |
 
 ## ExternalSecret shape
 
@@ -136,7 +136,7 @@ release name suffixes `-oauth2-proxy` onto every object — HTTPRoute backendRef
 
 The `access` Kustomization uses a widened timeout (5m+): 3 HelmReleases × 5m helm-install budget + remediation cycles — the 5m default timed out mid-install on first apply AND blocked each retry attempt for its full duration while releases converged (cmdshift/platform#41).
 
-## Verification matrix (post-rauthy rebuild: 2026-09-25)
+## Verification matrix (post-rauthy rebuild)
 
 OIDC chain verified end-to-end on the cmdshift/platform#154 rebuild: discovery issuer
 exact-match (trailing slash), kubelogin admin (`admin`/`admin123` → `get nodes` lists all
