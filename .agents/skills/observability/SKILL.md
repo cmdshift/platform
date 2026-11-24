@@ -76,6 +76,12 @@ log_query -j "SELECT CAST(body->'process_exec'->'process'->'binary' AS VARCHAR) 
   # secret mutated: same shape, resource '"'"'secrets'"'"', verbs create/update/patch/delete
   # pods/exec: WHERE body_requesturi LIKE '"'"'%/exec%'"'"'
   ```
+- **Kubernetes events stream: `k8s_events`** (cmdshift/platform#218): gateway `k8sobjects/events` watch → dedicated stream. Map body flattened to `body_*` columns (`body_object_reason`, `body_object_type`, …), k8s identity as flat columns (`k8s_namespace_name`); `severity` carries the raw k8s event type (`Normal`/`Warning`), `severity_number` the mapped OTel number. Real-time watch only — no history backfill. The `Kubernetes / Events` dashboard's 4 panels query exactly these columns.
+    ```
+    # first Warning event since the watch started (no backfill — recent window only)
+    log_query 'SELECT severity, k8s_namespace_name, body_object_reason FROM k8s_events
+      WHERE body_object_type = '"'"'Warning'"'"' ORDER BY _timestamp DESC' 1h
+    ```
 - Aggregations are plain SQL (`GROUP BY … ORDER BY n DESC`) — no LogQL.
   24h windows aggregate in one query (verified live).
 

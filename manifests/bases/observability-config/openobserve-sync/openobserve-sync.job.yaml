@@ -66,6 +66,9 @@ spec:
             - name: dashboards
               mountPath: /dashboards
               readOnly: true
+            - name: dashboards-overview
+              mountPath: /dashboards/overview
+              readOnly: true
             - name: destinations
               mountPath: /destinations
               readOnly: true
@@ -85,6 +88,9 @@ spec:
         - name: dashboards
           configMap:
             name: openobserve-sync-dashboards
+        - name: dashboards-overview
+          configMap:
+            name: openobserve-sync-dashboards-overview
         - name: destinations
           configMap:
             name: openobserve-sync-destinations
