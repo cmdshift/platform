@@ -19,6 +19,8 @@ Without the wrapper: `docker exec storage-cloud-test sh -c 'rc alias set main ht
 
 - `rc rm --recursive` **silently removes nothing** — exits 0, reports success. Use `rc object remove <key>` per object, or `rc mirror --remove` for bulk
 - `rc ls` only shows a prefix's contents with **`--recursive`**
+- **Large-subtree listings are the storage companion's weak spot** — the known case is the full `openobserve/files/` recursive listing (times out on key count), and the O2 v1.1.2 client against the same subtree surfaced two more variants (cmdshift/platform#246, 2026-11-24): a **403 Forbidden on the continuation-token page** that is **scoped-user specific** (`openobserve-user`; the admin alias lists the same prefix fine — 1.44M keys), and **stale listing entries** (a key present in the listing 404s on the follow-up HEAD). Don't try to "fix" the client — switch surface/credentials deliberately, scope the prefix smaller, or stop and flag the endpoint
+- **Running the O2 CLI out-of-cluster** (docker, companion network): `ZO_LOCAL_MODE_STORAGE=s3` is REQUIRED — without it `is_local_disk_storage()` routes the listing at the local disk data dir and silently returns 0 files, no error (cmdshift/platform#246)
 - deletion + resurrection races can make `rm` appear to succeed — re-list to verify
 - Bulk delete = `rc object remove` with many paths: `rustfs ls <prefix> --recursive | awk '{print $NF}' | sed 's#^#main/<bucket>/#' | xargs -n 100 rustfs object remove` (keys print bucket-relative); `--dry-run` one key first; re-list twice (kopia repo reset: velero-backups runbook, cmdshift/platform#240)
 - `rc du` can't size a prefix (data-usage snapshot is bucket-level) — sum sizes from `rc ls --recursive`
