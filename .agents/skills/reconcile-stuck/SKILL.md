@@ -9,6 +9,7 @@ description: A flux kustomization won't go Ready, or a root reconcile isn't sett
 
 - `flux_wait` wraps the whole routine: root reconcile + bounded progress poll + exit 0/1.
 - Estimate the settle time first, then **cap polling at ~2× the estimate**. Observed: a single-group change settles in ~5 polls (~1m); a root reconcile in ~2-3m; a fresh bootstrap ~10m. Default cap 42 is the rebuild worst case — run `flux_wait 15` interactively, and treat a kustomization pending at ~8 polls as **failing, not slow**: `describe` it immediately.
+- **`flux_wait` can exit 1 early on a TRANSIENT state** (hit twice during cmdshift/platform#218): the helper treats `Reconciliation in progress` as terminal instead of polling it out, and a kustomization in its `wait: true` health-check phase (up to 3m) can hold the poll at the cap while the change is green (apply succeeded, dependent pod already Succeeded). Before treating an exit as a timeout: one `describe` (mid-apply vs real failure?) + one re-run; `flux get kustomizations` separates slow-but-green from stuck.
 - Poll with bounded `until` loops that **echo progress each iteration**. Test exit codes / existence (`until ! kubectl get <thing> >/dev/null 2>&1; do ...`), never output parsing — kubectl prints "No resources found" to stdout, so `wc -l` checks never match.
 - When the cap is hit: **stop polling and diagnose.** A stuck loop is a real problem, not slowness.
 

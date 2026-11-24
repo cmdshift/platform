@@ -24,6 +24,9 @@ clusterRole:
       verbs: [get, list, watch]
     - nonResourceURLs: [/metrics]
       verbs: [get]
+    - apiGroups: [events.k8s.io]
+      resources: [events]
+      verbs: [get, list, watch]
 
 replicaCount: 1
 
@@ -81,11 +84,25 @@ ports:
     servicePort: 8888
 
 config:
+  processors:
+    transform/events:
+      error_mode: ignore
+      log_statements:
+        - context: log
+          statements:
+            - set(severity_text, body["object"]["type"]) where body["object"]["type"] != nil
+            - set(severity_number, SEVERITY_NUMBER_WARN) where body["object"]["type"] == "Warning"
+            - set(severity_number, SEVERITY_NUMBER_INFO) where body["object"]["type"] == "Normal"
   exporters:
     otlphttp/openobserve:
       endpoint: http://openobserve.observability.svc:5080/api/default/
       headers:
         Authorization: ${env:O2_AUTH_BASIC}
+    otlphttp/openobserve_events:
+      endpoint: http://openobserve.observability.svc:5080/api/default/
+      headers:
+        Authorization: ${env:O2_AUTH_BASIC}
+        stream-name: k8s_events
     debug: null
   receivers:
     otlp:
@@ -96,6 +113,12 @@ config:
           endpoint: ${env:MY_POD_IP}:4318
     jaeger: null
     zipkin: null
+    k8sobjects/events:
+      auth_type: serviceAccount
+      objects:
+        - name: events
+          mode: watch
+          group: events.k8s.io
     prometheus:
       config:
         scrape_configs:
@@ -378,3 +401,7 @@ config:
         receivers: [otlp]
         processors: [memory_limiter, k8sattributes, batch]
         exporters: [otlphttp/openobserve]
+      logs/events:
+        receivers: [k8sobjects/events]
+        processors: [memory_limiter, k8sattributes, transform/events, batch]
+        exporters: [otlphttp/openobserve_events]
