@@ -477,19 +477,26 @@ Run it before committing any change to skills, AGENTS.md,
 `writing-bash` skill). Scope decisions (cmdshift/platform#230):
 
 - **Bare refs** FAIL on the agent surfaces, runbooks, `manifests/README.md`,
-  and the cloud notes, which were all clean when the check landed. They only
-  WARN in the group READMEs and `cluster/local/README.md`, which still carry
-  legacy bare refs in their decision tables (`-v` lists the lines).
+  the cloud notes, the group READMEs, and `cluster/local/README.md`
+  (promoted from WARN on those last two surfaces after the
+  cmdshift/platform#232 sweep qualified their refs — FAIL is what keeps
+  them clean; `-v` prints the flagged lines).
   `CHANGELOG.md` is skipped: dated, forward-only history isn't rewritten.
 - **Removed components** (the cmdshift/platform#171 migration plus the
-  removed operators; the list is `DENY` in the script) FAIL in skills,
-  AGENTS.md, agents, this README, and `manifests/README.md`. A line that
-  says "removed", "historical", "went with", or "gone since" is history and
-  passes. The allow is a pattern, not a list of line numbers, because line
+  removed operators and the cmdshift/platform#232 denylist extension; the
+  list is `DENY` in the script) FAIL in skills, AGENTS.md, agents, this
+  README, `manifests/README.md`, and (since cmdshift/platform#232) the
+  group READMEs. A line that says "removed",
+  "historical", "went with", "gone since", "replaces", "replaced",
+  "teardown", or "superseded" is history and passes. The allow is a
+  pattern, not a list of line numbers, because line
   numbers rot. Runbooks aren't scanned: `adopting-a-chart.md` and
   `incidents.md` hold removed-operator stories by design.
-- **Dates** are checked only on the timeless agent surfaces (skills,
-  AGENTS.md, agents, this README).
+- **Dates** FAIL on the timeless agent surfaces (skills, AGENTS.md, agents,
+  this README) and — since cmdshift/platform#232 — on the group READMEs and
+  the cloud notes. `runbooks/local/` is out of the check by contract:
+  `incidents.md` is the dated home; dated non-narrative claims move to
+  `CHANGELOG.md` opportunistically.
 - **Tools**: every executable here needs a quick-reference row and a mention
   in a skill or AGENTS.md. This is a FAIL, not a WARN: every helper was named
   somewhere when the check landed.
@@ -498,8 +505,12 @@ Run it before committing any change to skills, AGENTS.md,
 - Gotchas: frontmatter is parsed one file at a time with
   `yq --front-matter=extract`, because the multi-file glob form is broken.
   `opencode.jsonc` goes through `jq`, so adding JSON comments would FAIL the
-  config check: switch the parser first. The link check covers inline
-  links only (no anchors, no reference-style links).
+  config check: switch the parser first. The config check is skipped when
+  `--root` points at a subtree (no `.git` sentinel there):
+  `opencode.jsonc` belongs to the repo root. The link check covers inline
+  links only (no anchors, no reference-style links) — skills, AGENTS.md,
+  agents, this README, runbooks, and (since cmdshift/platform#232) the
+  group READMEs.
 - Test a check against a fixture tree with `agent_lint --root <dir>`, laid
   out like the repo. Never mutate real skills to exercise it.
 

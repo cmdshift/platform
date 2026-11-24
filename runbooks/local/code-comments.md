@@ -61,7 +61,6 @@ memory: 256Mi
 |---|---|---|
 | `# remove in the cloud` | delete the line when the manifests move to real Talos | `manifests/clusters/cloud/notes.md` |
 | `# true in the cloud` | flip the value when the manifests move | `manifests/clusters/cloud/notes.md` |
-| `# NSA hardening:` | setting that came from the NSA hardening baseline (kept after the original posture scanner was removed) | `manifests/README.md` accepted-deviations ledger |
 
 Rules:
 

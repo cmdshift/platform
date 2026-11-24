@@ -1,39 +1,48 @@
 #!/usr/bin/env bash
 # Lint the agent-facing docs surfaces against the repo's conventions.
 #   agent_lint              # lint the repo
-#   agent_lint -v           # also list the line numbers behind bare-ref WARNs
+#   agent_lint -v           # also print bare-ref FAIL lines
 #   agent_lint --root DIR   # lint a fixture tree laid out like the repo
 # Checks (FAIL unless marked WARN):
 #   frontmatter  every .agents/skills/<dir>/SKILL.md frontmatter parses,
 #                name == <dir>, description is set
 #   agents       .opencode/agents/*.md frontmatter carries none of:
 #                temperature permission bash tools maxSteps model steps
-#   config       opencode.jsonc parses (jq; JSON comments are not supported)
+#   config       opencode.jsonc parses (jq; JSON comments are not supported);
+#                skipped when --root is a subtree (no .git there)
 #   links        relative markdown links resolve — skills, AGENTS.md, agents,
-#                tools/bin/README.md, runbooks/local/*.md
+#                tools/bin/README.md, runbooks/local/*.md,
+#                manifests/bases/*/README.md
 #   bare-refs    no bare #N issue refs (write cmdshift/platform#N) — skills,
 #                AGENTS.md, agents, tools/bin/README.md, runbooks/local,
-#                manifests/README.md, manifests/clusters/cloud/notes.md;
-#                WARN only in manifests/bases/*/README.md and
-#                cluster/local/README.md; CHANGELOG.md is not checked
+#                manifests/README.md, manifests/clusters/cloud/notes.md,
+#                manifests/bases/*/README.md, cluster/local/README.md;
+#                CHANGELOG.md is not checked
 #   dates        no YYYY-MM-DD dates — skills, AGENTS.md, agents,
-#                tools/bin/README.md
+#                tools/bin/README.md, manifests/bases/*/README.md,
+#                manifests/clusters/cloud/notes.md (runbooks excluded:
+#                incidents.md is the dated home by contract)
 #   tools        every executable in tools/bin has a quick-reference row
 #                (| `name` |) in tools/bin/README.md and is named in a skill
 #                or AGENTS.md
 #   removed      no removed-component names (mimir loki alloy seaweedfs
-#                kubescape thanos emqx rabbitmq nats kubeblocks) — skills,
-#                AGENTS.md, agents, tools/bin/README.md, manifests/README.md;
-#                a line containing removed / historical / went with /
-#                gone since is history and passes
+#                kubescape thanos emqx rabbitmq nats kubeblocks goldilocks
+#                beyla k8s-monitoring kube-prometheus tempo grafana
+#                alertmanager lgtm) — skills,
+#                AGENTS.md, agents, tools/bin/README.md,
+#                manifests/README.md, manifests/bases/*/README.md
+#                (runbooks excluded: incidents.md is the dated home by
+#                contract); a line containing removed / historical /
+#                went with / gone since / replaces / replaced / teardown /
+#                superseded is history and passes
 #   size         WARN for a SKILL.md over 6144 bytes
 # Exit 0 = no FAIL (warnings allowed), 1 = at least one FAIL, 2 = usage error.
 
 set -uo pipefail
 
 ROOT='' VERBOSE=0 FAILS=0 WARNS=0
-DENY='(^|[^A-Za-z0-9])(mimir|loki|alloy|seaweed(fs)?|kubescape|thanos|emqx|rabbitmq|nats|kubeblocks)([^A-Za-z0-9]|$)'
-HISTORY='removed|historical|went with|gone since'
+DENY='(^|[^A-Za-z0-9])(mimir|loki|alloy|seaweed(fs)?|kubescape|thanos|emqx|rabbitmq|nats|kubeblocks|goldilocks|beyla|k8s-monitoring|kube-prometheus|tempo|grafana|alertmanager|lgtm)([^A-Za-z0-9]|$)'
+HISTORY='removed|historical|went with|gone since|replaces|replaced|teardown|superseded'
 BARE_REF='(^|[^A-Za-z0-9_./-])#[0-9]+([^0-9A-Za-z_]|$)'
 DATE='20[0-9][0-9]-[0-1][0-9]-[0-3][0-9]'
 BANNED_KEYS='temperature permission bash tools maxSteps model steps'
@@ -100,6 +109,8 @@ check_agents() {
 check_config() {
   local f="$ROOT/opencode.jsonc" err
   if [ ! -f "$f" ]; then
+    # no .git sentinel -> --root points at a subtree; the config belongs to the repo root
+    [ -e "$ROOT/.git" ] || return
     fail "opencode.jsonc: missing"
     return
   fi
@@ -127,24 +138,21 @@ check_links() {
       esac
       if [ ! -e "$p" ]; then fail "$(rel "$f"):$line: dead link ($t)"; fi
     done < <(grep -noE '\]\([^)[:space:]]+\)' "$f")
-  done < <(core_docs; runbook_docs)
+  done < <(core_docs; runbook_docs; existing "$ROOT"/manifests/bases/*/README.md)
 }
 
 check_bare_refs() {
-  local f m n
+  local f m
   while IFS= read -r f; do
     while IFS= read -r m; do
       fail "$(rel "$f"):${m%%:*}: bare issue ref — write cmdshift/platform#N"
+      if [ "$VERBOSE" -eq 1 ]; then printf '  %s\n' "$(rel "$f"):$m"; fi
     done < <(grep -nE "$BARE_REF" "$f")
-  done < <(core_docs; runbook_docs; existing "$ROOT/manifests/README.md" "$ROOT/manifests/clusters/cloud/notes.md")
-  while IFS= read -r f; do
-    n=$(grep -cE "$BARE_REF" "$f")
-    [ "$n" -gt 0 ] || continue
-    warn "$(rel "$f"): $n line(s) with bare issue refs (qualify as cmdshift/platform#N)"
-    if [ "$VERBOSE" -eq 1 ]; then
-      grep -nE "$BARE_REF" "$f" | cut -d: -f1 | sed "s|^|  $(rel "$f"):|"
-    fi
-  done < <(existing "$ROOT"/manifests/bases/*/README.md "$ROOT/cluster/local/README.md")
+  done < <(core_docs; runbook_docs; existing \
+    "$ROOT/manifests/README.md" \
+    "$ROOT/manifests/clusters/cloud/notes.md" \
+    "$ROOT"/manifests/bases/*/README.md \
+    "$ROOT/cluster/local/README.md")
 }
 
 check_dates() {
@@ -153,7 +161,7 @@ check_dates() {
     while IFS= read -r m; do
       fail "$(rel "$f"):${m%%:*}: date $(grep -oE "$DATE" <<<"${m#*:}" | head -n 1) — timeless surface (dated story goes in CHANGELOG.md)"
     done < <(grep -nE "$DATE" "$f")
-  done < <(core_docs)
+  done < <(core_docs; existing "$ROOT"/manifests/bases/*/README.md "$ROOT/manifests/clusters/cloud/notes.md")
 }
 
 check_tools() {
@@ -178,7 +186,7 @@ check_removed() {
     while IFS= read -r m; do
       fail "$(rel "$f"):${m%%:*}: removed component '$(grep -oiE "$DENY" <<<"${m#*:}" | head -n 1 | tr -cd 'A-Za-z')' — reword, or mark the line as history ($HISTORY)"
     done < <(grep -niE "$DENY" "$f" | grep -viE "$HISTORY")
-  done < <(core_docs; existing "$ROOT/manifests/README.md")
+  done < <(core_docs; existing "$ROOT/manifests/README.md" "$ROOT"/manifests/bases/*/README.md)
 }
 
 check_size() {
