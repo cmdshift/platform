@@ -64,6 +64,8 @@ extraEnv:
     value: "alerts@cloud.test"
   - name: ZO_SMTP_ENCRYPTION
     value: ""
+  - name: ZO_COMPACT_FILE_LIST_DUMP_ENABLED
+    value: "true"
   - name: ZO_S3_ACCESS_KEY
     valueFrom:
       secretKeyRef:
