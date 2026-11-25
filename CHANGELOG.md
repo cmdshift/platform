@@ -2,6 +2,20 @@
 
 Narrative log of the platform's evolution, newest first. Dated learnings, incident stories, and decision history live here; durable procedures live in `runbooks/local/`, timeless per-group decisions in `manifests/bases/*/README.md`, and landmines in `.agents/skills/`. Issue/PR references use the `cmdshift/platform#N` form.
 
+## 2026-11-25 (backup follow-ups accepted: volume-policy nightlies green, BSL + validation-arm drill measured, TTLs confirmed; dormant-repo reset waits on velero 1.19 — cmdshift/platform#245)
+
+- **The first nightlies under the volume policy are green (N1–N3, cmdshift/platform#238).** `pvcs-20261123/24/25` are all Completed with 0 errors and warnings null. Each has exactly one PVB (`scanning/trivy-server-0 data`) and 0 `Skip pod volume` warnings. `velero_backup_failed` and `velero_bsl_unavailable` are ok. A 4h mailpit window held 0 velero mails, watchdog 48/48, and `job_failed` rows from `scanning` only (cmdshift/platform#242). The O2 re-seed (cmdshift/platform#248) masked the live `velero_backup_failed` ok transition. A replay puts the last >0 step at 11-23T03:00Z, 24h after the partial failure.
+- **Drill A is measured (cmdshift/platform#231).**
+  - The BSL mail came 3m17s after BSL validation (computed ≤7m).
+  - The validation-arm mail came 29m55s after the FailedValidation fire (computed ≤31m). The fire landed 6 s after an aligned evaluation.
+  - The BSL cleared at the first post-silence evaluation: mail + 60m, 23m after Available. No second mail was sent.
+  - The window was 44m12s, with no abort.
+  - The runbook drill is no longer "Pending". It gains the schedule timing (create just after a `*/5` boundary) and the late-mail guard: restore the BSL by BSL mail + 40m, and keep the paused schedule, because `schedule delete` drops the counter series.
+  - Expected tail: `velero_backup_failed` stays critical with `schedule: drill-231a` rows until ≈2026-11-26T07:00Z.
+- **The deletion paths are clean.** The expired `pvcs-20261122030004` was GC'd at 03:23Z with 0 errors. A post-GC kopia snapshot-ID check found that all 23 of its forgets landed (0 survivors) on a server up ~69h, so velero-io/velero#10614 orphaning isn't deterministic. The 69 remaining orphans are all from the known cmdshift/platform#240 set. The 1a test backups' TTL expiries (05:33/05:37Z) resurrected nothing, with no DBR errors and no `velero_backup_deletion_failed` mail.
+- **The talos-backup Job TTL is confirmed (cmdshift/platform#239).** The 11-24 Job aged out at 24h, and the 11-25 Job carries `ttlSecondsAfterFinished: 86400`. The pre-TTL `talos-backup-29922000` was human-deleted, because the agent deny `kubectl * delete *backup*` matches every delete in namespace `backups`.
+- **The dormant-repo reset (item 3) is deferred to cmdshift/platform#244** (human decision). velero v1.19.0, which carries velero-io/velero#10637, went GA on 11-23, but the vmware-tanzu chart (`velero-12.2.5`) still ships 1.18.2. A read-only baseline is recorded there: the six dormant repos have 0 PVBs, 2466 keys and 1.33 GiB, and `scanning` has 12 snapshots and 9 orphans.
+
 ## 2026-11-25 (agent_lint: bare-ref regex covers hyphen-preceded refs, date check extended to month precision — cmdshift/platform#251, #252)
 
 - **Hyphen-preceded bare refs now flag** (`BARE_REF`: `-` left the leading exclusion class, cmdshift/platform#251): `post-#54` slipped past the check because the `-` before `#` sat inside the class that permits repo-qualified refs — found during the cmdshift/platform#232 sweep verification and deliberately skipped then. Corpus check before tightening: exactly one live instance on the checked surfaces (`security/README.md:85`), zero anchor-slug or version-ish false positives; the boundary re-verified by fixture — `post-#N`/`x-#N` flag, `cmdshift/platform#N`, `post-cmdshift/platform#N`, `./#66`, `repo/x#88`, `post-#54x` pass. Reworded in place: "re-confirmed on the post-#54 rebuild run" → "re-confirmed on the rebuild run after cmdshift/platform#54".

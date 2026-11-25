@@ -85,7 +85,7 @@ How to read the results:
 2. Within minutes, before the next hourly maintenance compaction, run `velero --kubeconfig cluster/local/.temp/kubeconfig --namespace backups backup delete <names> --confirm`. The restarted server's gc controller usually clears the expired `Deleting` backups on its own within the first minute.
 3. Prove the forget: the deleted backups' PVB snapshot IDs must be absent from a fresh `kopia_verify <ns> snapshot list --all --json`.
 
-`velero_backup_deletion_failed` surfaces a recurrence. The integrity check above is the only signal for orphans. The policy is accept, detect and track: no scheduled restart and no pre-release adoption. The upgrade and the orphan cleanup are tracked in cmdshift/platform#244, and the diagnosis is in cmdshift/platform#240.
+`velero_backup_deletion_failed` surfaces a recurrence. The integrity check above is the only signal for orphans. The orphaning isn't deterministic: a GC of 23 snapshots on a server up ~69h forgot all 23 (cmdshift/platform#245), so only a post-GC snapshot-ID check proves a forget. The policy is accept, detect and track: no scheduled restart and no pre-release adoption. The upgrade and the orphan cleanup are tracked in cmdshift/platform#244, and the diagnosis is in cmdshift/platform#240.
 
 ## Resetting a kopia repo (destructive, human-approved)
 
@@ -115,13 +115,13 @@ Encoded as OpenObserve detectors (the alert semantics + naming conventions: [man
 
 After a rebuild VeleroBackupStale fires until the first success. `velero backup create --from-schedule pvcs` clears it.
 
-Latencies (measured live unless marked; cmdshift/platform#231, cmdshift/platform#239):
+Latencies (measured live unless marked; cmdshift/platform#231, cmdshift/platform#239, cmdshift/platform#245):
 
 | Detector | period / freq / silence (min) | Computed fire | Measured fire | Computed clear | Observed clear |
 |---|---|---|---|---|---|
-| VeleroBackupFailed | 60 / 30 / 240 | ≤31m after the terminal phase | ~25m (a PartiallyFailed nightly, counter step → aligned evaluation); 18 s at alert creation | last failure + 24h + 60m, seen at a post-silence evaluation (≈25–29h) | pending (next post-silence evaluation after the 24h window) |
+| VeleroBackupFailed | 60 / 30 / 240 | ≤31m after the terminal phase | ~25m (a PartiallyFailed nightly, counter step → aligned evaluation); 29m55s validation arm (drill below: the schedule fired 6 s after an aligned evaluation, so the next one fired); 18 s at alert creation | last failure + 24h + 60m, seen at a post-silence evaluation (≈25–29h) | replay only: the last >0 step is failure + 24h, so the level is ok from failure + 25h at the next evaluation outside a silence; the live transition was masked by an O2 re-seed (cmdshift/platform#248) |
 | VeleroBackupStale | 60 / 30 / 240 | absent arm: immediately at creation without history, else 26h after the last sample + ≤30m; stale arm: last success + 26h + ≤30m | absent arm ~7 s at creation (throwaway copy on a never-existing schedule); 26h onset computed only (not boundable) | ≤ period after the next success, at the first post-silence evaluation (≤ ~4.5h) | computed only |
-| VeleroBslUnavailable | 10 / 5 / 60 | ≤1m validation + ≤1m scrape + ≤5m = ≤7m | pending the BSL drill below | ≤15m after Available, or at the post-silence evaluation (≤65m) | pending the BSL drill below |
+| VeleroBslUnavailable | 10 / 5 / 60 | ≤1m validation + ≤1m scrape + ≤5m = ≤7m | 3m17s after the BSL's `lastValidationTime` (3m23s after the foreign write; drill below) | ≤15m after Available, or at the post-silence evaluation (≤65m) | at the first post-silence evaluation, 60m after the fire mail (23m after Available); no second mail, since the gauge read `1` for the whole 10-min look-back |
 | VeleroRepoMaintenanceFailed | 120 / 30 / 240 | ≤31m | computed only (no non-destructive trigger) | ≈4–4.5h | ≈4h (level ok at the first post-silence evaluation) |
 | VeleroBackupDeletionFailed | 120 / 30 / 240 | ≤31m steady state | ≈0 (first evaluation at creation against a live failure) | ≈4–4.5h | ≈3h53m (first post-silence evaluation after the server restart reset the counter) |
 | job_failed (talos-backup) | 1 / 5 / 60 | ksm scrape ≤60s + ≤5m = ≤6m | 2m52s (throwaway failed Job) | Job deletion + O2 look-back (~4–5m) + ≤5m, visible after silence (≤65m) | series gone 3m54s after the TTL deleted the Job; no `backups` row after that (the level then sat critical on intermittent trivy `scanning` rows, whose Jobs age out in 10m — cmdshift/platform#242) |
@@ -163,6 +163,8 @@ rustfs ls main/backups/velero --recursive
 
 After a proper deletion, verify the objects are gone from `main/backups/velero`.
 
+A backup deleted this way before its TTL stays gone: its TTL expiry passes with no resurrection and no DBR errors (cmdshift/platform#245). Any `kubectl delete` in namespace `backups` is agent-denied, because the `kubectl * delete *backup*` pattern matches the namespace name. One-off cleanup there (a BackupRepository CR, a pre-TTL talos-backup Job) is human-run.
+
 ## BSL validation landmine — a foreign dir under the BSL prefix makes the BSL Unavailable
 
 Velero's BSL validation (`IsValid`) scans the BSL root `<bucket>/<prefix>/`, which here is `backups/velero/`. It rejects any directory there that velero doesn't own. The valid subdirs are `backups restores restic metadata plugins kopia`. Before the prefix fix (cmdshift/platform#94), talos-backup's root-level `local-test/` keys hit this only because the BSL had no prefix then. `talos/` at the bucket root is harmless now.
@@ -174,11 +176,11 @@ Velero's BSL validation (`IsValid`) scans the BSL root `<bucket>/<prefix>/`, whi
 - **Defense:** every bucket writer owns a distinct top-level prefix (talos-backup `S3_PREFIX: talos`, BSL `prefix: velero`), and nothing but velero writes under `velero/`.
 - **Cleanup:** remove the foreign key per key with `rustfs object remove` (never `rc rm --recursive`). Delete the `FailedValidation` Backups with `velero backup delete --confirm`. They never upload, so backup-sync can't resurrect them.
 
-## Pending drill: BSL unavailable + validation-arm fire (cmdshift/platform#231, cmdshift/platform#245)
+## Validated drill: BSL unavailable + validation-arm fire (cmdshift/platform#231, cmdshift/platform#245)
 
-This drill proves `VeleroBslUnavailable` and the VeleroBackupFailed validation arm with measured latency. It's the open Drill A acceptance item of cmdshift/platform#231, tracked in cmdshift/platform#245. It hasn't been run yet. Once it runs, fill in the latency table above and drop "Pending" from this heading.
+This drill proves `VeleroBslUnavailable` and the VeleroBackupFailed validation arm with measured latency. It's Drill A of cmdshift/platform#231, accepted in cmdshift/platform#245; its latencies are in the table above. Re-run it after changing a velero detector, the BSL, or the OpenObserve version.
 
-**Trigger:** run on or after 2026-11-23T05:00Z and before 21:00Z, never inside 02:15–04:45Z. Keep the whole window ≤ ~75 min. Run the mailpit-quiet-when-green end-state check (after the next nightly) **before** this drill: the drill leaves VeleroBackupFailed critical ~25h with `schedule: drill-231a` rows, which would mask the quiet check. VeleroBackupFailed must be quiet first, which is expected once the 2026-11-22 partial failure leaves its 24h window (~04:05Z on 11-23) and the alert passes its next post-silence evaluation. After any OpenObserve rebuild, the openobserve-sync Job must have re-created the Git detectors again first (it stops at the first alert whose stream never appeared, and a rebuild wipes O2's alert metadata — see the observability-config README). All gates must hold, otherwise don't start:
+**Trigger:** run between 05:00Z and 21:00Z, never inside 02:15–04:45Z. Keep the whole window ≤ ~75 min (the accepted run took 44m). Run any mailpit-quiet-when-green check **before** this drill: the drill leaves VeleroBackupFailed critical ~25h with `schedule: drill-231a` rows, which would mask the quiet check. VeleroBackupFailed must be quiet first: any earlier failure must have left its 24h window, and the alert must have passed its next post-silence evaluation. After any OpenObserve rebuild, the openobserve-sync Job must have re-created the Git detectors again first (it stops at the first alert whose stream never appeared, and a rebuild wipes O2's alert metadata — see the observability-config README). All gates must hold, otherwise don't start:
 
 1. The newest `pvcs-*` backup is `Completed`: `kubectl -n backups get backups.velero.io -l velero.io/schedule-name=pvcs --sort-by=.metadata.creationTimestamp -o custom-columns=N:.metadata.name,P:.status.phase | tail -1`.
 2. O2 shows `velero_backup_failed` and `velero_bsl_unavailable` at level `ok`. Read the level from `GET /api/v2/default/alerts`, field `.list[].level`.
@@ -190,12 +192,13 @@ This drill proves `VeleroBslUnavailable` and the VeleroBackupFailed validation a
 
 1. **Break the BSL.** Record T0, then run `rustfs object copy /etc/hostname main/backups/velero/drill-231/marker`. Confirm with `rustfs ls main/backups/velero/drill-231/ --recursive`.
 2. **BSL Unavailable, ≤3 min** (poll every 10 s). Record `.status.lastValidationTime` and `.status.message` (expect `invalid top-level directories: [drill-231]`). Then wait ≤3 min for `prometheus_query -v 'velero_backup_location_status_gauge{backup_location_name="default"}'` to read `0`.
-3. **Throwaway schedule.** Run `$V schedule create drill-231a --schedule '*/5 * * * *' --skip-immediately=true --include-namespaces drill-231a-none --snapshot-volumes=false --default-volumes-to-fs-backup=false --ttl 1h0m0s`.
+3. **Throwaway schedule.** Create it just after a `*/5` boundary, at least 4 min before the next one, so the counter's `0` sample lands before the first fire: `$V schedule create drill-231a --schedule '*/5 * * * *' --skip-immediately=true --include-namespaces drill-231a-none --snapshot-volumes=false --default-volumes-to-fs-backup=false --ttl 1h0m0s`.
    - **Wait for the 0 sample first** (≤3 min): `velero_backup_validation_failure_total{schedule="drill-231a"}` must read `0`. `increase()` needs two samples.
-   - Then wait ≤7 min for a `FailedValidation` Backup labelled `velero.io/schedule-name=drill-231a`. Record its creationTimestamp T_fire and `.status.validationErrors`.
+   - Then wait ≤7 min for a `FailedValidation` Backup labelled `velero.io/schedule-name=drill-231a`. Record its creationTimestamp T_fire and `.status.validationErrors`. Fires land ~40 s after the cron boundary.
    - Then wait ≤3 min for the counter to read `1`, and run `$V schedule pause drill-231a`.
-4. **BSL mail, ≤15 min after the validation time** (computed ≤7m; the throwaway-alert evidence suggests ~7m end to end). Search mailpit through the search API (`/api/v1/search?query=subject:velero_bsl_unavailable`), not `mailpit -s`, which only scans the newest 50. Record the latency and the row `backup_location_name: default | value: 0`.
-5. **Validation-arm mail, ≤62 min after T_fire** (computed ≤31m). Record the latency and the row `schedule: drill-231a`.
+4. **BSL mail, ≤15 min after the validation time** (computed ≤7m, measured 3m17s). Search mailpit through the search API (`/api/v1/search?query=subject:velero_bsl_unavailable`), not `mailpit -s`, which only scans the newest 50. Record the latency and the row `backup_location_name: default | value: 0`.
+5. **Validation-arm mail, ≤62 min after T_fire** (computed ≤31m, measured 29m55s: a fire that lands just after an aligned evaluation waits the full 30-min frequency). Record the latency and the row `schedule: drill-231a`.
+   - **Late-mail guard:** if this mail hasn't arrived by the BSL mail + 40 min, run the marker half of step 6 now (remove the marker, re-list twice, BSL `Available`, gauge `1`), then keep waiting up to the cap. The BSL detector's first post-silence evaluation (BSL mail + 60 min) looks back 10 min, so a gauge still `0` then sends a second BSL mail. Keep the paused schedule and its backups until the mail lands. `schedule delete` drops the `drill-231a` counter series (velero's `metrics.RemoveSchedule`), and the stored increment fires regardless of the BSL state.
 6. **Cleanup (always).**
    - `rustfs object remove main/backups/velero/drill-231/marker`.
    - `rustfs ls main/backups/velero/ --recursive | grep -c drill-231` → 0. Check again after 60 s.
@@ -204,7 +207,9 @@ This drill proves `VeleroBslUnavailable` and the VeleroBackupFailed validation a
    - Check after 3 min (the backup-sync window): no `drill-231a` backups, the schedule is NotFound, and `rustfs ls main/backups/velero/backups/ --recursive | grep -c drill-231a` → 0.
 7. **Clear.** At the BSL mail + 70 min, `velero_bsl_unavailable` is `ok` and no second BSL mail has arrived. Afterwards VeleroBackupFailed stays critical for ~25h with rows `schedule: drill-231a`. That's expected; attribute it to the drill.
 
-**Acceptance record** (in the issue and the latency table): T0, BSL `lastValidationTime` and message, gauge 0 time, T_fire with its validationErrors, BSL mail id/time and latency, validation-arm mail id/time and latency with its row, cleanup time with the checks above, and the BSL clear-observed time. Also record any `velero_repo_maintenance_failed` mail in the window as an opportunistic latency sample.
+**Acceptance record** (in the tracking issue; latencies into the table above): T0, BSL `lastValidationTime` and message, gauge 0 time, T_fire with its validationErrors, BSL mail id/time and latency, validation-arm mail id/time and latency with its row, cleanup time with the checks above, and the BSL clear-observed time. Also record any `velero_repo_maintenance_failed` mail in the window as an opportunistic latency sample.
+
+**Accepted run** (cmdshift/platform#245), offsets from T0: BSL `Unavailable` +6 s, gauge `0` +1m53s, BSL mail +3m23s, counter `0` +3m59s, fire +8m39s, validation-arm mail +38m34s, cleanup done +44m12s, BSL clear +63m23s. No abort, guard not used, no second BSL mail, no other velero mail.
 
 ## Restores — data-path re-validated 2026-11-22 (drill; shapes validated 2026-09-05)
 
