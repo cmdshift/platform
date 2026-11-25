@@ -480,7 +480,10 @@ Run it before committing any change to skills, AGENTS.md,
   the cloud notes, the group READMEs, and `cluster/local/README.md`
   (promoted from WARN on those last two surfaces after the
   cmdshift/platform#232 sweep qualified their refs — FAIL is what keeps
-  them clean; `-v` prints the flagged lines).
+  them clean; `-v` prints the flagged lines). Hyphen-preceded refs like
+  `post-#N` count too (the `-` left the regex's exclusion class,
+  cmdshift/platform#251): reword to "the rebuild after
+  cmdshift/platform#N" or similar.
   `CHANGELOG.md` is skipped: dated, forward-only history isn't rewritten.
 - **Removed components** (the cmdshift/platform#171 migration plus the
   removed operators and the cmdshift/platform#232 denylist extension; the
@@ -494,7 +497,11 @@ Run it before committing any change to skills, AGENTS.md,
   `incidents.md` hold removed-operator stories by design.
 - **Dates** FAIL on the timeless agent surfaces (skills, AGENTS.md, agents,
   this README) and — since cmdshift/platform#232 — on the group READMEs and
-  the cloud notes. `runbooks/local/` is out of the check by contract:
+  the cloud notes. Month-precision `20YY-MM` counts too, not just full
+  dates (cmdshift/platform#252): a timeless surface is fully date-free —
+  SHAs and `cmdshift/platform#N` refs carry the provenance, and the dated
+  story lives in `CHANGELOG.md`.
+  `runbooks/local/` is out of the check by contract:
   `incidents.md` is the dated home; dated non-narrative claims move to
   `CHANGELOG.md` opportunistically.
 - **Tools**: every executable here needs a quick-reference row and a mention
