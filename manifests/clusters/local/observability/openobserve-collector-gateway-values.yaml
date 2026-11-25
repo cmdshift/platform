@@ -6,7 +6,6 @@ rewriteDeprecatedComponentNames: false
 
 image:
   repository: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib
-  tag: 0.158.0
 
 presets:
   kubernetesAttributes:
