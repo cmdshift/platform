@@ -2,6 +2,12 @@
 
 Narrative log of the platform's evolution, newest first. Dated learnings, incident stories, and decision history live here; durable procedures live in `runbooks/local/`, timeless per-group decisions in `manifests/bases/*/README.md`, and landmines in `.agents/skills/`. Issue/PR references use the `cmdshift/platform#N` form.
 
+## 2026-11-25 (CVE bump 1/4: trivy-operator chart 0.36.0 → 0.38.1 + trivy 0.74.0 → 0.76.2 — CVE-2026-111497 fixed — cmdshift/platform#262)
+
+- **Chart bump + tag override, one commit** (chart-bumps-preferred convention, cmdshift/platform#263): the chart takes currency, the `trivy.image.tag: "0.76.2"` override delivers the fix. Chart 0.38.1 alone does NOT fix the CVE — it defaults trivy 0.76.1, built before the Alpine 3.24.3 rebuild (commit `ae26b88`) with vulnerable `brotli-libs 1.2.0-r0`; same build-date trap as kustomize-controller v1.9.6. Removal condition for the override is recorded in cmdshift/platform#263.
+- **Re-vendor verified a no-op**: diffed chart 0.36.0 vs 0.38.1 spec templates (cached at `.agents/temp/cache/trivy-spec-*`) — the only delta is the `app.kubernetes.io/version` label (0.34.0 → 0.36.1), and the vendored files carry no chart labels. Content unchanged.
+- 0.74→0.76 compat re-checked: operator (0.34.0) parses trivy's `--format json` output directly (unaffected by the sprig `getHostByName` removal); server + scan jobs share the tag; 5Gi cache PVC valid; 0.76.2 is a fresh tag → no pull-through-cache staleness.
+
 ## 2026-11-25 (trivy critical-vulns alert restored: gateway scrape-job relabel + role fix, alert + stream seed back in the sync set — cmdshift/platform#242)
 
 - **The trivy critical-vulns alert surface was dark end-to-end and is restored**: the gateway's `trivy-operator` scrape job (a) kept filtering on namespace `security` after the security→scanning split (cmdshift/platform#171 fallout — group splits must sweep the observability gateway's scrape relabels too), and (b) even with the namespace fixed, `role: service` cannot scrape the operator's **headless** metrics Service (aqua chart default): service-role SD resolves headless DNS to the pod IP and dials the declared service port 80, while the operator serves metrics on **8080** behind a named targetPort — silent `connection refused`, `up=0` forever. Switched the one job to `role: endpoints` (+ `__meta_kubernetes_endpoint_port_name` keep); every other gateway job stays `role: service` (their services are regular ClusterIP). The stream had likely **never** ingested, even pre-split.
