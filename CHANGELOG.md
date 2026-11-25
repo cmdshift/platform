@@ -2,6 +2,11 @@
 
 Narrative log of the platform's evolution, newest first. Dated learnings, incident stories, and decision history live here; durable procedures live in `runbooks/local/`, timeless per-group decisions in `manifests/bases/*/README.md`, and landmines in `.agents/skills/`. Issue/PR references use the `cmdshift/platform#N` form.
 
+## 2026-11-25 (CVE bump 3/4: strimzi-kafka-operator chart 1.2.0 → 1.3.1 — ca-certificates + java-21-openjdk CVEs fixed — cmdshift/platform#262)
+
+- **Skipped 1.3.0 deliberately** — its image still carries both vulnerable packages (CVE-2026-114406 ca-certificates, CVE-2026-114938 java-21-openjdk); 1.3.1 is the first fixed chart (SBOM + live `rpm -q` verified in the research). 1.2.0 → 1.3.1 is schema-additive (CRDs, RBAC additions; the unused kaniko values block was removed upstream); repo values set only `resources` → compatible, no CRs exist.
+- **Quay re-push trap verified clean end-to-end** (cmdshift/platform#263): the mirror (`registry.cloud.test/quay`) serves digest `sha256:55460ee2…` for tag `1.3.1` (the fixed Nov-19 rebuild — the release-notes SBOM digest `55f43849…` is the *vulnerable* Nov-4 build; never digest-pin to it), and the on-cluster operator pod's `imageID` matches exactly. Verification ritual recorded in the datastores README for every future strimzi bump.
+
 ## 2026-11-25 (CVE bump 2/4: opentelemetry-collector chart 0.175.0 → 0.183.2, tag pins deleted — amqp091-go CVEs fixed — cmdshift/platform#262)
 
 - **Chart-only bump; the hand-pinned `image.tag: 0.158.0` lines were deleted** from both collector values files — the image now follows chart appVersion **0.165.0** (contrib 0.165.0, SBOM shows amqp091-go v1.16.0 ≥ fixed v1.13.0 → CVE-2026-77405/-77408/-77411 all fixed). This is the chart-bumps-preferred steady state (cmdshift/platform#263): future collector bumps are chart-only. No chart ships contrib 0.166.0 yet (newest chart 0.183.2 = appVersion 0.165.0, upstream index cached at `.agents/temp/cache/otel-chart-index.yaml`).
