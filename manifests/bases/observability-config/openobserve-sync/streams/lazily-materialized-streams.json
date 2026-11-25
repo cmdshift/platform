@@ -14,5 +14,9 @@
   {
     "stream": "velero_repo_maintenance_failure_total",
     "type": "metrics"
+  },
+  {
+    "stream": "trivy_image_vulnerabilities",
+    "type": "metrics"
   }
 ]

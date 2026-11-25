@@ -2,6 +2,11 @@
 
 Narrative log of the platform's evolution, newest first. Dated learnings, incident stories, and decision history live here; durable procedures live in `runbooks/local/`, timeless per-group decisions in `manifests/bases/*/README.md`, and landmines in `.agents/skills/`. Issue/PR references use the `cmdshift/platform#N` form.
 
+## 2026-11-25 (trivy critical-vulns alert restored: gateway scrape-job relabel + role fix, alert + stream seed back in the sync set — cmdshift/platform#242)
+
+- **The trivy critical-vulns alert surface was dark end-to-end and is restored**: the gateway's `trivy-operator` scrape job (a) kept filtering on namespace `security` after the security→scanning split (cmdshift/platform#171 fallout — group splits must sweep the observability gateway's scrape relabels too), and (b) even with the namespace fixed, `role: service` cannot scrape the operator's **headless** metrics Service (aqua chart default): service-role SD resolves headless DNS to the pod IP and dials the declared service port 80, while the operator serves metrics on **8080** behind a named targetPort — silent `connection refused`, `up=0` forever. Switched the one job to `role: endpoints` (+ `__meta_kubernetes_endpoint_port_name` keep); every other gateway job stays `role: service` (their services are regular ClusterIP). The stream had likely **never** ingested, even pre-split.
+- **`trivy_critical_image_vulnerabilities` rejoined the openobserve-sync alert set** (starting shape from the removed o2-sync era's JSON at git `5bb7c5a^`; namespace regex now includes `datastores|scanning`; CRITICAL-only by design, `max_over_time(30m)` holds through rescan-gap flaps — cmdshift/platform#36), and `trivy_image_vulnerabilities` joined the lazily-materialized streams seed so an O2 rebuild can't abort the sync Job's alert phase at the trivy file and silently skip the later-alphabet `velero_*` alerts. Parked-alert inventory in the observability-config README updated.
+
 ## 2026-11-25 (O2 alert state, explicit ranges and all-message mail search promoted into tools/bin — cmdshift/platform#259)
 
 - **`prometheus_query -a [name]` reads O2 alert state** (level, level_since, last_outcome, last_satisfied/triggered) over the shared forward and auth cache — the alert-side view mailpit can't give. Read-only by decision; the openobserve-sync edit flow's O2-API delete stays manual.
