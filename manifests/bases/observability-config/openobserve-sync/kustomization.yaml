@@ -29,6 +29,7 @@ configMapGenerator:
       - pod_oom_killed.json=alerts/pod_oom_killed.json
       - tetragon_enforcement_kill.json=alerts/tetragon_enforcement_kill.json
       - tetragon_tracingpolicy_load_failed.json=alerts/tetragon_tracingpolicy_load_failed.json
+      - trivy_critical_image_vulnerabilities.json=alerts/trivy_critical_image_vulnerabilities.json
       - velero_backup_failed.json=alerts/velero_backup_failed.json
       - velero_backup_stale.json=alerts/velero_backup_stale.json
       - velero_backup_deletion_failed.json=alerts/velero_backup_deletion_failed.json
