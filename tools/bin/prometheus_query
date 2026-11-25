@@ -21,15 +21,23 @@
 #   prometheus_query -v '<promql>'            values only (value + labels, or ts value)
 #   prometheus_query -c '<promql>'            compact: "<pod=... container=...> vals" per line
 #   prometheus_query -r 6h '<promql>'         range over the last 6h (m|h|d), auto step
+#   prometheus_query --start <epoch> [--end <epoch>] [--step <s>] '<promql>'
+#                                             range with explicit bounds (epoch seconds;
+#                                             end defaults to now; step defaults to
+#                                             (end-start)/30, min 60; --step also works with -r)
+#   prometheus_query -a                       O2 alert states, TSV with a header row:
+#                                             name level level_since last_outcome
+#                                             last_satisfied_at last_triggered_at ("-" = never)
+#   prometheus_query -a <name>                one O2 alert's full JSON
 #   prometheus_query --stop                   evict the shared forwards
 # Exit 0 = query ran (raw: check the JSON for emptiness and .status; -v/-c:
 # empty output = no series), 1 = forward failed to establish, the server
-# stayed not-ready for 2m, or auth failed after a token refetch, 2 = usage
-# error, 3 = -v/-c only: O2 answered with an error (bad PromQL, HTTP
-# non-200) — the message is on stderr.
+# stayed not-ready for 2m, auth failed after a token refetch, or (-a <name>)
+# no alert by that name, 2 = usage error, 3 = -v/-c/-a only: O2 answered
+# with an error (bad PromQL, HTTP non-200) — the message is on stderr.
 
 usage() {
-  echo "usage: prometheus_query [-v|-c] [-r 6h] '<promql>' | prometheus_query --stop" >&2
+  echo "usage: prometheus_query [-v|-c] [-r 6h | --start <epoch> [--end <epoch>]] [--step <s>] '<promql>' | prometheus_query -a [name] | prometheus_query --stop" >&2
   exit 2
 }
 
@@ -173,6 +181,61 @@ port_forward() { # service_name — sets PORT_FORWARD_PORT / PORT_FORWARD_PID
   printf '%s %s\n' "$PORT_FORWARD_PID" "$PORT_FORWARD_PORT" > "$lock"
 }
 
+o2_request() { # max_time url [curl args…] — sets O2_OUT (body) / O2_CODE; a 401
+  # invalidates the cached token and refetches once. The token only ever rides
+  # the curl -H argument — never echo it, never include it in a message.
+  local max_time=$1 url=$2 token out
+  shift 2
+  token=$(o2_token) || return 1
+  out=$(curl -sG -w '\n%{http_code}' --max-time "$max_time" "$url" "$@" -H "Authorization: $token")
+  O2_CODE=${out##*$'\n'}
+  if [ "$O2_CODE" = 401 ]; then
+    # cached token went stale (secrets-server payload changed) — refetch once
+    rm -f "$AUTH_CACHE"
+    token=$(o2_token) || return 1
+    out=$(curl -sG -w '\n%{http_code}' --max-time "$max_time" "$url" "$@" -H "Authorization: $token")
+    O2_CODE=${out##*$'\n'}
+    if [ "$O2_CODE" = 401 ]; then
+      echo "O2 rejected the token even after a refetch — re-encode the collector values (observability README 401 landmine)" >&2
+      return 1
+    fi
+  fi
+  O2_OUT=${out%$'\n'*}
+}
+
+check_http() { # body http_code what — non-200 fails with a short body excerpt
+  [ "$2" = 200 ] && return 0
+  echo "prometheus_query: O2 $3 API returned HTTP $2: $(head -c 300 <<<"$1")" >&2
+  return 1
+}
+
+format_alert_levels() { # alerts list JSON → header + TSV; null/0 timestamps (micros) print "-"
+  jq -r '
+    def ts: if (. // 0) == 0 then "-" else (. / 1000000 | floor | todate) end;
+    (["name","level","level_since","last_outcome","last_satisfied_at","last_triggered_at"] | @tsv),
+    (.list[]? | [.name, (.level // "-"), (.level_since | ts), (.last_outcome // "-"),
+                 (.last_satisfied_at | ts), (.last_triggered_at | ts)] | @tsv)'
+}
+
+alerts() { # [name] — the levels table, or one alert's full JSON
+  local name=${1:-} base="http://localhost:$PORT_FORWARD_PORT/api/v2/default/alerts" id
+  o2_request 15 "$base" || return 1
+  check_http "$O2_OUT" "$O2_CODE" alerts || return 3
+  if [ -z "$name" ]; then
+    printf '%s\n' "$O2_OUT" | format_alert_levels
+    return
+  fi
+  id=$(jq -r --arg n "$name" '[.list[]? | select(.name == $n) | .alert_id][0] // empty' <<<"$O2_OUT")
+  [ -n "$id" ] || { echo "prometheus_query: no O2 alert named '$name' (prometheus_query -a lists them)" >&2; return 1; }
+  o2_request 15 "$base/$id" || return 1
+  check_http "$O2_OUT" "$O2_CODE" alerts || return 3
+  printf '%s\n' "$O2_OUT" | jq .
+}
+
+epoch_int() { # value — usage error unless a non-negative integer
+  case "$1" in ''|*[!0-9]*) usage ;; esac
+}
+
 check_response() { # body http_code — an O2 error answer fails -v/-c
   local msg
   msg=$(jq -r 'select(.status == "error") | "\(.errorType // "error"): \(.error // "unknown")"' 2>/dev/null <<<"$1")
@@ -213,49 +276,63 @@ format_compact() { # one line per series: short label subset + values (token-che
 
 prometheus_query() {
   local service=openobserve mode=instant values=0 compact=0 range='' query=''
-  local start='' end='' step=''
+  local start='' end='' step='' explicit=0
   while [ $# -gt 0 ]; do
     case "$1" in
       -v) values=1; shift ;;
       -c) compact=1; shift ;;
+      -a) [ "$mode" = instant ] || usage; mode=alerts; shift ;;
       -r) [ -n "${2:-}" ] || usage # '-r' alone: the failed shift leaves $1='-r' forever
+          [ "$mode" = instant ] || usage
           range="$2"; mode=range; shift 2 ;;
+      --start) [ -n "${2:-}" ] || usage
+          [ "$mode" = instant ] || usage
+          epoch_int "$2"; start="$2"; explicit=1; mode=range; shift 2 ;;
+      --end) [ -n "${2:-}" ] || usage; epoch_int "$2"; end="$2"; shift 2 ;;
+      --step) [ -n "${2:-}" ] || usage; epoch_int "$2"; [ "$2" -gt 0 ] || usage; step="$2"; shift 2 ;;
       -*) usage ;; # an unknown flag would silently be swallowed as/next to the query
       *) [ -z "$query" ] || usage # one query only — last-one-wins hides the mistake
          query="$1"; shift ;;
     esac
   done
+
+  if [ "$mode" = alerts ]; then
+    # -a takes an optional alert name in the query slot; no PromQL flags
+    { [ "$values" -eq 0 ] && [ "$compact" -eq 0 ] && [ -z "$end" ] && [ -z "$step" ]; } || usage
+    port_forward "$service" || return 1
+    alerts "$query"
+    return
+  fi
+
   [ -n "$query" ] || usage
   { [ "$values" -eq 0 ] || [ "$compact" -eq 0 ]; } || usage # -v and -c are mutually exclusive
-  if [ "$mode" = range ]; then
+  { [ "$mode" = range ] || [ -z "$step" ]; } || usage       # --step needs -r or --start
+  { [ "$explicit" -eq 1 ] || [ -z "$end" ]; } || usage      # --end needs --start
+  if [ "$mode" = range ] && [ "$explicit" -eq 0 ]; then
     start=$(range_start "$range") || usage # validate before port-forward, not after
+  fi
+  if [ "$explicit" -eq 1 ]; then
+    [ -n "$end" ] || end=$(date +%s)
+    [ "$start" -lt "$end" ] || usage
   fi
 
   port_forward "$service" || return 1
   # O2 serves the prometheus-compat query API under /api/{org}/prometheus —
   # the org is hardcoded default
   local base="http://localhost:$PORT_FORWARD_PORT/api/default/prometheus/api/v1"
-  local url="$base/query"
+  local url="$base/query" max_time=15
 
   if [ "$mode" = range ]; then
-    end=$(date +%s)
-    step=$(( (end - start) / 30 )); [ "$step" -lt 60 ] && step=60
+    [ -n "$end" ] || end=$(date +%s)
+    if [ -z "$step" ]; then
+      step=$(( (end - start) / 30 )); [ "$step" -lt 60 ] && step=60
+    fi
     url="$base/query_range?start=$start&end=$end&step=$step"
+    max_time=60
   fi
 
-  local token out code
-  token=$(o2_token) || return 1
-  out=$(curl -sG -w '\n%{http_code}' --max-time 15 "$url" --data-urlencode "query=$query" -H "Authorization: $token")
-  code=${out##*$'\n'}
-  if [ "$code" = 401 ]; then
-    # cached token went stale (secrets-server payload changed) — refetch once
-    rm -f "$AUTH_CACHE"
-    token=$(o2_token) || return 1
-    out=$(curl -sG -w '\n%{http_code}' --max-time 15 "$url" --data-urlencode "query=$query" -H "Authorization: $token")
-    code=${out##*$'\n'}
-    [ "$code" = 401 ] && { echo "O2 rejected the token even after a refetch — re-encode the collector values (observability README 401 landmine)" >&2; return 1; }
-  fi
-  out=${out%$'\n'*}
+  o2_request "$max_time" "$url" --data-urlencode "query=$query" || return 1
+  local out=$O2_OUT code=$O2_CODE
 
   if [ "$compact" = 1 ] || [ "$values" = 1 ]; then
     check_response "$out" "$code" || return 3

@@ -23,7 +23,11 @@ gotchas, exit-code semantics, landmines, and provenance.
   output. Polling is bounded with progress echoes — never a blind sleep. A
   CLI failure inside a wait loop must land in the exit-1 diagnose path,
   never silently kill the script (`set -e` + pipefail on a failed command
-  substitution — hit in `velero_wait`/`helm_wait`).
+  substitution — hit in `velero_wait`/`helm_wait`). Sibling trap: a
+  subshell `exit N` inside `out=$(fn | jq …)` does not propagate N to the
+  caller when the pipeline's status is what's checked — make the call a
+  standalone assignment (`json=$(fn)`) so the assignment's exit status
+  carries the code (cmdshift/platform#259, in `mailpit`).
 - **Bad input prints `usage: …` to stderr and exits 2** — every script
   validates unknown flags, missing values, non-integer counts, and
   nonexistent paths up front (cmdshift/platform#34: `pod_status -x` acted
@@ -68,11 +72,11 @@ The toolchain installs via `brew bundle --file=tools/Brewfile`.
 | `policy_report` | PolicyReport summary + stale-report detection (`--clean` deletes them) |
 | `kyverno_unblock` | unstick kyverno rollouts deadlocked on hostNetwork ports |
 | `tetragon_probe` | verify a deny-list TracingPolicy kills: labeled probe pod + counter deltas |
-| `prometheus_query` | PromQL against O2 with the port-forward lifecycle handled |
+| `prometheus_query` | PromQL against O2 with the port-forward lifecycle handled; `--start/--end/--step` explicit ranges, `-a` O2 alert states |
 | `metrics_summary` | post-scrape-change gate: per-family up-target counts |
 | `log_query` | O2 SQL log search with the port-forward lifecycle handled |
 | `exec_inventory` | tetragon exec-inventory review: per-namespace/binary counts over a window |
-| `mailpit` | alert-email subjects, or `-s <subj>` / `-b <id>` for body fetch |
+| `mailpit` | alert emails: newest subjects, `-q <subj>` search across all messages, `-s <subj>` / `-b <id>` for the body |
 | `velero_wait` | poll a velero backup/restore to Completed (kubectl on `backups.velero.io`/`restores.velero.io` in `backups`; stops early on Failed/PartiallyFailed/FailedValidation/Deleting — cmdshift/platform#238) |
 | `rustfs` | rustfs `rc` CLI inside the storage container, alias preset |
 | `kopia_verify` | read-only kopia CLI (throwaway container) against one velero kopia repo |
@@ -275,10 +279,32 @@ speaks PromQL to O2's Prometheus-compat API, `log_query` speaks O2
 
 ### `prometheus_query`
 
-- **Exit 3 in `-c`/`-v` mode = O2 answered with an error** (bad PromQL,
-  HTTP non-200), message on stderr: those modes used to print nothing and
-  exit 0 — indistinguishable from "no series". Raw mode still prints O2's
-  JSON verbatim (exit 0): check `.status`.
+- **Exit 3 in `-c`/`-v`/`-a` mode = O2 answered with an error** (bad
+  PromQL, HTTP non-200), message on stderr: those modes used to print
+  nothing and exit 0 — indistinguishable from "no series". Raw mode still
+  prints O2's JSON verbatim (exit 0): check `.status`.
+- **Explicit ranges** (cmdshift/platform#259): `--start <epoch> [--end
+  <epoch>] [--step <s>]` for drill and fire-latency windows that
+  `-r <dur>` (always "until now") can't express; `--step` also overrides
+  `-r`'s auto step (~30 points, min 60s). Range queries get a 60s curl
+  budget (instant: 15s). Bounds are epoch **seconds** (`date +%s`
+  arithmetic, per the host-portable rule).
+- **`-a` = O2 alert state** (cmdshift/platform#259):
+  `GET /api/v2/default/alerts` over the same shared forward + auth cache —
+  the alert-side complement to `mailpit` (mail shows only what fired; `-a`
+  shows `level` ok/critical, `level_since`, `last_outcome`, and whether a
+  detector has evaluated yet). TSV with a header row; timestamps are O2
+  micros rendered UTC, `-` = never (`last_satisfied_at` is `null` on
+  detectors that never matched). `-a <name>` prints the alert's full JSON
+  (condition, frequency, period). Read-only by design: the
+  openobserve-sync create-only edit flow still needs a manual O2-API
+  delete (`velero-ops` skill), deliberately not wrapped here. Exit 1 = no
+  alert by that name, 3 = the alerts API answered non-200.
+- **Token discipline** (cmdshift/platform#259): the O2 Basic token only
+  ever rides the curl `-H` argument; error messages echo at most 300 bytes
+  of the O2 response body, never request headers. Verify after any edit:
+  capture every mode incl. a forced HTTP 500 (a curl shim that passes
+  `/healthz` through) and `grep -ci 'basic '` → 0.
 - API path `/api/default/prometheus/api/v1/{query,query_range}`; ready check
   `/healthz` (200 unauthenticated — O2's `/ready` requires auth).
 - **O2 label translation** (cmdshift/platform#186, verified live): the OTel
@@ -372,10 +398,22 @@ truncation warning is the guard if it ever does.
 ### `mailpit`
 
 Alert emails from http://mail.cloud.test (O2 → SMTP, cmdshift/platform#182).
-`-s` matches case-insensitively within the newest 50 messages. Subject
-match + body fetch exist for alert-link verification
-(cmdshift/platform#155) — listing alone can't show whether annotations
-rendered as links.
+`-q` and `-s` ride mailpit's search API (`/api/v1/search?query=subject:"…"`,
+case-insensitive substring, newest first) across **all** messages — `-s`
+used to scan only the newest 50, so drill mails older than that went
+missing (cmdshift/platform#259). `-q` lists `<created> <id> <subject>`
+(default 20) for latency measurements; bare `mailpit` still lists the
+newest messages. Subject match + body fetch exist for alert-link
+verification (cmdshift/platform#155) — listing alone can't show whether
+annotations rendered as links.
+
+- **`-b` strips CR** (cmdshift/platform#259): mailpit bodies are CRLF, and
+  `grep -E 'value: 0( |$)'` silently missed every row on the raw body. The
+  tool pipes through `tr -d '\r'`, so plain patterns work; raw API reads
+  (`curl …/api/v1/message/<id>`) still need `[[:space:]]|$` or
+  `tr -d '\r'`.
+- Exit 3 = mailpit unreachable or answered non-JSON (the companion is
+  down) — distinct from 1 = no match.
 
 ## Operations
 

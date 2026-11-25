@@ -2,6 +2,14 @@
 
 Narrative log of the platform's evolution, newest first. Dated learnings, incident stories, and decision history live here; durable procedures live in `runbooks/local/`, timeless per-group decisions in `manifests/bases/*/README.md`, and landmines in `.agents/skills/`. Issue/PR references use the `cmdshift/platform#N` form.
 
+## 2026-11-25 (O2 alert state, explicit ranges and all-message mail search promoted into tools/bin — cmdshift/platform#259)
+
+- **`prometheus_query -a [name]` reads O2 alert state** (level, level_since, last_outcome, last_satisfied/triggered) over the shared forward and auth cache — the alert-side view mailpit can't give. Read-only by decision; the openobserve-sync edit flow's O2-API delete stays manual.
+- **`prometheus_query --start/--end/--step`** gives explicit epoch-bounded range queries for drill and fire-latency windows (`-r` only reaches "until now").
+- **`mailpit -q <subject> [limit]` searches all messages, and `-s` now rides the search API too** — `-s` used to scan only the newest 50, so the runbook carried a raw-URL workaround. `mailpit -b` strips CR: CRLF bodies made `grep ' |$'` silently miss rows.
+- These replace the session-scratch `mp_search` / `o2_levels` / `o2_range` helpers, which runbooks and trackers had started citing as if they were tools. Token-leak check across every mode incl. forced HTTP 500: 0 matches.
+- The docs sweep encoded the change's two reusable techniques into timeless surfaces: the curl-PATH-shim verification pattern for companion-backed tools' HTTP-error paths (three flavors — exit 7, non-JSON, `/healthz`-passthrough + 500) into the `writing-bash` skill, and the subshell-`exit`-status trap (`out=$(fn | jq …)` loses the subshell's exit code under `set -e`; a standalone assignment carries it) into the exit-codes convention in `tools/bin/README.md`.
+
 ## 2026-11-25 (backup follow-ups accepted: volume-policy nightlies green, BSL + validation-arm drill measured, TTLs confirmed; dormant-repo reset waits on velero 1.19 — cmdshift/platform#245)
 
 - **The first nightlies under the volume policy are green (N1–N3, cmdshift/platform#238).** `pvcs-20261123/24/25` are all Completed with 0 errors and warnings null. Each has exactly one PVB (`scanning/trivy-server-0 data`) and 0 `Skip pod volume` warnings. `velero_backup_failed` and `velero_bsl_unavailable` are ok. A 4h mailpit window held 0 velero mails, watchdog 48/48, and `job_failed` rows from `scanning` only (cmdshift/platform#242). The O2 re-seed (cmdshift/platform#248) masked the live `velero_backup_failed` ok transition. A replay puts the last >0 step at 11-23T03:00Z, 24h after the partial failure.

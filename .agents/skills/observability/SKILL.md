@@ -19,10 +19,14 @@ query svc/openobserve:5080 with their own shared port-forward (lock files in
 prometheus_query 'container_cpu_cfs_throttled_periods_total{namespace="…",container="…"}'
 prometheus_query -c -r 6h 'k8s_pod_memory_working_set{k8s_namespace_name="ns"}'
 prometheus_query 'count(kube_pod_container_status_restarts_total)'
+prometheus_query -c --start "$t0" --end "$t1" --step 60 'velero_backup_location_status_gauge'
+prometheus_query -a                 # O2 alert states: name level level_since last_outcome …
 ```
 
 - Default: raw JSON. `-v`: values only. `-c`: compact, one line per series (token-cheap).
 - `-r 6h`: range query over m|h|d, auto-stepped to ~30 points.
+- `--start/--end/--step`: explicit epoch-second bounds (drill windows, fire latency); `--step` also overrides `-r`'s auto step.
+- `-a` / `-a <name>`: O2 alert state (read-only) — `level` ok/critical + `level_since` answers "did it clear / has it evaluated yet", which mailpit can't (it only shows what fired). Exit 1 = no such alert.
 - Queries svc/openobserve (ns observability, port 5080); the org is hardcoded
   `default` (no OrgID header).
 - **O2 label translation**: `job` → `service_name`, `instance` →
@@ -104,11 +108,12 @@ security README). Steady state ~0.4 events/min cluster-wide.
 
 ```
 mailpit [limit]                    # "<id>  <subject>" of the latest alert emails, newest first
-mailpit -s <substring>             # newest message whose subject matches (case-insensitive) → body
-mailpit -b <id>                    # body of message <id> (text if present, else HTML)
+mailpit -q <substring> [limit]     # "<created> <id> <subject>" across ALL messages, newest first (default 20)
+mailpit -s <substring>             # newest match across all messages → id + body
+mailpit -b <id>                    # body of message <id> (text if present, else HTML), CR stripped
 ```
 
-Alert delivery path: O2 native alerts → O2 built-in SMTP → mailpit — no alertmanager (removed under cmdshift/platform#182). **The alert set is GitOps-synced by the `openobserve-sync` Job** (`observability-config/openobserve-sync/`; 18 detectors incl. the always-firing `watchdog` heartbeat, cmdshift/platform#206). Alerts land at **http://mail.cloud.test** — use it to confirm a detector fired (watchdog silence = broken delivery path) or to read `ContainerOOMKilled` events. Verifying templated alert annotations (dashboard links etc.) rendered requires the body — `mailpit -s` to find the alert email, `-b` to read it (exit 0/1/2 = found/not-found/usage). Bare listing prints the ID prefix needed for `-b` (cmdshift/platform#155).
+Alert delivery path: O2 native alerts → O2 built-in SMTP → mailpit — no alertmanager (removed under cmdshift/platform#182). **The alert set is GitOps-synced by the `openobserve-sync` Job** (`observability-config/openobserve-sync/`; 18 detectors incl. the always-firing `watchdog` heartbeat, cmdshift/platform#206). Alerts land at **http://mail.cloud.test** — use it to confirm a detector fired (watchdog silence = broken delivery path) or to read `ContainerOOMKilled` events. Verifying templated alert annotations (dashboard links etc.) rendered requires the body — `mailpit -s` to find the alert email, `-b` to read it (exit 0/1/2/3 = found/not-found/usage/mailpit unreachable). For detector state (ok vs critical, cleared yet, evaluated yet) pair the mail with `prometheus_query -a`. Bare listing prints the ID prefix needed for `-b` (cmdshift/platform#155).
 
 ## tetra (Tetragon process events)
 
