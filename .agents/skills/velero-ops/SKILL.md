@@ -35,11 +35,11 @@ All BackupRepositories `Failed` + Warning events every ~5m = kopia maintenance J
 
 ## BSL unavailable = FailedValidation
 
-A foreign dir under the BSL prefix `velero/` makes the BSL `Unavailable`, and every backup then lands `FailedValidation`. That increments the validation counter, not attempts. `VeleroBslUnavailable` fires within minutes; the fingerprint and the drill are in the runbook (cmdshift/platform#231).
+A foreign dir under the BSL prefix `velero/` makes the BSL `Unavailable`, and every backup then lands `FailedValidation`. That increments the validation counter, not attempts. `VeleroBslUnavailable` fires in ~3m; fingerprint + drill: the runbook (cmdshift/platform#231).
 
 ## Deleting — the resurrection trap
 
-**Always** `velero backup delete <name> --confirm`, **never** `kubectl delete backup`: kubectl only removes the CR, the S3 objects stay, and backup-sync re-creates the Backup CR from storage within minutes. After deletion, verify the objects are gone from `main/backups`, then prove the kopia forget: the PVB snapshot IDs are absent from `kopia_verify <ns> snapshot list --all --json`. A repo reset's BackupRepository CR delete is human-run (`kubectl * delete *backup*` is denied).
+**Always** `velero backup delete <name> --confirm`, **never** `kubectl delete backup`: kubectl only removes the CR, the S3 objects stay, and backup-sync re-creates the Backup CR from storage within minutes. After deletion, verify the objects are gone from `main/backups`, then prove the kopia forget: the PVB snapshot IDs are absent from `kopia_verify <ns> snapshot list --all --json`. Any `kubectl delete` in ns `backups` (repo-reset CR, one-off Job) is human-run: `kubectl * delete *backup*` is denied.
 
 ## Restores
 
