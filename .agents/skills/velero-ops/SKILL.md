@@ -54,7 +54,7 @@ Shapes re-validated post volume-policy/kopia-verify (cmdshift/platform#238, cmds
 
 ## Alerts
 
-Five velero detectors plus `job_failed` live in `observability-config/openobserve-sync/alerts/`, created in O2 by the openobserve-sync Job (cmdshift/platform#206). They're create-only by name, so an edit needs an O2-API delete before the resync. The runbook Alerts table carries their shapes, the O2 evaluation semantics (`period` = look-back, silence stops evaluation, zero-row `<` gates never mail), and the measured fire and clear latencies. VeleroBackupStale carries an `absent_over_time` arm (cmdshift/platform#231).
+Five velero detectors plus `job_failed` live in `observability-config/openobserve-sync/alerts/`, created in O2 by the openobserve-sync Job (cmdshift/platform#206). They're create-only by name, so an edit needs an O2-API delete before the resync. The runbook Alerts table carries their shapes, the O2 evaluation semantics (`period` = look-back, silence stops evaluation, zero-row `<` gates never mail), and the measured fire and clear latencies. VeleroBackupStale carries an `absent_over_time` arm (cmdshift/platform#231). Check detector state with `prometheus_query -a` (`-a <name>` for one alert's JSON) and the mails with `mailpit -q <detector>` — it searches all messages, so drill mails older than the newest 50 still show.
 
 ## CLI quirks
 

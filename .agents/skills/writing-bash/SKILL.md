@@ -29,6 +29,7 @@ When a task needs more than a round or two of throwaway plumbing, promote it to 
 
 - `shellcheck tools/bin/<name>` — clean before finishing any script edit.
 - Exercise the failure path once (bad args, unreachable target) — exit codes and messages are part of the interface.
+- **HTTP-error paths need no companion outage** (cmdshift/platform#259): a tool that curls a companion (mailpit, OpenObserve) can have its non-200 / non-JSON paths exercised via a curl PATH shim — `PATH="$PWD/.agents/temp/cache/<issue>/shim-curl-<flavor>:$PATH" tools/bin/<tool>` — with three flavors: exit 7 (unreachable), prints non-JSON (bad answer), and passes `/healthz` through + answers everything else 500 (O2 error paths). The companion itself is never touched.
 - `<name> -h` exits 0 and prints the header without touching the cluster (prove it behind a PATH shim of the cluster CLIs when unsure).
 - `agent_lint` exits 0 — every script needs a `tools/bin/README.md` quick-reference row and a mention in a skill or AGENTS.md.
 - Comments follow the same minimize rules as manifests (the `writing-yaml` skill, Comments section): no narration; the why goes in `tools/bin/README.md` or the nearest README.
