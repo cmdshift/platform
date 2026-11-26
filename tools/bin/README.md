@@ -538,7 +538,9 @@ Run it before committing any change to skills, AGENTS.md,
   the cloud notes. Month-precision `20YY-MM` counts too, not just full
   dates (cmdshift/platform#252): a timeless surface is fully date-free —
   SHAs and `cmdshift/platform#N` refs carry the provenance, and the dated
-  story lives in `CHANGELOG.md`.
+  story lives in `CHANGELOG.md`. The regex requires a non-digit boundary
+  after the month, so CVE IDs (`CVE-2026-111497`) don't false-positive as
+  `20YY-MM` dates (cmdshift/platform#262).
   `runbooks/local/` is out of the check by contract:
   `incidents.md` is the dated home; dated non-narrative claims move to
   `CHANGELOG.md` opportunistically.

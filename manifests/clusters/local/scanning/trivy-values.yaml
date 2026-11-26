@@ -8,6 +8,9 @@ trivy:
   ignoreUnfixed: false
   image:
     registry: docker.io
+    # chart 0.38.1 defaults 0.76.1, built before the Alpine 3.24.3 brotli fix (0.76.2) —
+    # remove when the next chart defaults trivy >= 0.76.2
+    tag: "0.76.2"
   dbRegistry: registry.cloud.test
   dbRepository: docker/aquasec/trivy-db
   javaDbRegistry: registry.cloud.test

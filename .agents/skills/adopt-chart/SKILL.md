@@ -58,6 +58,9 @@ Too big → pick a strategy:
 
 - **Unmapped image registry = hard pull failure** (wildcard mirror + `skipFallback: true`): override to a mapped upstream with identical content (kyverno → `global.image.registry: ghcr.io`; rationale in `manifests/bases/policies-config/README.md`). Map: [cluster-rebuild.md](../../../runbooks/local/cluster-rebuild.md).
 - **`not found` pull on a freshly pinned tag** — check the registry's real tag list: versioned tags may live on one registry only, with or without a `v` prefix.
+- **Upstream tags can be silently re-pushed** — a release-notes SBOM digest can be the vulnerable build; trust the mirror-served digest + the on-cluster pod's `imageID`, never the SBOM (strimzi `1.3.1`; ritual in the [datastores README](../../../manifests/bases/datastores/README.md), cmdshift/platform#263).
+- **A CVE fix riding a base-image rebuild has its fix boundary at the base bump date, not the version tag** — "controller ≥ vX" release-date reasoning doesn't survive rebuilds (kustomize-controller v1.9.6, trivy 0.76.1). Verify the published image's apk-db (`/lib/apk/db/installed`) — an SBOM can hide base-image packages (flux SBOMs are Go-only). Precedents: flux + scanning READMEs (cmdshift/platform#262).
+- **Chart bumps preferred; an image-tag override is a temporary exception** — add one only with a named removal condition recorded at the value (convention in `manifests/README.md`, condition table in cmdshift/platform#263).
 - **Charts that `lookup` their own CRDs at render** fail install until the CRDs exist (helm-controller renders without API discovery).
 - **An operator-managed release reusing a HelmRelease's name fights the old storage** ("upgrade failed; rollback required") — fresh name or purge `sh.helm.release.v1.<name>.*` + the HR ([incidents.md](../../../runbooks/local/incidents.md)).
 - **Uninstall leaves residue** (CRDs, operator CRs, PVCs): [Removing a chart](../../../runbooks/local/adopting-a-chart.md#removing-a-chart).

@@ -45,7 +45,7 @@ ROOT='' VERBOSE=0 FAILS=0 WARNS=0
 DENY='(^|[^A-Za-z0-9])(mimir|loki|alloy|seaweed(fs)?|kubescape|thanos|emqx|rabbitmq|nats|kubeblocks|goldilocks|beyla|k8s-monitoring|kube-prometheus|tempo|grafana|alertmanager|lgtm)([^A-Za-z0-9]|$)'
 HISTORY='removed|historical|went with|gone since|replaces|replaced|teardown|superseded'
 BARE_REF='(^|[^A-Za-z0-9_./])#[0-9]+([^0-9A-Za-z_]|$)'
-DATE='20[0-9][0-9]-[0-1][0-9]'
+DATE='20[0-9][0-9]-[0-1][0-9]([^0-9]|$)'
 BANNED_KEYS='temperature permission bash tools maxSteps model steps'
 SKILL_MAX=6144
 

@@ -26,6 +26,7 @@ Most live landmines are already written down with their fingerprints — the REA
 | A Kustomization is stuck behind an in-flight health-check wait (annotate does nothing) | `reconcile-stuck` → `flux_unstick` |
 | A HelmRelease failing or stuck reconciling — or values "didn't land": check the values CM's `reconcile.fluxcd.io/watch: Enabled` label first; a frozen `lastAttemptedConfigDigest` on an unlabeled/legacy CM routes here | `helmrelease-stuck` |
 | Pods crashlooping / OOMKilled / exiting silently | `crashloop-investigation` |
+| Workloads missing VulnerabilityReports / a slow trivy-operator re-scan after a bump | `manifests/bases/scanning/README.md` scan-queue mechanics: the 24h TTL flood is expected; the startup-sync restart recovers silently-skipped scans (no dedicated skill) |
 | Need metrics, logs, or alert delivery evidence | `observability` |
 | Terraform plan shows unexpected replacements on untouched resources | `terraform-churn` |
 
