@@ -2,6 +2,12 @@
 
 Narrative log of the platform's evolution, newest first. Dated learnings, incident stories, and decision history live here; durable procedures live in `runbooks/local/`, timeless per-group decisions in `manifests/bases/*/README.md`, and landmines in `.agents/skills/`. Issue/PR references use the `cmdshift/platform#N` form.
 
+## 2026-11-25 (CVE bump 4/4: flux2 chart 2.19.0 → 2.20.0 — kustomize-controller brotli CVE fixed — cmdshift/platform#262)
+
+- **Both pins moved in lockstep** (`flux.helm-release.yaml` + `terraform` `flux_chart_version`) and the terraform plan came back **No changes** — the terraform-managed `helm_release.flux` converged with flux's own reconcile of the new chart version, so the cluster and the bootstrap pin agree without an apply. The full acceptance is surviving a fresh rebuild (the terraform pin feeds bootstrap; pending).
+- **Chart 2.20.0 is the LOWEST fixed chart**: kustomize-controller v1.9.6 is NOT fixed (built 2026-10-01 on pre-bump alpine 3.23 — vulnerable brotli-libs), chart 2.19.1 ships v1.9.5 (unfixed), and no chart ships v1.9.6 — the fix boundary is the alpine brotli bump of 2026-10-22, first crossed by the v1.10.x image builds (v1.10.1 verified fixed by extracting `/lib/apk/db/installed` from the published image; flux SBOMs are Go-only and hide base-image packages). Trap written into the flux README — "controller ≥ vX" release-date reasoning doesn't survive base-image rebuilds.
+- **securityContext replace-not-merge re-verified on the rendered output before reconcile**: all four controllers render the full hardened container context (caps drop ALL, readOnlyRootFilesystem, 65534, seccomp RuntimeDefault) byte-identical to the pre-bump live state; the live check post-upgrade matches.
+
 ## 2026-11-25 (CVE bump 3/4: strimzi-kafka-operator chart 1.2.0 → 1.3.1 — ca-certificates + java-21-openjdk CVEs fixed — cmdshift/platform#262)
 
 - **Skipped 1.3.0 deliberately** — its image still carries both vulnerable packages (CVE-2026-114406 ca-certificates, CVE-2026-114938 java-21-openjdk); 1.3.1 is the first fixed chart (SBOM + live `rpm -q` verified in the research). 1.2.0 → 1.3.1 is schema-additive (CRDs, RBAC additions; the unused kaniko values block was removed upstream); repo values set only `resources` → compatible, no CRs exist.

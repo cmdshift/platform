@@ -5,5 +5,5 @@ variable "cilium_chart_version" {
 
 variable "flux_chart_version" {
   type    = string
-  default = "2.19.0"
+  default = "2.20.0"
 }
